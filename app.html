@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Navigation -->
     <nav class="nav">
         <div class="nav-container">
             <a href="index.html" class="logo">
@@ -23,14 +22,11 @@
         </div>
     </nav>
 
-    <!-- App Layout -->
     <div class="app-layout">
-        <!-- Header with Search & Filters -->
         <header class="app-header">
             <div class="app-header-container">
                 <h1 class="app-title">COLA Database</h1>
                 
-                <!-- Search Bar -->
                 <div class="search-bar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
@@ -39,55 +35,47 @@
                     <input type="text" id="search-input" placeholder="Search brands, producers, TTB IDs...">
                 </div>
                 
-                <!-- Filters -->
                 <div class="filters">
-                    <select class="filter-select" id="filter-state">
-                        <option value="">All States</option>
+                    <select class="filter-select" id="filter-category">
+                        <option value="">All Categories</option>
                     </select>
                     
-                    <select class="filter-select" id="filter-class">
-                        <option value="">All Class/Types</option>
+                    <select class="filter-select" id="filter-subcategory">
+                        <option value="">All Subcategories</option>
+                    </select>
+                    
+                    <select class="filter-select" id="filter-state">
+                        <option value="">All States</option>
                     </select>
                     
                     <select class="filter-select" id="filter-status">
                         <option value="">All Statuses</option>
                     </select>
                     
-                    <input type="date" class="filter-select" id="filter-date-from" placeholder="From Date">
-                    <input type="date" class="filter-select" id="filter-date-to" placeholder="To Date">
+                    <input type="date" class="filter-select" id="filter-date-from" title="From Date">
+                    <input type="date" class="filter-select" id="filter-date-to" title="To Date">
                     
-                    <button class="btn btn-secondary" id="clear-filters">Clear Filters</button>
+                    <button class="btn-reset" id="reset-filters">Reset</button>
                 </div>
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="app-content">
             <div class="app-content-container">
-                <!-- Results Info -->
                 <div class="results-info">
                     <span id="results-count">Loading...</span>
-                    <div class="saved-searches">
-                        <button class="btn btn-secondary" id="save-search-btn" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-                            Save This Search
-                        </button>
-                    </div>
+                    <button class="btn btn-outline btn-small" id="save-search-btn">Save Search</button>
                 </div>
 
-                <!-- Results Table -->
                 <div id="results-container">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                    </div>
+                    <div class="loading"><div class="loading-spinner"></div></div>
                 </div>
 
-                <!-- Pagination -->
                 <div class="pagination" id="pagination"></div>
             </div>
         </main>
     </div>
 
-    <!-- Detail Modal -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -101,9 +89,7 @@
                     </svg>
                 </button>
             </div>
-            <div class="modal-body" id="modal-body">
-                <!-- Dynamic content -->
-            </div>
+            <div class="modal-body" id="modal-body"></div>
         </div>
     </div>
 
