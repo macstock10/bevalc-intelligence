@@ -147,28 +147,137 @@ async function loadData() {
 }
 
 function populateFilters(filters) {
-    // States
+    // States - extract just state abbreviations/names, not full addresses
     if (filters.states) {
-        filters.states.sort().forEach(state => {
-            if (state) {
-                const option = document.createElement('option');
-                option.value = state;
-                option.textContent = state;
-                elements.filterState.appendChild(option);
+        const cleanedStates = new Set();
+        
+        filters.states.forEach(state => {
+            if (!state) return;
+            
+            // Extract state abbreviation or name from various formats
+            // Format could be "CITY, ST 12345" or just "STATE" or "ST"
+            const stateAbbreviations = {
+                'ALABAMA': 'AL', 'ALASKA': 'AK', 'ARIZONA': 'AZ', 'ARKANSAS': 'AR',
+                'CALIFORNIA': 'CA', 'COLORADO': 'CO', 'CONNECTICUT': 'CT', 'DELAWARE': 'DE',
+                'FLORIDA': 'FL', 'GEORGIA': 'GA', 'HAWAII': 'HI', 'IDAHO': 'ID',
+                'ILLINOIS': 'IL', 'INDIANA': 'IN', 'IOWA': 'IA', 'KANSAS': 'KS',
+                'KENTUCKY': 'KY', 'LOUISIANA': 'LA', 'MAINE': 'ME', 'MARYLAND': 'MD',
+                'MASSACHUSETTS': 'MA', 'MICHIGAN': 'MI', 'MINNESOTA': 'MN', 'MISSISSIPPI': 'MS',
+                'MISSOURI': 'MO', 'MONTANA': 'MT', 'NEBRASKA': 'NE', 'NEVADA': 'NV',
+                'NEW HAMPSHIRE': 'NH', 'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY',
+                'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', 'OHIO': 'OH', 'OKLAHOMA': 'OK',
+                'OREGON': 'OR', 'PENNSYLVANIA': 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC',
+                'SOUTH DAKOTA': 'SD', 'TENNESSEE': 'TN', 'TEXAS': 'TX', 'UTAH': 'UT',
+                'VERMONT': 'VT', 'VIRGINIA': 'VA', 'WASHINGTON': 'WA', 'WEST VIRGINIA': 'WV',
+                'WISCONSIN': 'WI', 'WYOMING': 'WY', 'DISTRICT OF COLUMBIA': 'DC',
+                'PUERTO RICO': 'PR', 'GUAM': 'GU', 'VIRGIN ISLANDS': 'VI'
+            };
+            
+            const abbrevToName = {};
+            Object.entries(stateAbbreviations).forEach(([name, abbr]) => {
+                abbrevToName[abbr] = name;
+            });
+            
+            // Try to extract state from the string
+            const upperState = state.toUpperCase();
+            
+            // Check if it's a full state name
+            if (stateAbbreviations[upperState]) {
+                cleanedStates.add(upperState);
+                return;
             }
+            
+            // Check if it ends with a state abbreviation (like "CITY, CA 12345")
+            const match = upperState.match(/,?\s*([A-Z]{2})\s*\d{5}/);
+            if (match && abbrevToName[match[1]]) {
+                cleanedStates.add(abbrevToName[match[1]]);
+                return;
+            }
+            
+            // Check if it's just a 2-letter abbreviation
+            if (upperState.length === 2 && abbrevToName[upperState]) {
+                cleanedStates.add(abbrevToName[upperState]);
+            }
+        });
+        
+        // Sort and add to dropdown
+        Array.from(cleanedStates).sort().forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state.charAt(0) + state.slice(1).toLowerCase();
+            elements.filterState.appendChild(option);
         });
     }
     
-    // Class/Types
+    // Class/Types - organize into categories
     if (filters.class_types) {
-        filters.class_types.sort().forEach(type => {
-            if (type) {
+        const categories = {
+            'Whiskey': ['BOURBON', 'RYE', 'WHISKEY', 'WHISKY', 'MALT', 'SCOTCH', 'SINGLE MALT'],
+            'Vodka': ['VODKA'],
+            'Tequila & Mezcal': ['TEQUILA', 'MEZCAL', 'AGAVE'],
+            'Rum': ['RUM'],
+            'Gin': ['GIN'],
+            'Brandy': ['BRANDY', 'COGNAC', 'ARMAGNAC', 'GRAPPA', 'PISCO'],
+            'Liqueurs & Cordials': ['LIQUEUR', 'CORDIAL', 'SCHNAPPS', 'AMARETTO', 'TRIPLE SEC'],
+            'Wine': ['WINE', 'CHAMPAGNE', 'SPARKLING', 'VERMOUTH', 'PORT', 'SHERRY', 'MADEIRA'],
+            'Beer & Malt': ['BEER', 'ALE', 'LAGER', 'STOUT', 'PORTER', 'MALT BEVERAGE', 'HARD SELTZER', 'CIDER'],
+            'Other Spirits': []
+        };
+        
+        const categorizedTypes = {};
+        const uncategorized = [];
+        
+        filters.class_types.forEach(type => {
+            if (!type) return;
+            
+            let found = false;
+            for (const [category, keywords] of Object.entries(categories)) {
+                if (keywords.some(kw => type.toUpperCase().includes(kw))) {
+                    if (!categorizedTypes[category]) {
+                        categorizedTypes[category] = [];
+                    }
+                    categorizedTypes[category].push(type);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                uncategorized.push(type);
+            }
+        });
+        
+        // Add categorized options with optgroups
+        Object.keys(categories).forEach(category => {
+            const types = categorizedTypes[category];
+            if (types && types.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = category;
+                
+                types.sort().forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    optgroup.appendChild(option);
+                });
+                
+                elements.filterClass.appendChild(optgroup);
+            }
+        });
+        
+        // Add uncategorized as "Other"
+        if (uncategorized.length > 0) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = 'Other';
+            
+            uncategorized.sort().forEach(type => {
                 const option = document.createElement('option');
                 option.value = type;
                 option.textContent = type;
-                elements.filterClass.appendChild(option);
-            }
-        });
+                optgroup.appendChild(option);
+            });
+            
+            elements.filterClass.appendChild(optgroup);
+        }
     }
     
     // Statuses
