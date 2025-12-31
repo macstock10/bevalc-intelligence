@@ -1,15 +1,22 @@
-/* BevAlc Intelligence - Auth */
+/* ============================================
+   BevAlc Intelligence - Auth / Email Gate
+   Works with Loops for email capture
+   ============================================ */
 
+// Configuration
 const CONFIG = {
     COOKIE_NAME: 'bevalc_access',
     COOKIE_DAYS: 365,
-    DATABASE_URL: 'app.html'
+    DATABASE_URL: 'app.html',
+    LANDING_URL: 'index.html'
 };
 
+// Check if user has access
 function hasAccess() {
     return getCookie(CONFIG.COOKIE_NAME) === 'granted';
 }
 
+// Get cookie value
 function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -17,99 +24,43 @@ function getCookie(name) {
     return null;
 }
 
+// Set cookie
 function setCookie(name, value, days) {
     const date = new Date();
     date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value}; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
+    const expires = `expires=${date.toUTCString()}`;
+    document.cookie = `${name}=${value}; ${expires}; path=/; SameSite=Lax`;
 }
 
-function storeLocally(data) {
-    try {
-        const existing = JSON.parse(localStorage.getItem('bevalc_signups') || '[]');
-        existing.push({ ...data, timestamp: new Date().toISOString() });
-        localStorage.setItem('bevalc_signups', JSON.stringify(existing));
-    } catch (e) {
-        console.error('Failed to store locally:', e);
-    }
-}
-
-function getStoredUser() {
-    try {
-        return JSON.parse(localStorage.getItem('bevalc_user') || 'null');
-    } catch (e) {
-        return null;
-    }
-}
-
-async function handleSignup(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const btnText = submitBtn.querySelector('.btn-text');
-    const btnLoading = submitBtn.querySelector('.btn-loading');
-    
-    const data = {
-        name: form.querySelector('#name').value.trim(),
-        email: form.querySelector('#email').value.trim(),
-        company: form.querySelector('#company')?.value.trim() || '',
-        source: window.location.href
-    };
-    
-    if (!data.name || !data.email) {
-        alert('Please fill in all required fields.');
-        return;
-    }
-    
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline-flex';
-    submitBtn.disabled = true;
-    
-    try {
-        storeLocally(data);
-        setCookie(CONFIG.COOKIE_NAME, 'granted', CONFIG.COOKIE_DAYS);
-        localStorage.setItem('bevalc_user', JSON.stringify({
-            name: data.name,
-            email: data.email,
-            company: data.company
-        }));
-        window.location.href = CONFIG.DATABASE_URL;
-    } catch (error) {
-        console.error('Signup error:', error);
-        alert('Something went wrong. Please try again.');
-        btnText.style.display = 'inline';
-        btnLoading.style.display = 'none';
-        submitBtn.disabled = false;
-    }
-}
-
-function handleQuickLogin() {
+// Grant access (called when user arrives from Loops welcome email)
+function grantAccess() {
     setCookie(CONFIG.COOKIE_NAME, 'granted', CONFIG.COOKIE_DAYS);
-    window.location.href = CONFIG.DATABASE_URL;
 }
 
+// Initialize
 document.addEventListener('DOMContentLoaded', function() {
-    const signupForm = document.getElementById('signup-form');
-    const quickLogin = document.getElementById('quick-login');
-    const quickLoginBtn = document.getElementById('quick-login-btn');
-    const quickLoginName = document.getElementById('quick-login-name');
+    // Check URL for access grant parameter
+    // When user clicks link in welcome email: app.html?access=granted
+    const urlParams = new URLSearchParams(window.location.search);
     
-    // Check for returning user
-    const storedUser = getStoredUser();
-    if (storedUser && storedUser.name) {
-        if (quickLogin) {
-            quickLogin.style.display = 'block';
-            quickLoginName.textContent = storedUser.name;
-        }
+    if (urlParams.get('access') === 'granted') {
+        // Grant access and clean up URL
+        grantAccess();
+        
+        // Remove the parameter from URL (cleaner)
+        window.history.replaceState({}, document.title, window.location.pathname);
     }
     
-    if (signupForm) {
-        signupForm.addEventListener('submit', handleSignup);
-    }
-    
-    if (quickLoginBtn) {
-        quickLoginBtn.addEventListener('click', handleQuickLogin);
+    // If on app.html without access, redirect to landing page
+    if (window.location.pathname.includes('app.html') && !hasAccess()) {
+        window.location.href = CONFIG.LANDING_URL;
     }
 });
 
-window.BevAlcAuth = { hasAccess, getCookie, setCookie, getStoredUser };
+// Export for use in other scripts
+window.BevAlcAuth = {
+    hasAccess,
+    getCookie,
+    setCookie,
+    grantAccess
+};
