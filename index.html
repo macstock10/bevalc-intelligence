@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BevAlc Intelligence | Competitive Intelligence for Beverage Alcohol</title>
+    <title>BevAlc Intelligence | Track Every Label. Spot Every Trend.</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Navigation -->
     <nav class="nav">
         <div class="nav-container">
             <a href="/" class="logo">
@@ -20,23 +21,27 @@
         </div>
     </nav>
 
+    <!-- Hero Section -->
     <section class="hero">
         <div class="hero-container">
             <p class="hero-eyebrow">Competitive Intelligence for Beverage Alcohol</p>
             <h1 class="hero-title">Track Every Label.<br><em>Spot Every Trend.</em></h1>
-            <p class="hero-subtitle">The most comprehensive database of TTB label approvals. See what competitors are launching, track new market entrants, and identify category trends.</p>
+            <p class="hero-subtitle">The most comprehensive database of TTB label approvals. See what competitors are launching, track new market entrants, and spot category trends before they hit shelves.</p>
+            
             <div class="hero-cta">
                 <a href="#access" class="btn btn-primary">Get Free Access</a>
                 <a href="#preview" class="btn btn-secondary">See Preview</a>
             </div>
         </div>
+        
         <div class="hero-gradient"></div>
     </section>
 
+    <!-- Stats Banner -->
     <section class="stats">
         <div class="stats-container">
             <div class="stat">
-                <span class="stat-number">2.3M+</span>
+                <span class="stat-number" data-count="2300000">2.3M+</span>
                 <span class="stat-label">Label Approvals</span>
             </div>
             <div class="stat-divider"></div>
@@ -52,11 +57,12 @@
             <div class="stat-divider"></div>
             <div class="stat">
                 <span class="stat-number">All 50</span>
-                <span class="stat-label">States</span>
+                <span class="stat-label">States Covered</span>
             </div>
         </div>
     </section>
 
+    <!-- Preview Section -->
     <section class="preview" id="preview">
         <div class="preview-container">
             <h2 class="section-title">See What's Inside</h2>
@@ -64,39 +70,84 @@
             
             <div class="preview-window">
                 <div class="preview-toolbar">
-                    <div class="preview-dots"><span></span><span></span><span></span></div>
+                    <div class="preview-dots">
+                        <span></span><span></span><span></span>
+                    </div>
                     <span class="preview-url">bevalcintelligence.com/database</span>
                 </div>
                 <div class="preview-content">
+                    <!-- Fake search bar -->
                     <div class="fake-search">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg class="fake-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"></circle>
                             <path d="m21 21-4.35-4.35"></path>
                         </svg>
-                        <span>Search brands, producers, TTB IDs...</span>
+                        <span>Search brands, producers, or TTB IDs...</span>
                     </div>
+                    
+                    <!-- Fake filters -->
                     <div class="fake-filters">
-                        <span class="fake-filter">Category ▾</span>
                         <span class="fake-filter">State ▾</span>
+                        <span class="fake-filter">Class/Type ▾</span>
                         <span class="fake-filter">Date Range ▾</span>
+                        <span class="fake-filter">Status ▾</span>
                     </div>
+                    
+                    <!-- Fake table - blurred -->
                     <div class="fake-table-wrapper">
                         <div class="fake-table-blur"></div>
                         <table class="fake-table">
                             <thead>
                                 <tr>
+                                    <th>TTB ID</th>
                                     <th>Brand Name</th>
-                                    <th>Category</th>
+                                    <th>Class/Type</th>
                                     <th>State</th>
-                                    <th>Date</th>
+                                    <th>Approval Date</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td>BUFFALO TRACE</td><td>Whiskey</td><td>Kentucky</td><td>12/22/2025</td><td><span class="status-badge">APPROVED</span></td></tr>
-                                <tr><td>CASA NOBLE</td><td>Tequila</td><td>California</td><td>12/22/2025</td><td><span class="status-badge">APPROVED</span></td></tr>
-                                <tr><td>GREY GOOSE</td><td>Vodka</td><td>New York</td><td>12/21/2025</td><td><span class="status-badge">APPROVED</span></td></tr>
-                                <tr><td>KENDALL-JACKSON</td><td>Wine</td><td>California</td><td>12/21/2025</td><td><span class="status-badge">APPROVED</span></td></tr>
+                                <tr>
+                                    <td>25106001000972</td>
+                                    <td>IMAGERY</td>
+                                    <td>TABLE RED WINE</td>
+                                    <td>CALIFORNIA</td>
+                                    <td>12/22/2025</td>
+                                    <td><span class="status-badge">APPROVED</span></td>
+                                </tr>
+                                <tr>
+                                    <td>25282001000092</td>
+                                    <td>SANTO LLANTO</td>
+                                    <td>TEQUILA</td>
+                                    <td>TEXAS</td>
+                                    <td>12/22/2025</td>
+                                    <td><span class="status-badge">APPROVED</span></td>
+                                </tr>
+                                <tr>
+                                    <td>25301001000212</td>
+                                    <td>HIGHLAND RESERVE</td>
+                                    <td>WHISKEY</td>
+                                    <td>KENTUCKY</td>
+                                    <td>12/22/2025</td>
+                                    <td><span class="status-badge">APPROVED</span></td>
+                                </tr>
+                                <tr>
+                                    <td>25297001000033</td>
+                                    <td>BLUE COAST</td>
+                                    <td>VODKA</td>
+                                    <td>NEW YORK</td>
+                                    <td>12/21/2025</td>
+                                    <td><span class="status-badge">APPROVED</span></td>
+                                </tr>
+                                <tr>
+                                    <td>25286001000032</td>
+                                    <td>GOLDEN OAK</td>
+                                    <td>BRANDY</td>
+                                    <td>CALIFORNIA</td>
+                                    <td>12/21/2025</td>
+                                    <td><span class="status-badge">APPROVED</span></td>
+                                </tr>
                             </tbody>
                         </table>
                         <div class="preview-unlock">
@@ -109,6 +160,7 @@
         </div>
     </section>
 
+    <!-- Features Section -->
     <section class="features">
         <div class="features-container">
             <h2 class="section-title">Built for Beverage Alcohol Professionals</h2>
@@ -123,17 +175,21 @@
                         </svg>
                     </div>
                     <h3>Powerful Search</h3>
-                    <p>Find any label by brand name, producer, or TTB ID. Filter by category, state, date range, and status.</p>
+                    <p>Find any label by brand name, producer, TTB ID, or fanciful name. Filter by state, class/type, date range, and status.</p>
                 </div>
+                
                 <div class="feature">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M12 20V10M18 20V4M6 20v-4"></path>
+                            <path d="M12 20V10"></path>
+                            <path d="M18 20V4"></path>
+                            <path d="M6 20v-4"></path>
                         </svg>
                     </div>
                     <h3>Trend Analysis</h3>
                     <p>Track category growth, spot emerging brands, and monitor competitor launch activity over time.</p>
                 </div>
+                
                 <div class="feature">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -143,8 +199,9 @@
                         </svg>
                     </div>
                     <h3>Label Images</h3>
-                    <p>View actual label artwork submitted to TTB. See how competitors are positioning their products.</p>
+                    <p>View actual label artwork submitted to TTB. See how competitors are positioning and designing their products.</p>
                 </div>
+                
                 <div class="feature">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -154,6 +211,7 @@
                     <h3>Daily Updates</h3>
                     <p>New approvals added every day. Never miss a competitor launch or market entrant.</p>
                 </div>
+                
                 <div class="feature">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -163,8 +221,9 @@
                         </svg>
                     </div>
                     <h3>Save Searches</h3>
-                    <p>Create saved searches for your category, competitors, or regions. Quick access to what matters.</p>
+                    <p>Create saved searches for your category, competitors, or regions. Quick access to what matters most.</p>
                 </div>
+                
                 <div class="feature">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -179,49 +238,54 @@
         </div>
     </section>
 
+    <!-- CTA / Signup Section -->
     <section class="signup" id="access">
         <div class="signup-container">
             <div class="signup-content">
                 <h2>Get Free Access</h2>
-                <p>Join beverage alcohol professionals using BevAlc Intelligence for competitive research.</p>
+                <p>Join thousands of beverage alcohol professionals using BevAlc Intelligence for competitive research.</p>
                 
-                <form class="signup-form" id="signup-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="name">Name *</label>
-                            <input type="text" id="name" name="name" required placeholder="Your name">
-                        </div>
-                        <div class="form-group">
+                <!-- Loops Signup Form -->
+                <div class="newsletter-form-container">
+                    <form class="newsletter-form signup-form" action="https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077" method="POST">
+                        <div class="form-group" style="width: 100%;">
                             <label for="email">Email *</label>
-                            <input type="email" id="email" name="email" required placeholder="you@company.com">
+                            <input class="newsletter-form-input" type="email" name="newsletter-form-input" required placeholder="you@company.com" style="width: 100%; padding: 0.875rem 1rem; font-size: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
                         </div>
+                        <button type="submit" class="newsletter-form-button btn btn-primary btn-full">
+                            <span class="btn-text">Get Free Access</span>
+                        </button>
+                        <button type="button" class="newsletter-loading-button btn btn-primary btn-full" style="display: none;">
+                            <span class="btn-text">Please wait...</span>
+                        </button>
+                    </form>
+                    <div class="newsletter-success" style="display: none; align-items: center; justify-content: center; width: 100%; padding: 1rem;">
+                        <p class="newsletter-success-message" style="color: #059669; font-size: 1rem;">Thanks! Check your email to confirm your access.</p>
                     </div>
-                    <div class="form-group">
-                        <label for="company">Company <span class="optional">(optional)</span></label>
-                        <input type="text" id="company" name="company" placeholder="Your company">
+                    <div class="newsletter-error" style="display: none; align-items: center; justify-content: center; width: 100%;">
+                        <p class="newsletter-error-message" style="color: #dc2626; font-size: 0.875rem;">Oops! Something went wrong, please try again</p>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-full">
-                        <span class="btn-text">Access Database</span>
-                        <span class="btn-loading" style="display: none;">
-                            <svg class="spinner" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
-                            </svg>
-                        </span>
+                    <button class="newsletter-back-button" type="button" style="color:#6b7280;font-size:14px;margin:10px auto;text-align:center;display:none;background:transparent;border:none;cursor:pointer">
+                        ← Back
                     </button>
-                </form>
-                <p class="signup-note">Free forever. No credit card required.</p>
+                </div>
                 
-                <div class="quick-login" id="quick-login" style="display: none;">
-                    <p>Welcome back!</p>
-                    <button class="quick-login-btn" id="quick-login-btn">
-                        <span>Continue as <strong id="quick-login-name"></strong></span>
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                    </button>
+                <p class="signup-note">Free forever. No credit card required.</p>
+            </div>
+            
+            <div class="signup-graphic">
+                <div class="graphic-card">
+                    <div class="graphic-icon">◆</div>
+                    <div class="graphic-text">
+                        <span class="graphic-number">526</span>
+                        <span class="graphic-label">New labels this week</span>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- Footer -->
     <footer class="footer">
         <div class="footer-container">
             <div class="footer-brand">
@@ -234,5 +298,105 @@
     </footer>
 
     <script src="auth.js"></script>
+    
+    <!-- Loops Form Script -->
+    <script>
+    function submitHandler(event) {
+      event.preventDefault();
+      var container = event.target.parentNode;
+      var form = container.querySelector(".newsletter-form");
+      var formInput = container.querySelector(".newsletter-form-input");
+      var success = container.querySelector(".newsletter-success");
+      var errorContainer = container.querySelector(".newsletter-error");
+      var errorMessage = container.querySelector(".newsletter-error-message");
+      var backButton = container.querySelector(".newsletter-back-button");
+      var submitButton = container.querySelector(".newsletter-form-button");
+      var loadingButton = container.querySelector(".newsletter-loading-button");
+
+      const rateLimit = () => {
+        errorContainer.style.display = "flex";
+        errorMessage.innerText = "Too many signups, please try again in a little while";
+        submitButton.style.display = "none";
+        formInput.style.display = "none";
+        backButton.style.display = "block";
+      }
+
+      var time = new Date();
+      var timestamp = time.valueOf();
+      var previousTimestamp = localStorage.getItem("loops-form-timestamp");
+
+      if (previousTimestamp && Number(previousTimestamp) + 60000 > timestamp) {
+        rateLimit();
+        return;
+      }
+      localStorage.setItem("loops-form-timestamp", timestamp);
+
+      submitButton.style.display = "none";
+      loadingButton.style.display = "flex";
+
+      var formBody = "userGroup=&mailingLists=&email=" + encodeURIComponent(formInput.value);
+
+      fetch(event.target.action, {
+        method: "POST",
+        body: formBody,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      })
+        .then((res) => [res.ok, res.json(), res])
+        .then(([ok, dataPromise, res]) => {
+          if (ok) {
+            success.style.display = "flex";
+            form.reset();
+          } else {
+            dataPromise.then(data => {
+              errorContainer.style.display = "flex";
+              errorMessage.innerText = data.message ? data.message : res.statusText;
+            });
+          }
+        })
+        .catch(error => {
+          if (error.message === "Failed to fetch") {
+            rateLimit();
+            return;
+          }
+          errorContainer.style.display = "flex";
+          if (error.message) errorMessage.innerText = error.message;
+          localStorage.setItem("loops-form-timestamp", '');
+        })
+        .finally(() => {
+          formInput.style.display = "none";
+          loadingButton.style.display = "none";
+          backButton.style.display = "block";
+        });
+    }
+    
+    function resetFormHandler(event) {
+      var container = event.target.parentNode;
+      var formInput = container.querySelector(".newsletter-form-input");
+      var success = container.querySelector(".newsletter-success");
+      var errorContainer = container.querySelector(".newsletter-error");
+      var errorMessage = container.querySelector(".newsletter-error-message");
+      var backButton = container.querySelector(".newsletter-back-button");
+      var submitButton = container.querySelector(".newsletter-form-button");
+
+      success.style.display = "none";
+      errorContainer.style.display = "none";
+      errorMessage.innerText = "Oops! Something went wrong, please try again";
+      backButton.style.display = "none";
+      formInput.style.display = "flex";
+      submitButton.style.display = "flex";
+    }
+
+    var formContainers = document.getElementsByClassName("newsletter-form-container");
+    for (var i = 0; i < formContainers.length; i++) {
+      var formContainer = formContainers[i];
+      var handlersAdded = formContainer.classList.contains('newsletter-handlers-added');
+      if (handlersAdded) continue;
+      formContainer.querySelector(".newsletter-form").addEventListener("submit", submitHandler);
+      formContainer.querySelector(".newsletter-back-button").addEventListener("click", resetFormHandler);
+      formContainer.classList.add("newsletter-handlers-added");
+    }
+    </script>
 </body>
 </html>
