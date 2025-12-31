@@ -1,66 +1,63 @@
-/* BevAlc Intelligence - Database App */
+/* ============================================
+   BevAlc Intelligence - Database App
+   ============================================ */
 
+// State
 let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 50;
 
-// Category mapping
-const CATEGORY_MAP = {
-    'Whiskey': ['BOURBON', 'RYE', 'WHISKEY', 'WHISKY', 'MALT WHISKEY', 'MALT WHISKY', 'SCOTCH', 'SINGLE MALT', 'STRAIGHT'],
-    'Vodka': ['VODKA'],
-    'Tequila & Mezcal': ['TEQUILA', 'MEZCAL', 'AGAVE'],
-    'Rum': ['RUM'],
-    'Gin': ['GIN'],
-    'Brandy': ['BRANDY', 'COGNAC', 'ARMAGNAC', 'GRAPPA', 'PISCO'],
-    'Liqueurs': ['LIQUEUR', 'CORDIAL', 'SCHNAPPS', 'AMARETTO', 'TRIPLE SEC', 'CREAM'],
-    'Wine': ['WINE', 'CHAMPAGNE', 'SPARKLING', 'VERMOUTH', 'PORT', 'SHERRY', 'MADEIRA', 'SANGRIA', 'TABLE RED', 'TABLE WHITE', 'ROSE'],
-    'Beer & Malt': ['BEER', 'ALE', 'LAGER', 'STOUT', 'PORTER', 'MALT BEVERAGE', 'HARD', 'CIDER', 'SELTZER']
+// DOM Elements
+const elements = {
+    searchInput: null,
+    filterState: null,
+    filterClass: null,
+    filterStatus: null,
+    filterDateFrom: null,
+    filterDateTo: null,
+    clearFilters: null,
+    resultsCount: null,
+    resultsContainer: null,
+    pagination: null,
+    modalOverlay: null,
+    modalTitle: null,
+    modalSubtitle: null,
+    modalBody: null,
+    modalClose: null,
+    saveSearchBtn: null,
+    navUser: null
 };
 
-// State abbreviation map
-const STATE_MAP = {
-    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
-    'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
-    'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
-    'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
-    'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
-    'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
-    'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
-    'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
-    'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming',
-    'DC': 'District of Columbia', 'PR': 'Puerto Rico', 'GU': 'Guam', 'VI': 'Virgin Islands'
-};
-
-const STATE_NAME_TO_ABBR = {};
-Object.entries(STATE_MAP).forEach(([abbr, name]) => {
-    STATE_NAME_TO_ABBR[name.toUpperCase()] = abbr;
-});
-
-const elements = {};
-
+// Initialize
 document.addEventListener('DOMContentLoaded', async function() {
+    // Check access
     if (!window.BevAlcAuth?.hasAccess()) {
         window.location.href = 'index.html';
         return;
     }
     
+    // Cache DOM elements
     cacheElements();
+    
+    // Show user name
     showUserName();
+    
+    // Set up event listeners
     setupEventListeners();
+    
+    // Load data
     await loadData();
 });
 
 function cacheElements() {
     elements.searchInput = document.getElementById('search-input');
-    elements.filterCategory = document.getElementById('filter-category');
-    elements.filterSubcategory = document.getElementById('filter-subcategory');
     elements.filterState = document.getElementById('filter-state');
+    elements.filterClass = document.getElementById('filter-class');
     elements.filterStatus = document.getElementById('filter-status');
     elements.filterDateFrom = document.getElementById('filter-date-from');
     elements.filterDateTo = document.getElementById('filter-date-to');
-    elements.resetFilters = document.getElementById('reset-filters');
+    elements.clearFilters = document.getElementById('clear-filters');
     elements.resultsCount = document.getElementById('results-count');
     elements.resultsContainer = document.getElementById('results-container');
     elements.pagination = document.getElementById('pagination');
@@ -74,36 +71,49 @@ function cacheElements() {
 }
 
 function showUserName() {
-    const user = window.BevAlcAuth?.getStoredUser();
-    if (user?.name && elements.navUser) {
-        elements.navUser.querySelector('.user-name').textContent = user.name;
+    try {
+        const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+        if (user.name) {
+            elements.navUser.querySelector('.user-name').textContent = user.name;
+        }
+    } catch (e) {
+        console.error('Failed to get user:', e);
     }
 }
 
 function setupEventListeners() {
+    // Search with debounce
     let searchTimeout;
     elements.searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => { currentPage = 1; applyFilters(); }, 300);
+        searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            applyFilters();
+        }, 300);
     });
     
-    elements.filterCategory.addEventListener('change', () => { 
-        currentPage = 1; 
-        updateSubcategoryOptions();
-        applyFilters(); 
-    });
-    elements.filterSubcategory.addEventListener('change', () => { currentPage = 1; applyFilters(); });
+    // Filters
     elements.filterState.addEventListener('change', () => { currentPage = 1; applyFilters(); });
+    elements.filterClass.addEventListener('change', () => { currentPage = 1; applyFilters(); });
     elements.filterStatus.addEventListener('change', () => { currentPage = 1; applyFilters(); });
     elements.filterDateFrom.addEventListener('change', () => { currentPage = 1; applyFilters(); });
     elements.filterDateTo.addEventListener('change', () => { currentPage = 1; applyFilters(); });
     
-    elements.resetFilters.addEventListener('click', resetAllFilters);
+    // Clear filters
+    elements.clearFilters.addEventListener('click', clearAllFilters);
+    
+    // Modal
     elements.modalClose.addEventListener('click', closeModal);
     elements.modalOverlay.addEventListener('click', (e) => {
         if (e.target === elements.modalOverlay) closeModal();
     });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    
+    // Escape key closes modal
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModal();
+    });
+    
+    // Save search
     elements.saveSearchBtn.addEventListener('click', saveCurrentSearch);
 }
 
@@ -113,14 +123,14 @@ async function loadData() {
         if (!response.ok) throw new Error('Failed to load data');
         
         const data = await response.json();
-        allData = (data.colas || []).map(cola => ({
-            ...cola,
-            category: getCategory(cola.class_type_code),
-            cleanState: extractState(cola.state)
-        }));
+        allData = data.colas || [];
         
-        populateFilters();
+        // Populate filter dropdowns
+        populateFilters(data.filters || {});
+        
+        // Initial display
         applyFilters();
+        
     } catch (error) {
         console.error('Failed to load data:', error);
         elements.resultsContainer.innerHTML = `
@@ -130,115 +140,54 @@ async function loadData() {
                     <path d="M12 8v4M12 16h.01"></path>
                 </svg>
                 <h3>Failed to load data</h3>
-                <p>Please make sure colas.json exists.</p>
+                <p>Please make sure colas.json exists in the web folder.</p>
             </div>
         `;
     }
 }
 
-function getCategory(classType) {
-    if (!classType) return 'Other';
-    const upper = classType.toUpperCase();
-    
-    for (const [category, keywords] of Object.entries(CATEGORY_MAP)) {
-        if (keywords.some(kw => upper.includes(kw))) {
-            return category;
-        }
-    }
-    return 'Other';
-}
-
-function extractState(stateStr) {
-    if (!stateStr) return '';
-    const upper = stateStr.toUpperCase();
-    
-    // Check for state abbreviation pattern like "City, ST 12345"
-    const match = upper.match(/,\s*([A-Z]{2})\s*\d{5}/);
-    if (match && STATE_MAP[match[1]]) {
-        return STATE_MAP[match[1]];
-    }
-    
-    // Check if it starts with a state name
-    for (const [name, abbr] of Object.entries(STATE_NAME_TO_ABBR)) {
-        if (upper.startsWith(name)) {
-            return STATE_MAP[abbr];
-        }
-    }
-    
-    // Check if it's just an abbreviation
-    if (upper.length === 2 && STATE_MAP[upper]) {
-        return STATE_MAP[upper];
-    }
-    
-    // Try to find any state abbreviation in the string
-    for (const abbr of Object.keys(STATE_MAP)) {
-        const regex = new RegExp(`\\b${abbr}\\b`);
-        if (regex.test(upper)) {
-            return STATE_MAP[abbr];
-        }
-    }
-    
-    return stateStr;
-}
-
-function populateFilters() {
-    // Categories
-    const categories = [...new Set(allData.map(c => c.category))].sort();
-    categories.forEach(cat => {
-        if (cat) {
-            const opt = document.createElement('option');
-            opt.value = cat;
-            opt.textContent = cat;
-            elements.filterCategory.appendChild(opt);
-        }
-    });
-    
+function populateFilters(filters) {
     // States
-    const states = [...new Set(allData.map(c => c.cleanState).filter(s => s && s.length > 2))].sort();
-    states.forEach(state => {
-        const opt = document.createElement('option');
-        opt.value = state;
-        opt.textContent = state;
-        elements.filterState.appendChild(opt);
-    });
+    if (filters.states) {
+        filters.states.sort().forEach(state => {
+            if (state) {
+                const option = document.createElement('option');
+                option.value = state;
+                option.textContent = state;
+                elements.filterState.appendChild(option);
+            }
+        });
+    }
+    
+    // Class/Types
+    if (filters.class_types) {
+        filters.class_types.sort().forEach(type => {
+            if (type) {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                elements.filterClass.appendChild(option);
+            }
+        });
+    }
     
     // Statuses
-    const statuses = [...new Set(allData.map(c => c.status).filter(Boolean))].sort();
-    statuses.forEach(status => {
-        const opt = document.createElement('option');
-        opt.value = status;
-        opt.textContent = status;
-        elements.filterStatus.appendChild(opt);
-    });
-    
-    // Initial subcategory population
-    updateSubcategoryOptions();
-}
-
-function updateSubcategoryOptions() {
-    const selectedCategory = elements.filterCategory.value;
-    elements.filterSubcategory.innerHTML = '<option value="">All Subcategories</option>';
-    
-    let subcategories;
-    if (selectedCategory) {
-        subcategories = [...new Set(allData.filter(c => c.category === selectedCategory).map(c => c.class_type_code).filter(Boolean))].sort();
-    } else {
-        subcategories = [...new Set(allData.map(c => c.class_type_code).filter(Boolean))].sort();
+    if (filters.statuses) {
+        filters.statuses.sort().forEach(status => {
+            if (status) {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                elements.filterStatus.appendChild(option);
+            }
+        });
     }
-    
-    subcategories.forEach(sub => {
-        const opt = document.createElement('option');
-        opt.value = sub;
-        opt.textContent = sub;
-        elements.filterSubcategory.appendChild(opt);
-    });
 }
 
 function applyFilters() {
     const search = elements.searchInput.value.toLowerCase().trim();
-    const category = elements.filterCategory.value;
-    const subcategory = elements.filterSubcategory.value;
     const state = elements.filterState.value;
+    const classType = elements.filterClass.value;
     const status = elements.filterStatus.value;
     const dateFrom = elements.filterDateFrom.value;
     const dateTo = elements.filterDateTo.value;
@@ -246,31 +195,39 @@ function applyFilters() {
     filteredData = allData.filter(cola => {
         // Search
         if (search) {
-            const fields = [cola.brand_name, cola.fanciful_name, cola.ttb_id, cola.company_name, cola.class_type_code]
-                .map(f => (f || '').toLowerCase());
-            if (!fields.some(f => f.includes(search))) return false;
+            const searchFields = [
+                cola.brand_name,
+                cola.fanciful_name,
+                cola.ttb_id,
+                cola.company_name,
+                cola.class_type_code,
+                cola.origin_code,
+                cola.grape_varietal
+            ].map(f => (f || '').toLowerCase());
+            
+            if (!searchFields.some(f => f.includes(search))) {
+                return false;
+            }
         }
         
-        // Category
-        if (category && cola.category !== category) return false;
+        // State filter
+        if (state && cola.state !== state) return false;
         
-        // Subcategory
-        if (subcategory && cola.class_type_code !== subcategory) return false;
+        // Class/Type filter
+        if (classType && cola.class_type_code !== classType) return false;
         
-        // State
-        if (state && cola.cleanState !== state) return false;
-        
-        // Status
+        // Status filter
         if (status && cola.status !== status) return false;
         
         // Date filters
         if (dateFrom && cola.approval_date) {
-            const d = parseDate(cola.approval_date);
-            if (d && d < new Date(dateFrom)) return false;
+            const approvalDate = parseDate(cola.approval_date);
+            if (approvalDate && approvalDate < new Date(dateFrom)) return false;
         }
+        
         if (dateTo && cola.approval_date) {
-            const d = parseDate(cola.approval_date);
-            if (d && d > new Date(dateTo)) return false;
+            const approvalDate = parseDate(cola.approval_date);
+            if (approvalDate && approvalDate > new Date(dateTo)) return false;
         }
         
         return true;
@@ -282,16 +239,21 @@ function applyFilters() {
 
 function parseDate(dateStr) {
     if (!dateStr) return null;
-    let match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (match) return new Date(match[3], match[1] - 1, match[2]);
-    match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return new Date(match[1], match[2] - 1, match[3]);
+    
+    // Handle MM/DD/YYYY format
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        return new Date(parts[2], parts[0] - 1, parts[1]);
+    }
+    
+    // Try ISO format
     return new Date(dateStr);
 }
 
 function renderResults() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const pageData = filteredData.slice(start, start + ITEMS_PER_PAGE);
+    const end = start + ITEMS_PER_PAGE;
+    const pageData = filteredData.slice(start, end);
     
     elements.resultsCount.textContent = `${filteredData.length.toLocaleString()} results`;
     
@@ -311,15 +273,15 @@ function renderResults() {
     
     const table = document.createElement('table');
     table.className = 'results-table';
+    
     table.innerHTML = `
         <thead>
             <tr>
                 <th>TTB ID</th>
                 <th>Brand Name</th>
                 <th>Fanciful Name</th>
-                <th>Category</th>
-                <th>Subcategory</th>
-                <th>State</th>
+                <th>Class/Type</th>
+                <th>Origin</th>
                 <th>Approval Date</th>
                 <th>Status</th>
             </tr>
@@ -330,9 +292,8 @@ function renderResults() {
                     <td>${cola.ttb_id || '-'}</td>
                     <td>${cola.brand_name || '-'}</td>
                     <td>${cola.fanciful_name || '-'}</td>
-                    <td>${cola.category || '-'}</td>
                     <td>${cola.class_type_code || '-'}</td>
-                    <td>${cola.cleanState || '-'}</td>
+                    <td>${cola.origin_code || '-'}</td>
                     <td>${cola.approval_date || '-'}</td>
                     <td class="status-${(cola.status || '').toLowerCase()}">${cola.status || '-'}</td>
                 </tr>
@@ -340,9 +301,11 @@ function renderResults() {
         </tbody>
     `;
     
+    // Add click handlers
     table.querySelectorAll('tbody tr').forEach(row => {
         row.addEventListener('click', () => {
-            const cola = allData.find(c => c.ttb_id === row.dataset.ttbId);
+            const ttbId = row.dataset.ttbId;
+            const cola = allData.find(c => c.ttb_id === ttbId);
             if (cola) openModal(cola);
         });
     });
@@ -353,14 +316,25 @@ function renderResults() {
 
 function renderPagination() {
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-    if (totalPages <= 1) { elements.pagination.innerHTML = ''; return; }
     
-    let html = `<button ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">← Prev</button>`;
+    if (totalPages <= 1) {
+        elements.pagination.innerHTML = '';
+        return;
+    }
     
+    let html = '';
+    
+    // Previous button
+    html += `<button ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">← Prev</button>`;
+    
+    // Page numbers
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
     
     if (startPage > 1) {
         html += `<button data-page="1">1</button>`;
@@ -376,9 +350,12 @@ function renderPagination() {
         html += `<button data-page="${totalPages}">${totalPages}</button>`;
     }
     
+    // Next button
     html += `<button ${currentPage === totalPages ? 'disabled' : ''} data-page="${currentPage + 1}">Next →</button>`;
     
     elements.pagination.innerHTML = html;
+    
+    // Add click handlers
     elements.pagination.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', () => {
             const page = parseInt(btn.dataset.page);
@@ -395,50 +372,61 @@ function openModal(cola) {
     elements.modalTitle.textContent = cola.brand_name || 'Unknown Brand';
     elements.modalSubtitle.textContent = `TTB ID: ${cola.ttb_id}`;
     
+    // Core fields
     const fields = [
         { label: 'Status', value: cola.status },
         { label: 'Fanciful Name', value: cola.fanciful_name },
-        { label: 'Category', value: cola.category },
-        { label: 'Subcategory', value: cola.class_type_code },
-        { label: 'Origin', value: cola.origin_code },
+        { label: 'Class/Type Code', value: cola.class_type_code },
+        { label: 'Origin Code', value: cola.origin_code },
         { label: 'Type of Application', value: cola.type_of_application },
         { label: 'Approval Date', value: cola.approval_date },
         { label: 'Vendor Code', value: cola.vendor_code },
         { label: 'Serial Number', value: cola.serial_number },
-        { label: 'Plant Registry', value: cola.plant_registry },
-        { label: 'State', value: cola.cleanState },
+        { label: 'Total Bottle Capacity', value: cola.total_bottle_capacity },
+        { label: 'Formula', value: cola.formula },
+        { label: 'For Sale In', value: cola.for_sale_in },
+        { label: 'Qualifications', value: cola.qualifications },
     ];
     
-    // Blurred fields
-    const blurredFields = [
+    // Wine-specific fields (only show if they have values)
+    if (cola.grape_varietal) {
+        fields.push({ label: 'Grape Varietal', value: cola.grape_varietal });
+    }
+    if (cola.wine_vintage) {
+        fields.push({ label: 'Wine Vintage', value: cola.wine_vintage });
+    }
+    if (cola.appellation) {
+        fields.push({ label: 'Appellation', value: cola.appellation });
+    }
+    if (cola.alcohol_content) {
+        fields.push({ label: 'Alcohol Content', value: cola.alcohol_content });
+    }
+    if (cola.ph_level) {
+        fields.push({ label: 'pH Level', value: cola.ph_level });
+    }
+    
+    // Company fields
+    fields.push(
+        { label: 'Plant Registry', value: cola.plant_registry },
         { label: 'Company Name', value: cola.company_name },
         { label: 'Street', value: cola.street },
+        { label: 'State', value: cola.state },
         { label: 'Contact Person', value: cola.contact_person },
-        { label: 'Phone Number', value: cola.phone_number },
-    ];
+        { label: 'Phone Number', value: cola.phone_number }
+    );
     
     let html = '<div class="detail-grid">';
-    fields.forEach(f => {
-        html += `<div class="detail-item"><span class="detail-label">${f.label}</span><span class="detail-value">${f.value || '-'}</span></div>`;
-    });
-    html += '</div>';
     
-    // Blurred contact section
-    html += `
-        <div class="paywall-section">
-            <h4>Contact Information</h4>
-            <div class="detail-grid" style="margin: 1rem 0;">
-                ${blurredFields.map(f => `
-                    <div class="detail-item">
-                        <span class="detail-label">${f.label}</span>
-                        <span class="detail-value detail-blurred">${f.value || 'Contact Name Here'}</span>
-                    </div>
-                `).join('')}
+    fields.forEach(field => {
+        html += `
+            <div class="detail-item">
+                <span class="detail-label">${field.label}</span>
+                <span class="detail-value">${field.value || '-'}</span>
             </div>
-            <p>Upgrade to Pro to view contact information for all records.</p>
-            <button class="paywall-btn">Upgrade to Pro</button>
-        </div>
-    `;
+        `;
+    });
+    
+    html += '</div>';
     
     elements.modalBody.innerHTML = html;
     elements.modalOverlay.classList.add('active');
@@ -450,41 +438,54 @@ function closeModal() {
     document.body.style.overflow = '';
 }
 
-function resetAllFilters() {
+function clearAllFilters() {
     elements.searchInput.value = '';
-    elements.filterCategory.value = '';
-    elements.filterSubcategory.value = '';
     elements.filterState.value = '';
+    elements.filterClass.value = '';
     elements.filterStatus.value = '';
     elements.filterDateFrom.value = '';
     elements.filterDateTo.value = '';
     currentPage = 1;
-    updateSubcategoryOptions();
     applyFilters();
 }
 
 function saveCurrentSearch() {
     const search = {
         query: elements.searchInput.value,
-        category: elements.filterCategory.value,
-        subcategory: elements.filterSubcategory.value,
         state: elements.filterState.value,
+        classType: elements.filterClass.value,
         status: elements.filterStatus.value,
         dateFrom: elements.filterDateFrom.value,
         dateTo: elements.filterDateTo.value,
         savedAt: new Date().toISOString()
     };
     
+    // Prompt for name
     const name = prompt('Enter a name for this saved search:');
     if (!name) return;
+    
     search.name = name;
     
+    // Store in localStorage
     try {
         const saved = JSON.parse(localStorage.getItem('bevalc_saved_searches') || '[]');
         saved.push(search);
         localStorage.setItem('bevalc_saved_searches', JSON.stringify(saved));
         alert('Search saved!');
     } catch (e) {
-        alert('Failed to save search.');
+        console.error('Failed to save search:', e);
+        alert('Failed to save search. Please try again.');
     }
+}
+
+// Load saved search from URL params if present
+function loadFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    
+    if (params.has('q')) elements.searchInput.value = params.get('q');
+    if (params.has('state')) elements.filterState.value = params.get('state');
+    if (params.has('class')) elements.filterClass.value = params.get('class');
+    if (params.has('status')) elements.filterStatus.value = params.get('status');
+    if (params.has('from')) elements.filterDateFrom.value = params.get('from');
+    if (params.has('to')) elements.filterDateTo.value = params.get('to');
 }
