@@ -242,8 +242,8 @@
                 <span class="logo-text">BevAlc Intelligence</span>
             </div>
             <div class="footer-links">
-                <a href="privacy.html">Privacy Policy</a>
-                <a href="terms.html">Terms of Service</a>
+                <a href="legal.html#privacy">Privacy Policy</a>
+                <a href="legal.html#terms">Terms of Service</a>
                 <a href="glossary.html">Glossary</a>
                 <a href="mailto:hello@bevalcintel.com">Contact</a>
             </div>
@@ -260,8 +260,8 @@
                 const navCta = document.getElementById('nav-cta');
                 const userGreeting = document.getElementById('user-greeting');
                 if (navCta) navCta.style.display = 'none';
-                if (userGreeting && user.firstName) {
-                    userGreeting.textContent = `Welcome, ${user.firstName}`;
+                if (userGreeting && user && user.firstName) {
+                    userGreeting.textContent = 'Hi, ' + user.firstName;
                     userGreeting.style.display = 'inline';
                 }
             }

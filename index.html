@@ -23,7 +23,6 @@
                 <a href="index.html" class="nav-link active">Home</a>
                 <a href="database.html" class="nav-link">Database</a>
                 <a href="glossary.html" class="nav-link">Glossary</a>
-                <a href="terms.html" class="nav-link">Terms</a>
             </div>
             <div class="nav-user" id="nav-user">
                 <span class="user-greeting" id="user-greeting"></span>
@@ -185,18 +184,6 @@
                     </button>
                 </form>
                 
-                <!-- Login form (hidden by default) -->
-                <form class="signup-form" id="login-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="login-email">Email Address *</label>
-                        <input type="email" id="login-email" name="email" required placeholder="john@company.com">
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-full" id="login-btn">
-                        <span class="btn-text">Log Back In</span>
-                        <span class="btn-loading" style="display: none;">Checking...</span>
-                    </button>
-                </form>
-                
                 <div class="signup-success" id="signup-success" style="display: none;">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
@@ -213,16 +200,12 @@
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                     <h3>Welcome Back!</h3>
-                    <p>Your access has been restored. <a href="database.html">Go to the database →</a></p>
+                    <p>You already have access. <a href="database.html">Go to the database →</a></p>
                 </div>
                 
                 <p class="signup-note" id="signup-note">Free forever. No credit card required.</p>
-                <p class="signup-legal" id="signup-legal">By signing up, you agree to our <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a>.</p>
-                
-                <!-- Already have access link -->
-                <div class="signup-login" id="signup-login">
-                    <p>Already signed up? <a href="#" id="show-login">Log back in →</a></p>
-                </div>
+                <p class="signup-legal" id="signup-legal">By signing up, you agree to our <a href="legal.html#terms">Terms of Service</a> and <a href="legal.html#privacy">Privacy Policy</a>.</p>
+                <p class="signup-returning" id="signup-returning">Already signed up but can't access the database? Your browser session may have expired. Just re-enter your info above to restore access.</p>
             </div>
         </div>
     </section>
@@ -235,8 +218,9 @@
                 <span class="logo-text">BevAlc Intelligence</span>
             </div>
             <div class="footer-links">
-                <a href="privacy.html">Privacy Policy</a>
-                <a href="terms.html">Terms of Service</a>
+                <a href="legal.html#privacy">Privacy Policy</a>
+                <a href="legal.html#terms">Terms of Service</a>
+                <a href="glossary.html">Glossary</a>
                 <a href="mailto:hello@bevalcintel.com">Contact</a>
             </div>
             <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
@@ -257,8 +241,8 @@
                 
                 if (navCta) navCta.style.display = 'none';
                 
-                if (userGreeting && user.firstName) {
-                    userGreeting.textContent = `Welcome, ${user.firstName}`;
+                if (userGreeting && user && user.firstName) {
+                    userGreeting.textContent = 'Hi, ' + user.firstName;
                     userGreeting.style.display = 'inline';
                 }
                 
@@ -267,61 +251,6 @@
                     heroCta.href = 'database.html';
                 }
             }
-        });
-        
-        // Toggle between signup and login forms
-        document.getElementById('show-login').addEventListener('click', function(e) {
-            e.preventDefault();
-            document.getElementById('signup-form').style.display = 'none';
-            document.getElementById('login-form').style.display = 'flex';
-            document.getElementById('signup-title').textContent = 'Log Back In';
-            document.getElementById('signup-desc').textContent = 'Enter your email to restore database access on this device.';
-            document.getElementById('signup-note').innerHTML = '<a href="#" id="show-signup">← Back to signup</a>';
-            document.getElementById('signup-legal').style.display = 'none';
-            document.getElementById('signup-login').style.display = 'none';
-            
-            // Re-attach show-signup handler
-            document.getElementById('show-signup').addEventListener('click', showSignupForm);
-        });
-        
-        function showSignupForm(e) {
-            e.preventDefault();
-            document.getElementById('signup-form').style.display = 'flex';
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('signup-title').textContent = 'Get Free Access';
-            document.getElementById('signup-desc').textContent = 'Join beverage alcohol professionals using BevAlc Intelligence for competitive research.';
-            document.getElementById('signup-note').textContent = 'Free forever. No credit card required.';
-            document.getElementById('signup-legal').style.display = 'block';
-            document.getElementById('signup-login').style.display = 'block';
-        }
-        
-        // Login form submission (restore access)
-        document.getElementById('login-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const email = document.getElementById('login-email').value.trim();
-            const btn = document.getElementById('login-btn');
-            const btnText = btn.querySelector('.btn-text');
-            const btnLoading = btn.querySelector('.btn-loading');
-            
-            btnText.style.display = 'none';
-            btnLoading.style.display = 'inline';
-            btn.disabled = true;
-            
-            // Grant access (trust-based for now)
-            setTimeout(function() {
-                localStorage.setItem('bevalc_user', JSON.stringify({
-                    email: email,
-                    restoredAt: new Date().toISOString()
-                }));
-                
-                BevAlcAuth.grantAccess();
-                
-                // Show success
-                document.getElementById('login-form').style.display = 'none';
-                document.getElementById('signup-note').style.display = 'none';
-                document.getElementById('signup-exists').style.display = 'block';
-            }, 500);
         });
         
         // Signup form submission
@@ -356,44 +285,36 @@
                     })
                 });
                 
+                const data = await response.json().catch(() => ({}));
+                
                 // Store user info
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     firstName, lastName, email, company,
                     signedUpAt: new Date().toISOString()
                 }));
                 
-                // GRANT ACCESS IMMEDIATELY
+                // Grant access
                 BevAlcAuth.grantAccess();
                 
-                if (response.ok) {
-                    // Show success
-                    form.style.display = 'none';
-                    document.getElementById('signup-login').style.display = 'none';
-                    document.getElementById('signup-note').style.display = 'none';
-                    document.getElementById('signup-legal').style.display = 'none';
-                    document.getElementById('signup-success').style.display = 'block';
+                // Check if user already existed
+                const alreadyExists = data.message && data.message.toLowerCase().includes('already');
+                
+                // Show appropriate success message
+                form.style.display = 'none';
+                document.getElementById('signup-note').style.display = 'none';
+                document.getElementById('signup-legal').style.display = 'none';
+                
+                if (alreadyExists) {
+                    document.getElementById('signup-exists').style.display = 'block';
                 } else {
-                    const data = await response.json();
-                    if (data.message && data.message.includes('already')) {
-                        form.style.display = 'none';
-                        document.getElementById('signup-login').style.display = 'none';
-                        document.getElementById('signup-note').style.display = 'none';
-                        document.getElementById('signup-legal').style.display = 'none';
-                        document.getElementById('signup-exists').style.display = 'block';
-                    } else {
-                        // Still grant access even if Loops fails
-                        form.style.display = 'none';
-                        document.getElementById('signup-login').style.display = 'none';
-                        document.getElementById('signup-note').style.display = 'none';
-                        document.getElementById('signup-legal').style.display = 'none';
-                        document.getElementById('signup-success').style.display = 'block';
-                    }
+                    document.getElementById('signup-success').style.display = 'block';
                 }
+                
             } catch (error) {
                 console.error('Signup error:', error);
-                // Still grant access even if network fails
+                // Grant access anyway - don't block user due to network issues
+                BevAlcAuth.grantAccess();
                 form.style.display = 'none';
-                document.getElementById('signup-login').style.display = 'none';
                 document.getElementById('signup-note').style.display = 'none';
                 document.getElementById('signup-legal').style.display = 'none';
                 document.getElementById('signup-success').style.display = 'block';
