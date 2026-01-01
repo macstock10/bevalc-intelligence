@@ -678,6 +678,36 @@ a:hover { color: var(--color-primary-hover); }
     white-space: nowrap;
 }
 
+.results-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.results-table th.sortable:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+}
+
+.results-table th.sortable.active {
+    color: var(--color-primary);
+    background: var(--color-bg-secondary);
+}
+
+.results-table th .sort-icon {
+    margin-left: 4px;
+    opacity: 0.4;
+    font-size: 0.7rem;
+}
+
+.results-table th.sortable:hover .sort-icon {
+    opacity: 0.7;
+}
+
+.results-table th.sortable.active .sort-icon {
+    opacity: 1;
+}
+
 .results-table td {
     padding: var(--space-md) var(--space-lg);
     font-size: 0.9375rem;

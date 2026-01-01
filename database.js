@@ -140,6 +140,8 @@ const state = {
     totalRecords: 0,
     isLoading: false,
     hasAccess: false,
+    sortColumn: 'approval_date',
+    sortDirection: 'desc',
     filters: {
         origins: [],
         class_types: [],
@@ -269,6 +271,24 @@ function setupEventListeners() {
     // Clear filters
     elements.clearFilters.addEventListener('click', clearAllFilters);
     
+    // Sortable headers
+    document.querySelectorAll('.results-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.sort;
+            if (state.sortColumn === column) {
+                // Toggle direction
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, default to desc for dates, asc for text
+                state.sortColumn = column;
+                state.sortDirection = column === 'approval_date' ? 'desc' : 'asc';
+            }
+            updateSortIndicators();
+            state.currentPage = 1;
+            performSearch();
+        });
+    });
+    
     // Modal
     elements.modalClose.addEventListener('click', closeModal);
     elements.modalOverlay.addEventListener('click', (e) => {
@@ -314,6 +334,23 @@ function updateSubcategoryDropdown() {
     }
 }
 
+function updateSortIndicators() {
+    document.querySelectorAll('.results-table th.sortable').forEach(th => {
+        const column = th.dataset.sort;
+        const icon = th.querySelector('.sort-icon');
+        
+        if (column === state.sortColumn) {
+            th.classList.add('active');
+            th.classList.remove('asc', 'desc');
+            th.classList.add(state.sortDirection);
+            icon.textContent = state.sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            th.classList.remove('active', 'asc', 'desc');
+            icon.textContent = '';
+        }
+    });
+}
+
 // ============================================
 // API CALLS
 // ============================================
@@ -341,7 +378,9 @@ async function performSearch() {
     try {
         const params = new URLSearchParams({
             page: state.currentPage,
-            limit: ITEMS_PER_PAGE
+            limit: ITEMS_PER_PAGE,
+            sort: state.sortColumn,
+            order: state.sortDirection
         });
         
         const query = elements.searchInput.value.trim();
