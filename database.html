@@ -66,9 +66,26 @@
                     </div>
                     
                     <div class="filter-group">
-                        <label for="filter-class">Class/Type</label>
+                        <label for="filter-category">Category</label>
+                        <select id="filter-category" class="filter-select">
+                            <option value="">All Categories</option>
+                            <option value="Whiskey">Whiskey</option>
+                            <option value="Vodka">Vodka</option>
+                            <option value="Tequila">Tequila</option>
+                            <option value="Rum">Rum</option>
+                            <option value="Gin">Gin</option>
+                            <option value="Brandy">Brandy</option>
+                            <option value="Wine">Wine</option>
+                            <option value="Beer">Beer</option>
+                            <option value="Liqueur">Liqueur</option>
+                            <option value="Other Spirits">Other Spirits</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-class">Subcategory</label>
                         <select id="filter-class" class="filter-select">
-                            <option value="">All Types</option>
+                            <option value="">All Subcategories</option>
                         </select>
                     </div>
                     
@@ -97,16 +114,6 @@
             <div class="results-section">
                 <div class="results-header">
                     <span class="results-count" id="results-count">0 results</span>
-                    <div class="results-actions">
-                        <button class="btn btn-secondary btn-small" id="export-btn" disabled title="Coming soon">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            Export CSV
-                        </button>
-                    </div>
                 </div>
                 
                 <!-- Table Container with blur overlay for non-subscribers -->
@@ -118,7 +125,7 @@
                                     <th>TTB ID</th>
                                     <th>Brand Name</th>
                                     <th>Fanciful Name</th>
-                                    <th>Class/Type</th>
+                                    <th>Subcategory</th>
                                     <th>Origin</th>
                                     <th>Approval Date</th>
                                     <th>Status</th>

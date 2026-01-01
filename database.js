@@ -40,6 +40,7 @@ function cacheElements() {
     elements.searchInput = document.getElementById('search-input');
     elements.searchBtn = document.getElementById('search-btn');
     elements.filterOrigin = document.getElementById('filter-origin');
+    elements.filterCategory = document.getElementById('filter-category');
     elements.filterClass = document.getElementById('filter-class');
     elements.filterStatus = document.getElementById('filter-status');
     elements.filterDateFrom = document.getElementById('filter-date-from');
@@ -58,7 +59,6 @@ function cacheElements() {
     elements.modalClose = document.getElementById('modal-close');
     elements.userGreeting = document.getElementById('user-greeting');
     elements.navSignup = document.getElementById('nav-signup');
-    elements.exportBtn = document.getElementById('export-btn');
 }
 
 function checkAccess() {
@@ -82,11 +82,11 @@ function checkAccess() {
     
     // Update UI based on access
     if (state.hasAccess) {
-        elements.blurOverlay.style.display = 'none';
-        elements.navSignup.style.display = 'none';
+        if (elements.blurOverlay) elements.blurOverlay.style.display = 'none';
+        if (elements.navSignup) elements.navSignup.style.display = 'none';
         
         // Show user greeting if we have their info
-        if (userInfo) {
+        if (userInfo && elements.userGreeting) {
             try {
                 const user = JSON.parse(userInfo);
                 if (user.firstName) {
@@ -96,7 +96,7 @@ function checkAccess() {
             } catch (e) {}
         }
     } else {
-        elements.blurOverlay.style.display = 'flex';
+        if (elements.blurOverlay) elements.blurOverlay.style.display = 'flex';
     }
 }
 
@@ -116,6 +116,11 @@ function setupEventListeners() {
     
     // Filters
     elements.filterOrigin.addEventListener('change', () => {
+        state.currentPage = 1;
+        performSearch();
+    });
+    
+    elements.filterCategory.addEventListener('change', () => {
         state.currentPage = 1;
         performSearch();
     });
@@ -190,6 +195,9 @@ async function performSearch() {
         const origin = elements.filterOrigin.value;
         if (origin) params.append('origin', origin);
         
+        const category = elements.filterCategory.value;
+        if (category) params.append('category', category);
+        
         const classType = elements.filterClass.value;
         if (classType) params.append('class_type', classType);
         
@@ -247,7 +255,7 @@ function populateFilterDropdowns() {
         elements.filterOrigin.appendChild(option);
     });
     
-    // Class/Types
+    // Class/Types (Subcategories)
     state.filters.class_types.forEach(type => {
         const option = document.createElement('option');
         option.value = type;
@@ -392,7 +400,7 @@ function openModal(record) {
                 { label: 'Status', value: record.status },
                 { label: 'Approval Date', value: record.approval_date },
                 { label: 'Fanciful Name', value: record.fanciful_name },
-                { label: 'Class/Type', value: record.class_type_code },
+                { label: 'Subcategory', value: record.class_type_code },
                 { label: 'Origin', value: record.origin_code },
                 { label: 'Type of Application', value: record.type_of_application },
             ]
@@ -473,6 +481,7 @@ function closeModal() {
 function clearAllFilters() {
     elements.searchInput.value = '';
     elements.filterOrigin.value = '';
+    elements.filterCategory.value = '';
     elements.filterClass.value = '';
     elements.filterStatus.value = '';
     elements.filterDateFrom.value = '';

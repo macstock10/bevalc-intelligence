@@ -15,6 +15,10 @@ const BevAlcAuth = {
         this.setCookie(this.COOKIE_NAME, 'granted', this.COOKIE_DAYS);
     },
 
+    revokeAccess() {
+        this.setCookie(this.COOKIE_NAME, '', -1);
+    },
+
     getCookie(name) {
         const value = `; ${document.cookie}`;
         const parts = value.split(`; ${name}=`);
@@ -34,6 +38,10 @@ const BevAlcAuth = {
         } catch (e) {
             return {};
         }
+    },
+
+    setUser(userData) {
+        localStorage.setItem('bevalc_user', JSON.stringify(userData));
     },
 
     init() {
