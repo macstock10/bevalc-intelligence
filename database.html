@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COLA Database | BevAlc Intelligence</title>
+    <meta name="description" content="Search and filter TTB label approvals. Find competitor brands, track new launches, analyze market trends.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="database.html" class="nav-link active">Database</a>
+                <a href="privacy.html" class="nav-link">Privacy</a>
+                <a href="terms.html" class="nav-link">Terms</a>
+            </div>
+            <div class="nav-user" id="nav-user">
+                <span class="user-greeting" id="user-greeting"></span>
+                <a href="index.html#signup" class="nav-cta" id="nav-signup">Get Access</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Database Content -->
+    <main class="database-page">
+        <div class="database-container">
+            <!-- Header -->
+            <div class="database-header">
+                <div class="database-title-row">
+                    <h1>COLA Database</h1>
+                    <div class="database-stats" id="database-stats">
+                        <span class="stat-badge" id="total-records">Loading...</span>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="search-wrapper">
+                    <div class="search-bar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="search-input" placeholder="Search brands, companies, TTB IDs...">
+                        <button class="search-btn" id="search-btn">Search</button>
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label for="filter-origin">Origin</label>
+                        <select id="filter-origin" class="filter-select">
+                            <option value="">All Origins</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-class">Class/Type</label>
+                        <select id="filter-class" class="filter-select">
+                            <option value="">All Types</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-status">Status</label>
+                        <select id="filter-status" class="filter-select">
+                            <option value="">All Statuses</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-date-from">From Date</label>
+                        <input type="date" id="filter-date-from" class="filter-select">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-date-to">To Date</label>
+                        <input type="date" id="filter-date-to" class="filter-select">
+                    </div>
+                    
+                    <button class="btn btn-secondary btn-small" id="clear-filters">Clear All</button>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section">
+                <div class="results-header">
+                    <span class="results-count" id="results-count">0 results</span>
+                    <div class="results-actions">
+                        <button class="btn btn-secondary btn-small" id="export-btn" disabled title="Coming soon">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Table Container with blur overlay for non-subscribers -->
+                <div class="table-container" id="table-container">
+                    <div class="table-wrapper">
+                        <table class="results-table" id="results-table">
+                            <thead>
+                                <tr>
+                                    <th>TTB ID</th>
+                                    <th>Brand Name</th>
+                                    <th>Fanciful Name</th>
+                                    <th>Class/Type</th>
+                                    <th>Origin</th>
+                                    <th>Approval Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Blur overlay for non-subscribers -->
+                    <div class="blur-overlay" id="blur-overlay">
+                        <div class="blur-content">
+                            <h3>Sign Up to View Full Data</h3>
+                            <p>Get free access to search and filter 2M+ label approvals</p>
+                            <a href="index.html#signup" class="btn btn-primary">Get Free Access</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="pagination" id="pagination">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="modal-title">Brand Name</h2>
+                    <p class="modal-subtitle" id="modal-subtitle">TTB ID</p>
+                </div>
+                <button class="modal-close" id="modal-close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading data...</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="mailto:hello@bevalcintel.com">Contact</a>
+            </div>
+            <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="auth.js"></script>
+    <script src="database.js"></script>
+</body>
+</html>
