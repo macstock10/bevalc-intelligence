@@ -25,7 +25,10 @@
                 <a href="privacy.html" class="nav-link">Privacy</a>
                 <a href="terms.html" class="nav-link">Terms</a>
             </div>
-            <a href="#signup" class="nav-cta">Get Access</a>
+            <div class="nav-user" id="nav-user">
+                <span class="user-greeting" id="user-greeting"></span>
+                <a href="#signup" class="nav-cta" id="nav-cta">Get Access</a>
+            </div>
         </div>
     </nav>
 
@@ -37,7 +40,7 @@
             <p class="hero-subtitle">The most comprehensive database of TTB label approvals. See what competitors are launching, track new market entrants, and spot category trends before they hit shelves.</p>
             
             <div class="hero-cta">
-                <a href="#signup" class="btn btn-primary">Get Free Access</a>
+                <a href="#signup" class="btn btn-primary" id="hero-cta-primary">Get Free Access</a>
                 <a href="database.html" class="btn btn-secondary">See Database</a>
             </div>
         </div>
@@ -47,7 +50,7 @@
     <section class="stats">
         <div class="stats-container">
             <div class="stat">
-                <span class="stat-number">2M+</span>
+                <span class="stat-number">630K+</span>
                 <span class="stat-label">Label Approvals</span>
             </div>
             <div class="stat-divider"></div>
@@ -128,7 +131,7 @@
                         </svg>
                     </div>
                     <h3>Complete Data</h3>
-                    <p>2M+ label approvals and growing. Every spirit, wine, and malt beverage. All 50 states plus imports.</p>
+                    <p>630K+ label approvals and growing. Every spirit, wine, and malt beverage. All 50 states plus imports.</p>
                 </div>
                 
                 <div class="feature">
@@ -189,7 +192,7 @@
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                     <h3>Check Your Email!</h3>
-                    <p>We've sent a confirmation link to your email. Click it to access the database.</p>
+                    <p>We've sent a confirmation link to your email. Click it to confirm, then check for your welcome email with database access.</p>
                 </div>
                 
                 <div class="signup-exists" id="signup-exists" style="display: none;">
@@ -226,6 +229,32 @@
 
     <script src="auth.js"></script>
     <script>
+        // Check access and update nav on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const hasAccess = BevAlcAuth.hasAccess();
+            const user = BevAlcAuth.getUser();
+            
+            if (hasAccess) {
+                // Update nav
+                const navCta = document.getElementById('nav-cta');
+                const userGreeting = document.getElementById('user-greeting');
+                const heroCta = document.getElementById('hero-cta-primary');
+                
+                if (navCta) navCta.style.display = 'none';
+                
+                if (userGreeting && user.firstName) {
+                    userGreeting.textContent = `Welcome, ${user.firstName}`;
+                    userGreeting.style.display = 'inline';
+                }
+                
+                // Change hero CTA to go to database
+                if (heroCta) {
+                    heroCta.textContent = 'Go to Database';
+                    heroCta.href = 'database.html';
+                }
+            }
+        });
+        
         // Form submission
         document.getElementById('signup-form').addEventListener('submit', async function(e) {
             e.preventDefault();

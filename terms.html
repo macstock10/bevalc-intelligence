@@ -23,7 +23,10 @@
                 <a href="privacy.html" class="nav-link">Privacy</a>
                 <a href="terms.html" class="nav-link active">Terms</a>
             </div>
-            <a href="index.html#signup" class="nav-cta">Get Access</a>
+            <div class="nav-user" id="nav-user">
+                <span class="user-greeting" id="user-greeting"></span>
+                <a href="index.html#signup" class="nav-cta" id="nav-cta">Get Access</a>
+            </div>
         </div>
     </nav>
 
@@ -96,5 +99,22 @@
             <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
         </div>
     </footer>
+
+    <script src="auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const hasAccess = BevAlcAuth.hasAccess();
+            const user = BevAlcAuth.getUser();
+            if (hasAccess) {
+                const navCta = document.getElementById('nav-cta');
+                const userGreeting = document.getElementById('user-greeting');
+                if (navCta) navCta.style.display = 'none';
+                if (userGreeting && user.firstName) {
+                    userGreeting.textContent = `Welcome, ${user.firstName}`;
+                    userGreeting.style.display = 'inline';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
