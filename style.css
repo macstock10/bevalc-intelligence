@@ -396,6 +396,11 @@ a:hover { color: var(--color-primary-hover); }
     gap: var(--space-xs);
 }
 
+.form-group-half {
+    flex: 1;
+    min-width: 0;
+}
+
 .form-group label {
     font-size: 0.875rem;
     font-weight: 500;

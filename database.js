@@ -5,7 +5,140 @@
 
 // Configuration
 const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 20;
+
+// Category to Subcategory mappings
+const CATEGORY_SUBCATEGORIES = {
+    'Whiskey': [
+        'AMERICAN SINGLE MALT WHISKEY',
+        'AMERICAN SINGLE MALT WHISKEY - BIB',
+        'BLENDED BOURBON WHISKY',
+        'BLENDED RYE WHISKY',
+        'BLENDED WHISKY',
+        'BOURBON WHISKY',
+        'BOURBON WHISKY BIB',
+        'CANADIAN WHISKY',
+        'CORN WHISKY',
+        'IRISH WHISKEY',
+        'LIGHT WHISKY',
+        'MALT WHISKY',
+        'RYE WHISKY',
+        'RYE WHISKY - BIB',
+        'SCOTCH WHISKY',
+        'SPIRIT WHISKY',
+        'STRAIGHT BOURBON WHISKY',
+        'STRAIGHT BOURBON WHISKY - BIB',
+        'STRAIGHT CORN WHISKY',
+        'STRAIGHT MALT WHISKY',
+        'STRAIGHT RYE WHISKY',
+        'STRAIGHT RYE WHISKY - BIB',
+        'STRAIGHT WHEAT WHISKY',
+        'TENNESSEE WHISKY',
+        'WHEAT WHISKY',
+        'WHISKY',
+        'WHISKY - BIB',
+        'WHISKY SPECIALTIES'
+    ],
+    'Vodka': [
+        'VODKA',
+        'VODKA - CITRUS FLAVORED',
+        'VODKA - FLAVORED',
+        'VODKA SPECIALTIES'
+    ],
+    'Tequila': [
+        'TEQUILA',
+        'TEQUILA SPECIALTIES',
+        'MEZCAL',
+        'AGAVE SPIRITS'
+    ],
+    'Rum': [
+        'RUM',
+        'RUM - FLAVORED',
+        'CACHACA',
+        'RUM SPECIALTIES'
+    ],
+    'Gin': [
+        'GIN',
+        'GIN - FLAVORED',
+        'GIN SPECIALTIES',
+        'DISTILLED GIN',
+        'LONDON DRY GIN'
+    ],
+    'Brandy': [
+        'BRANDY',
+        'APPLE BRANDY',
+        'APPLE BRANDY (CALVADOS)',
+        'APRICOT BRANDY',
+        'ARMAGNAC (BRANDY) FB',
+        'ARMAGNAC (BRANDY) USB',
+        'BLACKBERRY BRANDY',
+        'BLACKBERRY FLAVORED BRANDY',
+        'BLENDED APPLE JACK BRANDY',
+        'BRANDY - APRICOT FLAVORED',
+        'BRANDY - BLACKBERRY FLAVORED',
+        'BRANDY - CHERRY FLAVORED',
+        'BRANDY - FLAVORED',
+        'BRANDY - GRAPE FLAVORED',
+        'BRANDY - GRAPEFRUIT FLAVORED',
+        'BRANDY - PEACH FLAVORED',
+        'CHERRY BRANDY',
+        'COGNAC (BRANDY) FB',
+        'COGNAC (BRANDY) USB',
+        'GRAPE BRANDY',
+        'GRAPPA BRANDY',
+        'PEACH BRANDY',
+        'PISCO'
+    ],
+    'Wine': [
+        'WINE',
+        'TABLE WINE',
+        'RED TABLE WINE',
+        'WHITE TABLE WINE',
+        'ROSE TABLE WINE',
+        'SPARKLING WINE',
+        'CHAMPAGNE',
+        'DESSERT WINE',
+        'SHERRY',
+        'PORT',
+        'VERMOUTH',
+        'GRAPE WINE',
+        'FRUIT WINE',
+        'APPLE WINE',
+        'SAKE',
+        'SANGRIA'
+    ],
+    'Beer': [
+        'BEER',
+        'ALE',
+        'LAGER',
+        'STOUT',
+        'PORTER',
+        'MALT BEVERAGE',
+        'FLAVORED MALT BEVERAGE'
+    ],
+    'Liqueur': [
+        'LIQUEUR',
+        'LIQUEUR/CORDIAL',
+        'AMARETTO',
+        'ANISETTE, OUZO, OJEN',
+        'COFFEE LIQUEUR',
+        'CREAM LIQUEUR',
+        'FRUIT LIQUEUR',
+        'HERB LIQUEUR',
+        'SCHNAPPS'
+    ],
+    'Other Spirits': [
+        'BITTERS - BEVERAGE',
+        'BITTERS - BEVERAGE*',
+        'ABSINTHE',
+        'AQUAVIT',
+        'ARACK/RAKI',
+        'SOJU',
+        'BAIJIU',
+        'NEUTRAL SPIRITS',
+        'SPECIALTY'
+    ]
+};
 
 // State
 const state = {
@@ -62,30 +195,23 @@ function cacheElements() {
 }
 
 function checkAccess() {
-    // Check for access cookie or URL parameter
     const hasAccessCookie = document.cookie.includes('bevalc_access=granted');
     const urlParams = new URLSearchParams(window.location.search);
     const accessParam = urlParams.get('access') === 'granted';
-    
-    // Check localStorage for user info
     const userInfo = localStorage.getItem('bevalc_user');
     
     if (accessParam) {
-        // Set cookie from URL parameter
         document.cookie = 'bevalc_access=granted; path=/; max-age=31536000; SameSite=Lax';
-        // Clean URL
         window.history.replaceState({}, document.title, window.location.pathname);
         state.hasAccess = true;
     } else if (hasAccessCookie) {
         state.hasAccess = true;
     }
     
-    // Update UI based on access
     if (state.hasAccess) {
         if (elements.blurOverlay) elements.blurOverlay.style.display = 'none';
         if (elements.navSignup) elements.navSignup.style.display = 'none';
         
-        // Show user greeting if we have their info
         if (userInfo && elements.userGreeting) {
             try {
                 const user = JSON.parse(userInfo);
@@ -114,13 +240,15 @@ function setupEventListeners() {
         }
     });
     
-    // Filters
-    elements.filterOrigin.addEventListener('change', () => {
+    // Category filter - updates subcategory dropdown
+    elements.filterCategory.addEventListener('change', () => {
+        updateSubcategoryDropdown();
         state.currentPage = 1;
         performSearch();
     });
     
-    elements.filterCategory.addEventListener('change', () => {
+    // Other filters
+    elements.filterOrigin.addEventListener('change', () => {
         state.currentPage = 1;
         performSearch();
     });
@@ -157,6 +285,35 @@ function setupEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeModal();
     });
+}
+
+// ============================================
+// SUBCATEGORY FILTERING
+// ============================================
+
+function updateSubcategoryDropdown() {
+    const selectedCategory = elements.filterCategory.value;
+    
+    // Clear current options
+    elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
+    
+    if (selectedCategory && CATEGORY_SUBCATEGORIES[selectedCategory]) {
+        // Show only subcategories for selected category
+        CATEGORY_SUBCATEGORIES[selectedCategory].forEach(subcat => {
+            const option = document.createElement('option');
+            option.value = subcat;
+            option.textContent = subcat;
+            elements.filterClass.appendChild(option);
+        });
+    } else {
+        // Show all subcategories from API
+        state.filters.class_types.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            elements.filterClass.appendChild(option);
+        });
+    }
 }
 
 // ============================================
@@ -255,7 +412,7 @@ function populateFilterDropdowns() {
         elements.filterOrigin.appendChild(option);
     });
     
-    // Class/Types (Subcategories)
+    // Class/Types (Subcategories) - initially show all
     state.filters.class_types.forEach(type => {
         const option = document.createElement('option');
         option.value = type;
@@ -482,7 +639,13 @@ function clearAllFilters() {
     elements.searchInput.value = '';
     elements.filterOrigin.value = '';
     elements.filterCategory.value = '';
-    elements.filterClass.value = '';
+    elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
+    state.filters.class_types.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        elements.filterClass.appendChild(option);
+    });
     elements.filterStatus.value = '';
     elements.filterDateFrom.value = '';
     elements.filterDateTo.value = '';

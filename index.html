@@ -157,11 +157,11 @@
                 
                 <form class="signup-form" id="signup-form">
                     <div class="form-row">
-                        <div class="form-group">
+                        <div class="form-group form-group-half">
                             <label for="firstName">First Name *</label>
                             <input type="text" id="firstName" name="firstName" required placeholder="John">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group form-group-half">
                             <label for="lastName">Last Name *</label>
                             <input type="text" id="lastName" name="lastName" required placeholder="Smith">
                         </div>
@@ -192,7 +192,7 @@
                         <input type="email" id="login-email" name="email" required placeholder="john@company.com">
                     </div>
                     <button type="submit" class="btn btn-primary btn-full" id="login-btn">
-                        <span class="btn-text">Restore Access</span>
+                        <span class="btn-text">Log Back In</span>
                         <span class="btn-loading" style="display: none;">Checking...</span>
                     </button>
                 </form>
@@ -209,9 +209,8 @@
                 
                 <div class="signup-exists" id="signup-exists" style="display: none;">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                     <h3>Welcome Back!</h3>
                     <p>Your access has been restored. <a href="database.html">Go to the database →</a></p>
@@ -222,7 +221,7 @@
                 
                 <!-- Already have access link -->
                 <div class="signup-login" id="signup-login">
-                    <p>Already signed up? <a href="#" id="show-login">Restore access →</a></p>
+                    <p>Already signed up? <a href="#" id="show-login">Log back in →</a></p>
                 </div>
             </div>
         </div>
@@ -275,7 +274,7 @@
             e.preventDefault();
             document.getElementById('signup-form').style.display = 'none';
             document.getElementById('login-form').style.display = 'flex';
-            document.getElementById('signup-title').textContent = 'Restore Access';
+            document.getElementById('signup-title').textContent = 'Log Back In';
             document.getElementById('signup-desc').textContent = 'Enter your email to restore database access on this device.';
             document.getElementById('signup-note').innerHTML = '<a href="#" id="show-signup">← Back to signup</a>';
             document.getElementById('signup-legal').style.display = 'none';
