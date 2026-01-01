@@ -7,138 +7,131 @@
 const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
 const ITEMS_PER_PAGE = 20;
 
-// Category to Subcategory mappings
-const CATEGORY_SUBCATEGORIES = {
-    'Whiskey': [
-        'AMERICAN SINGLE MALT WHISKEY',
-        'AMERICAN SINGLE MALT WHISKEY - BIB',
-        'BLENDED BOURBON WHISKY',
-        'BLENDED RYE WHISKY',
-        'BLENDED WHISKY',
-        'BOURBON WHISKY',
-        'BOURBON WHISKY BIB',
-        'CANADIAN WHISKY',
-        'CORN WHISKY',
-        'IRISH WHISKEY',
-        'LIGHT WHISKY',
-        'MALT WHISKY',
-        'RYE WHISKY',
-        'RYE WHISKY - BIB',
-        'SCOTCH WHISKY',
-        'SPIRIT WHISKY',
-        'STRAIGHT BOURBON WHISKY',
-        'STRAIGHT BOURBON WHISKY - BIB',
-        'STRAIGHT CORN WHISKY',
-        'STRAIGHT MALT WHISKY',
-        'STRAIGHT RYE WHISKY',
-        'STRAIGHT RYE WHISKY - BIB',
-        'STRAIGHT WHEAT WHISKY',
-        'TENNESSEE WHISKY',
-        'WHEAT WHISKY',
-        'WHISKY',
-        'WHISKY - BIB',
-        'WHISKY SPECIALTIES'
-    ],
-    'Vodka': [
-        'VODKA',
-        'VODKA - CITRUS FLAVORED',
-        'VODKA - FLAVORED',
-        'VODKA SPECIALTIES'
-    ],
-    'Tequila': [
-        'TEQUILA',
-        'TEQUILA SPECIALTIES',
-        'MEZCAL',
-        'AGAVE SPIRITS'
-    ],
-    'Rum': [
-        'RUM',
-        'RUM - FLAVORED',
-        'CACHACA',
-        'RUM SPECIALTIES'
-    ],
-    'Gin': [
-        'GIN',
-        'GIN - FLAVORED',
-        'GIN SPECIALTIES',
-        'DISTILLED GIN',
-        'LONDON DRY GIN'
-    ],
-    'Brandy': [
-        'BRANDY',
-        'APPLE BRANDY',
-        'APPLE BRANDY (CALVADOS)',
-        'APRICOT BRANDY',
-        'ARMAGNAC (BRANDY) FB',
-        'ARMAGNAC (BRANDY) USB',
-        'BLACKBERRY BRANDY',
-        'BLACKBERRY FLAVORED BRANDY',
-        'BLENDED APPLE JACK BRANDY',
-        'BRANDY - APRICOT FLAVORED',
-        'BRANDY - BLACKBERRY FLAVORED',
-        'BRANDY - CHERRY FLAVORED',
-        'BRANDY - FLAVORED',
-        'BRANDY - GRAPE FLAVORED',
-        'BRANDY - GRAPEFRUIT FLAVORED',
-        'BRANDY - PEACH FLAVORED',
-        'CHERRY BRANDY',
-        'COGNAC (BRANDY) FB',
-        'COGNAC (BRANDY) USB',
-        'GRAPE BRANDY',
-        'GRAPPA BRANDY',
-        'PEACH BRANDY',
-        'PISCO'
-    ],
-    'Wine': [
-        'WINE',
-        'TABLE WINE',
-        'RED TABLE WINE',
-        'WHITE TABLE WINE',
-        'ROSE TABLE WINE',
-        'SPARKLING WINE',
-        'CHAMPAGNE',
-        'DESSERT WINE',
-        'SHERRY',
-        'PORT',
-        'VERMOUTH',
-        'GRAPE WINE',
-        'FRUIT WINE',
-        'APPLE WINE',
-        'SAKE',
-        'SANGRIA'
-    ],
-    'Beer': [
-        'BEER',
-        'ALE',
-        'LAGER',
-        'STOUT',
-        'PORTER',
-        'MALT BEVERAGE',
-        'FLAVORED MALT BEVERAGE'
-    ],
-    'Liqueur': [
-        'LIQUEUR',
-        'LIQUEUR/CORDIAL',
-        'AMARETTO',
-        'ANISETTE, OUZO, OJEN',
-        'COFFEE LIQUEUR',
-        'CREAM LIQUEUR',
-        'FRUIT LIQUEUR',
-        'HERB LIQUEUR',
-        'SCHNAPPS'
-    ],
-    'Other Spirits': [
-        'BITTERS - BEVERAGE',
-        'BITTERS - BEVERAGE*',
-        'ABSINTHE',
-        'AQUAVIT',
-        'ARACK/RAKI',
-        'SOJU',
-        'BAIJIU',
-        'NEUTRAL SPIRITS',
-        'SPECIALTY'
-    ]
+// Complete TTB Class/Type Code to Category Mapping
+// Based on official TTB documentation - every code manually assigned
+const TTB_CODE_CATEGORIES = {
+    // WHISKEY
+    'STRAIGHT WHISKY': 'Whiskey', 'STRAIGHT BOURBON WHISKY': 'Whiskey', 'STRAIGHT RYE WHISKY': 'Whiskey',
+    'STRAIGHT CORN WHISKY': 'Whiskey', 'OTHER STRAIGHT WHISKY': 'Whiskey', 'WHISKY BOTTLED IN BOND (BIB)': 'Whiskey',
+    'BOURBON WHISKY BIB': 'Whiskey', 'RYE WHISKY BIB': 'Whiskey', 'CORN WHISKY BIB': 'Whiskey',
+    'STRAIGHT MALT WHISKY': 'Whiskey', 'MALT WHISKY': 'Whiskey', 'OTHER WHISKY BIB': 'Whiskey',
+    'STRAIGHT WHISKY BLENDS': 'Whiskey', 'STRAIGHT BOURBON WHISKY BLENDS': 'Whiskey',
+    'STRAIGHT RYE WHISKY BLENDS': 'Whiskey', 'STRAIGHT CORN WHISKY BLENDS': 'Whiskey',
+    'OTHER STRAIGHT BLENDED WHISKY': 'Whiskey', 'WHISKY BLENDS': 'Whiskey', 'BLENDED BOURBON WHISKY': 'Whiskey',
+    'BLENDED RYE WHISKY': 'Whiskey', 'BLENDED CORN WHISKY': 'Whiskey', 'BLENDED LIGHT WHISKY': 'Whiskey',
+    'BLENDED WHISKY': 'Whiskey', 'DILUTED BLENDED WHISKY': 'Whiskey', 'OTHER WHISKY BLENDS': 'Whiskey',
+    'WHISKY': 'Whiskey', 'BOURBON WHISKY': 'Whiskey', 'RYE WHISKY': 'Whiskey', 'CORN WHISKY': 'Whiskey',
+    'LIGHT WHISKY': 'Whiskey', 'WHISKY PROPRIETARY': 'Whiskey', 'SPIRIT WHISKY': 'Whiskey',
+    'DILUTED WHISKY': 'Whiskey', 'OTHER WHISKY (FLAVORED)': 'Whiskey', 'SCOTCH WHISKY': 'Whiskey',
+    'SCOTCH WHISKY FB': 'Whiskey', 'SCOTCH WHISKY USB': 'Whiskey', 'SINGLE MALT SCOTCH WHISKY': 'Whiskey',
+    'UNBLENDED SCOTCH WHISKY USB': 'Whiskey', 'DILUTED SCOTCH WHISKY FB': 'Whiskey',
+    'DILUTED SCOTCH WHISKY USB': 'Whiskey', 'CANADIAN WHISKY': 'Whiskey', 'CANADIAN WHISKY FB': 'Whiskey',
+    'CANADIAN WHISKY USB': 'Whiskey', 'STRAIGHT AMERICAN SINGLE MALT': 'Whiskey',
+    'AMERICAN SINGLE MALT WHISKEY': 'Whiskey', 'DILUTED CANADIAN WHISKY FB': 'Whiskey',
+    'DILUTED CANADIAN WHISKY USB': 'Whiskey', 'IRISH WHISKY': 'Whiskey', 'IRISH WHISKY FB': 'Whiskey',
+    'IRISH WHISKY USB': 'Whiskey', 'DILUTED IRISH WHISKY FB': 'Whiskey', 'DILUTED IRISH WHISKY USB': 'Whiskey',
+    'WHISKY ORANGE FLAVORED': 'Whiskey', 'WHISKY GRAPE FLAVORED': 'Whiskey', 'WHISKY LIME FLAVORED': 'Whiskey',
+    'WHISKY LEMON FLAVORED': 'Whiskey', 'WHISKY CHERRY FLAVORED': 'Whiskey', 'WHISKY CHOCOLATE FLAVORED': 'Whiskey',
+    'WHISKY MINT FLAVORED': 'Whiskey', 'WHISKY PEPPERMINT FLAVORED': 'Whiskey', 'WHISKY OTHER FLAVORED': 'Whiskey',
+    'OTHER IMPORTED WHISKY': 'Whiskey', 'OTHER IMPORTED WHISKY FB': 'Whiskey', 'OTHER IMPORTED WHISKY USB': 'Whiskey',
+    'DILUTED OTHER IMPORTED WHISKY FB': 'Whiskey', 'DILUTED OTHER IMPORTED WHISKY USB': 'Whiskey',
+    'AMERICAN SINGLE MALT WHISKEY - BIB': 'Whiskey', 'WHISKY SPECIALTIES': 'Whiskey',
+    'LIQUEURS (WHISKY)': 'Whiskey', 'TENNESSEE WHISKY': 'Whiskey',
+    // GIN
+    'DISTILLED GIN': 'Gin', 'LONDON DRY DISTILLED GIN': 'Gin', 'OTHER DISTILLED GIN': 'Gin',
+    'GIN': 'Gin', 'LONDON DRY GIN': 'Gin', 'OTHER GIN': 'Gin', 'GIN - FLAVORED': 'Gin',
+    'GIN - MINT FLAVORED': 'Gin', 'GIN - ORANGE FLAVORED': 'Gin', 'GIN - LEMON FLAVORED': 'Gin',
+    'OTHER GIN - FLAVORED': 'Gin', 'DILUTED GIN': 'Gin', 'LONDON DRY DISTILLED GIN FB': 'Gin',
+    'LONDON DRY DISTILLED GIN USB': 'Gin', 'OTHER DISTILLED GIN FB': 'Gin', 'OTHER DISTILLED GIN USB': 'Gin',
+    'LONDON DRY GIN FB': 'Gin', 'LONDON DRY GIN USB': 'Gin', 'OTHER GIN FB': 'Gin', 'OTHER GIN USB': 'Gin',
+    'GIN - CHERRY FLAVORED': 'Gin', 'GIN - APPLE FLAVORED': 'Gin', 'GIN - BLACKBERRY FLAVORED': 'Gin',
+    'GIN - PEACH FLAVORED': 'Gin', 'GIN - GRAPE FLAVORED': 'Gin', 'DILUTED GIN FB': 'Gin',
+    'DILUTED GIN USB': 'Gin', 'GIN SPECIALTIES': 'Gin', 'LIQUEURS (GIN)': 'Gin', 'SLOE GIN': 'Gin',
+    // VODKA
+    'VODKA': 'Vodka', 'VODKA 80-89 PROOF': 'Vodka', 'VODKA 90-99 PROOF': 'Vodka', 'VODKA 100 PROOF UP': 'Vodka',
+    'VODKA - FLAVORED': 'Vodka', 'VODKA - ORANGE FLAVORED': 'Vodka', 'VODKA - GRAPE FLAVORED': 'Vodka',
+    'VODKA - LIME FLAVORED': 'Vodka', 'VODKA - LEMON FLAVORED': 'Vodka', 'VODKA - CHERRY FLAVORED': 'Vodka',
+    'VODKA - CHOCOLATE FLAVORED': 'Vodka', 'VODKA - MINT FLAVORED': 'Vodka', 'VODKA - PEPPERMINT FLAVORED': 'Vodka',
+    'VODKA - OTHER FLAVORED': 'Vodka', 'OTHER VODKA': 'Vodka', 'DILUTED VODKA': 'Vodka',
+    'VODKA 80-89 PROOF FB': 'Vodka', 'VODKA 80-89 PROOF USB': 'Vodka', 'VODKA 90-99 PROOF FB': 'Vodka',
+    'VODKA 90-99 PROOF USB': 'Vodka', 'VODKA 100 PROOF UP FB': 'Vodka', 'VODKA 100 PROOF UP USB': 'Vodka',
+    'DILUTED VODKA FB': 'Vodka', 'DILUTED VODKA USB': 'Vodka', 'VODKA SPECIALTIES': 'Vodka', 'LIQUEURS (VODKA)': 'Vodka',
+    // RUM
+    'U.S. RUM (WHITE)': 'Rum', 'UR.S. RUM (WHITE)': 'Rum', 'PUERTO RICAN RUM (WHITE)': 'Rum',
+    'VIRGIN ISLANDS RUM (WHITE)': 'Rum', 'HAWAIIAN RUM (WHITE)': 'Rum', 'FLORIDA RUM (WHITE)': 'Rum',
+    'OTHER RUM (WHITE)': 'Rum', 'U.S. RUM (GOLD)': 'Rum', 'PUERTO RICAN RUM (GOLD)': 'Rum',
+    'VIRGIN ISLANDS RUM (GOLD)': 'Rum', 'VIRGIN ISLANDS RUM': 'Rum', 'HAWAIIAN RUM (GOLD)': 'Rum',
+    'FLORIDA RUM (GOLD)': 'Rum', 'OTHER RUM (GOLD)': 'Rum', 'RUM FLAVORED (BOLD)': 'Rum',
+    'RUM ORANGE GLAVORED': 'Rum', 'RUM GRAPE FLAVORED': 'Rum', 'RUM LIME FLAVORED': 'Rum',
+    'RUM LEMON FLAVORED': 'Rum', 'RUM CHERRY FLAVORED': 'Rum', 'RUM CHOCOLATE FLAVORED': 'Rum',
+    'RUM MINT FLAVORED': 'Rum', 'RUM PEPPERMINT FLAVORED': 'Rum', 'RUM OTHER FLAVORED': 'Rum',
+    'OTHER WHITE RUM': 'Rum', 'FLAVORED RUM (BOLD)': 'Rum', 'RUM ORANGE FLAVORED': 'Rum',
+    'DILUTED RUM (WHITE)': 'Rum', 'DILUTED RUM (GOLD)': 'Rum', 'DOMESTIC FLAVORED RUM': 'Rum',
+    'FOREIGN RUM': 'Rum', 'OTHER FOREIGN RUM': 'Rum', 'RUM SPECIALTIES': 'Rum', 'LIQUEURS (RUM)': 'Rum', 'CACHACA': 'Rum',
+    // BRANDY
+    'BRANDY': 'Brandy', 'CALIFORNIA BRANDY': 'Brandy', 'NEW YORK BRANDY': 'Brandy', 'FRUIT BRANDY': 'Brandy',
+    'APPLE BRANDY': 'Brandy', 'CHERRY BRANDY': 'Brandy', 'PLUM BRANDY': 'Brandy', 'BLACKBERRY BRANDY': 'Brandy',
+    'APRICOT BRANDY': 'Brandy', 'PEAR BRANDY': 'Brandy', 'COGNAC (BRANDY) FB': 'Brandy', 'COGNAC (BRANDY) USB': 'Brandy',
+    'ARMAGNAC (BRANDY) FB': 'Brandy', 'ARMAGNAC (BRANDY) USB': 'Brandy', 'GRAPPA BRANDY': 'Brandy', 'PISCO': 'Brandy',
+    'APPLE BRANDY (CALVADOS)': 'Brandy', 'PLUM BRANDY (SLIVOVITZ)': 'Brandy', 'BRANDY - FLAVORED': 'Brandy',
+    'FLAVORED BRANDY': 'Brandy', 'BLACKBERRY FLAVORED BRANDY': 'Brandy', 'LIQUEUR & BRANDY': 'Brandy',
+    // LIQUEUR
+    'CORDIALS (FRUIT & PEELS)': 'Liqueur', 'FRUIT FLAVORED LIQUEURS': 'Liqueur', 'CURACAO': 'Liqueur',
+    'TRIPLE SEC': 'Liqueur', 'SLOE GIN': 'Liqueur', 'CORDIALS (HERBS & SEEDS)': 'Liqueur',
+    'ANISETTE, OUZO, OJEN': 'Liqueur', 'COFFEE (CAFE) LIQUEUR': 'Liqueur', 'KUMMEL': 'Liqueur',
+    'PEPPERMINT SCHNAPPS': 'Liqueur', 'AMARETTO': 'Liqueur', 'SAMBUCA': 'Liqueur', 'ARACK/RAKI': 'Liqueur',
+    'CORDIALS (CREMES OR CREAMS)': 'Liqueur', 'CREME DE CACAO WHITE': 'Liqueur', 'CREME DE CACAO BROWN': 'Liqueur',
+    'CREME DE MENTHE WHITE': 'Liqueur', 'CREME DE MENTHE GREEN': 'Liqueur', 'CREME DE ALMOND (NOYAUX)': 'Liqueur',
+    'DAIRY CREAM LIQUEUR/CORDIAL': 'Liqueur', 'NON DAIRY CREME LIQUEUR/CORDIAL': 'Liqueur',
+    'SPECIALTIES & PROPRIETARIES': 'Liqueur', 'OTHER SPECIALTIES & PROPRIETARIES': 'Liqueur',
+    // COCKTAILS
+    'COCKTAILS 48 PROOF UP': 'Cocktails', 'COCKTAILS UNDER 48 PROOF': 'Cocktails',
+    'MIXED DRINKS-HI BALLS COCKTAILS': 'Cocktails', 'SCREW DRIVER': 'Cocktails', 'COLLINS': 'Cocktails',
+    'BLOODY MARY': 'Cocktails', 'EGG NOG': 'Cocktails', 'DAIQUIRI (48 PROOF UP)': 'Cocktails',
+    'DAIQUIRI (UNDER 48 PROOF)': 'Cocktails', 'MARGARITA (48 PROOF UP)': 'Cocktails',
+    'MARGARITA (UNDER 48 PROOF)': 'Cocktails', 'COLADA (48 PROOF UP)': 'Cocktails', 'COLADA (UNDER 48 PROOF)': 'Cocktails',
+    // WINE
+    'TABLE RED WINE': 'Wine', 'ROSE WINE': 'Wine', 'TABLE WHITE WINE': 'Wine', 'TABLE FLAVORED WINE': 'Wine',
+    'TABLE FRUIT WINE': 'Wine', 'SPARKLING WINE/CHAMPAGNE': 'Wine', 'SPARKLING WINE': 'Wine', 'CHAMPAGNE': 'Wine',
+    'CARBONATED WINE': 'Wine', 'VERMOUTH/MIXED TYPES': 'Wine', 'DESSERT FLAVORED WINE': 'Wine',
+    'DESSERT /PORT/SHERRY/(COOKING) WINE': 'Wine', 'DESSERT FRUIT WINE': 'Wine', 'WINE': 'Wine',
+    'PORT': 'Wine', 'SHERRY': 'Wine', 'VERMOUTH': 'Wine', 'SANGRIA': 'Wine', 'MEAD': 'Wine', 'CIDER': 'Wine',
+    'SAKE': 'Wine', 'SAKE - IMPORTED': 'Wine', 'SAKE - DOMESTIC FLAVORED': 'Wine', 'SAKE - IMPORTED FLAVORED': 'Wine',
+    // BEER
+    'MALT BEVERAGES': 'Beer', 'BEER': 'Beer', 'ALE': 'Beer', 'MALT LIQUOR': 'Beer', 'STOUT': 'Beer', 'PORTER': 'Beer',
+    'MALT BEVERAGES SPECIALITIES - FLAVORED': 'Beer', 'OTHER MALT BEVERAGES': 'Beer',
+    // TEQUILA
+    'TEQUILA': 'Tequila', 'TEQUILA FB': 'Tequila', 'TEQUILA USB': 'Tequila', 'MEZCAL': 'Tequila',
+    'MEZCAL FB': 'Tequila', 'AGAVE SPIRITS': 'Tequila', 'FLAVORED TEQUILA': 'Tequila', 'FLAVORED MEZCAL': 'Tequila',
+    // OTHER SPIRITS
+    'OTHER SPIRITS': 'Other Spirits', 'NEUTRAL SPIRITS - GRAIN': 'Other Spirits', 'BITTERS - BEVERAGE': 'Other Spirits',
+    'BITTERS - BEVERAGE*': 'Other Spirits', 'GRAIN SPIRITS': 'Other Spirits',
+    // OTHER
+    'NON ALCOHOLIC MIXES': 'Other', 'ADMINISTRATIVE WITHDRAWAL': 'Other'
 };
+
+// Categories list for dropdown
+const CATEGORIES = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'Cocktails', 'Other Spirits', 'Other'];
+
+// Function to get category from class_type_code - uses lookup, falls back to pattern matching for unknown codes
+function getCategory(classTypeCode) {
+    if (!classTypeCode) return 'Other';
+    // Try exact lookup first
+    if (TTB_CODE_CATEGORIES[classTypeCode]) return TTB_CODE_CATEGORIES[classTypeCode];
+    // Fallback: pattern matching for any codes not in lookup table
+    const upper = classTypeCode.toUpperCase();
+    if (upper.includes('WHISK') || upper.includes('BOURBON') || upper.includes('SCOTCH')) return 'Whiskey';
+    if (upper.includes('VODKA')) return 'Vodka';
+    if (upper.includes('TEQUILA') || upper.includes('MEZCAL') || upper.includes('AGAVE')) return 'Tequila';
+    if (upper.includes('RUM') || upper.includes('CACHACA')) return 'Rum';
+    if (upper.includes('GIN')) return 'Gin';
+    if (upper.includes('BRANDY') || upper.includes('COGNAC') || upper.includes('ARMAGNAC') || upper.includes('GRAPPA') || upper.includes('PISCO')) return 'Brandy';
+    if (upper.includes('WINE') || upper.includes('CHAMPAGNE') || upper.includes('PORT') || upper.includes('SHERRY') || upper.includes('VERMOUTH') || upper.includes('SAKE') || upper.includes('CIDER') || upper.includes('MEAD')) return 'Wine';
+    if (upper.includes('BEER') || upper.includes('ALE') || upper.includes('MALT') || upper.includes('STOUT') || upper.includes('PORTER')) return 'Beer';
+    if (upper.includes('LIQUEUR') || upper.includes('CORDIAL') || upper.includes('SCHNAPPS') || upper.includes('AMARETTO') || upper.includes('CREME DE')) return 'Liqueur';
+    if (upper.includes('COCKTAIL') || upper.includes('MARTINI') || upper.includes('DAIQUIRI') || upper.includes('MARGARITA') || upper.includes('COLADA')) return 'Cocktails';
+    return 'Other';
+}
 
 // State
 const state = {
@@ -297,9 +290,14 @@ function updateSubcategoryDropdown() {
     // Clear current options
     elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
     
-    if (selectedCategory && CATEGORY_SUBCATEGORIES[selectedCategory]) {
-        // Show only subcategories for selected category
-        CATEGORY_SUBCATEGORIES[selectedCategory].forEach(subcat => {
+    if (selectedCategory) {
+        // Filter subcategories by looking up each one's category
+        const matchingSubcats = state.filters.class_types.filter(type => {
+            return getCategory(type) === selectedCategory;
+        });
+        
+        // Add matching subcategories to dropdown
+        matchingSubcats.forEach(subcat => {
             const option = document.createElement('option');
             option.value = subcat;
             option.textContent = subcat;
