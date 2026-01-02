@@ -1234,7 +1234,7 @@ a:hover { color: var(--color-primary-hover); }
 .hero-email-form {
     display: flex;
     gap: var(--space-sm);
-    max-width: 480px;
+    max-width: 500px;
     margin: 0 auto;
 }
 
@@ -1254,6 +1254,33 @@ a:hover { color: var(--color-primary-hover); }
 
 .hero-email-form .btn {
     white-space: nowrap;
+}
+
+.hero-microcopy {
+    font-size: 0.8125rem;
+    color: var(--color-text-tertiary);
+    margin-top: var(--space-sm);
+    text-align: center;
+}
+
+/* Link style button */
+.btn-link {
+    color: var(--color-text-secondary);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.btn-link:hover {
+    color: var(--color-primary);
+}
+
+/* Signup note small */
+.signup-note-small {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
+    margin-top: var(--space-xs);
 }
 
 /* Personas Section */

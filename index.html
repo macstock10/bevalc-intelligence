@@ -38,21 +38,27 @@
         <div class="hero-container">
             <p class="hero-eyebrow">Weekly Competitive Intelligence for BevAlc</p>
             <h1 class="hero-title">See What's Launching Next.<br><em>Before It Hits the Shelves.</em></h1>
-            <p class="hero-subtitle">Stop manually checking TTB. Get weekly changelogs of new brands, new SKUs, and competitor activity—delivered every Sunday with links to official filings.</p>
+            <p class="hero-subtitle">Get a weekly report of newly approved TTB labels—new SKUs, line extensions, and new entrants—organized by category and linked to the official filing with images.</p>
             
             <!-- Inline Email Signup -->
             <div class="hero-email-signup" id="hero-email-signup">
                 <form class="hero-email-form" id="hero-email-form">
-                    <input type="email" id="hero-email" placeholder="Enter your work email" required>
-                    <button type="submit" class="btn btn-primary">Get Free Access</button>
+                    <input type="email" id="hero-email" placeholder="Email" required>
+                    <button type="submit" class="btn btn-primary" id="hero-submit-btn">
+                        <span class="btn-text">Get Free Weekly Report</span>
+                        <span class="btn-loading" style="display: none;">
+                            <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
+                            </svg>
+                        </span>
+                    </button>
                 </form>
+                <p class="hero-microcopy">Free weekly snapshot. No credit card. Unsubscribe anytime.</p>
             </div>
             
             <div class="hero-cta" id="hero-cta-buttons">
-                <a href="database.html" class="btn btn-secondary">Browse Database</a>
+                <a href="database.html" class="btn-link">Browse the Database →</a>
             </div>
-            
-            <p class="hero-note">Built for operators who need to track launches weekly: brand owners, importers, agencies, suppliers.</p>
         </div>
     </section>
 
@@ -61,17 +67,17 @@
         <div class="stats-container">
             <div class="stat">
                 <span class="stat-number">839K+</span>
-                <span class="stat-label">Label Approvals</span>
+                <span class="stat-label">Approvals Tracked</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat">
-                <span class="stat-number">~2,500</span>
-                <span class="stat-label">New Filings/Week</span>
+                <span class="stat-number">~2,500/wk</span>
+                <span class="stat-label">New Filings Detected</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat">
-                <span class="stat-number">Competitor Alerts</span>
-                <span class="stat-label">Delivered Every Sunday</span>
+                <span class="stat-number">New Filing Alerts</span>
+                <span class="stat-label">Weekly Delivery</span>
             </div>
         </div>
     </section>
@@ -257,20 +263,18 @@
         </div>
     </section>
 
-    <!-- Email Signup Section -->
+    <!-- Bottom Email Signup Section -->
     <section class="signup" id="signup">
         <div class="signup-container">
             <div class="signup-content">
-                <h2 id="signup-title">Get the Weekly Changelog</h2>
-                <p id="signup-desc">Join operators using BevAlc Intelligence to track competitor launches and spot market trends.</p>
+                <h2 id="signup-title">Get the Free Weekly Report</h2>
                 
                 <form class="signup-form" id="signup-form">
                     <div class="form-group">
-                        <label for="email">Work Email *</label>
-                        <input type="email" id="email" name="email" required placeholder="john@company.com">
+                        <input type="email" id="email" name="email" required placeholder="Email">
                     </div>
                     <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
-                        <span class="btn-text">Send Me the Weekly Changelog</span>
+                        <span class="btn-text">Get Free Weekly Report</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
@@ -285,22 +289,13 @@
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
-                    <h3>You're In!</h3>
-                    <p>Check your email to confirm. You now have full access to the database.</p>
+                    <h3>Check Your Inbox!</h3>
+                    <p>You now have full access to the database.</p>
                     <a href="database.html" class="btn btn-primary" style="margin-top: 1rem;">Go to Database</a>
                 </div>
                 
-                <div class="signup-exists" id="signup-exists" style="display: none;">
-                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                    <h3>Welcome Back!</h3>
-                    <p>You already have access. <a href="database.html">Go to the database →</a></p>
-                </div>
-                
-                <p class="signup-note" id="signup-note">Free forever. No credit card required.</p>
-                <p class="signup-legal" id="signup-legal">By signing up, you agree to our <a href="legal.html#terms">Terms of Service</a> and <a href="legal.html#privacy">Privacy Policy</a>.</p>
+                <p class="signup-note" id="signup-note">Free. No credit card. Unsubscribe anytime.</p>
+                <p class="signup-note-small" id="signup-note-small">Sent every Sunday night.</p>
             </div>
         </div>
     </section>
@@ -341,23 +336,35 @@
                 const navCta = document.getElementById('nav-cta');
                 const userGreeting = document.getElementById('user-greeting');
                 const heroEmailSignup = document.getElementById('hero-email-signup');
+                const heroCta = document.getElementById('hero-cta-buttons');
                 const freeCta = document.getElementById('free-cta');
+                const bottomSignup = document.getElementById('signup');
                 
                 if (navCta) navCta.style.display = 'none';
                 
-                if (userGreeting && user && user.email) {
+                if (userGreeting) {
                     userGreeting.textContent = 'Hi there';
                     userGreeting.style.display = 'inline';
                 }
                 
-                // Hide hero email form, show "Go to Database" button instead
+                // Replace hero email form with "Go to Database" button
                 if (heroEmailSignup) {
                     heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-primary">Go to Database</a>';
+                }
+                
+                // Update hero secondary link
+                if (heroCta) {
+                    heroCta.innerHTML = '<a href="#pricing" class="btn-link">View Pricing →</a>';
                 }
                 
                 if (freeCta) {
                     freeCta.textContent = 'You Have Access';
                     freeCta.href = 'database.html';
+                }
+                
+                // Hide bottom signup section for existing users
+                if (bottomSignup) {
+                    bottomSignup.style.display = 'none';
                 }
                 
                 // Check if user is Pro
@@ -443,8 +450,15 @@
         document.getElementById('hero-email-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('hero-email').value.trim();
+            const submitBtn = document.getElementById('hero-submit-btn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const btnLoading = submitBtn.querySelector('.btn-loading');
             
             if (email) {
+                btnText.style.display = 'none';
+                btnLoading.style.display = 'inline-flex';
+                submitBtn.disabled = true;
+                
                 await submitEmail(email);
             }
         });
@@ -464,10 +478,6 @@
                 submitBtn.disabled = true;
                 
                 await submitEmail(email, true);
-                
-                btnText.style.display = 'inline';
-                btnLoading.style.display = 'none';
-                submitBtn.disabled = false;
             }
         });
         
@@ -487,7 +497,7 @@
                     })
                 });
                 
-                const data = await response.json().catch(() => ({}));
+                await response.json().catch(() => ({}));
                 
                 // Store user info
                 localStorage.setItem('bevalc_user', JSON.stringify({
@@ -499,19 +509,11 @@
                 BevAlcAuth.grantAccess();
                 
                 if (showSuccessUI) {
-                    // Check if user already existed
-                    const alreadyExists = data.message && data.message.toLowerCase().includes('already');
-                    
-                    // Show appropriate success message
+                    // Show success message
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('signup-note').style.display = 'none';
-                    document.getElementById('signup-legal').style.display = 'none';
-                    
-                    if (alreadyExists) {
-                        document.getElementById('signup-exists').style.display = 'block';
-                    } else {
-                        document.getElementById('signup-success').style.display = 'block';
-                    }
+                    document.getElementById('signup-note-small').style.display = 'none';
+                    document.getElementById('signup-success').style.display = 'block';
                 } else {
                     // Redirect to database
                     window.location.href = 'database.html';
@@ -530,7 +532,7 @@
                 if (showSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('signup-note').style.display = 'none';
-                    document.getElementById('signup-legal').style.display = 'none';
+                    document.getElementById('signup-note-small').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
