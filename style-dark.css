@@ -402,12 +402,23 @@ a:hover {
 
 .hero-title {
     font-family: var(--font-display);
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-size: clamp(2rem, 5vw, 4rem);
     font-weight: 800;
     line-height: 1.05;
     color: var(--color-text-primary);
     margin-bottom: var(--space-lg);
     letter-spacing: -0.02em;
+    max-width: 900px;
+}
+
+.hero-title-main {
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .hero-title-main {
+        white-space: normal;
+    }
 }
 
 .hero-title-accent {
@@ -663,6 +674,20 @@ a:hover {
     text-align: center;
     font-size: 0.8125rem;
     color: var(--color-text-muted);
+    margin-bottom: var(--space-lg);
+}
+
+.proof-secondary-link {
+    display: block;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition: color var(--transition-base);
+}
+
+.proof-secondary-link:hover {
+    color: var(--color-accent-light);
 }
 
 /* ==========================================
@@ -672,7 +697,7 @@ a:hover {
 .use-cases {
     position: relative;
     z-index: 1;
-    padding: var(--space-4xl) var(--space-xl);
+    padding: var(--space-3xl) var(--space-xl);
 }
 
 .use-cases-container {
@@ -817,7 +842,7 @@ a:hover {
 .what-you-get {
     position: relative;
     z-index: 1;
-    padding: var(--space-4xl) var(--space-xl);
+    padding: var(--space-3xl) var(--space-xl);
     background: rgba(0, 0, 0, 0.2);
 }
 
@@ -968,7 +993,7 @@ a:hover {
 .social-proof {
     position: relative;
     z-index: 1;
-    padding: var(--space-4xl) var(--space-xl);
+    padding: var(--space-3xl) var(--space-xl);
 }
 
 .social-proof-container {
@@ -1036,7 +1061,7 @@ a:hover {
 .pricing {
     position: relative;
     z-index: 1;
-    padding: var(--space-4xl) var(--space-xl);
+    padding: var(--space-3xl) var(--space-xl);
     background: rgba(0, 0, 0, 0.2);
 }
 

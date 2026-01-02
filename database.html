@@ -8,8 +8,116 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Locked State Styles */
+        .locked-view .results-section {
+            position: relative;
+            max-height: 520px;
+            overflow: hidden;
+        }
+        
+        .locked-view .pagination { display: none; }
+        .locked-view .results-count { display: none; }
+        
+        /* Blur effect for locked rows */
+        .blur-text { filter: blur(4px); user-select: none; }
+        
+        /* Locked overlay */
+        .locked-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 280px;
+            background: linear-gradient(to bottom, 
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.95) 50%,
+                rgba(255, 255, 255, 1) 100%
+            );
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 2rem;
+            z-index: 10;
+        }
+        
+        .locked-content {
+            text-align: center;
+            max-width: 420px;
+            padding: 0 1rem;
+        }
+        
+        .locked-content h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.5rem;
+        }
+        
+        .locked-content p {
+            font-size: 0.9375rem;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+        
+        .locked-form {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .locked-form input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            min-width: 200px;
+        }
+        
+        .locked-form input:focus {
+            outline: none;
+            border-color: #0d9488;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+        }
+        
+        .locked-form button {
+            padding: 0.75rem 1.25rem;
+            background: #0d9488;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9375rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        
+        .locked-form button:hover { background: #0f766e; }
+        
+        .locked-microcopy {
+            font-size: 0.8125rem;
+            color: #94a3b8;
+        }
+        
+        /* Preview table specific styles */
+        .preview-row td {
+            padding: 0.875rem 1rem;
+        }
+        
+        @media (max-width: 600px) {
+            .locked-form {
+                flex-direction: column;
+            }
+            .locked-form input {
+                min-width: auto;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -25,21 +133,21 @@
                 <a href="glossary.html" class="nav-link">Glossary</a>
             </div>
             <div class="nav-user" id="nav-user">
-                <span class="user-greeting" id="user-greeting"></span>
-                <a href="index.html#signup" class="nav-cta" id="nav-signup">Get Access</a>
+                <span class="user-status" id="user-status"></span>
+                <a href="#" class="nav-cta" id="nav-signup">Get Free Access</a>
             </div>
         </div>
     </nav>
 
     <!-- Database Content -->
-    <main class="database-page">
+    <main class="database-page" id="database-page">
         <div class="database-container">
             <!-- Header -->
             <div class="database-header">
                 <div class="database-title-row">
                     <h1>COLA Database</h1>
                     <div class="database-stats" id="database-stats">
-                        <span class="stat-badge" id="total-records">Loading...</span>
+                        <span class="stat-badge" id="total-records">839,357 total records</span>
                     </div>
                 </div>
                 
@@ -110,24 +218,24 @@
             </div>
 
             <!-- Results -->
-            <div class="results-section">
+            <div class="results-section" id="results-section">
                 <div class="results-header">
-                    <span class="results-count" id="results-count">0 results</span>
+                    <span class="results-count" id="results-count">Showing 1-20 of 839,357 results</span>
                 </div>
                 
-                <!-- Table Container with blur overlay for non-subscribers -->
+                <!-- Table Container -->
                 <div class="table-container" id="table-container">
                     <div class="table-wrapper">
                         <table class="results-table" id="results-table">
                             <thead>
                                 <tr>
-                                    <th class="sortable" data-sort="ttb_id">TTB ID <span class="sort-icon"></span></th>
-                                    <th class="sortable" data-sort="brand_name">Brand Name <span class="sort-icon"></span></th>
+                                    <th>TTB ID</th>
+                                    <th>Brand Name</th>
                                     <th>Fanciful Name</th>
-                                    <th class="sortable" data-sort="class_type_code">Subcategory <span class="sort-icon"></span></th>
-                                    <th class="sortable" data-sort="origin_code">Origin <span class="sort-icon"></span></th>
-                                    <th class="sortable active desc" data-sort="approval_date">Approval Date <span class="sort-icon">↓</span></th>
-                                    <th class="sortable" data-sort="status">Status <span class="sort-icon"></span></th>
+                                    <th>Subcategory</th>
+                                    <th>Origin</th>
+                                    <th>Approval Date</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="results-body">
@@ -136,12 +244,16 @@
                         </table>
                     </div>
                     
-                    <!-- Blur overlay for non-subscribers -->
-                    <div class="blur-overlay" id="blur-overlay">
-                        <div class="blur-content">
-                            <h3>Sign Up to View Full Data</h3>
-                            <p>Get free access to search and filter 630K+ label approvals</p>
-                            <a href="index.html#signup" class="btn btn-primary">Get Free Access</a>
+                    <!-- Locked overlay (shown when not authenticated) -->
+                    <div class="locked-overlay" id="locked-overlay" style="display: none;">
+                        <div class="locked-content">
+                            <h3>Create a free account to unlock full results</h3>
+                            <p>Search 839K+ TTB label approvals with filters, exports, and more.</p>
+                            <form class="locked-form" id="locked-form">
+                                <input type="email" id="locked-email" placeholder="Enter your email" required>
+                                <button type="submit">Get Free Access</button>
+                            </form>
+                            <p class="locked-microcopy">Free. No credit card.</p>
                         </div>
                     </div>
                 </div>
@@ -175,7 +287,7 @@
     </div>
 
     <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
         <div class="loading-spinner"></div>
         <p>Loading data...</p>
     </div>
@@ -194,6 +306,131 @@
     </footer>
 
     <script src="auth.js"></script>
-    <script src="database.js"></script>
+    <script>
+        const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
+        
+        // Preview data for locked state (partial reveal blur)
+        const previewData = [
+            { ttb_id: '25364001000099', brand: 'BALLOTIN', fanciful: 'PEANUT BUTTER CHOCOLATE', subcategory: 'WHISKY SPECIALTIES', origin: 'NORTH CAROLINA', date: '12/30/2025', status: 'APPROVED' },
+            { ttb_id: '25363001000064', brand: 'DOMAINE ARNOUX', fanciful: 'LES PERRIERES', subcategory: 'TABLE RED WINE', origin: 'FRANCE', date: '12/29/2025', status: 'APPROVED' },
+            { ttb_id: '25363001000062', brand: 'DOMAINE ARNOUX', fanciful: 'LES CENTS VIGNES', subcategory: 'DESSERT WINE', origin: 'FRANCE', date: '12/29/2025', status: 'APPROVED' },
+            { ttb_id: '25363001000058', brand: 'DOMAINE ARNOUX', fanciful: 'EN GENET', subcategory: 'TABLE RED WINE', origin: 'FRANCE', date: '12/29/2025', status: 'APPROVED' },
+            { ttb_id: '25351001000892', brand: 'WHISTLEPIG', fanciful: 'PIGGYBACK RYE', subcategory: 'WHISKEY', origin: 'VERMONT', date: '12/28/2025', status: 'APPROVED' },
+            { ttb_id: '25356001000425', brand: 'CASA AZUL', fanciful: 'ORGANIC BLANCO', subcategory: 'TEQUILA', origin: 'MEXICO', date: '12/28/2025', status: 'APPROVED' },
+            { ttb_id: '25311001000156', brand: 'HENDRICKS', fanciful: 'NEPTUNIA GIN', subcategory: 'GIN', origin: 'SCOTLAND', date: '12/27/2025', status: 'APPROVED' },
+            { ttb_id: '25356001000789', brand: 'CODIGO 1530', fanciful: 'ROSA REPOSADO', subcategory: 'TEQUILA', origin: 'MEXICO', date: '12/27/2025', status: 'APPROVED' },
+            { ttb_id: '25351001000234', brand: 'SKREWBALL', fanciful: 'PEANUT BUTTER WHISKEY', subcategory: 'WHISKEY', origin: 'CALIFORNIA', date: '12/26/2025', status: 'APPROVED' },
+            { ttb_id: '25311001000445', brand: 'EMPRESS', fanciful: 'ELDERFLOWER ROSE', subcategory: 'GIN', origin: 'CANADA', date: '12/26/2025', status: 'APPROVED' }
+        ];
+        
+        // Blur text helper - shows first 2 chars, blurs rest
+        function partialBlur(text) {
+            if (!text || text.length <= 3) return `<span class="blur-text">${text || ''}</span>`;
+            const visible = text.substring(0, 2);
+            const hidden = text.substring(2);
+            return `${visible}<span class="blur-text">${hidden}</span>`;
+        }
+        
+        // Render preview table for locked state
+        function renderPreviewTable() {
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+            
+            previewData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'preview-row';
+                tr.innerHTML = `
+                    <td>${row.ttb_id}</td>
+                    <td><strong>${partialBlur(row.brand)}</strong></td>
+                    <td>${partialBlur(row.fanciful)}</td>
+                    <td>${row.subcategory}</td>
+                    <td>${row.origin}</td>
+                    <td>${row.date}</td>
+                    <td><span class="status-badge status-approved">${row.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // Check authentication and render appropriate view
+        document.addEventListener('DOMContentLoaded', function() {
+            const hasAccess = BevAlcAuth.hasAccess();
+            const databasePage = document.getElementById('database-page');
+            const lockedOverlay = document.getElementById('locked-overlay');
+            const navSignup = document.getElementById('nav-signup');
+            
+            // Check for search param from homepage
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchQuery = urlParams.get('search');
+            
+            if (hasAccess) {
+                // User is authenticated - load full database
+                databasePage.classList.remove('locked-view');
+                lockedOverlay.style.display = 'none';
+                navSignup.textContent = 'Go to Database';
+                navSignup.href = 'database.html';
+                
+                // Load the actual database JS
+                const script = document.createElement('script');
+                script.src = 'database.js';
+                document.body.appendChild(script);
+                
+                // If there's a search query, set it
+                if (searchQuery) {
+                    setTimeout(() => {
+                        const searchInput = document.getElementById('search-input');
+                        if (searchInput) {
+                            searchInput.value = decodeURIComponent(searchQuery);
+                            document.getElementById('search-btn')?.click();
+                        }
+                    }, 500);
+                }
+            } else {
+                // User is not authenticated - show locked preview
+                databasePage.classList.add('locked-view');
+                lockedOverlay.style.display = 'flex';
+                renderPreviewTable();
+                
+                // Nav CTA scrolls to locked form
+                navSignup.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.getElementById('locked-email').focus();
+                });
+            }
+        });
+        
+        // Handle locked form submission
+        document.getElementById('locked-form')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('locked-email').value.trim();
+            const btn = this.querySelector('button');
+            
+            if (email) {
+                btn.textContent = 'Loading...';
+                btn.disabled = true;
+                
+                try {
+                    // Submit to Loops
+                    await fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ email: email })
+                    });
+                } catch (e) {
+                    console.log('Loops submission error (continuing anyway)');
+                }
+                
+                // Grant access
+                localStorage.setItem('bevalc_user', JSON.stringify({
+                    email: email,
+                    signedUpAt: new Date().toISOString()
+                }));
+                BevAlcAuth.grantAccess();
+                
+                // Reload to show full database
+                window.location.reload();
+            }
+        });
+    </script>
 </body>
 </html>
