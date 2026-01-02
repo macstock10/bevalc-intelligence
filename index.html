@@ -8,10 +8,32 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style-dark.css">
 </head>
 <body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="particles" id="particles"></div>
+        <div class="bottles">
+            <svg class="bottle bottle-1" viewBox="0 0 40 120" fill="currentColor">
+                <path d="M15 30V15c0-2 1-3 3-4V5c0-2.5 2-4.5 4.5-4.5S27 2.5 27 5v6c2 1 3 2 3 4v15c2 3 3 7 3 12v58c0 10-4 18-11 18s-11-8-11-18V42c0-5 1-9 3-12z"/>
+            </svg>
+            <svg class="bottle bottle-2" viewBox="0 0 50 140" fill="currentColor">
+                <path d="M20 40V25c0-3 2-5 5-6V10c0-4 3-7 7-7s7 3 7 7v9c3 1 5 3 5 6v15c3 4 4 10 4 16v70c0 12-5 20-14 20s-14-8-14-20V56c0-6 1-12 4-16z"/>
+            </svg>
+            <svg class="bottle bottle-3" viewBox="0 0 60 100" fill="currentColor">
+                <path d="M20 25V18c0-2 2-4 5-5V8c0-3.5 3-6 7.5-6S40 4.5 40 8v5c3 1 5 3 5 5v7c4 4 6 10 6 18v40c0 10-6 16-18 16S15 93 15 83V43c0-8 2-14 5-18z"/>
+            </svg>
+            <svg class="bottle bottle-4" viewBox="0 0 45 130" fill="currentColor">
+                <path d="M17 35V22c0-2 1-4 4-5V8c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5v9c3 1 4 3 4 5v13c2 3 4 8 4 14v60c0 11-5 19-12 19s-12-8-12-19V49c0-6 2-11 4-14z"/>
+            </svg>
+            <svg class="bottle bottle-5" viewBox="0 0 55 110" fill="currentColor">
+                <path d="M22 30V20c0-2 2-4 5-5V8c0-3.5 3-6.5 7.5-6.5S42 4.5 42 8v7c3 1 5 3 5 5v10c3 4 5 9 5 15v45c0 11-6 18-16 18s-16-7-16-18V45c0-6 2-11 5-15z"/>
+            </svg>
+        </div>
+    </div>
+
     <!-- Navigation -->
     <nav class="nav">
         <div class="nav-container">
@@ -28,7 +50,7 @@
             <div class="nav-user" id="nav-user">
                 <span class="user-greeting" id="user-greeting"></span>
                 <span class="user-status" id="user-status"></span>
-                <a href="#signup" class="nav-cta" id="nav-cta">Get Free Access</a>
+                <a href="#signup" class="nav-cta" id="nav-cta">Get Access</a>
             </div>
         </div>
     </nav>
@@ -36,16 +58,19 @@
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-container">
-            <p class="hero-eyebrow">Weekly Competitive Intelligence for BevAlc</p>
-            <h1 class="hero-title">See What's Launching Next.<br><em>Before It Hits the Shelves.</em></h1>
-            <p class="hero-subtitle">Get a weekly report of newly approved TTB labels—new SKUs, line extensions, and new entrants—organized by category and linked to the official filing with images.</p>
+            <div class="hero-pill">Weekly Competitive Intel for BevAlc</div>
+            <h1 class="hero-title">
+                See What's Launching Next.
+                <span class="hero-title-accent">Before It Hits the Shelves.</span>
+            </h1>
+            <p class="hero-subtitle">Get a weekly report of newly approved TTB labels—new SKUs, line extensions, and new entrants—organized by category and linked to the official filings.</p>
             
-            <!-- Inline Email Signup -->
+            <!-- Hero Email Signup -->
             <div class="hero-email-signup" id="hero-email-signup">
                 <form class="hero-email-form" id="hero-email-form">
-                    <input type="email" id="hero-email" placeholder="Email" required>
-                    <button type="submit" class="btn btn-primary" id="hero-submit-btn">
-                        <span class="btn-text">Get Free Weekly Report</span>
+                    <input type="email" id="hero-email" placeholder="Enter your email" required>
+                    <button type="submit" class="btn btn-glow" id="hero-submit-btn">
+                        <span class="btn-text">Get the Weekly Intel</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
@@ -56,156 +81,159 @@
                 <p class="hero-microcopy">Free weekly snapshot. No credit card. Unsubscribe anytime.</p>
             </div>
             
-            <div class="hero-cta" id="hero-cta-buttons">
-                <a href="database.html" class="btn-link">Browse the Database →</a>
+            <a href="database.html" class="hero-secondary-link">Browse the Database →</a>
+            
+            <div class="scroll-indicator">
+                <div class="scroll-line"></div>
             </div>
         </div>
     </section>
 
-    <!-- Stats Banner -->
-    <section class="stats">
+    <!-- Stats Strip -->
+    <section class="stats-strip">
         <div class="stats-container">
-            <div class="stat">
+            <div class="stat-item">
                 <span class="stat-number">839K+</span>
                 <span class="stat-label">Approvals Tracked</span>
             </div>
             <div class="stat-divider"></div>
-            <div class="stat">
+            <div class="stat-item">
                 <span class="stat-number">~2,500/wk</span>
                 <span class="stat-label">New Filings Detected</span>
             </div>
             <div class="stat-divider"></div>
-            <div class="stat">
-                <span class="stat-number">New Filing Alerts</span>
-                <span class="stat-label">Weekly Delivery</span>
+            <div class="stat-item">
+                <span class="stat-number">Weekly</span>
+                <span class="stat-label">Competitor Alerts</span>
             </div>
         </div>
     </section>
 
-    <!-- Who It's For Section -->
-    <section class="personas">
-        <div class="personas-container">
-            <h2 class="section-title">Who It's For</h2>
-            <p class="section-subtitle">If you ship product or advise brands, this saves you hours every week.</p>
+    <!-- Feature Cards -->
+    <section class="features">
+        <div class="features-container">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+                <h3>Spot Launches Early</h3>
+                <p>See competitor filings weeks before products hit shelves. Track SKU expansion, flavor trends, and packaging signals.</p>
+            </div>
             
-            <div class="personas-grid">
-                <div class="persona">
-                    <div class="persona-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                        </svg>
-                    </div>
-                    <h3>Brand & Innovation Teams</h3>
-                    <p>See competitor launches early. Track SKU expansion, flavor/format trends, and packaging signals—with direct links to official TTB filings.</p>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M3 3v18h18"></path>
+                        <path d="M18 9l-5 5-4-4-3 3"></path>
+                    </svg>
                 </div>
-                
-                <div class="persona">
-                    <div class="persona-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3>Importers & Distributors</h3>
-                    <p>Track new entrants by origin + state. Spot what's building momentum before it's obvious.</p>
+                <h3>Signal Over Noise</h3>
+                <p>We separate new-to-market activity from refiles and variants. You see what actually matters—not packaging updates.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
                 </div>
-                
-                <div class="persona">
-                    <div class="persona-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
-                        </svg>
-                    </div>
-                    <h3>Agencies & Consultants</h3>
-                    <p>Client-ready data + weekly proof points. Exportable data with direct links to official filings for pitch decks.</p>
-                </div>
-                
-                <div class="persona">
-                    <div class="persona-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
-                        </svg>
-                    </div>
-                    <h3>Suppliers & Co-Packers</h3>
-                    <p>Identify brands ramping SKU count (demand signals). Monitor bursts in filings by category.</p>
-                </div>
+                <h3>Sunday Delivery</h3>
+                <p>Every Sunday night, get a curated changelog of new brands, new SKUs, and top filers—ready for your Monday planning.</p>
             </div>
         </div>
     </section>
 
     <!-- What You Get Section -->
-    <section class="weekly-value">
-        <div class="weekly-container">
-            <h2 class="section-title">What You Get Every Sunday</h2>
-            <p class="section-subtitle">Concrete intelligence, not just raw data.</p>
-            
-            <div class="weekly-grid">
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>New Brands</strong>
-                        <span>First-seen in your category + geography (12-month lookback)</span>
+    <section class="what-you-get">
+        <div class="wyg-container">
+            <div class="wyg-content">
+                <h2 class="section-title">What You Get Every Week</h2>
+                <ul class="wyg-list">
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>New Brands</strong> — First-seen in your category (12-month lookback)</span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>New SKUs</strong> — First-time filings vs refiles, separated</span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Top 20 Active Brands</strong> — Who's pushing product this week</span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Origin Trends</strong> — Top origins vs 4-week baseline</span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Direct TTB Links</strong> — View official filings and label images</span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>CSV Export</strong> — Download for analysis or client reports</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="wyg-visual">
+                <div class="mock-card">
+                    <div class="mock-header">
+                        <span class="mock-dot"></span>
+                        <span class="mock-dot"></span>
+                        <span class="mock-dot"></span>
                     </div>
-                </div>
-                
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>New SKUs</strong>
-                        <span>First-time filings vs refiles—separated so you know what's real</span>
-                    </div>
-                </div>
-                
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>Top 20 Most Active</strong>
-                        <span>Which brands are pushing product this week</span>
-                    </div>
-                </div>
-                
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>Origin Trends</strong>
-                        <span>Top origins + direction vs 4-week baseline</span>
-                    </div>
-                </div>
-                
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>Direct Filing Links</strong>
-                        <span>Links to official TTB filings so you can view labels and full details</span>
-                    </div>
-                </div>
-                
-                <div class="weekly-item">
-                    <div class="weekly-check">✓</div>
-                    <div class="weekly-content">
-                        <strong>Downloadable CSV</strong>
-                        <span>Export your slice for analysis or client reports</span>
+                    <div class="mock-content">
+                        <div class="mock-title">Weekly Intel Report</div>
+                        <div class="mock-date">Sunday, Jan 5, 2026</div>
+                        <div class="mock-stats">
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">127</span>
+                                <span class="mock-stat-label">New Brands</span>
+                            </div>
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">843</span>
+                                <span class="mock-stat-label">New SKUs</span>
+                            </div>
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">2,412</span>
+                                <span class="mock-stat-label">Total Filings</span>
+                            </div>
+                        </div>
+                        <div class="mock-list">
+                            <div class="mock-list-item"></div>
+                            <div class="mock-list-item"></div>
+                            <div class="mock-list-item"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- How We Reduce Noise -->
-    <section class="noise-reduction">
-        <div class="noise-container">
-            <div class="noise-content">
-                <h2>We Separate Signal from Noise</h2>
-                <p>The biggest problem with raw TTB data? Refiles. A brand updating packaging looks the same as a brand launching something new.</p>
-                <p><strong>We separate new-to-market activity from refiles/variants</strong> using brand+SKU matching and lookback rules. You see what actually matters.</p>
-            </div>
-            <div class="noise-visual">
-                <div class="noise-stat">
-                    <span class="noise-number">~55%</span>
-                    <span class="noise-label">of weekly filings are refiles</span>
+    <!-- Testimonials -->
+    <section class="testimonials">
+        <div class="testimonials-container">
+            <div class="testimonial-card">
+                <p class="testimonial-text">"Finally, I don't have to manually check TTB every week. The changelog shows exactly what competitors filed—saves me hours."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">JM</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Brand Manager</span>
+                        <span class="testimonial-role">National Spirits Company</span>
+                    </div>
                 </div>
-                <div class="noise-stat">
-                    <span class="noise-number">~45%</span>
-                    <span class="noise-label">are genuinely new activity</span>
+            </div>
+            
+            <div class="testimonial-card">
+                <p class="testimonial-text">"We use this to prep client pitches. Being able to show 'here's what's filing in your category' with real data is invaluable."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">KR</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Strategy Director</span>
+                        <span class="testimonial-role">BevAlc Agency</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -234,7 +262,7 @@
                         <li>TTB detail links</li>
                         <li>Glossary & documentation</li>
                     </ul>
-                    <a href="#signup" class="btn btn-secondary btn-full" id="free-cta">Get Free Access</a>
+                    <a href="#signup" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
                 </div>
                 
                 <!-- Pro Tier -->
@@ -252,34 +280,32 @@
                         <li>Weekly changelog by category</li>
                         <li>New brands + new SKUs separated</li>
                         <li>Full CSV export</li>
-                        <li>Direct links to official TTB filings</li>
+                        <li>Direct links to TTB filings</li>
                         <li>Competitor watchlists</li>
                         <li>Priority support</li>
                     </ul>
-                    <button class="btn btn-primary btn-full" id="pro-cta">Get My Category Pack</button>
-                    <p class="pricing-note">Add categories anytime. Cancel anytime.</p>
+                    <button class="btn btn-glow" id="pro-cta">Get My Category Pack</button>
+                    <p class="pricing-note">Cancel anytime.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Bottom Email Signup Section -->
-    <section class="signup" id="signup">
-        <div class="signup-container">
-            <div class="signup-content">
-                <h2 id="signup-title">Get the Free Weekly Report</h2>
+    <!-- Final Email Capture -->
+    <section class="final-cta" id="signup">
+        <div class="final-cta-container">
+            <div class="final-cta-card">
+                <h2>Get the Free Weekly Report</h2>
+                <p>Join operators tracking competitor launches every week.</p>
                 
-                <form class="signup-form" id="signup-form">
-                    <div class="form-group">
-                        <input type="email" id="email" name="email" required placeholder="Email">
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
-                        <span class="btn-text">Get Free Weekly Report</span>
+                <form class="final-email-form" id="signup-form">
+                    <input type="email" id="email" placeholder="Enter your email" required>
+                    <button type="submit" class="btn btn-glow" id="submit-btn">
+                        <span class="btn-text">Get the Weekly Intel</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
                             </svg>
-                            Processing...
                         </span>
                     </button>
                 </form>
@@ -291,11 +317,11 @@
                     </svg>
                     <h3>Check Your Inbox!</h3>
                     <p>You now have full access to the database.</p>
-                    <a href="database.html" class="btn btn-primary" style="margin-top: 1rem;">Go to Database</a>
+                    <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
                 </div>
                 
-                <p class="signup-note" id="signup-note">Free. No credit card. Unsubscribe anytime.</p>
-                <p class="signup-note-small" id="signup-note-small">Sent every Sunday night.</p>
+                <p class="final-microcopy" id="final-microcopy">Free. No credit card. Unsubscribe anytime.</p>
+                <p class="final-note" id="final-note">Sent every Sunday night.</p>
             </div>
         </div>
     </section>
@@ -321,6 +347,27 @@
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         
+        // Create floating particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 20) + 's';
+                container.appendChild(particle);
+            }
+        }
+        
+        // Initialize particles
+        if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+            createParticles();
+        }
+        
         // Check access and subscription status on page load
         document.addEventListener('DOMContentLoaded', async function() {
             const hasAccess = BevAlcAuth.hasAccess();
@@ -336,9 +383,8 @@
                 const navCta = document.getElementById('nav-cta');
                 const userGreeting = document.getElementById('user-greeting');
                 const heroEmailSignup = document.getElementById('hero-email-signup');
-                const heroCta = document.getElementById('hero-cta-buttons');
                 const freeCta = document.getElementById('free-cta');
-                const bottomSignup = document.getElementById('signup');
+                const finalCta = document.querySelector('.final-cta-card');
                 
                 if (navCta) navCta.style.display = 'none';
                 
@@ -349,12 +395,7 @@
                 
                 // Replace hero email form with "Go to Database" button
                 if (heroEmailSignup) {
-                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-primary">Go to Database</a>';
-                }
-                
-                // Update hero secondary link
-                if (heroCta) {
-                    heroCta.innerHTML = '<a href="#pricing" class="btn-link">View Pricing →</a>';
+                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-glow">Go to Database</a>';
                 }
                 
                 if (freeCta) {
@@ -362,9 +403,13 @@
                     freeCta.href = 'database.html';
                 }
                 
-                // Hide bottom signup section for existing users
-                if (bottomSignup) {
-                    bottomSignup.style.display = 'none';
+                // Update final CTA for logged in users
+                if (finalCta) {
+                    finalCta.innerHTML = `
+                        <h2>Ready to Explore?</h2>
+                        <p>You have full access to the database.</p>
+                        <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                    `;
                 }
                 
                 // Check if user is Pro
@@ -387,7 +432,6 @@
                                 proCta.disabled = true;
                             }
                             
-                            // Store pro status
                             user.isPro = true;
                             BevAlcAuth.setUser(user);
                         }
@@ -404,16 +448,12 @@
             const proCta = document.getElementById('pro-cta');
             
             if (!user || !user.email) {
-                // Redirect to signup first
                 document.getElementById('signup').scrollIntoView({ behavior: 'smooth' });
                 alert('Please sign up for free access first, then upgrade to Pro.');
                 return;
             }
             
-            // Check if already Pro
-            if (user.isPro) {
-                return;
-            }
+            if (user.isPro) return;
             
             const originalText = proCta.textContent;
             proCta.disabled = true;
@@ -447,7 +487,7 @@
         }
         
         // Hero email form submission
-        document.getElementById('hero-email-form').addEventListener('submit', async function(e) {
+        document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('hero-email').value.trim();
             const submitBtn = document.getElementById('hero-submit-btn');
@@ -464,7 +504,7 @@
         });
         
         // Main signup form submission
-        document.getElementById('signup-form').addEventListener('submit', async function(e) {
+        document.getElementById('signup-form')?.addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('email').value.trim();
             
@@ -499,29 +539,24 @@
                 
                 await response.json().catch(() => ({}));
                 
-                // Store user info
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     email: email,
                     signedUpAt: new Date().toISOString()
                 }));
                 
-                // Grant access
                 BevAlcAuth.grantAccess();
                 
                 if (showSuccessUI) {
-                    // Show success message
                     document.getElementById('signup-form').style.display = 'none';
-                    document.getElementById('signup-note').style.display = 'none';
-                    document.getElementById('signup-note-small').style.display = 'none';
+                    document.getElementById('final-microcopy').style.display = 'none';
+                    document.getElementById('final-note').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
                 } else {
-                    // Redirect to database
                     window.location.href = 'database.html';
                 }
                 
             } catch (error) {
                 console.error('Signup error:', error);
-                // Grant access anyway - don't block user due to network issues
                 BevAlcAuth.grantAccess();
                 
                 localStorage.setItem('bevalc_user', JSON.stringify({
@@ -531,8 +566,8 @@
                 
                 if (showSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
-                    document.getElementById('signup-note').style.display = 'none';
-                    document.getElementById('signup-note-small').style.display = 'none';
+                    document.getElementById('final-microcopy').style.display = 'none';
+                    document.getElementById('final-note').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
