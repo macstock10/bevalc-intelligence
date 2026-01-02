@@ -547,6 +547,210 @@ a:hover {
 }
 
 /* ==========================================
+   PROOF TABLE SECTION
+   ========================================== */
+
+.proof-section {
+    position: relative;
+    z-index: 1;
+    padding: var(--space-4xl) var(--space-xl);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.proof-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.section-title-note {
+    font-weight: 400;
+    font-size: 0.5em;
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-style: normal;
+}
+
+.proof-table-wrapper {
+    overflow-x: auto;
+    margin: var(--space-xl) 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+}
+
+.proof-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+}
+
+.proof-table th {
+    text-align: left;
+    padding: var(--space-md) var(--space-lg);
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.proof-table td {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.proof-table tr:last-child td {
+    border-bottom: none;
+}
+
+.proof-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.proof-table td strong {
+    color: var(--color-text-primary);
+}
+
+.loading-row td {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: var(--space-2xl);
+}
+
+.signal-badge {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.signal-new-brand {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.signal-new-sku {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+.signal-refile {
+    background: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+}
+
+.filing-link {
+    color: var(--color-accent-light);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.filing-link:hover {
+    color: var(--color-text-primary);
+}
+
+.proof-note {
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+/* ==========================================
+   USE CASES SECTION
+   ========================================== */
+
+.use-cases {
+    position: relative;
+    z-index: 1;
+    padding: var(--space-4xl) var(--space-xl);
+}
+
+.use-cases-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.use-cases-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-lg);
+    margin-top: var(--space-2xl);
+}
+
+.use-case-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    transition: all var(--transition-base);
+}
+
+.use-case-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.use-case-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-accent-light);
+    margin-bottom: var(--space-md);
+}
+
+.use-case-pain {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin-bottom: var(--space-md);
+    line-height: 1.5;
+}
+
+.use-case-outcome {
+    font-size: 0.9375rem;
+    color: var(--color-text-primary);
+    font-weight: 500;
+    margin-bottom: var(--space-md);
+    line-height: 1.5;
+}
+
+.use-case-outputs {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.use-case-outputs li {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+}
+
+/* Pro Badge */
+.pro-badge {
+    display: inline-block;
+    background: var(--color-accent);
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: var(--space-xs);
+    vertical-align: middle;
+}
+
+/* ==========================================
    FEATURE CARDS
    ========================================== */
 
@@ -760,20 +964,20 @@ a:hover {
 .mock-list-item:nth-child(3) { width: 70%; }
 
 /* ==========================================
-   TESTIMONIALS
+   SOCIAL PROOF / TESTIMONIALS
    ========================================== */
 
-.testimonials {
+.social-proof {
     position: relative;
     z-index: 1;
     padding: var(--space-4xl) var(--space-xl);
 }
 
-.testimonials-container {
-    max-width: 900px;
+.social-proof-container {
+    max-width: 1100px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-xl);
 }
 
@@ -1088,6 +1292,17 @@ a:hover {
    RESPONSIVE
    ========================================== */
 
+@media (max-width: 1100px) {
+    .use-cases-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .social-proof-container {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+    }
+}
+
 @media (max-width: 900px) {
     .features-container {
         grid-template-columns: 1fr;
@@ -1101,10 +1316,6 @@ a:hover {
     
     .wyg-visual {
         order: -1;
-    }
-    
-    .testimonials-container {
-        grid-template-columns: 1fr;
     }
     
     .pricing-grid {
@@ -1141,6 +1352,19 @@ a:hover {
     .stat-divider {
         width: 50px;
         height: 1px;
+    }
+    
+    .use-cases-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .proof-table {
+        font-size: 0.8125rem;
+    }
+    
+    .proof-table th,
+    .proof-table td {
+        padding: var(--space-sm) var(--space-md);
     }
     
     .final-email-form {

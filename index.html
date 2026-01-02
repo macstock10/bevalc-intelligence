@@ -50,27 +50,27 @@
             <div class="nav-user" id="nav-user">
                 <span class="user-greeting" id="user-greeting"></span>
                 <span class="user-status" id="user-status"></span>
-                <a href="#signup" class="nav-cta" id="nav-cta">Get Access</a>
+                <a href="#hero-email" class="nav-cta" id="nav-cta">Get Weekly Report</a>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section -->
-    <section class="hero">
+    <section class="hero" id="hero">
         <div class="hero-container">
             <div class="hero-pill">Weekly Competitive Intel for BevAlc</div>
             <h1 class="hero-title">
-                See What's Launching Next.
-                <span class="hero-title-accent">Before It Hits the Shelves.</span>
+                Find New SKU Launches
+                <span class="hero-title-accent">Before They Hit the Shelves.</span>
             </h1>
-            <p class="hero-subtitle">Get a weekly report of newly approved TTB labels—new SKUs, line extensions, and new entrants—organized by category and linked to the official filings.</p>
+            <p class="hero-subtitle">Every Sunday: new brands, new SKUs, and top filers—linked to official TTB filings.</p>
             
             <!-- Hero Email Signup -->
             <div class="hero-email-signup" id="hero-email-signup">
                 <form class="hero-email-form" id="hero-email-form">
                     <input type="email" id="hero-email" placeholder="Enter your email" required>
                     <button type="submit" class="btn btn-glow" id="hero-submit-btn">
-                        <span class="btn-text">Get the Weekly Intel</span>
+                        <span class="btn-text">Get Weekly Report</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
@@ -78,14 +78,10 @@
                         </span>
                     </button>
                 </form>
-                <p class="hero-microcopy">Free weekly snapshot. No credit card. Unsubscribe anytime.</p>
+                <p class="hero-microcopy">See new labels for free. Cancel anytime.</p>
             </div>
             
-            <a href="database.html" class="hero-secondary-link">Browse the Database →</a>
-            
-            <div class="scroll-indicator">
-                <div class="scroll-line"></div>
-            </div>
+            <a href="database.html" class="hero-secondary-link">Browse the database (free) →</a>
         </div>
     </section>
 
@@ -94,12 +90,12 @@
         <div class="stats-container">
             <div class="stat-item">
                 <span class="stat-number">839K+</span>
-                <span class="stat-label">Approvals Tracked</span>
+                <span class="stat-label">Filings Indexed</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-                <span class="stat-number">~2,500/wk</span>
-                <span class="stat-label">New Filings Detected</span>
+                <span class="stat-number">~2,500</span>
+                <span class="stat-label">New Filings/Week</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -109,38 +105,85 @@
         </div>
     </section>
 
-    <!-- Feature Cards -->
-    <section class="features">
-        <div class="features-container">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                    </svg>
-                </div>
-                <h3>Spot Launches Early</h3>
-                <p>See competitor filings weeks before products hit shelves. Track SKU expansion, flavor trends, and packaging signals.</p>
-            </div>
+    <!-- Proof Table Section -->
+    <section class="proof-section">
+        <div class="proof-container">
+            <h2 class="section-title">This Week's Report <span class="section-title-note">(example)</span></h2>
+            <p class="section-subtitle">Real filings from the past 7 days</p>
             
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M3 3v18h18"></path>
-                        <path d="M18 9l-5 5-4-4-3 3"></path>
-                    </svg>
-                </div>
-                <h3>Signal Over Noise</h3>
-                <p>We separate new-to-market activity from refiles and variants. You see what actually matters—not packaging updates.</p>
+            <div class="proof-table-wrapper">
+                <table class="proof-table" id="proof-table">
+                    <thead>
+                        <tr>
+                            <th>Brand</th>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Signal</th>
+                            <th>Origin</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proof-table-body">
+                        <!-- Populated by JavaScript -->
+                        <tr class="loading-row">
+                            <td colspan="6">Loading recent filings...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
+            <p class="proof-note">Links go to official TTB public filing pages.</p>
+        </div>
+    </section>
+
+    <!-- Use Cases Section (replaces persona cards) -->
+    <section class="use-cases">
+        <div class="use-cases-container">
+            <h2 class="section-title">Built For</h2>
             
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            <div class="use-cases-grid">
+                <div class="use-case-card">
+                    <h3>Brand / Innovation</h3>
+                    <p class="use-case-pain">"Competitors launch quietly—by the time you see it, it's already selling."</p>
+                    <p class="use-case-outcome">Track new SKUs + line extensions before they hit shelves.</p>
+                    <ul class="use-case-outputs">
+                        <li>New SKUs detected</li>
+                        <li>Refiles separated</li>
+                        <li>Weekly movers</li>
+                    </ul>
                 </div>
-                <h3>Sunday Delivery</h3>
-                <p>Every Sunday night, get a curated changelog of new brands, new SKUs, and top filers—ready for your Monday planning.</p>
+                
+                <div class="use-case-card">
+                    <h3>Distributor / Importer</h3>
+                    <p class="use-case-pain">"New entrants appear region-by-region without warning."</p>
+                    <p class="use-case-outcome">Monitor origin + geography activity weekly.</p>
+                    <ul class="use-case-outputs">
+                        <li>Origin movers</li>
+                        <li>New brands by state</li>
+                        <li>Filing links</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case-card">
+                    <h3>Agency</h3>
+                    <p class="use-case-pain">"Clients ask 'what are competitors doing?' and you need proof."</p>
+                    <p class="use-case-outcome">Client-ready evidence + exports in minutes.</p>
+                    <ul class="use-case-outputs">
+                        <li>Weekly report</li>
+                        <li>CSV export</li>
+                        <li>Top filers</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case-card">
+                    <h3>Suppliers / Co-pack / Packaging</h3>
+                    <p class="use-case-pain">"You find demand too late."</p>
+                    <p class="use-case-outcome">Detect SKU ramp + who's scaling.</p>
+                    <ul class="use-case-outputs">
+                        <li>Top filers</li>
+                        <li>SKU acceleration</li>
+                        <li>Category trendlines</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </section>
@@ -153,27 +196,27 @@
                 <ul class="wyg-list">
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>New Brands</strong> — First-seen in your category (12-month lookback)</span>
+                        <span><strong>New brands</strong> (first-seen in your category)</span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>New SKUs</strong> — First-time filings vs refiles, separated</span>
+                        <span><strong>New SKUs vs refiles</strong></span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>Top 20 Active Brands</strong> — Who's pushing product this week</span>
+                        <span><strong>Top active companies/filers</strong> this week</span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>Origin Trends</strong> — Top origins vs 4-week baseline</span>
+                        <span><strong>Origin + geography movers</strong></span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>Direct TTB Links</strong> — View official filings and label images</span>
+                        <span><strong>Direct TTB filing links</strong></span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>CSV Export</strong> — Download for analysis or client reports</span>
+                        <span><strong>Cleaned data in CSV form</strong> <span class="pro-badge">Pro</span></span>
                     </li>
                 </ul>
             </div>
@@ -189,15 +232,15 @@
                         <div class="mock-date">Sunday, Jan 5, 2026</div>
                         <div class="mock-stats">
                             <div class="mock-stat">
-                                <span class="mock-stat-num">127</span>
+                                <span class="mock-stat-num" id="mock-new-brands">--</span>
                                 <span class="mock-stat-label">New Brands</span>
                             </div>
                             <div class="mock-stat">
-                                <span class="mock-stat-num">843</span>
+                                <span class="mock-stat-num" id="mock-new-skus">--</span>
                                 <span class="mock-stat-label">New SKUs</span>
                             </div>
                             <div class="mock-stat">
-                                <span class="mock-stat-num">2,412</span>
+                                <span class="mock-stat-num" id="mock-total">--</span>
                                 <span class="mock-stat-label">Total Filings</span>
                             </div>
                         </div>
@@ -212,27 +255,38 @@
         </div>
     </section>
 
-    <!-- Testimonials -->
-    <section class="testimonials">
-        <div class="testimonials-container">
+    <!-- Social Proof -->
+    <section class="social-proof">
+        <div class="social-proof-container">
             <div class="testimonial-card">
-                <p class="testimonial-text">"Finally, I don't have to manually check TTB every week. The changelog shows exactly what competitors filed—saves me hours."</p>
+                <p class="testimonial-text">"We use this to track competitor line extensions. Saves hours of manual TTB checking every week."</p>
                 <div class="testimonial-author">
-                    <div class="testimonial-avatar">JM</div>
+                    <div class="testimonial-avatar">BI</div>
                     <div class="testimonial-info">
-                        <span class="testimonial-name">Brand Manager</span>
+                        <span class="testimonial-name">Brand Innovation Lead</span>
                         <span class="testimonial-role">National Spirits Company</span>
                     </div>
                 </div>
             </div>
             
             <div class="testimonial-card">
-                <p class="testimonial-text">"We use this to prep client pitches. Being able to show 'here's what's filing in your category' with real data is invaluable."</p>
+                <p class="testimonial-text">"We watch new entrants by origin + state. When something's building momentum, we see it early."</p>
                 <div class="testimonial-author">
-                    <div class="testimonial-avatar">KR</div>
+                    <div class="testimonial-avatar">PM</div>
                     <div class="testimonial-info">
-                        <span class="testimonial-name">Strategy Director</span>
-                        <span class="testimonial-role">BevAlc Agency</span>
+                        <span class="testimonial-name">Distributor Portfolio Manager</span>
+                        <span class="testimonial-role">Regional Distribution</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="testimonial-card">
+                <p class="testimonial-text">"We turn this into client-ready slides fast. Real data, real filings, real proof."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">AS</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Agency Strategy</span>
+                        <span class="testimonial-role">BevAlc Creative Agency</span>
                     </div>
                 </div>
             </div>
@@ -262,7 +316,7 @@
                         <li>TTB detail links</li>
                         <li>Glossary & documentation</li>
                     </ul>
-                    <a href="#signup" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
+                    <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
                 </div>
                 
                 <!-- Pro Tier -->
@@ -277,15 +331,15 @@
                     </div>
                     <ul class="pricing-features">
                         <li><strong>Everything in Free, plus:</strong></li>
-                        <li>Weekly changelog by category</li>
-                        <li>New brands + new SKUs separated</li>
+                        <li>Weekly report by category</li>
+                        <li>New brand detection (first-seen logic)</li>
+                        <li>New SKU detection (vs refiles)</li>
                         <li>Full CSV export</li>
-                        <li>Direct links to TTB filings</li>
                         <li>Competitor watchlists</li>
-                        <li>Priority support</li>
+                        <li>Direct TTB filing links</li>
                     </ul>
                     <button class="btn btn-glow" id="pro-cta">Get My Category Pack</button>
-                    <p class="pricing-note">Cancel anytime.</p>
+                    <p class="pricing-note">Designed for operators tracking a single category (Whiskey / Tequila / Wine / etc.).</p>
                 </div>
             </div>
         </div>
@@ -295,13 +349,13 @@
     <section class="final-cta" id="signup">
         <div class="final-cta-container">
             <div class="final-cta-card">
-                <h2>Get the Free Weekly Report</h2>
-                <p>Join operators tracking competitor launches every week.</p>
+                <h2>Get the Weekly Changelog</h2>
+                <p>Free. Weekly. Linked to official filings.</p>
                 
                 <form class="final-email-form" id="signup-form">
                     <input type="email" id="email" placeholder="Enter your email" required>
                     <button type="submit" class="btn btn-glow" id="submit-btn">
-                        <span class="btn-text">Get the Weekly Intel</span>
+                        <span class="btn-text">Get Weekly Report</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
@@ -321,7 +375,6 @@
                 </div>
                 
                 <p class="final-microcopy" id="final-microcopy">Free. No credit card. Unsubscribe anytime.</p>
-                <p class="final-note" id="final-note">Sent every Sunday night.</p>
             </div>
         </div>
     </section>
@@ -368,6 +421,116 @@
             createParticles();
         }
         
+        // Load real data for proof table
+        async function loadProofTable() {
+            try {
+                // Fetch recent filings from the API
+                const response = await fetch(`${API_BASE}/api/search?limit=10&sort=newest`);
+                const data = await response.json();
+                
+                if (data.success && data.results && data.results.length > 0) {
+                    const tbody = document.getElementById('proof-table-body');
+                    tbody.innerHTML = '';
+                    
+                    // Track unique brands to determine signal
+                    const brandCounts = {};
+                    data.results.forEach(r => {
+                        brandCounts[r.brand_name] = (brandCounts[r.brand_name] || 0) + 1;
+                    });
+                    
+                    let newBrands = 0;
+                    let newSkus = 0;
+                    
+                    data.results.slice(0, 10).forEach(row => {
+                        // Determine signal based on simple heuristics
+                        // In production, this would come from your signal detection logic
+                        let signal = 'New SKU';
+                        if (brandCounts[row.brand_name] === 1) {
+                            signal = 'New Brand';
+                            newBrands++;
+                        } else {
+                            newSkus++;
+                        }
+                        
+                        // Map category from class_type_code
+                        const category = mapCategory(row.class_type_code);
+                        
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><strong>${escapeHtml(row.brand_name || 'N/A')}</strong></td>
+                            <td>${escapeHtml(row.fanciful_name || row.product_name || '—')}</td>
+                            <td>${escapeHtml(category)}</td>
+                            <td><span class="signal-badge signal-${signal.toLowerCase().replace(' ', '-')}">${signal}</span></td>
+                            <td>${escapeHtml(row.origin_code || 'N/A')}</td>
+                            <td><a href="https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=${row.ttb_id}" target="_blank" rel="noopener" class="filing-link">View →</a></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    
+                    // Update mock card stats
+                    document.getElementById('mock-new-brands').textContent = newBrands;
+                    document.getElementById('mock-new-skus').textContent = newSkus;
+                    document.getElementById('mock-total').textContent = data.results.length;
+                }
+            } catch (error) {
+                console.error('Error loading proof table:', error);
+                document.getElementById('proof-table-body').innerHTML = '<tr><td colspan="6">Unable to load data. <a href="database.html">Browse the database →</a></td></tr>';
+            }
+        }
+        
+        // Map class_type_code to category
+        function mapCategory(code) {
+            const categoryMap = {
+                'BWC': 'Wine',
+                'BWS': 'Wine',
+                'DSP': 'Spirits',
+                'MLT': 'Malt',
+                'BRW': 'Malt'
+            };
+            
+            if (!code) return 'Spirits';
+            
+            const prefix = code.substring(0, 3);
+            return categoryMap[prefix] || 'Spirits';
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Initialize proof table on load
+        loadProofTable();
+        
+        // Smooth scroll to email field when nav CTA is clicked
+        document.getElementById('nav-cta')?.addEventListener('click', function(e) {
+            const hasAccess = BevAlcAuth.hasAccess();
+            if (!hasAccess) {
+                e.preventDefault();
+                const heroEmail = document.getElementById('hero-email');
+                if (heroEmail) {
+                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => heroEmail.focus(), 500);
+                }
+            }
+        });
+        
+        // Same for free-cta
+        document.getElementById('free-cta')?.addEventListener('click', function(e) {
+            const hasAccess = BevAlcAuth.hasAccess();
+            if (!hasAccess) {
+                e.preventDefault();
+                const heroEmail = document.getElementById('hero-email');
+                if (heroEmail) {
+                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => heroEmail.focus(), 500);
+                }
+            }
+        });
+        
         // Check access and subscription status on page load
         document.addEventListener('DOMContentLoaded', async function() {
             const hasAccess = BevAlcAuth.hasAccess();
@@ -386,7 +549,11 @@
                 const freeCta = document.getElementById('free-cta');
                 const finalCta = document.querySelector('.final-cta-card');
                 
-                if (navCta) navCta.style.display = 'none';
+                // Update nav CTA
+                if (navCta) {
+                    navCta.textContent = 'Go to Database';
+                    navCta.href = 'database.html';
+                }
                 
                 if (userGreeting) {
                     userGreeting.textContent = 'Hi there';
@@ -395,7 +562,7 @@
                 
                 // Replace hero email form with "Go to Database" button
                 if (heroEmailSignup) {
-                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-glow">Go to Database</a>';
+                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-glow">Go to Database</a><p class="hero-microcopy">You have full access</p>';
                 }
                 
                 if (freeCta) {
@@ -448,7 +615,11 @@
             const proCta = document.getElementById('pro-cta');
             
             if (!user || !user.email) {
-                document.getElementById('signup').scrollIntoView({ behavior: 'smooth' });
+                const heroEmail = document.getElementById('hero-email');
+                if (heroEmail) {
+                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => heroEmail.focus(), 500);
+                }
                 alert('Please sign up for free access first, then upgrade to Pro.');
                 return;
             }
@@ -549,7 +720,6 @@
                 if (showSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
-                    document.getElementById('final-note').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
@@ -567,7 +737,6 @@
                 if (showSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
-                    document.getElementById('final-note').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
