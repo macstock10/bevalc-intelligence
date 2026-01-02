@@ -594,36 +594,34 @@
             }
         });
         
-        // Handle Pro upgrade
+        // Handle Pro upgrade - go directly to Stripe Checkout
         async function handleProUpgrade() {
             const user = BevAlcAuth.getUser();
             const proCta = document.getElementById('pro-cta');
             
-            if (!user || !user.email) {
-                const heroEmail = document.getElementById('hero-email');
-                if (heroEmail) {
-                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(() => heroEmail.focus(), 500);
-                }
-                alert('Please sign up for free access first, then upgrade to Pro.');
-                return;
-            }
-            
-            if (user.isPro) return;
+            // If user is already Pro, do nothing
+            if (user && user.isPro) return;
             
             const originalText = proCta.textContent;
             proCta.disabled = true;
             proCta.textContent = 'Loading...';
             
             try {
+                // Create checkout session - email is optional, Stripe will collect it
+                const body = {
+                    successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
+                    cancelUrl: window.location.origin + '/#pricing'
+                };
+                
+                // If user has email, include it for pre-fill
+                if (user && user.email) {
+                    body.email = user.email;
+                }
+                
                 const response = await fetch(`${API_BASE}/api/stripe/create-checkout`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: user.email,
-                        successUrl: window.location.origin + '/database.html?upgraded=true',
-                        cancelUrl: window.location.origin + '/#pricing'
-                    })
+                    body: JSON.stringify(body)
                 });
                 
                 const data = await response.json();
