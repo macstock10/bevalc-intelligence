@@ -1223,7 +1223,37 @@ a:hover { color: var(--color-primary-hover); }
 .hero-note {
     font-size: 0.875rem;
     color: var(--color-text-tertiary);
-    margin-top: var(--space-xl);
+    margin-top: var(--space-lg);
+}
+
+/* Hero Email Signup */
+.hero-email-signup {
+    margin-bottom: var(--space-md);
+}
+
+.hero-email-form {
+    display: flex;
+    gap: var(--space-sm);
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.hero-email-form input[type="email"] {
+    flex: 1;
+    padding: var(--space-md) var(--space-lg);
+    font-size: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+.hero-email-form input[type="email"]:focus {
+    border-color: var(--color-primary);
+}
+
+.hero-email-form .btn {
+    white-space: nowrap;
 }
 
 /* Personas Section */
@@ -1532,7 +1562,10 @@ a:hover { color: var(--color-primary-hover); }
 @media (max-width: 768px) {
     .nav-links { display: none; }
     .hero-title { font-size: 2rem; }
-    .stats-container { gap: var(--space-lg); }
+    .stats-container { 
+        flex-direction: column;
+        gap: var(--space-lg); 
+    }
     .stat-divider { display: none; }
     .form-row { grid-template-columns: 1fr; }
     .filters-row { flex-direction: column; }
@@ -1545,4 +1578,10 @@ a:hover { color: var(--color-primary-hover); }
     .personas-grid { grid-template-columns: 1fr; }
     .weekly-grid { grid-template-columns: 1fr; }
     .pricing-grid { grid-template-columns: 1fr; }
+    .hero-email-form {
+        flex-direction: column;
+    }
+    .hero-email-form input[type="email"] {
+        width: 100%;
+    }
 }

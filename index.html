@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BevAlc Intelligence | Track Competitor Launches Weekly</title>
-    <meta name="description" content="Weekly monitoring of TTB label approvals. Track competitor launches, spot new market entrants, and get category intelligence delivered every Monday.">
+    <meta name="description" content="Weekly monitoring of TTB label approvals. Track competitor launches, spot new market entrants, and get category intelligence delivered every Sunday.">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,11 +37,18 @@
     <section class="hero">
         <div class="hero-container">
             <p class="hero-eyebrow">Weekly Competitive Intelligence for BevAlc</p>
-            <h1 class="hero-title">Your Competitors' Next SKUs<br><em>Are Already Filing.</em></h1>
-            <p class="hero-subtitle">Stop manually checking TTB. Get weekly changelogs of new brands, new SKUs, and competitor activity—delivered every Monday with label images and exportable data.</p>
+            <h1 class="hero-title">See What's Launching Next.<br><em>Before It Hits the Shelves.</em></h1>
+            <p class="hero-subtitle">Stop manually checking TTB. Get weekly changelogs of new brands, new SKUs, and competitor activity—delivered every Sunday with links to official filings.</p>
             
-            <div class="hero-cta">
-                <a href="#signup" class="btn btn-primary" id="hero-cta-primary">Track My Competitors</a>
+            <!-- Inline Email Signup -->
+            <div class="hero-email-signup" id="hero-email-signup">
+                <form class="hero-email-form" id="hero-email-form">
+                    <input type="email" id="hero-email" placeholder="Enter your work email" required>
+                    <button type="submit" class="btn btn-primary">Get Free Access</button>
+                </form>
+            </div>
+            
+            <div class="hero-cta" id="hero-cta-buttons">
                 <a href="database.html" class="btn btn-secondary">Browse Database</a>
             </div>
             
@@ -58,18 +65,13 @@
             </div>
             <div class="stat-divider"></div>
             <div class="stat">
-                <span class="stat-number">Every Monday</span>
-                <span class="stat-label">New Data Delivered</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat">
                 <span class="stat-number">~2,500</span>
                 <span class="stat-label">New Filings/Week</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat">
-                <span class="stat-number">Hours Saved</span>
-                <span class="stat-label">Every Week</span>
+                <span class="stat-number">Competitor Alerts</span>
+                <span class="stat-label">Delivered Every Sunday</span>
             </div>
         </div>
     </section>
@@ -88,7 +90,7 @@
                         </svg>
                     </div>
                     <h3>Brand & Innovation Teams</h3>
-                    <p>See competitor launches early. Track SKU expansion, flavor/format trends, and packaging signals—with label images.</p>
+                    <p>See competitor launches early. Track SKU expansion, flavor/format trends, and packaging signals—with direct links to official TTB filings.</p>
                 </div>
                 
                 <div class="persona">
@@ -108,7 +110,7 @@
                         </svg>
                     </div>
                     <h3>Agencies & Consultants</h3>
-                    <p>Client-ready screenshots + weekly proof points. Exportable data + label galleries for pitch decks.</p>
+                    <p>Client-ready data + weekly proof points. Exportable data with direct links to official filings for pitch decks.</p>
                 </div>
                 
                 <div class="persona">
@@ -127,7 +129,7 @@
     <!-- What You Get Section -->
     <section class="weekly-value">
         <div class="weekly-container">
-            <h2 class="section-title">What You Get Every Monday</h2>
+            <h2 class="section-title">What You Get Every Sunday</h2>
             <p class="section-subtitle">Concrete intelligence, not just raw data.</p>
             
             <div class="weekly-grid">
@@ -166,8 +168,8 @@
                 <div class="weekly-item">
                     <div class="weekly-check">✓</div>
                     <div class="weekly-content">
-                        <strong>Label Images</strong>
-                        <span>Direct links to TTB label images for everything above</span>
+                        <strong>Direct Filing Links</strong>
+                        <span>Links to official TTB filings so you can view labels and full details</span>
                     </div>
                 </div>
                 
@@ -192,11 +194,11 @@
             </div>
             <div class="noise-visual">
                 <div class="noise-stat">
-                    <span class="noise-number">~60%</span>
+                    <span class="noise-number">~55%</span>
                     <span class="noise-label">of weekly filings are refiles</span>
                 </div>
                 <div class="noise-stat">
-                    <span class="noise-number">~40%</span>
+                    <span class="noise-number">~45%</span>
                     <span class="noise-label">are genuinely new activity</span>
                 </div>
             </div>
@@ -244,18 +246,18 @@
                         <li>Weekly changelog by category</li>
                         <li>New brands + new SKUs separated</li>
                         <li>Full CSV export</li>
-                        <li>Label image links</li>
+                        <li>Direct links to official TTB filings</li>
                         <li>Competitor watchlists</li>
                         <li>Priority support</li>
                     </ul>
-                    <button class="btn btn-primary btn-full" id="pro-cta" onclick="handleProUpgrade()">Get My Category Pack</button>
+                    <button class="btn btn-primary btn-full" id="pro-cta">Get My Category Pack</button>
                     <p class="pricing-note">Add categories anytime. Cancel anytime.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Free Signup Section -->
+    <!-- Email Signup Section -->
     <section class="signup" id="signup">
         <div class="signup-container">
             <div class="signup-content">
@@ -263,23 +265,9 @@
                 <p id="signup-desc">Join operators using BevAlc Intelligence to track competitor launches and spot market trends.</p>
                 
                 <form class="signup-form" id="signup-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="firstName">First Name *</label>
-                            <input type="text" id="firstName" name="firstName" required placeholder="John">
-                        </div>
-                        <div class="form-group">
-                            <label for="lastName">Last Name *</label>
-                            <input type="text" id="lastName" name="lastName" required placeholder="Smith">
-                        </div>
-                    </div>
                     <div class="form-group">
                         <label for="email">Work Email *</label>
                         <input type="email" id="email" name="email" required placeholder="john@company.com">
-                    </div>
-                    <div class="form-group">
-                        <label for="company">Company *</label>
-                        <input type="text" id="company" name="company" required placeholder="Acme Beverages">
                     </div>
                     <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
                         <span class="btn-text">Send Me the Weekly Changelog</span>
@@ -343,22 +331,28 @@
             const hasAccess = BevAlcAuth.hasAccess();
             const user = BevAlcAuth.getUser();
             
+            // Setup Pro CTA button
+            const proCta = document.getElementById('pro-cta');
+            if (proCta) {
+                proCta.addEventListener('click', handleProUpgrade);
+            }
+            
             if (hasAccess) {
                 const navCta = document.getElementById('nav-cta');
                 const userGreeting = document.getElementById('user-greeting');
-                const heroCta = document.getElementById('hero-cta-primary');
+                const heroEmailSignup = document.getElementById('hero-email-signup');
                 const freeCta = document.getElementById('free-cta');
                 
                 if (navCta) navCta.style.display = 'none';
                 
-                if (userGreeting && user && user.firstName) {
-                    userGreeting.textContent = 'Hi, ' + user.firstName;
+                if (userGreeting && user && user.email) {
+                    userGreeting.textContent = 'Hi there';
                     userGreeting.style.display = 'inline';
                 }
                 
-                if (heroCta) {
-                    heroCta.textContent = 'Go to Database';
-                    heroCta.href = 'database.html';
+                // Hide hero email form, show "Go to Database" button instead
+                if (heroEmailSignup) {
+                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-primary">Go to Database</a>';
                 }
                 
                 if (freeCta) {
@@ -374,7 +368,6 @@
                         
                         if (data.success && data.status === 'pro') {
                             const userStatus = document.getElementById('user-status');
-                            const proCta = document.getElementById('pro-cta');
                             
                             if (userStatus) {
                                 userStatus.textContent = 'Pro';
@@ -385,7 +378,6 @@
                             if (proCta) {
                                 proCta.textContent = 'You\'re on Pro';
                                 proCta.disabled = true;
-                                proCta.onclick = null;
                             }
                             
                             // Store pro status
@@ -402,6 +394,7 @@
         // Handle Pro upgrade
         async function handleProUpgrade() {
             const user = BevAlcAuth.getUser();
+            const proCta = document.getElementById('pro-cta');
             
             if (!user || !user.email) {
                 // Redirect to signup first
@@ -410,7 +403,12 @@
                 return;
             }
             
-            const proCta = document.getElementById('pro-cta');
+            // Check if already Pro
+            if (user.isPro) {
+                return;
+            }
+            
+            const originalText = proCta.textContent;
             proCta.disabled = true;
             proCta.textContent = 'Loading...';
             
@@ -432,42 +430,58 @@
                 } else {
                     alert('Something went wrong. Please try again.');
                     proCta.disabled = false;
-                    proCta.textContent = 'Get My Category Pack';
+                    proCta.textContent = originalText;
                 }
             } catch (e) {
                 alert('Something went wrong. Please try again.');
                 proCta.disabled = false;
-                proCta.textContent = 'Get My Category Pack';
+                proCta.textContent = originalText;
             }
         }
         
-        // Signup form submission
+        // Hero email form submission
+        document.getElementById('hero-email-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('hero-email').value.trim();
+            
+            if (email) {
+                await submitEmail(email);
+            }
+        });
+        
+        // Main signup form submission
         document.getElementById('signup-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            const form = e.target;
-            const submitBtn = document.getElementById('submit-btn');
-            const btnText = submitBtn.querySelector('.btn-text');
-            const btnLoading = submitBtn.querySelector('.btn-loading');
-            
-            const firstName = document.getElementById('firstName').value.trim();
-            const lastName = document.getElementById('lastName').value.trim();
             const email = document.getElementById('email').value.trim();
-            const company = document.getElementById('company').value.trim();
             
-            btnText.style.display = 'none';
-            btnLoading.style.display = 'inline-flex';
-            submitBtn.disabled = true;
-            
+            if (email) {
+                const submitBtn = document.getElementById('submit-btn');
+                const btnText = submitBtn.querySelector('.btn-text');
+                const btnLoading = submitBtn.querySelector('.btn-loading');
+                
+                btnText.style.display = 'none';
+                btnLoading.style.display = 'inline-flex';
+                submitBtn.disabled = true;
+                
+                await submitEmail(email, true);
+                
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+        
+        // Shared email submission function
+        async function submitEmail(email, showSuccessUI = false) {
             try {
                 const response = await fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({
                         email: email,
-                        firstName: firstName,
-                        lastName: lastName,
-                        company: company,
+                        firstName: '',
+                        lastName: '',
+                        company: '',
                         userGroup: '',
                         mailingLists: ''
                     })
@@ -477,41 +491,52 @@
                 
                 // Store user info
                 localStorage.setItem('bevalc_user', JSON.stringify({
-                    firstName, lastName, email, company,
+                    email: email,
                     signedUpAt: new Date().toISOString()
                 }));
                 
                 // Grant access
                 BevAlcAuth.grantAccess();
                 
-                // Check if user already existed
-                const alreadyExists = data.message && data.message.toLowerCase().includes('already');
-                
-                // Show appropriate success message
-                form.style.display = 'none';
-                document.getElementById('signup-note').style.display = 'none';
-                document.getElementById('signup-legal').style.display = 'none';
-                
-                if (alreadyExists) {
-                    document.getElementById('signup-exists').style.display = 'block';
+                if (showSuccessUI) {
+                    // Check if user already existed
+                    const alreadyExists = data.message && data.message.toLowerCase().includes('already');
+                    
+                    // Show appropriate success message
+                    document.getElementById('signup-form').style.display = 'none';
+                    document.getElementById('signup-note').style.display = 'none';
+                    document.getElementById('signup-legal').style.display = 'none';
+                    
+                    if (alreadyExists) {
+                        document.getElementById('signup-exists').style.display = 'block';
+                    } else {
+                        document.getElementById('signup-success').style.display = 'block';
+                    }
                 } else {
-                    document.getElementById('signup-success').style.display = 'block';
+                    // Redirect to database
+                    window.location.href = 'database.html';
                 }
                 
             } catch (error) {
                 console.error('Signup error:', error);
                 // Grant access anyway - don't block user due to network issues
                 BevAlcAuth.grantAccess();
-                form.style.display = 'none';
-                document.getElementById('signup-note').style.display = 'none';
-                document.getElementById('signup-legal').style.display = 'none';
-                document.getElementById('signup-success').style.display = 'block';
-            } finally {
-                btnText.style.display = 'inline';
-                btnLoading.style.display = 'none';
-                submitBtn.disabled = false;
+                
+                localStorage.setItem('bevalc_user', JSON.stringify({
+                    email: email,
+                    signedUpAt: new Date().toISOString()
+                }));
+                
+                if (showSuccessUI) {
+                    document.getElementById('signup-form').style.display = 'none';
+                    document.getElementById('signup-note').style.display = 'none';
+                    document.getElementById('signup-legal').style.display = 'none';
+                    document.getElementById('signup-success').style.display = 'block';
+                } else {
+                    window.location.href = 'database.html';
+                }
             }
-        });
+        }
     </script>
 </body>
 </html>
