@@ -242,6 +242,26 @@ async function checkProStatus(email) {
                 accountLink.textContent = 'Account';
                 navUser.insertBefore(accountLink, navUser.firstChild);
             }
+            
+            // Update localStorage
+            const user = BevAlcAuth.getUser();
+            if (user) {
+                user.isPro = true;
+                BevAlcAuth.setUser(user);
+            }
+        } else {
+            // User is not Pro - remove Account link and clear Pro status
+            const accountLink = document.getElementById('nav-account-link');
+            if (accountLink) {
+                accountLink.remove();
+            }
+            
+            // Update localStorage
+            const user = BevAlcAuth.getUser();
+            if (user) {
+                user.isPro = false;
+                BevAlcAuth.setUser(user);
+            }
         }
     } catch (e) {
         console.log('Could not check Pro status');
