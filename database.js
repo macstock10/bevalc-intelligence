@@ -160,6 +160,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     cacheElements();
     checkAccess();
     setupEventListeners();
+    
+    // Check for search parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get('search');
+    if (searchParam && elements.searchInput) {
+        elements.searchInput.value = searchParam;
+    }
+    
     await loadFilters();
     await performSearch();
 });
