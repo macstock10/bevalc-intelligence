@@ -501,8 +501,8 @@ function renderResults(data) {
     }
     
     elements.resultsBody.innerHTML = data.map(cola => {
-        // Signal badge rendering - locked for non-Pro users
-        let signalHtml = '';
+        // Signal badge rendering
+        let signalHtml = '-';
         if (cola.signal) {
             if (state.isPro) {
                 // Pro users see the actual signal
@@ -510,15 +510,8 @@ function renderResults(data) {
                 signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
             } else {
                 // Free users see locked indicator
-                signalHtml = `<span class="signal-badge signal-locked" title="Upgrade to Pro to see signals">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C9.24 2 7 4.24 7 7v3H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V12c0-1.1-.9-2-2-2h-1V7c0-2.76-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3v3H9V7c0-1.66 1.34-3 3-3z"/>
-                    </svg>
-                    PRO
-                </span>`;
+                signalHtml = `<span class="signal-badge signal-locked" title="Upgrade to Pro to see signals"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C9.24 2 7 4.24 7 7v3H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V12c0-1.1-.9-2-2-2h-1V7c0-2.76-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3v3H9V7c0-1.66 1.34-3 3-3z"/></svg> PRO</span>`;
             }
-        } else {
-            signalHtml = '<span class="signal-badge signal-none">-</span>';
         }
         
         return `
@@ -738,7 +731,7 @@ function hideLoading() {
 function showError(message) {
     elements.resultsBody.innerHTML = `
         <tr>
-            <td colspan="7" class="no-results">
+            <td colspan="8" class="no-results">
                 <div class="no-results-content error">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="12" r="10"></circle>
