@@ -130,7 +130,10 @@
                 </div>
                 <h1>Welcome to Pro!</h1>
                 <p>Your subscription is now active. You have full access to category packs, CSV exports, and weekly intel reports.</p>
-                <a href="database.html" class="btn btn-glow">Go to Database</a>
+                <a href="#" id="preferences-link" class="btn btn-glow">Choose Your Categories</a>
+                <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--color-text-secondary);">
+                    Select which category reports you want to receive each week.
+                </p>
             </div>
             
             <div id="email-state" style="display: none;">
@@ -143,19 +146,20 @@
                 <h1>You're All Set!</h1>
                 <p>Your Pro subscription is now active.</p>
                 <div class="email-sent-info">
-                    <p>📧 Check your email to access your account. We've sent a login link to <strong id="customer-email"></strong></p>
+                    <p>📧 Check your email at <strong id="customer-email"></strong> for a link to choose your category reports.</p>
                 </div>
+                <a href="database.html" class="btn btn-glow" style="margin-top: 1.5rem;">Go to Database</a>
             </div>
             
             <div id="error-state" style="display: none;">
                 <h1>Something went wrong</h1>
                 <p>We couldn't confirm your subscription. Please contact support if you were charged.</p>
-                <a href="mailto:hello@bevalcintel.com" class="btn btn-secondary-dark">Contact Support</a>
+                <a href="/cdn-cgi/l/email-protection#1a727f7676755a787f6c7b767973746e7f7634797577" class="btn btn-secondary-dark">Contact Support</a>
             </div>
         </div>
     </main>
 
-    <script src="auth.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         
@@ -209,6 +213,7 @@
                 
                 if (data.success && data.status === 'complete') {
                     const customerEmail = data.customer_email;
+                    const preferencesToken = data.preferences_token;
                     const user = BevAlcAuth.getUser();
                     
                     // Check if user is already logged in with this email
@@ -217,6 +222,14 @@
                         user.isPro = true;
                         BevAlcAuth.setUser(user);
                         BevAlcAuth.grantAccess();
+                        
+                        // Set preferences link if token available
+                        if (preferencesToken) {
+                            document.getElementById('preferences-link').href = `preferences.html?token=${preferencesToken}`;
+                        } else {
+                            document.getElementById('preferences-link').href = 'database.html';
+                            document.getElementById('preferences-link').textContent = 'Go to Database';
+                        }
                         
                         successState.style.display = 'block';
                     } else {
@@ -238,10 +251,4 @@
                 }
             } catch (e) {
                 console.error('Error verifying session:', e);
-                loadingState.style.display = 'none';
-                errorState.style.display = 'block';
-            }
-        });
-    </script>
-</body>
-</html>
+         
