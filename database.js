@@ -407,14 +407,11 @@ async function performSearch() {
         const response = await fetch(`${API_BASE}/api/search?${params}`);
         const data = await response.json();
         
-        console.log('API Response:', data);
         if (data.success) {
-            console.log('Data count:', data.data ? data.data.length : 'null');
             renderResults(data.data);
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
         } else {
-            console.log('API Error:', data.error);
             showError('Failed to load data. Please try again.');
         }
     } catch (error) {
@@ -473,7 +470,7 @@ function renderResults(data) {
     if (!data || data.length === 0) {
         elements.resultsBody.innerHTML = `
             <tr>
-                <td colspan="7" class="no-results">
+                <td colspan="8" class="no-results">
                     <div class="no-results-content">
                         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="11" cy="11" r="8"></circle>
@@ -488,7 +485,13 @@ function renderResults(data) {
         return;
     }
     
-    elements.resultsBody.innerHTML = data.map(cola => `
+    elements.resultsBody.innerHTML = data.map(cola => {
+        let signalHtml = '-';
+        if (cola.signal) {
+            const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
+            signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
+        }
+        return `
         <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
             <td class="cell-ttb-id">${escapeHtml(cola.ttb_id || '-')}</td>
             <td class="cell-brand">${escapeHtml(cola.brand_name || '-')}</td>
@@ -496,9 +499,10 @@ function renderResults(data) {
             <td>${escapeHtml(cola.class_type_code || '-')}</td>
             <td>${escapeHtml(cola.origin_code || '-')}</td>
             <td>${escapeHtml(cola.approval_date || '-')}</td>
+            <td class="cell-signal">${signalHtml}</td>
             <td><span class="status-badge status-${(cola.status || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(cola.status || '-')}</span></td>
         </tr>
-    `).join('');
+    `}).join('');
     
     // Add click handlers
     elements.resultsBody.querySelectorAll('.clickable-row').forEach(row => {
@@ -704,7 +708,7 @@ function hideLoading() {
 function showError(message) {
     elements.resultsBody.innerHTML = `
         <tr>
-            <td colspan="7" class="no-results">
+            <td colspan="8" class="no-results">
                 <div class="no-results-content error">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="12" r="10"></circle>
