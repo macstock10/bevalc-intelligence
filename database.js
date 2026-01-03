@@ -140,6 +140,7 @@ const state = {
     totalRecords: 0,
     isLoading: false,
     hasAccess: false,
+    isPro: false,
     sortColumn: 'approval_date',
     sortDirection: 'desc',
     filters: {
@@ -201,6 +202,20 @@ function checkAccess() {
         state.hasAccess = true;
     } else if (hasAccessCookie) {
         state.hasAccess = true;
+    }
+    
+    // Check for Pro subscription
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            if (user.isPro || user.subscription === 'pro') {
+                state.isPro = true;
+            }
+        } catch (e) {}
+    }
+    // Also check for pro cookie
+    if (document.cookie.includes('bevalc_pro=true')) {
+        state.isPro = true;
     }
     
     if (state.hasAccess) {
@@ -470,7 +485,7 @@ function renderResults(data) {
     if (!data || data.length === 0) {
         elements.resultsBody.innerHTML = `
             <tr>
-                <td colspan="7" class="no-results">
+                <td colspan="8" class="no-results">
                     <div class="no-results-content">
                         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="11" cy="11" r="8"></circle>
@@ -485,7 +500,28 @@ function renderResults(data) {
         return;
     }
     
-    elements.resultsBody.innerHTML = data.map(cola => `
+    elements.resultsBody.innerHTML = data.map(cola => {
+        // Signal badge rendering - locked for non-Pro users
+        let signalHtml = '';
+        if (cola.signal) {
+            if (state.isPro) {
+                // Pro users see the actual signal
+                const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
+                signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
+            } else {
+                // Free users see locked indicator
+                signalHtml = `<span class="signal-badge signal-locked" title="Upgrade to Pro to see signals">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C9.24 2 7 4.24 7 7v3H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V12c0-1.1-.9-2-2-2h-1V7c0-2.76-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3v3H9V7c0-1.66 1.34-3 3-3z"/>
+                    </svg>
+                    PRO
+                </span>`;
+            }
+        } else {
+            signalHtml = '<span class="signal-badge signal-none">-</span>';
+        }
+        
+        return `
         <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
             <td class="cell-ttb-id">${escapeHtml(cola.ttb_id || '-')}</td>
             <td class="cell-brand">${escapeHtml(cola.brand_name || '-')}</td>
@@ -493,9 +529,10 @@ function renderResults(data) {
             <td>${escapeHtml(cola.class_type_code || '-')}</td>
             <td>${escapeHtml(cola.origin_code || '-')}</td>
             <td>${escapeHtml(cola.approval_date || '-')}</td>
+            <td class="cell-signal">${signalHtml}</td>
             <td><span class="status-badge status-${(cola.status || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(cola.status || '-')}</span></td>
         </tr>
-    `).join('');
+    `}).join('');
     
     // Add click handlers
     elements.resultsBody.querySelectorAll('.clickable-row').forEach(row => {

@@ -745,23 +745,72 @@ a:hover { color: var(--color-primary-hover); }
 .status-badge.status-pending { background: #fef3c7; color: #92400e; }
 .status-badge.status-surrendered, .status-badge.status-revoked { background: #fee2e2; color: #991b1b; }
 
+/* Signal badges */
+.signal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.signal-badge.signal-new-brand {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.signal-badge.signal-new-sku {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
+}
+
+.signal-badge.signal-refile {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.signal-badge.signal-none {
+    color: var(--color-text-tertiary);
+    background: transparent;
+}
+
+.signal-badge.signal-locked {
+    background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+    color: #9ca3af;
+    cursor: pointer;
+}
+
+.signal-badge.signal-locked:hover {
+    background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
+}
+
+.signal-badge.signal-locked svg {
+    width: 10px;
+    height: 10px;
+}
+
+.cell-signal {
+    text-align: center;
+}
+
 /* Blur overlay */
 .blur-overlay {
     position: absolute;
-    top: 0;
+    top: 100px;
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(180deg, 
-        rgba(255,255,255,0) 0%, 
-        rgba(255,255,255,0.7) 10%,
-        rgba(255,255,255,0.95) 30%,
-        var(--color-bg) 50%
-    );
+    background: linear-gradient(180deg, transparent 0%, var(--color-bg) 30%);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding-top: 80px;
     z-index: 10;
 }
 
@@ -772,7 +821,6 @@ a:hover { color: var(--color-primary-hover); }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--color-border);
-    max-width: 400px;
 }
 
 .blur-content h3 {
