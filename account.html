@@ -176,25 +176,71 @@
             if (!user || !user.email) { showState('not-pro'); return; }
             currentEmail = user.email;
 
+            // First check if user is Pro via Stripe
+            let isPro = false;
             try {
                 const statusResponse = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(user.email)}`);
                 const statusData = await statusResponse.json();
-                if (!statusData.success || statusData.status !== 'pro') { showState('not-pro'); return; }
-            } catch (e) { console.error('Error checking status:', e); }
+                if (statusData.success && statusData.status === 'pro') {
+                    isPro = true;
+                }
+            } catch (e) { 
+                console.error('Error checking status:', e); 
+            }
+            
+            if (!isPro) { 
+                showState('not-pro'); 
+                return; 
+            }
 
+            // User is Pro - now try to load preferences
             try {
                 const prefsResponse = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(user.email)}`);
                 const prefsData = await prefsResponse.json();
+                
+                // Default categories list if preferences don't exist yet
+                const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'];
+                
                 if (prefsData.success) {
+                    // Preferences exist - load them
                     const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
                     const tokenData = await tokenResponse.json();
-                    if (tokenData._debug_url) { const url = new URL(tokenData._debug_url); currentToken = url.searchParams.get('token'); localStorage.setItem('bevalc_prefs_token', currentToken); }
+                    if (tokenData._debug_url) { 
+                        const url = new URL(tokenData._debug_url); 
+                        currentToken = url.searchParams.get('token'); 
+                        localStorage.setItem('bevalc_prefs_token', currentToken); 
+                    }
                     document.getElementById('user-email').textContent = prefsData.email;
-                    buildCategoryGrid(prefsData.available_categories, prefsData.categories || []);
+                    buildCategoryGrid(prefsData.available_categories || defaultCategories, prefsData.categories || []);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
-                    showState('account');
-                } else { showState('not-pro'); }
-            } catch (e) { console.error('Error loading preferences:', e); showState('not-pro'); }
+                } else {
+                    // User is Pro but preferences record doesn't exist yet
+                    // Show account page with defaults - record will be created on first save
+                    console.log('Pro user but no preferences record yet - showing defaults');
+                    document.getElementById('user-email').textContent = user.email;
+                    buildCategoryGrid(defaultCategories, []);
+                    document.getElementById('receive-free-report').checked = true;
+                    
+                    // Try to get/create token for saving
+                    try {
+                        const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
+                        const tokenData = await tokenResponse.json();
+                        if (tokenData._debug_url) { 
+                            const url = new URL(tokenData._debug_url); 
+                            currentToken = url.searchParams.get('token'); 
+                            localStorage.setItem('bevalc_prefs_token', currentToken); 
+                        }
+                    } catch (e) { console.log('Could not get preferences token:', e); }
+                }
+                showState('account');
+            } catch (e) { 
+                console.error('Error loading preferences:', e); 
+                // Still show account page for Pro users even if preferences API fails
+                document.getElementById('user-email').textContent = user.email;
+                buildCategoryGrid(['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'], []);
+                document.getElementById('receive-free-report').checked = true;
+                showState('account');
+            }
         }
 
         async function savePreferences() {
