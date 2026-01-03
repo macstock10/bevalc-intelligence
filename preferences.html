@@ -530,12 +530,20 @@
                     <span class="category-icon">${CATEGORY_ICONS[cat] || '📦'}</span>
                 `;
                 
+                // Handle clicks anywhere in the box
                 option.addEventListener('click', (e) => {
-                    if (e.target.tagName !== 'INPUT') {
-                        const checkbox = option.querySelector('input');
-                        checkbox.checked = !checkbox.checked;
-                    }
-                    option.classList.toggle('selected', option.querySelector('input').checked);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const checkbox = option.querySelector('input');
+                    checkbox.checked = !checkbox.checked;
+                    option.classList.toggle('selected', checkbox.checked);
+                });
+                
+                // Prevent checkbox from double-toggling
+                const checkbox = option.querySelector('input');
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    option.classList.toggle('selected', checkbox.checked);
                 });
                 
                 grid.appendChild(option);
