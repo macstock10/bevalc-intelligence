@@ -127,4 +127,50 @@
             const hasAccess = BevAlcAuth.hasAccess();
             const user = BevAlcAuth.getUser();
             if (hasAccess) {
-                const navCta = document.ge
+                const navCta = document.getElementById('nav-cta');
+                const userGreeting = document.getElementById('user-greeting');
+                if (navCta) navCta.style.display = 'none';
+                if (userGreeting && user && user.firstName) {
+                    userGreeting.textContent = 'Hi, ' + user.firstName;
+                    userGreeting.style.display = 'inline';
+                }
+            }
+            
+            // Check if Pro and add Account link
+            if (user && user.email) {
+                checkProStatus(user.email);
+            }
+        });
+        
+        const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
+        
+        async function checkProStatus(email) {
+            try {
+                const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(email)}`);
+                const data = await response.json();
+                
+                if (data.success && data.status === 'pro') {
+                    const navUser = document.getElementById('nav-user');
+                    if (navUser && !document.getElementById('nav-account-link')) {
+                        const accountLink = document.createElement('a');
+                        accountLink.id = 'nav-account-link';
+                        accountLink.href = 'account.html';
+                        accountLink.className = 'nav-link';
+                        accountLink.textContent = 'Account';
+                        navUser.insertBefore(accountLink, navUser.firstChild);
+                    }
+                    
+                    const navCta = document.getElementById('nav-cta');
+                    if (navCta) {
+                        navCta.textContent = 'Go to Database';
+                        navCta.href = 'database.html';
+                        navCta.style.display = 'inline-flex';
+                    }
+                }
+            } catch (e) {
+                console.log('Could not check Pro status');
+            }
+        }
+    </script>
+</body>
+</html>

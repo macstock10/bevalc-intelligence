@@ -10,362 +10,78 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style-dark.css">
     <style>
-        .account-page {
-            min-height: 100vh;
-            padding: 6rem 2rem 4rem;
-        }
-        
-        .account-container {
-            max-width: 720px;
-            margin: 0 auto;
-        }
-        
-        .account-header {
-            margin-bottom: 2rem;
-        }
-        
-        .account-header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--color-text-primary);
-            margin-bottom: 0.5rem;
-        }
-        
-        .account-header p {
-            color: var(--color-text-secondary);
-        }
-        
-        .account-section {
-            background: var(--color-bg-card);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-2xl);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .account-section h2 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--color-text-primary);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .account-section h2 .section-icon {
-            font-size: 1.25rem;
-        }
-        
-        /* Subscription Status */
-        .subscription-status {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-        
-        .subscription-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .pro-badge {
-            background: linear-gradient(135deg, var(--color-accent), #0d7377);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: var(--radius-lg);
-            font-weight: 600;
-            font-size: 0.875rem;
-        }
-        
-        .subscription-details {
-            color: var(--color-text-secondary);
-            font-size: 0.875rem;
-        }
-        
-        .subscription-details strong {
-            color: var(--color-text-primary);
-        }
-        
-        /* Category Preferences */
-        .category-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-        
-        @media (max-width: 480px) {
-            .category-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .category-option {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.875rem 1rem;
-            background: var(--color-bg-tertiary);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .category-option:hover {
-            border-color: var(--color-accent);
-            background: rgba(13, 148, 136, 0.05);
-        }
-        
-        .category-option.selected {
-            border-color: var(--color-accent);
-            background: rgba(13, 148, 136, 0.1);
-        }
-        
-        .category-option input[type="checkbox"] {
-            width: 1.125rem;
-            height: 1.125rem;
-            accent-color: var(--color-accent);
-            cursor: pointer;
-        }
-        
-        .category-option label {
-            flex: 1;
-            cursor: pointer;
-            font-weight: 500;
-            color: var(--color-text-primary);
-        }
-        
-        .category-option .category-icon {
-            font-size: 1.25rem;
-        }
-        
-        .select-helpers {
-            display: flex;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-        
-        .select-helper-btn {
-            font-size: 0.75rem;
-            padding: 0.375rem 0.75rem;
-            background: var(--color-bg-tertiary);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-md);
-            color: var(--color-text-secondary);
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .select-helper-btn:hover {
-            border-color: var(--color-accent);
-            color: var(--color-accent);
-        }
-        
-        /* Free report toggle */
-        .toggle-option {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem;
-            background: var(--color-bg-tertiary);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            margin-bottom: 1rem;
-        }
-        
-        .toggle-label {
-            font-weight: 500;
-            color: var(--color-text-primary);
-        }
-        
-        .toggle-desc {
-            font-size: 0.875rem;
-            color: var(--color-text-secondary);
-            margin-top: 0.25rem;
-        }
-        
-        .toggle-switch {
-            position: relative;
-            width: 48px;
-            height: 26px;
-            flex-shrink: 0;
-        }
-        
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--color-border);
-            transition: 0.2s;
-            border-radius: 26px;
-        }
-        
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 20px;
-            width: 20px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: 0.2s;
-            border-radius: 50%;
-        }
-        
-        .toggle-switch input:checked + .toggle-slider {
-            background-color: var(--color-accent);
-        }
-        
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(22px);
-        }
-        
-        /* Save button */
-        .save-section {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding-top: 1rem;
-            border-top: 1px solid var(--color-border);
-        }
-        
-        .save-status {
-            font-size: 0.875rem;
-            color: var(--color-text-secondary);
-        }
-        
-        .save-status.success {
-            color: #4ade80;
-        }
-        
-        .btn-save {
-            padding: 0.625rem 1.5rem;
-        }
-        
-        /* Cancel Section */
-        .cancel-section {
-            background: transparent;
-            border: 1px solid var(--color-border);
-            padding: 1.25rem 1.5rem;
-        }
-        
-        .cancel-section h2 {
-            color: var(--color-text-secondary);
-            font-weight: 500;
-            font-size: 1rem;
-        }
-        
-        .cancel-text {
-            color: var(--color-text-secondary);
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
-        
-        .cancel-link {
-            color: #ef4444;
-            font-size: 0.875rem;
-            text-decoration: none;
-            transition: color 0.15s ease;
-        }
-        
-        .cancel-link:hover {
-            color: #f87171;
-            text-decoration: underline;
-        }
-        
-        /* Loading & Error States */
-        .loading-state, .error-state, .not-pro-state {
-            text-align: center;
-            padding: 4rem 2rem;
-        }
-        
-        .loading-state .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--color-border);
-            border-top-color: var(--color-accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .not-pro-state .lock-icon {
-            width: 64px;
-            height: 64px;
-            background: rgba(251, 191, 36, 0.2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1rem;
-            color: #fbbf24;
-        }
-        
-        .error-state h2, .not-pro-state h2 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-            color: var(--color-text-primary);
-        }
-        
-        .error-state p, .not-pro-state p {
-            color: var(--color-text-secondary);
-        }
+        .account-page { min-height: 100vh; padding: 6rem 2rem 4rem; }
+        .account-container { max-width: 720px; margin: 0 auto; }
+        .account-header { margin-bottom: 2rem; }
+        .account-header h1 { font-size: 2rem; font-weight: 700; color: var(--color-text-primary); margin-bottom: 0.5rem; }
+        .account-header p { color: var(--color-text-secondary); }
+        .account-section { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .account-section h2 { font-size: 1.125rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        .subscription-status { display: flex; align-items: center; gap: 1rem; }
+        .pro-badge { background: linear-gradient(135deg, var(--color-accent), #0d7377); color: white; padding: 0.5rem 1rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.875rem; }
+        .subscription-details { color: var(--color-text-secondary); font-size: 0.875rem; }
+        .category-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+        @media (max-width: 480px) { .category-grid { grid-template-columns: 1fr; } }
+        .category-option { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.15s ease; }
+        .category-option:hover { border-color: var(--color-accent); background: rgba(13, 148, 136, 0.05); }
+        .category-option.selected { border-color: var(--color-accent); background: rgba(13, 148, 136, 0.1); }
+        .category-option input[type="checkbox"] { width: 1.125rem; height: 1.125rem; accent-color: var(--color-accent); cursor: pointer; }
+        .category-option label { flex: 1; cursor: pointer; font-weight: 500; color: var(--color-text-primary); }
+        .category-option .category-icon { font-size: 1.25rem; }
+        .select-helpers { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+        .select-helper-btn { font-size: 0.75rem; padding: 0.375rem 0.75rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary); cursor: pointer; transition: all 0.15s ease; }
+        .select-helper-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+        .toggle-option { display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-bottom: 1rem; }
+        .toggle-label { font-weight: 500; color: var(--color-text-primary); }
+        .toggle-desc { font-size: 0.875rem; color: var(--color-text-secondary); margin-top: 0.25rem; }
+        .toggle-switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-border); transition: 0.2s; border-radius: 26px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.2s; border-radius: 50%; }
+        .toggle-switch input:checked + .toggle-slider { background-color: var(--color-accent); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+        .save-section { display: flex; align-items: center; justify-content: space-between; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+        .save-status { font-size: 0.875rem; color: var(--color-text-secondary); }
+        .save-status.success { color: #4ade80; }
+        .cancel-section { background: transparent; border: 1px solid var(--color-border); padding: 1.25rem 1.5rem; }
+        .cancel-section h2 { color: var(--color-text-secondary); font-weight: 500; font-size: 1rem; }
+        .cancel-text { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .cancel-link { color: #ef4444; font-size: 0.875rem; text-decoration: none; cursor: pointer; }
+        .cancel-link:hover { color: #f87171; text-decoration: underline; }
+        .loading-state, .not-pro-state { text-align: center; padding: 4rem 2rem; }
+        .loading-state .spinner { width: 40px; height: 40px; border: 3px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .not-pro-state .lock-icon { width: 64px; height: 64px; background: rgba(251, 191, 36, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: #fbbf24; }
+        .not-pro-state h2 { font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-primary); }
+        .not-pro-state p { color: var(--color-text-secondary); }
     </style>
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="bg-animation">
-        <div class="particles" id="particles"></div>
-    </div>
+    <div class="bg-animation"><div class="particles" id="particles"></div></div>
 
-    <!-- Navigation -->
     <nav class="nav">
         <div class="nav-container">
-            <a href="index.html" class="logo">
-                <span class="logo-icon">◆</span>
-                <span class="logo-text">BevAlc Intelligence</span>
-            </a>
+            <a href="index.html" class="logo"><span class="logo-icon">◆</span><span class="logo-text">BevAlc Intelligence</span></a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
                 <a href="database.html" class="nav-link">Database</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
                 <a href="glossary.html" class="nav-link">Glossary</a>
             </div>
-            <div class="nav-user">
+            <div class="nav-user" id="nav-user">
                 <a href="account.html" class="nav-link active">Account</a>
                 <a href="database.html" class="nav-cta">Go to Database</a>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
     <main class="account-page">
         <div class="account-container">
-            <!-- Loading State -->
             <div class="loading-state" id="loading-state">
                 <div class="spinner"></div>
                 <p>Loading your account...</p>
             </div>
             
-            <!-- Not Pro State -->
             <div class="not-pro-state" id="not-pro-state" style="display: none;">
                 <div class="lock-icon">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -378,41 +94,30 @@
                 <a href="index.html#pricing" class="btn btn-glow" style="margin-top: 1.5rem;">View Pro Plans</a>
             </div>
             
-            <!-- Account Content -->
             <div id="account-content" style="display: none;">
                 <div class="account-header">
                     <h1>Account</h1>
                     <p id="user-email">Loading...</p>
                 </div>
                 
-                <!-- Subscription Status -->
                 <div class="account-section">
                     <h2><span class="section-icon">✦</span> Subscription</h2>
                     <div class="subscription-status">
-                        <div class="subscription-info">
-                            <span class="pro-badge">PRO</span>
-                            <div class="subscription-details">
-                                <span>Active subscription</span>
-                            </div>
-                        </div>
+                        <span class="pro-badge">PRO</span>
+                        <div class="subscription-details"><span>Active subscription</span></div>
                     </div>
                 </div>
                 
-                <!-- Report Preferences -->
                 <div class="account-section">
                     <h2><span class="section-icon">📊</span> Report Preferences</h2>
-                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
-                        Select which category reports you want to receive each Sunday.
-                    </p>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
                     
                     <div class="select-helpers">
                         <button type="button" class="select-helper-btn" id="select-all">Select All</button>
                         <button type="button" class="select-helper-btn" id="select-none">Clear All</button>
                     </div>
                     
-                    <div class="category-grid" id="category-grid">
-                        <!-- Categories populated by JS -->
-                    </div>
+                    <div class="category-grid" id="category-grid"></div>
                     
                     <div class="toggle-option">
                         <div>
@@ -427,11 +132,10 @@
                     
                     <div class="save-section">
                         <span class="save-status" id="save-status"></span>
-                        <button class="btn btn-glow btn-save" id="save-btn">Save Preferences</button>
+                        <button class="btn btn-glow" id="save-btn">Save Preferences</button>
                     </div>
                 </div>
                 
-                <!-- Cancel Subscription -->
                 <div class="account-section cancel-section">
                     <h2>Manage Subscription</h2>
                     <p class="cancel-text">Need to update your payment method, view invoices, or cancel your subscription?</p>
@@ -441,274 +145,88 @@
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-links">
-                <a href="legal.html#privacy">Privacy Policy</a>
-                <a href="legal.html#terms">Terms of Service</a>
-                <a href="glossary.html">Glossary</a>
-                <a href="mailto:hello@bevalcintel.com">Contact</a>
-            </div>
-            <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
-        </div>
-    </footer>
-
     <script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
-        
-        const CATEGORY_ICONS = {
-            'Whiskey': '🥃',
-            'Vodka': '🍸',
-            'Tequila': '🌵',
-            'Rum': '🏝️',
-            'Gin': '🫒',
-            'Brandy': '🍇',
-            'Wine': '🍷',
-            'Beer': '🍺',
-            'Liqueur': '🍬',
-            'RTD': '🥤'
-        };
-        
-        let currentToken = null;
-        let currentEmail = null;
-        
-        // Create particles
-        function createParticles() {
-            const container = document.getElementById('particles');
-            if (!container) return;
-            for (let i = 0; i < 30; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.top = Math.random() * 100 + '%';
-                particle.style.animationDelay = Math.random() * 20 + 's';
-                particle.style.animationDuration = (15 + Math.random() * 20) + 's';
-                container.appendChild(particle);
-            }
-        }
-        
-        if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
-            createParticles();
-        }
-        
-        // Show states
+        const CATEGORY_ICONS = { 'Whiskey': '🥃', 'Vodka': '🍸', 'Tequila': '🌵', 'Rum': '🏝️', 'Gin': '🫒', 'Brandy': '🍇', 'Wine': '🍷', 'Beer': '🍺', 'Liqueur': '🍬', 'RTD': '🥤' };
+        let currentToken = null, currentEmail = null;
+
         function showState(state) {
-            document.getElementById('loading-state').style.display = 'none';
-            document.getElementById('not-pro-state').style.display = 'none';
-            document.getElementById('account-content').style.display = 'none';
-            
-            if (state === 'loading') {
-                document.getElementById('loading-state').style.display = 'block';
-            } else if (state === 'not-pro') {
-                document.getElementById('not-pro-state').style.display = 'block';
-            } else if (state === 'account') {
-                document.getElementById('account-content').style.display = 'block';
-            }
+            document.getElementById('loading-state').style.display = state === 'loading' ? 'block' : 'none';
+            document.getElementById('not-pro-state').style.display = state === 'not-pro' ? 'block' : 'none';
+            document.getElementById('account-content').style.display = state === 'account' ? 'block' : 'none';
         }
-        
-        // Build category grid
+
         function buildCategoryGrid(availableCategories, selectedCats) {
             const grid = document.getElementById('category-grid');
             grid.innerHTML = '';
-            
             availableCategories.forEach(cat => {
                 const isSelected = selectedCats.includes(cat);
                 const option = document.createElement('div');
                 option.className = 'category-option' + (isSelected ? ' selected' : '');
-                option.innerHTML = `
-                    <input type="checkbox" id="cat-${cat}" value="${cat}" ${isSelected ? 'checked' : ''}>
-                    <label for="cat-${cat}">${cat}</label>
-                    <span class="category-icon">${CATEGORY_ICONS[cat] || '📦'}</span>
-                `;
-                
-                // Handle clicks anywhere in the box
-                option.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const checkbox = option.querySelector('input');
-                    checkbox.checked = !checkbox.checked;
-                    option.classList.toggle('selected', checkbox.checked);
-                });
-                
-                // Prevent checkbox from double-toggling
-                const checkbox = option.querySelector('input');
-                checkbox.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    option.classList.toggle('selected', checkbox.checked);
-                });
-                
+                option.innerHTML = `<input type="checkbox" id="cat-${cat}" value="${cat}" ${isSelected ? 'checked' : ''}><label for="cat-${cat}">${cat}</label><span class="category-icon">${CATEGORY_ICONS[cat] || '📦'}</span>`;
+                option.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const cb = option.querySelector('input'); cb.checked = !cb.checked; option.classList.toggle('selected', cb.checked); });
+                option.querySelector('input').addEventListener('click', (e) => { e.stopPropagation(); option.classList.toggle('selected', e.target.checked); });
                 grid.appendChild(option);
             });
         }
-        
-        // Load account data
+
         async function loadAccount() {
             const user = BevAlcAuth.getUser();
-            
-            if (!user || !user.email) {
-                showState('not-pro');
-                return;
-            }
-            
+            if (!user || !user.email) { showState('not-pro'); return; }
             currentEmail = user.email;
-            
-            // Check if Pro via Stripe
+
             try {
                 const statusResponse = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(user.email)}`);
                 const statusData = await statusResponse.json();
-                
-                if (!statusData.success || statusData.status !== 'pro') {
-                    showState('not-pro');
-                    return;
-                }
-            } catch (e) {
-                console.error('Error checking status:', e);
-            }
-            
-            // Load preferences
+                if (!statusData.success || statusData.status !== 'pro') { showState('not-pro'); return; }
+            } catch (e) { console.error('Error checking status:', e); }
+
             try {
                 const prefsResponse = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(user.email)}`);
                 const prefsData = await prefsResponse.json();
-                
                 if (prefsData.success) {
-                    // Store token for saving later
-                    // We need to get the token - request it
-                    const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: user.email })
-                    });
+                    const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
                     const tokenData = await tokenResponse.json();
-                    
-                    if (tokenData._debug_url) {
-                        const url = new URL(tokenData._debug_url);
-                        currentToken = url.searchParams.get('token');
-                        // Save to localStorage for future use
-                        localStorage.setItem('bevalc_prefs_token', currentToken);
-                    }
-                    
-                    // Build UI
+                    if (tokenData._debug_url) { const url = new URL(tokenData._debug_url); currentToken = url.searchParams.get('token'); localStorage.setItem('bevalc_prefs_token', currentToken); }
                     document.getElementById('user-email').textContent = prefsData.email;
                     buildCategoryGrid(prefsData.available_categories, prefsData.categories || []);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
-                    
                     showState('account');
-                } else {
-                    showState('not-pro');
-                }
-            } catch (e) {
-                console.error('Error loading preferences:', e);
-                showState('not-pro');
-            }
+                } else { showState('not-pro'); }
+            } catch (e) { console.error('Error loading preferences:', e); showState('not-pro'); }
         }
-        
-        // Save preferences
+
         async function savePreferences() {
-            const saveBtn = document.getElementById('save-btn');
-            const saveStatus = document.getElementById('save-status');
-            
-            // Try to get token from localStorage if not set
-            if (!currentToken) {
-                currentToken = localStorage.getItem('bevalc_prefs_token');
-            }
-            
-            if (!currentToken) {
-                saveStatus.textContent = 'Error: Please refresh the page';
-                saveStatus.className = 'save-status';
-                return;
-            }
-            
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-            saveStatus.textContent = '';
-            
-            // Collect selected categories
-            const checkboxes = document.querySelectorAll('#category-grid input[type="checkbox"]:checked');
-            const categories = Array.from(checkboxes).map(cb => cb.value);
+            const saveBtn = document.getElementById('save-btn'), saveStatus = document.getElementById('save-status');
+            if (!currentToken) currentToken = localStorage.getItem('bevalc_prefs_token');
+            if (!currentToken) { saveStatus.textContent = 'Error: Please refresh'; return; }
+            saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; saveStatus.textContent = '';
+            const categories = Array.from(document.querySelectorAll('#category-grid input:checked')).map(cb => cb.value);
             const receiveFreeReport = document.getElementById('receive-free-report').checked;
-            
             try {
-                const response = await fetch(`${API_BASE}/api/user/preferences`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token: currentToken,
-                        categories: categories,
-                        receive_free_report: receiveFreeReport
-                    })
-                });
-                
+                const response = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: currentToken, categories, receive_free_report: receiveFreeReport }) });
                 const data = await response.json();
-                
-                if (data.success) {
-                    saveStatus.textContent = '✓ Preferences saved';
-                    saveStatus.className = 'save-status success';
-                } else {
-                    saveStatus.textContent = 'Error: ' + (data.error || 'Could not save');
-                    saveStatus.className = 'save-status';
-                }
-            } catch (e) {
-                saveStatus.textContent = 'Error: Could not connect';
-                saveStatus.className = 'save-status';
-            }
-            
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Save Preferences';
+                saveStatus.textContent = data.success ? '✓ Preferences saved' : 'Error: ' + (data.error || 'Could not save');
+                saveStatus.className = 'save-status' + (data.success ? ' success' : '');
+            } catch (e) { saveStatus.textContent = 'Error: Could not connect'; }
+            saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
         }
-        
-        // Select all / none
-        document.getElementById('select-all')?.addEventListener('click', () => {
-            document.querySelectorAll('#category-grid input[type="checkbox"]').forEach(cb => {
-                cb.checked = true;
-                cb.closest('.category-option').classList.add('selected');
-            });
-        });
-        
-        document.getElementById('select-none')?.addEventListener('click', () => {
-            document.querySelectorAll('#category-grid input[type="checkbox"]').forEach(cb => {
-                cb.checked = false;
-                cb.closest('.category-option').classList.remove('selected');
-            });
-        });
-        
-        // Open Stripe billing portal
+
         async function openBillingPortal(e) {
             e.preventDefault();
-            
-            const link = document.getElementById('manage-billing-link');
-            const originalText = link.textContent;
+            const link = document.getElementById('manage-billing-link'), originalText = link.textContent;
             link.textContent = 'Opening...';
-            
             try {
-                const response = await fetch(`${API_BASE}/api/stripe/create-portal-session`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: currentEmail,
-                        returnUrl: window.location.href
-                    })
-                });
-                
+                const response = await fetch(`${API_BASE}/api/stripe/create-portal-session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: currentEmail, returnUrl: window.location.href }) });
                 const data = await response.json();
-                
-                if (data.success && data.url) {
-                    window.location.href = data.url;
-                } else {
-                    alert('Could not open billing portal: ' + (data.error || 'Unknown error'));
-                    link.textContent = originalText;
-                }
-            } catch (e) {
-                alert('Could not connect to server');
-                link.textContent = originalText;
-            }
+                if (data.success && data.url) { window.location.href = data.url; } else { alert('Could not open billing portal: ' + (data.error || 'Unknown error')); link.textContent = originalText; }
+            } catch (e) { alert('Could not connect to server'); link.textContent = originalText; }
         }
-        
-        // Save button
+
+        document.getElementById('select-all')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = true; cb.closest('.category-option').classList.add('selected'); }); });
+        document.getElementById('select-none')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = false; cb.closest('.category-option').classList.remove('selected'); }); });
         document.getElementById('save-btn')?.addEventListener('click', savePreferences);
-        
-        // Init
         document.addEventListener('DOMContentLoaded', loadAccount);
     </script>
 </body>
