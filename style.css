@@ -809,8 +809,9 @@ a:hover { color: var(--color-primary-hover); }
     bottom: 0;
     background: linear-gradient(180deg, transparent 0%, var(--color-bg) 30%);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    padding-top: 80px;
     z-index: 10;
 }
 
