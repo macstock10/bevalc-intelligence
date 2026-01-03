@@ -214,10 +214,37 @@ function checkAccess() {
                     elements.userGreeting.textContent = `Hi, ${user.firstName}`;
                     elements.userGreeting.style.display = 'inline';
                 }
+                
+                // Check if Pro and add Account link
+                if (user.email) {
+                    checkProStatus(user.email);
+                }
             } catch (e) {}
         }
     } else {
         if (elements.blurOverlay) elements.blurOverlay.style.display = 'flex';
+    }
+}
+
+async function checkProStatus(email) {
+    try {
+        const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(email)}`);
+        const data = await response.json();
+        
+        if (data.success && data.status === 'pro') {
+            // Add Account link to nav for Pro users
+            const navUser = document.getElementById('nav-user');
+            if (navUser && !document.getElementById('nav-account-link')) {
+                const accountLink = document.createElement('a');
+                accountLink.id = 'nav-account-link';
+                accountLink.href = 'account.html';
+                accountLink.className = 'nav-link';
+                accountLink.textContent = 'Account';
+                navUser.insertBefore(accountLink, navUser.firstChild);
+            }
+        }
+    } catch (e) {
+        console.log('Could not check Pro status');
     }
 }
 

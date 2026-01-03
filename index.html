@@ -465,13 +465,13 @@
                 <a href="legal.html#privacy">Privacy Policy</a>
                 <a href="legal.html#terms">Terms of Service</a>
                 <a href="glossary.html">Glossary</a>
-                <a href="mailto:hello@bevalcintel.com">Contact</a>
+                <a href="/cdn-cgi/l/email-protection#59313c353536193b3c2f38353a30372d3c35773a3634">Contact</a>
             </div>
             <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
         </div>
     </footer>
 
-    <script src="auth.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         
@@ -582,6 +582,17 @@
                             if (proCta) {
                                 proCta.textContent = 'You\'re on Pro';
                                 proCta.disabled = true;
+                            }
+                            
+                            // Add Account link to nav for Pro users
+                            const navUser = document.getElementById('nav-user');
+                            if (navUser && !document.getElementById('nav-account-link')) {
+                                const accountLink = document.createElement('a');
+                                accountLink.id = 'nav-account-link';
+                                accountLink.href = 'account.html';
+                                accountLink.className = 'nav-link';
+                                accountLink.textContent = 'Account';
+                                navUser.insertBefore(accountLink, navUser.firstChild);
                             }
                             
                             user.isPro = true;
@@ -721,11 +732,4 @@
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
-                } else {
-                    window.location.href = 'database.html';
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+     
