@@ -496,42 +496,78 @@
             createParticles();
         }
         
-        // Smooth scroll to email field when nav CTA is clicked
-        document.getElementById('nav-cta')?.addEventListener('click', function(e) {
-            const hasAccess = BevAlcAuth.hasAccess();
-            if (!hasAccess) {
-                e.preventDefault();
-                const heroEmail = document.getElementById('hero-email');
-                if (heroEmail) {
-                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(() => heroEmail.focus(), 500);
-                }
-            }
-        });
-        
-        // Same for free-cta
-        document.getElementById('free-cta')?.addEventListener('click', function(e) {
-            const hasAccess = BevAlcAuth.hasAccess();
-            if (!hasAccess) {
-                e.preventDefault();
-                const heroEmail = document.getElementById('hero-email');
-                if (heroEmail) {
-                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(() => heroEmail.focus(), 500);
-                }
-            }
-        });
-        
-        // Check access and subscription status on page load
+        // Wait for DOM to be ready before attaching any event handlers
         document.addEventListener('DOMContentLoaded', async function() {
-            const hasAccess = BevAlcAuth.hasAccess();
-            const user = BevAlcAuth.getUser();
+            // Smooth scroll to email field when nav CTA is clicked
+            document.getElementById('nav-cta')?.addEventListener('click', function(e) {
+                const hasAccess = BevAlcAuth.hasAccess();
+                if (!hasAccess) {
+                    e.preventDefault();
+                    const heroEmail = document.getElementById('hero-email');
+                    if (heroEmail) {
+                        heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => heroEmail.focus(), 500);
+                    }
+                }
+            });
+            
+            // Same for free-cta
+            document.getElementById('free-cta')?.addEventListener('click', function(e) {
+                const hasAccess = BevAlcAuth.hasAccess();
+                if (!hasAccess) {
+                    e.preventDefault();
+                    const heroEmail = document.getElementById('hero-email');
+                    if (heroEmail) {
+                        heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => heroEmail.focus(), 500);
+                    }
+                }
+            });
             
             // Setup Pro CTA button
             const proCta = document.getElementById('pro-cta');
             if (proCta) {
                 proCta.addEventListener('click', handleProUpgrade);
             }
+            
+            // Hero email form submission
+            document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const email = document.getElementById('hero-email').value.trim();
+                const submitBtn = document.getElementById('hero-submit-btn');
+                const btnText = submitBtn.querySelector('.btn-text');
+                const btnLoading = submitBtn.querySelector('.btn-loading');
+                
+                if (email) {
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline-flex';
+                    submitBtn.disabled = true;
+                    
+                    await submitEmail(email);
+                }
+            });
+            
+            // Main signup form submission
+            document.getElementById('signup-form')?.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const email = document.getElementById('email').value.trim();
+                
+                if (email) {
+                    const submitBtn = document.getElementById('submit-btn');
+                    const btnText = submitBtn.querySelector('.btn-text');
+                    const btnLoading = submitBtn.querySelector('.btn-loading');
+                    
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline-flex';
+                    submitBtn.disabled = true;
+                    
+                    await submitEmail(email, true);
+                }
+            });
+            
+            // Check access and subscription status
+            const hasAccess = BevAlcAuth.hasAccess();
+            const user = BevAlcAuth.getUser();
             
             if (hasAccess) {
                 const navCta = document.getElementById('nav-cta');
@@ -651,41 +687,6 @@
                 proCta.textContent = originalText;
             }
         }
-        
-        // Hero email form submission
-        document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const email = document.getElementById('hero-email').value.trim();
-            const submitBtn = document.getElementById('hero-submit-btn');
-            const btnText = submitBtn.querySelector('.btn-text');
-            const btnLoading = submitBtn.querySelector('.btn-loading');
-            
-            if (email) {
-                btnText.style.display = 'none';
-                btnLoading.style.display = 'inline-flex';
-                submitBtn.disabled = true;
-                
-                await submitEmail(email);
-            }
-        });
-        
-        // Main signup form submission
-        document.getElementById('signup-form')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const email = document.getElementById('email').value.trim();
-            
-            if (email) {
-                const submitBtn = document.getElementById('submit-btn');
-                const btnText = submitBtn.querySelector('.btn-text');
-                const btnLoading = submitBtn.querySelector('.btn-loading');
-                
-                btnText.style.display = 'none';
-                btnLoading.style.display = 'inline-flex';
-                submitBtn.disabled = true;
-                
-                await submitEmail(email, true);
-            }
-        });
         
         // Shared email submission function
         async function submitEmail(email, showSuccessUI = false) {
