@@ -82,18 +82,39 @@
             to { transform: rotate(360deg); }
         }
         
-        .email-sent-info {
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.2);
+        .btn-secondary {
+            display: inline-block;
+            background: transparent;
+            border: 1px solid var(--color-border);
+            color: var(--color-text-secondary);
+            padding: 0.75rem 1.5rem;
             border-radius: var(--radius-lg);
-            padding: 1rem;
+            text-decoration: none;
+            margin-top: 1rem;
+            transition: all 0.15s ease;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--color-text-secondary);
+            color: var(--color-text-primary);
+        }
+        
+        .preferences-loading {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
             margin-top: 1rem;
         }
         
-        .email-sent-info p {
-            margin: 0;
-            font-size: 0.875rem;
-            color: #60a5fa;
+        .preferences-loading .mini-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--color-border);
+            border-top-color: var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 0.5rem;
         }
     </style>
 </head>
@@ -118,7 +139,7 @@
         <div class="success-card" id="success-card">
             <div class="success-loading" id="loading-state">
                 <div class="spinner"></div>
-                <p>Confirming your subscription...</p>
+                <p>Activating your Pro account...</p>
             </div>
             
             <div id="success-state" style="display: none;">
@@ -130,42 +151,36 @@
                 </div>
                 <h1>Welcome to Pro!</h1>
                 <p>Your subscription is now active. You have full access to category packs, CSV exports, and weekly intel reports.</p>
-                <a href="#" id="preferences-link" class="btn btn-glow">Choose Your Categories</a>
-                <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--color-text-secondary);">
-                    Select which category reports you want to receive each week.
-                </p>
-            </div>
-            
-            <div id="email-state" style="display: none;">
-                <div class="success-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
+                
+                <div id="preferences-section">
+                    <a href="#" id="preferences-link" class="btn btn-glow" style="display: none;">Choose Your Categories</a>
+                    <p id="preferences-loading" class="preferences-loading">
+                        <span class="mini-spinner"></span>Loading preferences...
+                    </p>
+                    <p id="preferences-note" style="display: none; margin-top: 1rem; font-size: 0.875rem; color: var(--color-text-secondary);">
+                        Select which category reports you want to receive each week.
+                    </p>
                 </div>
-                <h1>You're All Set!</h1>
-                <p>Your Pro subscription is now active.</p>
-                <div class="email-sent-info">
-                    <p>📧 Check your email at <strong id="customer-email"></strong> for a link to choose your category reports.</p>
-                </div>
-                <a href="database.html" class="btn btn-glow" style="margin-top: 1.5rem;">Go to Database</a>
+                
+                <a href="database.html" class="btn btn-secondary">Go to Database</a>
             </div>
             
             <div id="error-state" style="display: none;">
                 <h1>Something went wrong</h1>
                 <p>We couldn't confirm your subscription. Please contact support if you were charged.</p>
-                <a href="/cdn-cgi/l/email-protection#1a727f7676755a787f6c7b767973746e7f7634797577" class="btn btn-secondary-dark">Contact Support</a>
+                <a href="mailto:hello@bevalcintel.com" class="btn btn-glow">Contact Support</a>
             </div>
         </div>
     </main>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="auth.js"></script>
+    <script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         
         // Create particles
         function createParticles() {
             const container = document.getElementById('particles');
+            if (!container) return;
             for (let i = 0; i < 30; i++) {
                 const particle = document.createElement('div');
                 particle.className = 'particle';
@@ -188,7 +203,6 @@
             
             const loadingState = document.getElementById('loading-state');
             const successState = document.getElementById('success-state');
-            const emailState = document.getElementById('email-state');
             const errorState = document.getElementById('error-state');
             
             if (!sessionId) {
@@ -197,6 +211,7 @@
                 if (user && user.isPro) {
                     loadingState.style.display = 'none';
                     successState.style.display = 'block';
+                    fetchPreferencesToken(user.email);
                 } else {
                     loadingState.style.display = 'none';
                     errorState.style.display = 'block';
@@ -205,7 +220,7 @@
             }
             
             try {
-                // Verify the checkout session
+                // Verify the checkout session with Stripe
                 const response = await fetch(`${API_BASE}/api/stripe/verify-session?session_id=${sessionId}`);
                 const data = await response.json();
                 
@@ -213,42 +228,100 @@
                 
                 if (data.success && data.status === 'complete') {
                     const customerEmail = data.customer_email;
-                    const preferencesToken = data.preferences_token;
-                    const user = BevAlcAuth.getUser();
                     
-                    // Check if user is already logged in with this email
-                    if (user && user.email && user.email.toLowerCase() === customerEmail.toLowerCase()) {
-                        // Update user to Pro
-                        user.isPro = true;
-                        BevAlcAuth.setUser(user);
-                        BevAlcAuth.grantAccess();
-                        
-                        // Set preferences link if token available
-                        if (preferencesToken) {
-                            document.getElementById('preferences-link').href = `preferences.html?token=${preferencesToken}`;
-                        } else {
-                            document.getElementById('preferences-link').href = 'database.html';
-                            document.getElementById('preferences-link').textContent = 'Go to Database';
-                        }
-                        
-                        successState.style.display = 'block';
+                    // Save user info locally
+                    localStorage.setItem('bevalc_user', JSON.stringify({
+                        email: customerEmail,
+                        isPro: true,
+                        signedUpAt: new Date().toISOString()
+                    }));
+                    BevAlcAuth.grantAccess();
+                    
+                    // Show success immediately
+                    successState.style.display = 'block';
+                    
+                    // If we got a token from verify-session, use it immediately
+                    if (data.preferences_token) {
+                        showPreferencesLink(data.preferences_token);
                     } else {
-                        // User is not logged in or different email
-                        // Show email confirmation state
-                        document.getElementById('customer-email').textContent = customerEmail;
-                        emailState.style.display = 'block';
-                        
-                        // Also save this email locally for potential auto-login
-                        localStorage.setItem('bevalc_user', JSON.stringify({
-                            email: customerEmail,
-                            isPro: true,
-                            signedUpAt: new Date().toISOString()
-                        }));
-                        BevAlcAuth.grantAccess();
+                        // Fetch it in the background
+                        fetchPreferencesToken(customerEmail);
                     }
                 } else {
                     errorState.style.display = 'block';
                 }
             } catch (e) {
                 console.error('Error verifying session:', e);
-         
+                loadingState.style.display = 'none';
+                errorState.style.display = 'block';
+            }
+        });
+        
+        function showPreferencesLink(token) {
+            const link = document.getElementById('preferences-link');
+            const loading = document.getElementById('preferences-loading');
+            const note = document.getElementById('preferences-note');
+            
+            link.href = `preferences.html?token=${token}`;
+            link.style.display = 'inline-block';
+            loading.style.display = 'none';
+            note.style.display = 'block';
+        }
+        
+        function showPreferencesError() {
+            const loading = document.getElementById('preferences-loading');
+            loading.innerHTML = '📧 Check your email for a link to choose your categories.';
+        }
+        
+        // Fetch preferences token in background
+        async function fetchPreferencesToken(email) {
+            if (!email) {
+                showPreferencesError();
+                return;
+            }
+            
+            // Retry a few times since webhook might be delayed
+            let attempts = 0;
+            const maxAttempts = 3;
+            const delay = 2000; // 2 seconds between attempts
+            
+            while (attempts < maxAttempts) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(email)}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Need to get token - fetch it via send-preferences-link endpoint
+                        const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: email })
+                        });
+                        const tokenData = await tokenResponse.json();
+                        
+                        if (tokenData.success && tokenData._debug_url) {
+                            // Extract token from URL
+                            const url = new URL(tokenData._debug_url);
+                            const token = url.searchParams.get('token');
+                            if (token) {
+                                showPreferencesLink(token);
+                                return;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log(`Attempt ${attempts + 1} failed:`, e);
+                }
+                
+                attempts++;
+                if (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            
+            // All attempts failed
+            showPreferencesError();
+        }
+    </script>
+</body>
+</html>
