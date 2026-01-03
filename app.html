@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database | BevAlc Intelligence</title>
+    <meta name="description" content="Search and analyze TTB label approvals. Filter by brand, origin, class/type, and more.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+            </a>
+            <div class="nav-stats" id="data-stats">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text" id="loading-text">Loading...</p>
+        </div>
+    </div>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        <!-- Header with Search & Filters -->
+        <header class="app-header">
+            <div class="app-header-container">
+                <div class="app-header-top">
+                    <h1 class="app-title">COLA Database</h1>
+                    
+                    <!-- Month Selector -->
+                    <div class="month-selector-wrapper">
+                        <label for="month-selector">Data Period:</label>
+                        <select class="filter-select month-select" id="month-selector" multiple size="1">
+                            <!-- Populated by JS -->
+                        </select>
+                        <span class="month-hint">Hold Ctrl/Cmd to select multiple months</span>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="search-bar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="search-input" placeholder="Search brands, producers, TTB IDs, company names...">
+                </div>
+                
+                <!-- Filters -->
+                <div class="filters">
+                    <select class="filter-select" id="filter-origin">
+                        <option value="">All Origins</option>
+                    </select>
+                    
+                    <select class="filter-select" id="filter-class">
+                        <option value="">All Class/Types</option>
+                    </select>
+                    
+                    <select class="filter-select" id="filter-status">
+                        <option value="">All Statuses</option>
+                    </select>
+                    
+                    <button class="btn btn-secondary" id="clear-filters">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                        Clear
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-content">
+            <div class="app-content-container">
+                <!-- Results Info -->
+                <div class="results-info">
+                    <span id="results-count">Loading...</span>
+                </div>
+
+                <!-- Results Table -->
+                <div id="results-container">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <p>Loading database...</p>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="modal-title">Brand Name</h2>
+                    <p class="modal-subtitle" id="modal-subtitle">TTB ID</p>
+                </div>
+                <button class="modal-close" id="modal-close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="mailto:hello@bevalcintel.com">Contact</a>
+            </div>
+            <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="auth.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
