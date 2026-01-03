@@ -193,7 +193,6 @@ function checkAccess() {
     const hasAccessCookie = document.cookie.includes('bevalc_access=granted');
     const urlParams = new URLSearchParams(window.location.search);
     const accessParam = urlParams.get('access') === 'granted';
-    const searchParam = urlParams.get('search');
     const userInfo = localStorage.getItem('bevalc_user');
     
     if (accessParam) {
@@ -202,11 +201,6 @@ function checkAccess() {
         state.hasAccess = true;
     } else if (hasAccessCookie) {
         state.hasAccess = true;
-    }
-    
-    // Populate search input from URL parameter
-    if (searchParam && elements.searchInput) {
-        elements.searchInput.value = searchParam;
     }
     
     if (state.hasAccess) {
