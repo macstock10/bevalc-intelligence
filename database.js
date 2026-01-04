@@ -1133,31 +1133,51 @@ async function exportCSV() {
             return;
         }
         
-        // Define columns to export
+        // Define columns to export (matches detail card)
         const columns = [
             'ttb_id',
             'brand_name',
             'fanciful_name',
+            'status',
+            'approval_date',
             'class_type_code',
             'origin_code',
-            'approval_date',
-            'status',
+            'type_of_application',
+            'vendor_code',
             'serial_number',
-            'permit_number',
-            'company_name'
+            'total_bottle_capacity',
+            'formula',
+            'for_sale_in',
+            'qualifications',
+            'plant_registry',
+            'company_name',
+            'street',
+            'state',
+            'contact_person',
+            'phone_number'
         ];
         
         const headers = [
             'TTB ID',
             'Brand Name',
             'Fanciful Name',
+            'Status',
+            'Approval Date',
             'Subcategory',
             'Origin',
-            'Approval Date',
-            'Status',
+            'Type of Application',
+            'Vendor Code',
             'Serial Number',
-            'Permit Number',
-            'Company Name'
+            'Total Bottle Capacity',
+            'Formula',
+            'For Sale In',
+            'Qualifications',
+            'Plant Registry',
+            'Company Name',
+            'Street',
+            'State',
+            'Contact Person',
+            'Phone Number'
         ];
         
         // Build CSV content
