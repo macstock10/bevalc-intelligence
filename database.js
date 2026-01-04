@@ -146,7 +146,8 @@ const state = {
         origins: [],
         class_types: [],
         statuses: []
-    }
+    },
+    currentResults: []  // Store current page results for CSV export
 };
 
 // DOM Elements
@@ -203,6 +204,9 @@ function checkAccess() {
         state.hasAccess = true;
     }
     
+    // Initialize CSV button as locked by default
+    updateCSVButtonState(false);
+    
     if (state.hasAccess) {
         if (elements.blurOverlay) elements.blurOverlay.style.display = 'none';
         if (elements.navSignup) elements.navSignup.style.display = 'none';
@@ -213,6 +217,11 @@ function checkAccess() {
                 if (user.firstName) {
                     elements.userGreeting.textContent = `Hi, ${user.firstName}`;
                     elements.userGreeting.style.display = 'inline';
+                }
+                
+                // Set initial button state from localStorage
+                if (user.isPro === true) {
+                    updateCSVButtonState(true);
                 }
                 
                 // Check if Pro and add Account link
@@ -252,9 +261,27 @@ async function checkProStatus(email) {
                 accountLink.textContent = 'Account';
                 navUser.insertBefore(accountLink, navUser.firstChild);
             }
+            
+            // Unlock CSV export button for Pro users
+            updateCSVButtonState(true);
+        } else {
+            // Lock CSV export button for non-Pro users
+            updateCSVButtonState(false);
         }
     } catch (e) {
         console.log('Could not check Pro status');
+        updateCSVButtonState(false);
+    }
+}
+
+function updateCSVButtonState(isPro) {
+    const csvBtn = document.getElementById('csv-export-btn');
+    if (csvBtn) {
+        if (isPro) {
+            csvBtn.classList.remove('locked');
+        } else {
+            csvBtn.classList.add('locked');
+        }
     }
 }
 
@@ -445,6 +472,7 @@ async function performSearch() {
         const data = await response.json();
         
         if (data.success) {
+            state.currentResults = data.data;  // Store for CSV export
             renderResults(data.data);
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
@@ -1022,6 +1050,168 @@ function showError(message) {
             </td>
         </tr>
     `;
+}
+
+// ============================================
+// CSV EXPORT
+// ============================================
+
+async function exportCSV() {
+    // Check if user is Pro
+    const userInfo = localStorage.getItem('bevalc_user');
+    let isPro = false;
+    let userEmail = '';
+    
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            isPro = user.isPro === true;
+            userEmail = user.email || '';
+        } catch (e) {}
+    }
+    
+    if (!isPro) {
+        showProUpgradePrompt();
+        return;
+    }
+    
+    if (!userEmail) {
+        alert('Please log in to export data.');
+        return;
+    }
+    
+    // Show loading state on button
+    const csvBtn = document.getElementById('csv-export-btn');
+    const originalHTML = csvBtn.innerHTML;
+    csvBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"></circle>
+        </svg>
+        <span>Exporting...</span>
+    `;
+    csvBtn.disabled = true;
+    
+    try {
+        // Build export URL with same filters as current search
+        const params = new URLSearchParams({
+            email: userEmail,
+            sort: state.sortColumn,
+            order: state.sortDirection
+        });
+        
+        const query = elements.searchInput.value.trim();
+        if (query) params.append('q', query);
+        
+        const origin = elements.filterOrigin.value;
+        if (origin) params.append('origin', origin);
+        
+        const category = elements.filterCategory.value;
+        if (category) params.append('category', category);
+        
+        const classType = elements.filterClass.value;
+        if (classType) params.append('class_type', classType);
+        
+        const status = elements.filterStatus.value;
+        if (status) params.append('status', status);
+        
+        const dateFrom = elements.filterDateFrom.value;
+        if (dateFrom) params.append('date_from', dateFrom);
+        
+        const dateTo = elements.filterDateTo.value;
+        if (dateTo) params.append('date_to', dateTo);
+        
+        const response = await fetch(`${API_BASE}/api/export?${params}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert(data.error || 'Export failed. Please try again.');
+            return;
+        }
+        
+        if (!data.data || data.data.length === 0) {
+            alert('No data to export with current filters.');
+            return;
+        }
+        
+        // Define columns to export
+        const columns = [
+            'ttb_id',
+            'brand_name',
+            'fanciful_name',
+            'class_type_code',
+            'origin_code',
+            'approval_date',
+            'status',
+            'serial_number',
+            'permit_number',
+            'company_name'
+        ];
+        
+        const headers = [
+            'TTB ID',
+            'Brand Name',
+            'Fanciful Name',
+            'Subcategory',
+            'Origin',
+            'Approval Date',
+            'Status',
+            'Serial Number',
+            'Permit Number',
+            'Company Name'
+        ];
+        
+        // Build CSV content
+        const csvRows = [];
+        
+        // Header row
+        csvRows.push(headers.join(','));
+        
+        // Data rows
+        data.data.forEach(row => {
+            const values = columns.map(col => {
+                let val = row[col] || '';
+                // Escape quotes and wrap in quotes if contains comma, quote, or newline
+                val = String(val).replace(/"/g, '""');
+                if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                    val = `"${val}"`;
+                }
+                return val;
+            });
+            csvRows.push(values.join(','));
+        });
+        
+        const csvContent = csvRows.join('\n');
+        
+        // Create and trigger download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        
+        // Generate filename with date
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `bevalc_export_${today}.csv`);
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Show success message with count
+        const exportedCount = data.exported;
+        const totalCount = data.total;
+        if (exportedCount < totalCount) {
+            alert(`Exported ${exportedCount.toLocaleString()} of ${totalCount.toLocaleString()} matching records (max 1,000 per export).`);
+        }
+        
+    } catch (e) {
+        console.error('Export failed:', e);
+        alert('Export failed. Please try again.');
+    } finally {
+        // Restore button
+        csvBtn.innerHTML = originalHTML;
+        csvBtn.disabled = false;
+    }
 }
 
 function escapeHtml(text) {

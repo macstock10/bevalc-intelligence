@@ -10,6 +10,83 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* CSV Export Button Styles */
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .csv-export-wrapper {
+            display: flex;
+            align-items: center;
+        }
+        
+        .btn-csv-export {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-csv-export:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+        }
+        
+        .btn-csv-export svg {
+            flex-shrink: 0;
+        }
+        
+        .btn-csv-export.locked {
+            background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            cursor: pointer;
+        }
+        
+        .btn-csv-export.locked:hover {
+            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.3);
+        }
+        
+        .pro-badge-small {
+            display: none;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            font-size: 0.625rem;
+            font-weight: 700;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            letter-spacing: 0.05em;
+        }
+        
+        .btn-csv-export.locked .pro-badge-small {
+            display: inline-block;
+        }
+        
+        .btn-csv-export:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+        
+        .btn-csv-export .spinning {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -114,6 +191,17 @@
             <div class="results-section">
                 <div class="results-header">
                     <span class="results-count" id="results-count">0 results</span>
+                    <div class="csv-export-wrapper">
+                        <button class="btn-csv-export" id="csv-export-btn" onclick="exportCSV()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Export CSV</span>
+                            <span class="pro-badge-small" id="csv-pro-badge">PRO</span>
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Table Container with blur overlay for non-subscribers -->
@@ -189,13 +277,10 @@
                 <a href="legal.html#privacy">Privacy Policy</a>
                 <a href="legal.html#terms">Terms of Service</a>
                 <a href="glossary.html">Glossary</a>
-                <a href="mailto:contact@bevalcintel.com">Contact</a>
+                <a href="/cdn-cgi/l/email-protection#88ebe7e6fce9ebfcc8eaedfee9e4ebe1e6fcede4a6ebe7e5">Contact</a>
             </div>
             <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
         </div>
     </footer>
 
-    <script src="auth.js"></script>
-    <script src="database.js"></script>
-</body>
-</html>
+    <script data-cfasync="false" src="/cdn-cg
