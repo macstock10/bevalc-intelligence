@@ -1154,7 +1154,12 @@ async function exportCSV() {
             'street',
             'state',
             'contact_person',
-            'phone_number'
+            'phone_number',
+            'grape_varietal',
+            'wine_vintage',
+            'appellation',
+            'alcohol_content',
+            'ph_level'
         ];
         
         const headers = [
@@ -1177,7 +1182,12 @@ async function exportCSV() {
             'Street',
             'State',
             'Contact Person',
-            'Phone Number'
+            'Phone Number',
+            'Grape Varietal',
+            'Wine Vintage',
+            'Appellation',
+            'Alcohol Content',
+            'pH Level'
         ];
         
         // Build CSV content
@@ -1202,8 +1212,9 @@ async function exportCSV() {
         
         const csvContent = csvRows.join('\n');
         
-        // Create and trigger download
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Create and trigger download (BOM ensures Excel reads UTF-8 correctly)
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
