@@ -1271,6 +1271,196 @@ a:hover { color: var(--color-primary-hover); }
     margin: var(--space-3xl) 0;
 }
 
+/* Track Section - Watchlist Pills */
+.track-section {
+    background: var(--color-bg-secondary);
+    margin: 0 calc(-1 * var(--space-xl)) var(--space-xl);
+    padding: var(--space-lg) var(--space-xl);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.track-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.track-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.track-pill:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.track-pill-active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.track-pill-active:hover {
+    background: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+    color: white;
+}
+
+.track-pill-locked {
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.track-pill-locked:hover {
+    opacity: 1;
+    border-color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.track-pill-icon {
+    display: flex;
+    align-items: center;
+}
+
+.track-pill-value {
+    font-weight: 500;
+    color: inherit;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-pill-count {
+    font-size: 0.65rem;
+    opacity: 0.7;
+    margin-left: var(--space-xs);
+}
+
+/* Links Section */
+.links-section {
+    margin-bottom: var(--space-lg);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.link-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.link-pill:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.link-pill-locked {
+    position: relative;
+}
+
+.link-pill-blur {
+    filter: blur(3px);
+    opacity: 0.5;
+}
+
+.link-pill-upgrade {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-left: var(--space-xs);
+}
+
+/* Pro Upgrade Prompt Modal */
+.pro-prompt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.pro-prompt-content {
+    background: var(--color-bg);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    position: relative;
+    box-shadow: var(--shadow-lg);
+}
+
+.pro-prompt-close {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    line-height: 1;
+    padding: var(--space-xs);
+}
+
+.pro-prompt-close:hover {
+    color: var(--color-text);
+}
+
+.pro-prompt-content h3 {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--color-text);
+    margin-bottom: var(--space-sm);
+}
+
+.pro-prompt-content p {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: var(--space-lg);
+}
+
+.pro-prompt-content .btn {
+    width: 100%;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .nav-links { display: none; }
@@ -1284,4 +1474,7 @@ a:hover { color: var(--color-primary-hover); }
     .database-title-row { flex-direction: column; align-items: flex-start; }
     .glossary-header h1 { font-size: 2rem; }
     .toc-links { flex-direction: column; gap: var(--space-sm); }
+    .track-pills { flex-direction: column; }
+    .track-pill { justify-content: flex-start; }
+    .track-pill-value { max-width: 200px; }
 }

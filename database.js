@@ -231,6 +231,16 @@ async function checkProStatus(email) {
         const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(email)}`);
         const data = await response.json();
         
+        // Update isPro status in localStorage
+        const userInfo = localStorage.getItem('bevalc_user');
+        if (userInfo) {
+            try {
+                const user = JSON.parse(userInfo);
+                user.isPro = data.success && data.status === 'pro';
+                localStorage.setItem('bevalc_user', JSON.stringify(user));
+            } catch (e) {}
+        }
+        
         if (data.success && data.status === 'pro') {
             // Add Account link to nav for Pro users
             const navUser = document.getElementById('nav-user');
@@ -241,26 +251,6 @@ async function checkProStatus(email) {
                 accountLink.className = 'nav-link';
                 accountLink.textContent = 'Account';
                 navUser.insertBefore(accountLink, navUser.firstChild);
-            }
-            
-            // Update localStorage
-            const user = BevAlcAuth.getUser();
-            if (user) {
-                user.isPro = true;
-                BevAlcAuth.setUser(user);
-            }
-        } else {
-            // User is not Pro - remove Account link and clear Pro status
-            const accountLink = document.getElementById('nav-account-link');
-            if (accountLink) {
-                accountLink.remove();
-            }
-            
-            // Update localStorage
-            const user = BevAlcAuth.getUser();
-            if (user) {
-                user.isPro = false;
-                BevAlcAuth.setUser(user);
             }
         }
     } catch (e) {
@@ -641,6 +631,26 @@ function openModal(record) {
     elements.modalTitle.textContent = record.brand_name || 'Unknown Brand';
     elements.modalSubtitle.textContent = `TTB ID: ${record.ttb_id}`;
     
+    // Get user info for Pro check
+    const userInfo = localStorage.getItem('bevalc_user');
+    let userEmail = null;
+    let isPro = false;
+    
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            userEmail = user.email;
+            isPro = user.isPro || false;
+        } catch (e) {}
+    }
+    
+    // Build TRACK section
+    const trackHtml = buildTrackSection(record, userEmail, isPro);
+    
+    // Build LINKS section  
+    const ttbUrl = `https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${record.ttb_id}`;
+    const linksHtml = buildLinksSection(ttbUrl, isPro);
+    
     const sections = [
         {
             title: 'Label Information',
@@ -696,7 +706,13 @@ function openModal(record) {
     
     let html = '';
     
-    sections.forEach(section => {
+    // Add TRACK section first
+    html += trackHtml;
+    
+    // Add LINKS section
+    html += linksHtml;
+    
+    sections.forEach((section, idx) => {
         html += `
             <div class="modal-section ${section.className || ''}">
                 <h4>${section.title}</h4>
@@ -715,6 +731,241 @@ function openModal(record) {
     elements.modalBody.innerHTML = html;
     elements.modalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
+    
+    // Load watchlist states and counts after modal is rendered
+    if (userEmail) {
+        loadWatchlistStates(record, userEmail, isPro);
+    }
+    loadWatchlistCounts(record);
+}
+
+function buildTrackSection(record, userEmail, isPro) {
+    const brandName = record.brand_name || '';
+    const companyName = record.company_name || '';
+    const fancifulName = record.fanciful_name || '';
+    const subcategory = record.class_type_code || '';
+    
+    const lockIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+    const starIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+    const checkIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    
+    const createPill = (type, value, displayValue, countId) => {
+        if (!value) return '';
+        
+        const truncatedDisplay = displayValue.length > 25 ? displayValue.substring(0, 25) + '...' : displayValue;
+        const dataAttrs = `data-type="${type}" data-value="${escapeHtml(value)}"`;
+        
+        if (!isPro) {
+            return `
+                <button class="track-pill track-pill-locked" ${dataAttrs} onclick="showProUpgradePrompt()">
+                    ${lockIcon}
+                    <span>Follow ${type === 'subcategory' ? 'Subcategory' : type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    <span class="track-pill-value" title="${escapeHtml(displayValue)}">${escapeHtml(truncatedDisplay)}</span>
+                    <span class="track-pill-count" id="${countId}">...</span>
+                </button>
+            `;
+        }
+        
+        return `
+            <button class="track-pill" ${dataAttrs} id="pill-${type}" onclick="toggleWatchlist('${type}', '${escapeHtml(value).replace(/'/g, "\\'")}')">
+                <span class="track-pill-icon">${starIcon}</span>
+                <span>Follow ${type === 'subcategory' ? 'Subcategory' : type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                <span class="track-pill-value" title="${escapeHtml(displayValue)}">${escapeHtml(truncatedDisplay)}</span>
+                <span class="track-pill-count" id="${countId}">...</span>
+            </button>
+        `;
+    };
+    
+    return `
+        <div class="modal-section track-section">
+            <h4>Track</h4>
+            <div class="track-pills">
+                ${createPill('brand', brandName, brandName, 'count-brand')}
+                ${createPill('company', companyName, companyName, 'count-company')}
+                ${createPill('keyword', fancifulName, `"${fancifulName}"`, 'count-keyword')}
+                ${createPill('subcategory', subcategory, subcategory, 'count-subcategory')}
+            </div>
+        </div>
+    `;
+}
+
+function buildLinksSection(ttbUrl, isPro) {
+    const lockIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+    const externalIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+    
+    const ttbImagesLink = isPro 
+        ? `<a href="${ttbUrl}" target="_blank" rel="noopener" class="link-pill">
+               ${externalIcon}
+               <span>TTB Images</span>
+           </a>`
+        : `<button class="link-pill link-pill-locked" onclick="showProUpgradePrompt()">
+               ${lockIcon}
+               <span class="link-pill-blur">TTB Images</span>
+               <span class="link-pill-upgrade">Upgrade</span>
+           </button>`;
+    
+    return `
+        <div class="modal-section links-section">
+            <h4>Links</h4>
+            <div class="link-pills">
+                <a href="${ttbUrl}" target="_blank" rel="noopener" class="link-pill">
+                    ${externalIcon}
+                    <span>Open TTB Detail</span>
+                </a>
+                ${ttbImagesLink}
+            </div>
+        </div>
+    `;
+}
+
+async function loadWatchlistStates(record, userEmail, isPro) {
+    if (!isPro) return;
+    
+    const types = [
+        { type: 'brand', value: record.brand_name },
+        { type: 'company', value: record.company_name },
+        { type: 'keyword', value: record.fanciful_name },
+        { type: 'subcategory', value: record.class_type_code }
+    ];
+    
+    for (const item of types) {
+        if (!item.value) continue;
+        
+        try {
+            const response = await fetch(
+                `${API_BASE}/api/watchlist/check?email=${encodeURIComponent(userEmail)}&type=${item.type}&value=${encodeURIComponent(item.value)}`
+            );
+            const data = await response.json();
+            
+            if (data.success && data.isWatching) {
+                const pill = document.getElementById(`pill-${item.type}`);
+                if (pill) {
+                    pill.classList.add('track-pill-active');
+                    const iconSpan = pill.querySelector('.track-pill-icon');
+                    if (iconSpan) {
+                        iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error checking watchlist:', e);
+        }
+    }
+}
+
+async function loadWatchlistCounts(record) {
+    const params = new URLSearchParams();
+    if (record.brand_name) params.append('brand', record.brand_name);
+    if (record.company_name) params.append('company', record.company_name);
+    if (record.fanciful_name && record.fanciful_name.length >= 3) params.append('keyword', record.fanciful_name);
+    if (record.class_type_code) params.append('subcategory', record.class_type_code);
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/watchlist/counts?${params.toString()}`);
+        const data = await response.json();
+        
+        if (data.success && data.counts) {
+            if (data.counts.brand !== undefined) {
+                const el = document.getElementById('count-brand');
+                if (el) el.textContent = `${data.counts.brand.toLocaleString()} labels`;
+            }
+            if (data.counts.company !== undefined) {
+                const el = document.getElementById('count-company');
+                if (el) el.textContent = `${data.counts.company.toLocaleString()} labels`;
+            }
+            if (data.counts.keyword !== undefined) {
+                const el = document.getElementById('count-keyword');
+                if (el) el.textContent = `${data.counts.keyword.toLocaleString()} matches`;
+            }
+            if (data.counts.subcategory !== undefined) {
+                const el = document.getElementById('count-subcategory');
+                if (el) el.textContent = `${data.counts.subcategory.toLocaleString()} labels`;
+            }
+        }
+    } catch (e) {
+        console.error('Error loading counts:', e);
+    }
+}
+
+async function toggleWatchlist(type, value) {
+    const userInfo = localStorage.getItem('bevalc_user');
+    if (!userInfo) {
+        showProUpgradePrompt();
+        return;
+    }
+    
+    let userEmail;
+    try {
+        const user = JSON.parse(userInfo);
+        userEmail = user.email;
+    } catch (e) {
+        showProUpgradePrompt();
+        return;
+    }
+    
+    const pill = document.getElementById(`pill-${type}`);
+    if (!pill) return;
+    
+    const isCurrentlyActive = pill.classList.contains('track-pill-active');
+    const endpoint = isCurrentlyActive ? 'remove' : 'add';
+    
+    // Optimistic UI update
+    pill.classList.toggle('track-pill-active');
+    const iconSpan = pill.querySelector('.track-pill-icon');
+    if (iconSpan) {
+        if (isCurrentlyActive) {
+            iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+        } else {
+            iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        }
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/watchlist/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: userEmail, type, value })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            // Revert on failure
+            pill.classList.toggle('track-pill-active');
+            if (iconSpan) {
+                if (!isCurrentlyActive) {
+                    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+                } else {
+                    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                }
+            }
+            console.error('Watchlist error:', data.error);
+        }
+    } catch (e) {
+        // Revert on error
+        pill.classList.toggle('track-pill-active');
+        console.error('Watchlist request failed:', e);
+    }
+}
+
+function showProUpgradePrompt() {
+    // Create a simple modal prompt
+    const existingPrompt = document.getElementById('pro-upgrade-prompt');
+    if (existingPrompt) existingPrompt.remove();
+    
+    const prompt = document.createElement('div');
+    prompt.id = 'pro-upgrade-prompt';
+    prompt.innerHTML = `
+        <div class="pro-prompt-overlay">
+            <div class="pro-prompt-content">
+                <button class="pro-prompt-close" onclick="this.closest('#pro-upgrade-prompt').remove()">&times;</button>
+                <h3>Pro Feature</h3>
+                <p>Pro unlocks watchlists + alerts + CSV exports.</p>
+                <a href="/#pricing" class="btn btn-primary" onclick="this.closest('#pro-upgrade-prompt').remove()">Upgrade to Pro</a>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(prompt);
 }
 
 function closeModal() {
