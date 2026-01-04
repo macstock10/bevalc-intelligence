@@ -801,7 +801,7 @@ function buildLabelImagesField(ttbUrl, isPro) {
                 <span class="detail-label detail-label-teal">Label Images</span>
                 <span class="detail-value">
                     <a href="${ttbUrl}" target="_blank" rel="noopener" class="label-images-link">
-                        View on TTB${externalIcon}
+                        View on TTB (images at bottom)${externalIcon}
                     </a>
                 </span>
             </div>
