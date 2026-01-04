@@ -86,6 +86,49 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+        
+        /* Pro/Free Field Tiering Styles */
+        .detail-label-pro {
+            color: #0d9488 !important;
+            font-weight: 600;
+        }
+        
+        .detail-item-locked .detail-value-locked {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .detail-blur {
+            color: #94a3b8;
+            filter: blur(4px);
+            user-select: none;
+        }
+        
+        .detail-upgrade-btn {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            transition: all 0.2s ease;
+        }
+        
+        .detail-upgrade-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+        }
+        
+        /* Update existing label-images styling for consistency */
+        .detail-label-teal {
+            color: #0d9488 !important;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -277,13 +320,10 @@
                 <a href="legal.html#privacy">Privacy Policy</a>
                 <a href="legal.html#terms">Terms of Service</a>
                 <a href="glossary.html">Glossary</a>
-                <a href="mailto:contact@bevalcintel.com">Contact</a>
+                <a href="/cdn-cgi/l/email-protection#4d2e2223392c2e390d2f283b2c212e2423392821632e2220">Contact</a>
             </div>
             <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
         </div>
     </footer>
 
-    <script src="auth.js"></script>
-    <script src="database.js"></script>
-</body>
-</html>
+    <script data-cfasync="false" src="/cdn-cg

@@ -697,10 +697,9 @@ function openModal(record) {
                 { label: 'Vendor Code', value: record.vendor_code },
                 { label: 'Serial Number', value: record.serial_number },
                 { label: 'Total Bottle Capacity', value: record.total_bottle_capacity },
-                { label: 'Formula', value: record.formula },
                 { label: 'For Sale In', value: record.for_sale_in },
                 { label: 'Qualifications', value: record.qualifications },
-                { label: 'Plant Registry', value: record.plant_registry },
+                { label: 'Plant Registry', value: record.plant_registry, isPro: true },
                 { label: 'Label Images', value: '__LABEL_IMAGES__', isSpecial: true },
             ]
         },
@@ -708,10 +707,10 @@ function openModal(record) {
             title: 'Company Information',
             fields: [
                 { label: 'Company Name', value: record.company_name },
-                { label: 'Street', value: record.street },
+                { label: 'Street', value: record.street, isPro: true },
                 { label: 'State', value: record.state },
-                { label: 'Contact Person', value: record.contact_person },
-                { label: 'Phone Number', value: record.phone_number },
+                { label: 'Contact Person', value: record.contact_person, isPro: true },
+                { label: 'Phone Number', value: record.phone_number, isPro: true },
             ]
         }
     ];
@@ -747,6 +746,32 @@ function openModal(record) {
                         if (f.isSpecial && f.value === '__LABEL_IMAGES__') {
                             return labelImagesHtml;
                         }
+                        
+                        // Handle Pro-only fields
+                        if (f.isPro) {
+                            if (isPro) {
+                                // Pro user: show field with teal label
+                                return `
+                                    <div class="detail-item">
+                                        <span class="detail-label detail-label-pro">${f.label}</span>
+                                        <span class="detail-value">${escapeHtml(f.value || '-')}</span>
+                                    </div>
+                                `;
+                            } else {
+                                // Free user: show locked field with upgrade prompt
+                                return `
+                                    <div class="detail-item detail-item-locked">
+                                        <span class="detail-label detail-label-pro">${f.label}</span>
+                                        <span class="detail-value detail-value-locked">
+                                            <span class="detail-blur">${f.value ? '••••••••' : '-'}</span>
+                                            <button class="detail-upgrade-btn" onclick="showProUpgradePrompt()">Upgrade</button>
+                                        </span>
+                                    </div>
+                                `;
+                            }
+                        }
+                        
+                        // Free field: normal rendering
                         return `
                             <div class="detail-item">
                                 <span class="detail-label">${f.label}</span>
@@ -1133,7 +1158,7 @@ async function exportCSV() {
             return;
         }
         
-        // Define columns to export (matches detail card)
+        // Define columns to export (matches detail card - all fields)
         const columns = [
             'ttb_id',
             'brand_name',
@@ -1146,7 +1171,6 @@ async function exportCSV() {
             'vendor_code',
             'serial_number',
             'total_bottle_capacity',
-            'formula',
             'for_sale_in',
             'qualifications',
             'plant_registry',
@@ -1174,7 +1198,6 @@ async function exportCSV() {
             'Vendor Code',
             'Serial Number',
             'Total Bottle Capacity',
-            'Formula',
             'For Sale In',
             'Qualifications',
             'Plant Registry',
