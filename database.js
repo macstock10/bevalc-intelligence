@@ -758,13 +758,13 @@ function openModal(record) {
                                     </div>
                                 `;
                             } else {
-                                // Free user: show locked field with upgrade prompt
+                                // Free user: show locked field with upgrade text link (matches Label Images style)
                                 return `
                                     <div class="detail-item detail-item-locked">
                                         <span class="detail-label detail-label-pro">${f.label}</span>
                                         <span class="detail-value detail-value-locked">
                                             <span class="detail-blur">${f.value ? '••••••••' : '-'}</span>
-                                            <button class="detail-upgrade-btn" onclick="showProUpgradePrompt()">Upgrade</button>
+                                            <a href="#" class="detail-upgrade-link" onclick="showProUpgradePrompt(); return false;">Upgrade</a>
                                         </span>
                                     </div>
                                 `;
