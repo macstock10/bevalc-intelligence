@@ -647,9 +647,9 @@ function openModal(record) {
     // Build TRACK section
     const trackHtml = buildTrackSection(record, userEmail, isPro);
     
-    // Build LINKS section  
+    // Build TTB Images link for Product Details
     const ttbUrl = `https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${record.ttb_id}`;
-    const linksHtml = buildLinksSection(ttbUrl, isPro);
+    const labelImagesHtml = buildLabelImagesField(ttbUrl, isPro);
     
     const sections = [
         {
@@ -673,6 +673,7 @@ function openModal(record) {
                 { label: 'For Sale In', value: record.for_sale_in },
                 { label: 'Qualifications', value: record.qualifications },
                 { label: 'Plant Registry', value: record.plant_registry },
+                { label: 'Label Images', value: '__LABEL_IMAGES__', isSpecial: true },
             ]
         },
         {
@@ -709,20 +710,22 @@ function openModal(record) {
     // Add TRACK section first
     html += trackHtml;
     
-    // Add LINKS section
-    html += linksHtml;
-    
     sections.forEach((section, idx) => {
         html += `
             <div class="modal-section ${section.className || ''}">
                 <h4>${section.title}</h4>
                 <div class="detail-grid">
-                    ${section.fields.map(f => `
-                        <div class="detail-item">
-                            <span class="detail-label">${f.label}</span>
-                            <span class="detail-value">${escapeHtml(f.value || '-')}</span>
-                        </div>
-                    `).join('')}
+                    ${section.fields.map(f => {
+                        if (f.isSpecial && f.value === '__LABEL_IMAGES__') {
+                            return labelImagesHtml;
+                        }
+                        return `
+                            <div class="detail-item">
+                                <span class="detail-label">${f.label}</span>
+                                <span class="detail-value">${escapeHtml(f.value || '-')}</span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -789,31 +792,31 @@ function buildTrackSection(record, userEmail, isPro) {
     `;
 }
 
-function buildLinksSection(ttbUrl, isPro) {
-    const lockIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
-    const externalIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+function buildLabelImagesField(ttbUrl, isPro) {
+    const externalIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-left:4px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
     
-    const ttbImagesLink = isPro 
-        ? `<a href="${ttbUrl}" target="_blank" rel="noopener" class="link-pill">
-               ${externalIcon}
-               <span>TTB Images</span>
-           </a>`
-        : `<button class="link-pill link-pill-locked" onclick="showProUpgradePrompt()">
-               ${lockIcon}
-               <span class="link-pill-blur">TTB Images</span>
-               <span class="link-pill-upgrade">Upgrade</span>
-           </button>`;
+    if (isPro) {
+        return `
+            <div class="detail-item">
+                <span class="detail-label detail-label-teal">Label Images</span>
+                <span class="detail-value">
+                    <a href="${ttbUrl}" target="_blank" rel="noopener" class="label-images-link">
+                        View on TTB${externalIcon}
+                    </a>
+                </span>
+            </div>
+        `;
+    }
     
     return `
-        <div class="modal-section links-section">
-            <h4>Links</h4>
-            <div class="link-pills">
-                <a href="${ttbUrl}" target="_blank" rel="noopener" class="link-pill">
-                    ${externalIcon}
-                    <span>Open TTB Detail</span>
-                </a>
-                ${ttbImagesLink}
-            </div>
+        <div class="detail-item">
+            <span class="detail-label detail-label-teal">Label Images</span>
+            <span class="detail-value">
+                <button class="label-images-locked" onclick="showProUpgradePrompt()">
+                    <span class="label-images-blur">View on TTB</span>
+                    <span class="label-images-upgrade">Upgrade</span>
+                </button>
+            </span>
         </div>
     `;
 }
