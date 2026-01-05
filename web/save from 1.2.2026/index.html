@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BevAlc Intelligence | Track Competitor Launches Weekly</title>
+    <meta name="description" content="Weekly monitoring of TTB label approvals. Track competitor launches, spot new market entrants, and get category intelligence delivered every Sunday.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style-dark.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="particles" id="particles"></div>
+        <div class="bottles">
+            <svg class="bottle bottle-1" viewBox="0 0 40 120" fill="currentColor">
+                <path d="M15 30V15c0-2 1-3 3-4V5c0-2.5 2-4.5 4.5-4.5S27 2.5 27 5v6c2 1 3 2 3 4v15c2 3 3 7 3 12v58c0 10-4 18-11 18s-11-8-11-18V42c0-5 1-9 3-12z"/>
+            </svg>
+            <svg class="bottle bottle-2" viewBox="0 0 50 140" fill="currentColor">
+                <path d="M20 40V25c0-3 2-5 5-6V10c0-4 3-7 7-7s7 3 7 7v9c3 1 5 3 5 6v15c3 4 4 10 4 16v70c0 12-5 20-14 20s-14-8-14-20V56c0-6 1-12 4-16z"/>
+            </svg>
+            <svg class="bottle bottle-3" viewBox="0 0 60 100" fill="currentColor">
+                <path d="M20 25V18c0-2 2-4 5-5V8c0-3.5 3-6 7.5-6S40 4.5 40 8v5c3 1 5 3 5 5v7c4 4 6 10 6 18v40c0 10-6 16-18 16S15 93 15 83V43c0-8 2-14 5-18z"/>
+            </svg>
+            <svg class="bottle bottle-4" viewBox="0 0 45 130" fill="currentColor">
+                <path d="M17 35V22c0-2 1-4 4-5V8c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5v9c3 1 4 3 4 5v13c2 3 4 8 4 14v60c0 11-5 19-12 19s-12-8-12-19V49c0-6 2-11 4-14z"/>
+            </svg>
+            <svg class="bottle bottle-5" viewBox="0 0 55 110" fill="currentColor">
+                <path d="M22 30V20c0-2 2-4 5-5V8c0-3.5 3-6.5 7.5-6.5S42 4.5 42 8v7c3 1 5 3 5 5v10c3 4 5 9 5 15v45c0 11-6 18-16 18s-16-7-16-18V45c0-6 2-11 5-15z"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link active">Home</a>
+                <a href="database.html" class="nav-link">Database</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="glossary.html" class="nav-link">Glossary</a>
+            </div>
+            <div class="nav-user" id="nav-user">
+                <span class="user-status" id="user-status"></span>
+                <a href="#hero-email" class="nav-cta" id="nav-cta">Get Weekly Report</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-container">
+            <div class="hero-pill">Weekly Competitive Intel for BevAlc</div>
+            <h1 class="hero-title">
+                <span class="hero-title-main">Find New SKU Launches</span>
+                <span class="hero-title-accent">Before They Hit the Shelves.</span>
+            </h1>
+            <p class="hero-subtitle">Every Sunday: new brands, new SKUs, and top filers—linked to official TTB filings.</p>
+            
+            <!-- Hero Email Signup -->
+            <div class="hero-email-signup" id="hero-email-signup">
+                <form class="hero-email-form" id="hero-email-form">
+                    <input type="email" id="hero-email" placeholder="Enter your email" required>
+                    <button type="submit" class="btn btn-glow" id="hero-submit-btn">
+                        <span class="btn-text">Get Weekly Report</span>
+                        <span class="btn-loading" style="display: none;">
+                            <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
+                            </svg>
+                        </span>
+                    </button>
+                </form>
+                <p class="hero-microcopy">See new labels for free. Cancel anytime.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Strip -->
+    <section class="stats-strip">
+        <div class="stats-container">
+            <div class="stat-item">
+                <span class="stat-number">839K+</span>
+                <span class="stat-label">Filings Indexed</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-number">~2,500</span>
+                <span class="stat-label">New Filings/Week</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-number">Weekly</span>
+                <span class="stat-label">Competitor Alerts</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Proof Table Section -->
+    <section class="proof-section">
+        <div class="proof-container">
+            <h2 class="section-title">This Week's Report <span class="section-title-note">(example)</span></h2>
+            <p class="section-subtitle">Example report format (sample rows)</p>
+            
+            <div class="proof-table-wrapper">
+                <table class="proof-table" id="proof-table">
+                    <thead>
+                        <tr>
+                            <th>Brand</th>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Signal</th>
+                            <th>Origin</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proof-table-body">
+                        <tr>
+                            <td><strong>CASA AZUL</strong></td>
+                            <td>Organic Blanco Tequila</td>
+                            <td>Tequila</td>
+                            <td><span class="signal-badge signal-new-brand">New Brand</span></td>
+                            <td>Mexico</td>
+                            <td><a href="database.html?search=CASA%20AZUL" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>WHISTLEPIG</strong></td>
+                            <td>PiggyBack 6 Year Rye</td>
+                            <td>Whiskey</td>
+                            <td><span class="signal-badge signal-new-sku">New SKU</span></td>
+                            <td>Vermont</td>
+                            <td><a href="database.html?search=WHISTLEPIG" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>HENDRICK'S</strong></td>
+                            <td>Neptunia Gin</td>
+                            <td>Gin</td>
+                            <td><span class="signal-badge signal-new-sku">New SKU</span></td>
+                            <td>Scotland</td>
+                            <td><a href="database.html?search=HENDRICKS" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>CODIGO 1530</strong></td>
+                            <td>Rosa Reposado</td>
+                            <td>Tequila</td>
+                            <td><span class="signal-badge signal-refile">Refile</span></td>
+                            <td>Mexico</td>
+                            <td><a href="database.html?search=CODIGO%201530" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>21 SEEDS</strong></td>
+                            <td>Cucumber Jalapeño Tequila</td>
+                            <td>Tequila</td>
+                            <td><span class="signal-badge signal-new-sku">New SKU</span></td>
+                            <td>Mexico</td>
+                            <td><a href="database.html?search=21%20SEEDS" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>EMPRESS</strong></td>
+                            <td>1908 Elderflower Rose Gin</td>
+                            <td>Gin</td>
+                            <td><span class="signal-badge signal-new-brand">New Brand</span></td>
+                            <td>Canada</td>
+                            <td><a href="database.html?search=EMPRESS" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>TEREMANA</strong></td>
+                            <td>Reposado Tequila</td>
+                            <td>Tequila</td>
+                            <td><span class="signal-badge signal-refile">Refile</span></td>
+                            <td>Mexico</td>
+                            <td><a href="database.html?search=TEREMANA" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>HEAVEN'S DOOR</strong></td>
+                            <td>Straight Bourbon Whiskey</td>
+                            <td>Whiskey</td>
+                            <td><span class="signal-badge signal-new-sku">New SKU</span></td>
+                            <td>Tennessee</td>
+                            <td><a href="database.html?search=HEAVENS%20DOOR" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>MALFY</strong></td>
+                            <td>Con Arancia Gin</td>
+                            <td>Gin</td>
+                            <td><span class="signal-badge signal-new-brand">New Brand</span></td>
+                            <td>Italy</td>
+                            <td><a href="database.html?search=MALFY" class="filing-link">View →</a></td>
+                        </tr>
+                        <tr>
+                            <td><strong>SKREWBALL</strong></td>
+                            <td>Peanut Butter Whiskey</td>
+                            <td>Whiskey</td>
+                            <td><span class="signal-badge signal-refile">Refile</span></td>
+                            <td>California</td>
+                            <td><a href="database.html?search=SKREWBALL" class="filing-link">View →</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="proof-note">Sample rows. Live links available in the weekly report + database.</p>
+            
+            <!-- Secondary CTA moved here from hero -->
+            <a href="database.html" class="proof-secondary-link">Browse the database (free) →</a>
+        </div>
+    </section>
+
+    <!-- Use Cases Section - 3 cards -->
+    <section class="use-cases">
+        <div class="use-cases-container">
+            <h2 class="section-title">Built For</h2>
+            
+            <div class="use-cases-grid">
+                <div class="use-case-card">
+                    <div class="use-case-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                        </svg>
+                    </div>
+                    <h3>Brands / Suppliers</h3>
+                    <p class="use-case-benefit">Track competitor SKUs + line extensions before they hit shelves.</p>
+                </div>
+                
+                <div class="use-case-card">
+                    <div class="use-case-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3>Distributors / Importers</h3>
+                    <p class="use-case-benefit">Monitor new entrants by origin + geography before they scale.</p>
+                </div>
+                
+                <div class="use-case-card">
+                    <div class="use-case-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                        </svg>
+                    </div>
+                    <h3>Agencies / Marketers</h3>
+                    <p class="use-case-benefit">Client-ready competitive proof + CSV exports in minutes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- What You Get Section -->
+    <section class="what-you-get">
+        <div class="wyg-container">
+            <div class="wyg-content">
+                <h2 class="section-title">What You Get Every Week</h2>
+                <ul class="wyg-list">
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Full database search</strong></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Weekly market pulse email</strong></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Category totals & top filers</strong></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Glossary & documentation</strong></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>New brands</strong> (first-seen in your category) <span class="pro-badge">Pro</span></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>New SKUs vs refiles</strong> <span class="pro-badge">Pro</span></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Top active companies/filers</strong> this week <span class="pro-badge">Pro</span></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Origin + geography movers</strong> <span class="pro-badge">Pro</span></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Direct TTB filing links</strong> <span class="pro-badge">Pro</span></span>
+                    </li>
+                    <li>
+                        <span class="wyg-check">✓</span>
+                        <span><strong>Cleaned data in CSV form</strong> <span class="pro-badge">Pro</span></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="wyg-visual">
+                <div class="mock-card">
+                    <div class="mock-header">
+                        <span class="mock-dot"></span>
+                        <span class="mock-dot"></span>
+                        <span class="mock-dot"></span>
+                    </div>
+                    <div class="mock-content">
+                        <div class="mock-title">Weekly Intel Report</div>
+                        <div class="mock-date">Sunday, Jan 5, 2026</div>
+                        <div class="mock-stats">
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">127</span>
+                                <span class="mock-stat-label">New Brands</span>
+                            </div>
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">843</span>
+                                <span class="mock-stat-label">New SKUs</span>
+                            </div>
+                            <div class="mock-stat">
+                                <span class="mock-stat-num">2,412</span>
+                                <span class="mock-stat-label">Total Filings</span>
+                            </div>
+                        </div>
+                        <div class="mock-list">
+                            <div class="mock-list-item"></div>
+                            <div class="mock-list-item"></div>
+                            <div class="mock-list-item"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Social Proof - 3 cards -->
+    <section class="social-proof">
+        <div class="social-proof-container">
+            <div class="testimonial-card">
+                <p class="testimonial-text">"We use this to track competitor line extensions. Saves hours of manual TTB checking every week."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">BS</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Brands / Suppliers</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="testimonial-card">
+                <p class="testimonial-text">"We watch new entrants by origin + state. When something's building momentum, we see it early."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">DI</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Distributors / Importers</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="testimonial-card">
+                <p class="testimonial-text">"We turn this into client-ready slides fast. Real data, real filings, real proof."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">AM</div>
+                    <div class="testimonial-info">
+                        <span class="testimonial-name">Agencies / Marketers</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="pricing">
+        <div class="pricing-container">
+            <h2 class="section-title">Simple Pricing</h2>
+            <p class="section-subtitle">Start free. Upgrade when you need more.</p>
+            
+            <div class="pricing-grid">
+                <!-- Free Tier -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Free</h3>
+                        <div class="pricing-price">
+                            <span class="price-amount">$0</span>
+                            <span class="price-period">forever</span>
+                        </div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>Full database search</li>
+                        <li>Weekly Market Pulse email</li>
+                        <li>Category totals & top filers</li>
+                        <li>TTB detail links</li>
+                        <li>Glossary & documentation</li>
+                    </ul>
+                    <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
+                </div>
+                
+                <!-- Pro Tier -->
+                <div class="pricing-card featured">
+                    <div class="pricing-badge">Most Popular</div>
+                    <div class="pricing-header">
+                        <h3>Pro</h3>
+                        <div class="pricing-price">
+                            <span class="price-amount">$49</span>
+                            <span class="price-period">/month</span>
+                        </div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><strong>Everything in Free, plus:</strong></li>
+                        <li>Weekly report by category</li>
+                        <li>New brand detection (first-seen logic)</li>
+                        <li>New SKU detection (vs refiles)</li>
+                        <li>Full CSV export</li>
+                        <li>Competitor watchlists</li>
+                        <li>Direct TTB filing links</li>
+                    </ul>
+                    <button class="btn btn-glow" id="pro-cta">Get My Category Pack</button>
+                    <p class="pricing-note">Designed for operators tracking a single category (Whiskey / Tequila / Wine / etc.).</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final Email Capture -->
+    <section class="final-cta" id="signup">
+        <div class="final-cta-container">
+            <div class="final-cta-card">
+                <h2>Get the Weekly Report</h2>
+                <p>Free. Weekly. Linked to official filings.</p>
+                
+                <form class="final-email-form" id="signup-form">
+                    <input type="email" id="email" placeholder="Enter your email" required>
+                    <button type="submit" class="btn btn-glow" id="submit-btn">
+                        <span class="btn-text">Get Weekly Report</span>
+                        <span class="btn-loading" style="display: none;">
+                            <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
+                            </svg>
+                        </span>
+                    </button>
+                </form>
+                
+                <div class="signup-success" id="signup-success" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <h3>Check Your Inbox!</h3>
+                    <p>You now have full access to the database.</p>
+                    <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                </div>
+                
+                <p class="final-microcopy" id="final-microcopy">Free. No credit card. Unsubscribe anytime.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+            </div>
+            <div class="footer-links">
+                <a href="legal.html#privacy">Privacy Policy</a>
+                <a href="legal.html#terms">Terms of Service</a>
+                <a href="glossary.html">Glossary</a>
+                <a href="mailto:hello@bevalcintel.com">Contact</a>
+            </div>
+            <p class="footer-copyright">© 2025 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="auth.js"></script>
+    <script>
+        const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
+        
+        // Create floating particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 20) + 's';
+                container.appendChild(particle);
+            }
+        }
+        
+        // Initialize particles
+        if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+            createParticles();
+        }
+        
+        // Smooth scroll to email field when nav CTA is clicked
+        document.getElementById('nav-cta')?.addEventListener('click', function(e) {
+            const hasAccess = BevAlcAuth.hasAccess();
+            if (!hasAccess) {
+                e.preventDefault();
+                const heroEmail = document.getElementById('hero-email');
+                if (heroEmail) {
+                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => heroEmail.focus(), 500);
+                }
+            }
+        });
+        
+        // Same for free-cta
+        document.getElementById('free-cta')?.addEventListener('click', function(e) {
+            const hasAccess = BevAlcAuth.hasAccess();
+            if (!hasAccess) {
+                e.preventDefault();
+                const heroEmail = document.getElementById('hero-email');
+                if (heroEmail) {
+                    heroEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => heroEmail.focus(), 500);
+                }
+            }
+        });
+        
+        // Check access and subscription status on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            const hasAccess = BevAlcAuth.hasAccess();
+            const user = BevAlcAuth.getUser();
+            
+            // Setup Pro CTA button
+            const proCta = document.getElementById('pro-cta');
+            if (proCta) {
+                proCta.addEventListener('click', handleProUpgrade);
+            }
+            
+            if (hasAccess) {
+                const navCta = document.getElementById('nav-cta');
+                const heroEmailSignup = document.getElementById('hero-email-signup');
+                const freeCta = document.getElementById('free-cta');
+                const finalCta = document.querySelector('.final-cta-card');
+                
+                // Update nav CTA
+                if (navCta) {
+                    navCta.textContent = 'Go to Database';
+                    navCta.href = 'database.html';
+                }
+                
+                // Replace hero email form with "Go to Database" button
+                if (heroEmailSignup) {
+                    heroEmailSignup.innerHTML = '<a href="database.html" class="btn btn-glow">Go to Database</a><p class="hero-microcopy">You have full access</p>';
+                }
+                
+                if (freeCta) {
+                    freeCta.textContent = 'You Have Access';
+                    freeCta.href = 'database.html';
+                }
+                
+                // Update final CTA for logged in users
+                if (finalCta) {
+                    finalCta.innerHTML = `
+                        <h2>Ready to Explore?</h2>
+                        <p>You have full access to the database.</p>
+                        <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                    `;
+                }
+                
+                // Check if user is Pro
+                if (user && user.email) {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(user.email)}`);
+                        const data = await response.json();
+                        
+                        if (data.success && data.status === 'pro') {
+                            const userStatus = document.getElementById('user-status');
+                            
+                            if (userStatus) {
+                                userStatus.textContent = 'Pro';
+                                userStatus.style.display = 'inline';
+                                userStatus.className = 'user-status pro';
+                            }
+                            
+                            if (proCta) {
+                                proCta.textContent = 'You\'re on Pro';
+                                proCta.disabled = true;
+                            }
+                            
+                            user.isPro = true;
+                            BevAlcAuth.setUser(user);
+                        }
+                    } catch (e) {
+                        console.log('Could not check subscription status');
+                    }
+                }
+            }
+        });
+        
+        // Handle Pro upgrade - go directly to Stripe Checkout
+        async function handleProUpgrade() {
+            const user = BevAlcAuth.getUser();
+            const proCta = document.getElementById('pro-cta');
+            
+            // If user is already Pro, do nothing
+            if (user && user.isPro) return;
+            
+            const originalText = proCta.textContent;
+            proCta.disabled = true;
+            proCta.textContent = 'Loading...';
+            
+            try {
+                // Create checkout session - email is optional, Stripe will collect it
+                const body = {
+                    successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
+                    cancelUrl: window.location.origin + '/#pricing'
+                };
+                
+                // If user has email, include it for pre-fill
+                if (user && user.email) {
+                    body.email = user.email;
+                }
+                
+                const response = await fetch(`${API_BASE}/api/stripe/create-checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert('Something went wrong. Please try again.');
+                    proCta.disabled = false;
+                    proCta.textContent = originalText;
+                }
+            } catch (e) {
+                alert('Something went wrong. Please try again.');
+                proCta.disabled = false;
+                proCta.textContent = originalText;
+            }
+        }
+        
+        // Hero email form submission
+        document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('hero-email').value.trim();
+            const submitBtn = document.getElementById('hero-submit-btn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const btnLoading = submitBtn.querySelector('.btn-loading');
+            
+            if (email) {
+                btnText.style.display = 'none';
+                btnLoading.style.display = 'inline-flex';
+                submitBtn.disabled = true;
+                
+                await submitEmail(email);
+            }
+        });
+        
+        // Main signup form submission
+        document.getElementById('signup-form')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            
+            if (email) {
+                const submitBtn = document.getElementById('submit-btn');
+                const btnText = submitBtn.querySelector('.btn-text');
+                const btnLoading = submitBtn.querySelector('.btn-loading');
+                
+                btnText.style.display = 'none';
+                btnLoading.style.display = 'inline-flex';
+                submitBtn.disabled = true;
+                
+                await submitEmail(email, true);
+            }
+        });
+        
+        // Shared email submission function
+        async function submitEmail(email, showSuccessUI = false) {
+            try {
+                const response = await fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        email: email,
+                        firstName: '',
+                        lastName: '',
+                        company: '',
+                        userGroup: '',
+                        mailingLists: ''
+                    })
+                });
+                
+                await response.json().catch(() => ({}));
+                
+                localStorage.setItem('bevalc_user', JSON.stringify({
+                    email: email,
+                    signedUpAt: new Date().toISOString()
+                }));
+                
+                BevAlcAuth.grantAccess();
+                
+                if (showSuccessUI) {
+                    document.getElementById('signup-form').style.display = 'none';
+                    document.getElementById('final-microcopy').style.display = 'none';
+                    document.getElementById('signup-success').style.display = 'block';
+                } else {
+                    window.location.href = 'database.html';
+                }
+                
+            } catch (error) {
+                console.error('Signup error:', error);
+                BevAlcAuth.grantAccess();
+                
+                localStorage.setItem('bevalc_user', JSON.stringify({
+                    email: email,
+                    signedUpAt: new Date().toISOString()
+                }));
+                
+                if (showSuccessUI) {
+                    document.getElementById('signup-form').style.display = 'none';
+                    document.getElementById('final-microcopy').style.display = 'none';
+                    document.getElementById('signup-success').style.display = 'block';
+                } else {
+                    window.location.href = 'database.html';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

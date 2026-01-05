@@ -1,0 +1,33 @@
+# Environment and secrets
+.env
+*.env
+config.yaml
+
+# Local data (lives on your machine or R2, not GitHub)
+data/
+exports/
+reports/
+logs/
+outputs/
+d1_chunks/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary/old
+old/
+temporaryweb/
+
+# Sensitive files
+*.xlsx

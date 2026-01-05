@@ -1,0 +1,51 @@
+# BevAlc Intelligence Configuration
+# Copy this to config.yaml and customize
+
+# Scraper settings
+scraper:
+  # Delay between requests (seconds) - increase if getting blocked
+  request_delay: 1.5
+  
+  # Page load timeout (seconds)
+  page_timeout: 30
+  
+  # Max retry attempts for failed requests
+  max_retries: 3
+  
+  # Run browser in headless mode (no visible window)
+  # Set to false if you need to solve CAPTCHAs
+  headless: false
+
+# Image settings
+images:
+  # Compress images to save space
+  compress: true
+  
+  # Maximum image width (larger images will be resized)
+  max_width: 1200
+  
+  # JPEG quality (1-100)
+  jpeg_quality: 85
+
+# CAPTCHA handling
+captcha:
+  # Maximum CAPTCHAs per session before stopping
+  max_per_session: 10
+  
+  # Cooldown after solving CAPTCHA (seconds)
+  cooldown: 5.0
+
+# Database
+database:
+  # Path to SQLite database (relative to project root)
+  path: data/bevalc.db
+
+# Export settings
+export:
+  # Default export path
+  json_path: exports/colas.json
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)s | %(message)s"
