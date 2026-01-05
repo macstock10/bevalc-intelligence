@@ -700,20 +700,25 @@
         // Shared email submission function
         async function submitEmail(email, showSuccessUI = false) {
             try {
-                const response = await fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
+                // 1. Send to Loops (for their UI, analytics, unsubscribe handling)
+                const loopsPromise = fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({
                         email: email,
-                        firstName: '',
-                        lastName: '',
-                        company: '',
-                        userGroup: '',
-                        mailingLists: ''
+                        subscribedFreeReport: 'true'
                     })
-                });
+                }).catch(e => console.log('Loops error:', e));
                 
-                await response.json().catch(() => ({}));
+                // 2. Send to D1 (for weekly report script to query)
+                const d1Promise = fetch(`${API_BASE}/api/user/signup-free`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                }).catch(e => console.log('D1 error:', e));
+                
+                // Wait for both (but don't fail if one fails)
+                await Promise.allSettled([loopsPromise, d1Promise]);
                 
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     email: email,
@@ -743,7 +748,7 @@
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
-                     } else {
+                } else {
                     window.location.href = 'database.html';
                 }
             }
