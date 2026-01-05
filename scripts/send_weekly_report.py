@@ -25,13 +25,15 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 # ============================================================================
-# CONFIGURATION
+# CONFIGURATION - Auto-detect paths (works on Windows and Linux/GitHub Actions)
 # ============================================================================
 
-BASE_DIR = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence"
-REPORTS_DIR = os.path.join(BASE_DIR, "reports")
-LOG_FILE = os.path.join(BASE_DIR, "logs", "send_report.log")
-ENV_FILE = os.path.join(BASE_DIR, ".env")
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_DIR = SCRIPT_DIR.parent  # Goes up from /scripts to repo root
+
+REPORTS_DIR = str(BASE_DIR / "reports")
+LOG_FILE = str(BASE_DIR / "logs" / "send_report.log")
+ENV_FILE = str(BASE_DIR / ".env")
 
 # ============================================================================
 # LOAD ENVIRONMENT

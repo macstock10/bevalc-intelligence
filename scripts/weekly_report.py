@@ -48,14 +48,16 @@ from reportlab.lib.utils import ImageReader
 
 
 # =============================================================================
-# CONFIG
+# CONFIG - Auto-detect paths (works on Windows and Linux/GitHub Actions)
 # =============================================================================
 
-BASE_DIR = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence"
-ENV_FILE = os.path.join(BASE_DIR, ".env")
-OUTPUT_DIR = os.path.join(BASE_DIR, "reports")
-LOG_FILE = os.path.join(BASE_DIR, "logs", "weekly_report.log")
-LOGO_PATH = os.path.join(BASE_DIR, "Logo.jpg")
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_DIR = SCRIPT_DIR.parent  # Goes up from /scripts to repo root
+
+ENV_FILE = str(BASE_DIR / ".env")
+OUTPUT_DIR = str(BASE_DIR / "reports")
+LOG_FILE = str(BASE_DIR / "logs" / "weekly_report.log")
+LOGO_PATH = str(BASE_DIR / "Logo.jpg")
 
 COLORS = {
     "primary": "#0d9488",

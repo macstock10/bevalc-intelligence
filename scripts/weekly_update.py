@@ -38,20 +38,23 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 # ============================================================================
-# CONFIGURATION - EDIT THESE
+# CONFIGURATION - Auto-detect paths (works on Windows and Linux/GitHub Actions)
 # ============================================================================
 
-# Path to your consolidated database
-DB_PATH = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence\data\consolidated_colas.db"
+# Auto-detect base directory from script location
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_DIR = SCRIPT_DIR.parent  # Goes up from /scripts to repo root
 
-# Log file
-LOG_FILE = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence\logs\weekly_update.log"
+# Paths relative to repo
+DATA_DIR = BASE_DIR / "data"
+LOGS_DIR = BASE_DIR / "logs"
+
+DB_PATH = str(DATA_DIR / "consolidated_colas.db")
+LOG_FILE = str(LOGS_DIR / "weekly_update.log")
+ENV_FILE = str(BASE_DIR / ".env")
 
 # Default lookback period (days)
 DEFAULT_LOOKBACK_DAYS = 14
-
-# .env file path
-ENV_FILE = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence\.env"
 
 # Load environment variables from .env file
 def load_env():
