@@ -1,51 +1,145 @@
-# BevAlc Intelligence - Claude Code Context
+# CLAUDE.md
 
-## What This Is
-B2B SaaS platform tracking TTB COLA filings (1M+ beverage label records) to generate leads for beverage industry suppliers. Pro tier offers CSV exports, watchlists, and automated weekly PDF reports.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Tech Stack
-- **Frontend**: Static HTML/CSS/JS in `/web` → deployed via Netlify
-- **Backend**: Cloudflare Worker → D1 database + R2 storage
-- **Scripts**: Python in `/scripts` → run via GitHub Actions (scheduled)
-- **Email**: Loops.so for transactional emails
+## Session Management
+
+**At the END of every working session, Claude MUST:**
+1. Update this CLAUDE.md with any new files, features, or architecture changes
+2. Update PROJECT_MAP.md if folder structure changed
+3. Update RUNBOOK.md if new procedures were added
+4. Commit changes with message "Update context docs after [brief description]"
+
+**At the START of every session, Claude SHOULD:**
+1. Read this file, PROJECT_MAP.md, and RUNBOOK.md
+2. Ask what the user wants to accomplish
+3. Reference these docs to understand current state
+
+---
+
+## Project Overview
+
+BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1M+ records with weekly email reports for subscribers.
+
+**Live Site**: https://bevalcintel.com
+**GitHub**: https://github.com/macstock10/bevalc-intelligence
+
+## Common Commands
+
+```bash
+# Frontend: Auto-deploys on push to main (Netlify)
+
+# Deploy Cloudflare Worker
+cd worker && npx wrangler deploy
+
+# Test Worker locally
+cd worker && npx wrangler dev
+
+# Test Python scripts locally (use venv)
+cd scripts
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+
+# Run weekly update (scrapes TTB, syncs to D1)
+python weekly_update.py              # Full run
+python weekly_update.py --dry-run    # Preview without D1 push
+python weekly_update.py --sync-only  # Skip scraping, just sync existing local data
+python weekly_update.py --days 7     # Custom lookback period
+
+# Generate weekly PDF report
+python weekly_report.py
+python weekly_report.py --dry-run
+
+# Manual TTB scraping (older CLI approach)
+python -m src.cli scrape --days 7
+python -m src.cli resume  # Resume interrupted scrape
+```
 
 ## Architecture
-```
-User → Netlify (static site) → Cloudflare Worker API → D1 database
-                                                    → R2 (PDF storage)
 
-GitHub Actions (scheduled):
-  weekly_update.py    → scrapes TTB, updates D1
-  weekly_report.py    → generates PDF reports → uploads to R2  
-  send_weekly_report.py → sends emails via Loops
 ```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Static Site    │────▶│ Cloudflare Worker│────▶│  Cloudflare D1  │
+│  (Netlify)      │     │  (API Gateway)   │     │  (1M+ COLAs)    │
+│  /web/*         │     │  /worker/        │     │                 │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                                │                        │
+                                ▼                        │
+                        ┌──────────────────┐            │
+                        │    Stripe API    │            │
+                        │  (Pro payments)  │            │
+                        └──────────────────┘            │
+                                                        │
+┌─────────────────────────────────────────────────────────────────┐
+│                    GitHub Actions (Weekly)                       │
+│  ┌─────────────────┐   ┌─────────────────┐   ┌────────────────┐ │
+│  │ weekly_update.py│──▶│ weekly_report.py│──▶│send_weekly_    │ │
+│  │ Scrape TTB      │   │ Generate PDF    │   │report.py       │ │
+│  │ → Sync to D1    │   │ → Upload to R2  │   │ → Send via     │ │
+│  │                 │   │                 │   │   Loops.so     │ │
+│  └─────────────────┘   └─────────────────┘   └────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+1. **TTB Scraping** (`weekly_update.py`): Uses Selenium to scrape TTB COLA website, stores in local SQLite, syncs to Cloudflare D1
+2. **API Layer** (`worker/worker.js`): Cloudflare Worker handles all API requests - search, filters, Stripe checkout/webhooks, user preferences
+3. **Frontend** (`web/`): Static HTML/JS makes API calls to Worker, handles auth state via localStorage
+4. **Reports** (`weekly_report.py`): Queries D1, generates PDF with ReportLab/Matplotlib, uploads to R2, sends via Loops
+
+### Key Integration Points
+
+- **Stripe Webhooks**: Worker receives `checkout.session.completed` → creates `user_preferences` record in D1 → syncs to Loops
+- **Category Mapping**: Both `worker.js` and `database.js` share `TTB_CODE_CATEGORIES` mapping (TTB codes → categories like Whiskey, Vodka)
+- **D1 Sync**: `weekly_update.py` uses INSERT OR IGNORE for deduplication, classifies records as NEW_BRAND/NEW_SKU/REFILE
 
 ## Key Files
-- `/web/` - Frontend HTML/JS/CSS
-- `/worker/` - Cloudflare Worker source (deploy via Wrangler)
-- `/scripts/` - Python automation scripts
-- `/scripts/requirements.txt` - Python dependencies
 
-## Environment Variables (stored in GitHub Secrets)
-- CLOUDFLARE_ACCOUNT_ID
-- CLOUDFLARE_D1_DATABASE_ID  
-- CLOUDFLARE_API_TOKEN
-- CLOUDFLARE_R2_ACCESS_KEY_ID
-- CLOUDFLARE_R2_SECRET_ACCESS_KEY
-- CLOUDFLARE_R2_BUCKET_NAME
-- CLOUDFLARE_R2_PUBLIC_URL
-- LOOPS_API_KEY
-- LOOPS_TRANSACTIONAL_ID
+| File | Purpose |
+|------|---------|
+| `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs |
+| `web/database.js` | Frontend search/filter logic, category mapping |
+| `web/auth.js` | Stripe checkout, Pro user detection |
+| `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
+| `scripts/weekly_report.py` | PDF report generator |
+| `scripts/send_weekly_report.py` | R2 upload + Loops email |
 
-## Deployment
-- **Frontend**: Push to `main` → Netlify auto-deploys from `/web`
-- **Worker**: Run `npx wrangler deploy` from `/worker`
-- **Scripts**: GitHub Actions runs on schedule (no manual deploy)
+## Environment Variables
 
-## Constraints
-- No breaking changes to Pro user features (CSV export, watchlists, reports)
-- All changes via git - no Cloudflare dashboard pastes
-- Scripts must work with relative paths (no hardcoded C:\ paths)
+All secrets in GitHub Secrets (Actions) and local `.env`:
 
-## Current Priorities
-- [Update as needed]
+| Variable | Used By |
+|----------|---------|
+| `CLOUDFLARE_ACCOUNT_ID` | All scripts, Worker |
+| `CLOUDFLARE_D1_DATABASE_ID` | All scripts |
+| `CLOUDFLARE_API_TOKEN` | Scripts (D1 API) |
+| `CLOUDFLARE_R2_*` | send_weekly_report.py |
+| `LOOPS_API_KEY` | Worker (sync), send_weekly_report.py |
+| `STRIPE_SECRET_KEY` | Worker (checkout/webhooks) |
+| `STRIPE_PRICE_ID` | Worker (checkout) |
+
+## Database Schema (D1)
+
+**`colas`** table: 1M+ COLA records
+- `ttb_id` (PK), `brand_name`, `fanciful_name`, `class_type_code`, `origin_code`, `approval_date`, `status`, `company_name`, `state`, `year`, `month`, `signal` (NEW_BRAND/NEW_SKU/REFILE)
+
+**`user_preferences`** table: Pro user category subscriptions
+- `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
+
+## Current State (Last Updated: 2026-01-05)
+
+### What's Working
+- [x] Frontend deployed on Netlify
+- [x] D1 database with 1M+ records
+- [x] Search/filter functionality
+- [x] Pro user features (CSV export, watchlist)
+- [x] GitHub Actions workflows created
+- [ ] Weekly update automation (testing in progress)
+- [ ] Weekly report automation (not yet tested)
+
+### Known Issues
+1. Weekly update workflow needs full test run to confirm paths work
+2. Weekly report workflow not yet tested
+3. Need to verify R2 upload and Loops email sending work in Actions

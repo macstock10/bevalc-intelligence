@@ -77,7 +77,17 @@
                         </span>
                     </button>
                 </form>
-                <p class="hero-microcopy">See new labels for free. Cancel anytime.</p>
+                <p class="hero-microcopy" id="hero-microcopy">See new labels for free. Cancel anytime.</p>
+
+                <div class="signup-success" id="hero-signup-success" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <h3>Check Your Inbox!</h3>
+                    <p>You now have full access to the database.</p>
+                    <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                </div>
             </div>
         </div>
     </section>
@@ -669,13 +679,13 @@
             const submitBtn = document.getElementById('hero-submit-btn');
             const btnText = submitBtn.querySelector('.btn-text');
             const btnLoading = submitBtn.querySelector('.btn-loading');
-            
+
             if (email) {
                 btnText.style.display = 'none';
                 btnLoading.style.display = 'inline-flex';
                 submitBtn.disabled = true;
-                
-                await submitEmail(email);
+
+                await submitEmail(email, false, true);
             }
         });
         
@@ -698,7 +708,7 @@
         });
         
         // Shared email submission function
-        async function submitEmail(email, showSuccessUI = false) {
+        async function submitEmail(email, showBottomSuccessUI = false, showHeroSuccessUI = false) {
             try {
                 // 1. Send to Loops (for their UI, analytics, unsubscribe handling)
                 const loopsPromise = fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
@@ -709,45 +719,53 @@
                         subscribedFreeReport: 'true'
                     })
                 }).catch(e => console.log('Loops error:', e));
-                
+
                 // 2. Send to D1 (for weekly report script to query)
                 const d1Promise = fetch(`${API_BASE}/api/user/signup-free`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
                 }).catch(e => console.log('D1 error:', e));
-                
+
                 // Wait for both (but don't fail if one fails)
                 await Promise.allSettled([loopsPromise, d1Promise]);
-                
+
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     email: email,
                     signedUpAt: new Date().toISOString()
                 }));
-                
+
                 BevAlcAuth.grantAccess();
-                
-                if (showSuccessUI) {
+
+                if (showBottomSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
+                } else if (showHeroSuccessUI) {
+                    document.getElementById('hero-email-form').style.display = 'none';
+                    document.getElementById('hero-microcopy').style.display = 'none';
+                    document.getElementById('hero-signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
                 }
-                
+
             } catch (error) {
                 console.error('Signup error:', error);
                 BevAlcAuth.grantAccess();
-                
+
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     email: email,
                     signedUpAt: new Date().toISOString()
                 }));
-                
-                if (showSuccessUI) {
+
+                if (showBottomSuccessUI) {
                     document.getElementById('signup-form').style.display = 'none';
                     document.getElementById('final-microcopy').style.display = 'none';
                     document.getElementById('signup-success').style.display = 'block';
+                } else if (showHeroSuccessUI) {
+                    document.getElementById('hero-email-form').style.display = 'none';
+                    document.getElementById('hero-microcopy').style.display = 'none';
+                    document.getElementById('hero-signup-success').style.display = 'block';
                 } else {
                     window.location.href = 'database.html';
                 }
