@@ -218,6 +218,27 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via Loops API
 
+### Major TODO: Company Name Normalization (BLOCKS NEW_COMPANY SIGNAL)
+
+**Problem:** The same company appears under many string variations (e.g., "DIAGEO NORTH AMERICA INC", "Diageo North America, Inc.", "DIAGEO NORTH AMERICA"). The database has 34,179 unique `company_name` values, but many are duplicates. This makes NEW_COMPANY classification unreliable and blocks company-level features.
+
+**Data:**
+- 34K unique company_name strings
+- ~17K companies with <10 filings (long tail - most important for lead gen)
+- ~2,500 companies with 100+ filings (63% of all filings)
+
+**Proposed Solution:**
+1. Create `companies` table (canonical entities) and `company_aliases` table (raw string → company_id mapping)
+2. Normalize strings: uppercase, remove punctuation, standardize suffixes (INC/LLC/CORP)
+3. Fuzzy match remaining duplicates using `rapidfuzz` library
+4. Add `company_id` column to `colas` table
+5. Backfill 1.3M records (~60-90 min runtime)
+6. Update `weekly_update.py` to normalize on ingest
+
+**Estimated effort:** 2-3 hours development + 1-2 hours backfill runtime
+
+**Blocks:** NEW_COMPANY signal accuracy, company profile pages, company follow alerts, filing velocity metrics, growth tracking
+
 ## Technical Notes
 
 **D1 Batch Insert Limit**: SQLite has ~999 parameter limit. When inserting batches to D1, use inline SQL values instead of parameterized queries:
