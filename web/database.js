@@ -837,8 +837,6 @@ function buildTrackSection(record, userEmail, isPro) {
             <div class="track-pills">
                 ${createPill('brand', brandName, brandName, 'count-brand')}
                 ${createPill('company', companyName, companyName, 'count-company')}
-                ${createPill('keyword', fancifulName, `"${fancifulName}"`, 'count-keyword')}
-                ${createPill('subcategory', subcategory, subcategory, 'count-subcategory')}
             </div>
         </div>
     `;
