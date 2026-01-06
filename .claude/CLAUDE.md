@@ -38,12 +38,23 @@ bevalc-intelligence/
 │   └── workflows/
 │       ├── weekly-update.yml  # Scrapes TTB, updates D1
 │       └── weekly-report.yml  # Generates + sends reports
+├── emails/                    # React Email + Resend system
+│   ├── package.json           # Email dependencies
+│   ├── send.js                # Main send functions (CLI + API)
+│   ├── test-email.js          # Test/preview tool
+│   ├── index.js               # Package exports
+│   ├── components/
+│   │   └── Layout.jsx         # Shared email layout (brand colors)
+│   └── templates/
+│       ├── WeeklyReport.jsx   # Weekly PDF report email
+│       └── Welcome.jsx        # New subscriber welcome email
 ├── scripts/
 │   ├── requirements.txt
 │   ├── weekly_update.py       # TTB scraper + D1 sync
 │   ├── weekly_report.py       # PDF report generator
 │   ├── send_weekly_report.py  # R2 upload + email send
-│   └── src/                   # Shared modules
+│   └── src/
+│       └── email_sender.py    # Python wrapper for email system
 ├── web/                       # Frontend (Netlify)
 │   ├── index.html
 │   ├── database.html
@@ -84,7 +95,7 @@ bevalc-intelligence/
 │  │ weekly_update.py│──▶│ weekly_report.py│──▶│send_weekly_    │ │
 │  │ Scrape TTB      │   │ Generate PDF    │   │report.py       │ │
 │  │ → Sync to D1    │   │ → Upload to R2  │   │ → Send via     │ │
-│  │                 │   │                 │   │   Loops.so     │ │
+│  │                 │   │                 │   │   Resend       │ │
 │  └─────────────────┘   └─────────────────┘   └────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -99,7 +110,7 @@ bevalc-intelligence/
 2. **Weekly Report** (Mondays 8am UTC):
    - `weekly_report.py` queries D1 for historical data
    - Generates PDF with charts and tables
-   - `send_weekly_report.py` uploads to R2 and sends via Loops
+   - `send_weekly_report.py` uploads to R2 and sends via Resend
 
 3. **API Layer** (`worker/worker.js`):
    - Handles search, filters, CSV export
@@ -112,9 +123,10 @@ bevalc-intelligence/
 
 ### Key Integration Points
 
-- **Stripe Webhooks**: Worker receives `checkout.session.completed` → creates `user_preferences` record in D1 → syncs to Loops
+- **Stripe Webhooks**: Worker receives `checkout.session.completed` → creates `user_preferences` record in D1
 - **Category Mapping**: Both `worker.js` and `database.js` share `TTB_CODE_CATEGORIES` mapping (TTB codes → categories like Whiskey, Vodka)
 - **D1 Sync**: `weekly_update.py` uses INSERT OR IGNORE for deduplication
+- **Email System**: React Email templates in `/emails` sent via Resend API (replaces Loops)
 
 ## Common Commands
 
@@ -142,6 +154,13 @@ python weekly_update.py --days 7     # Custom lookback period
 # Generate weekly PDF report
 python weekly_report.py
 python weekly_report.py --dry-run
+
+# Email System (React Email + Resend)
+cd emails && npm install           # Install dependencies (first time)
+cd emails && npm run dev           # Preview emails in browser at localhost:3001
+node emails/test-email.js          # Interactive test tool
+node emails/send.js weekly-report --to you@example.com --weekEnding "January 5, 2026" --downloadLink "https://..."
+node emails/send.js welcome --to you@example.com --firstName "John"
 ```
 
 ## Key Files
@@ -156,7 +175,10 @@ python weekly_report.py --dry-run
 | `web/auth.js` | Stripe checkout, Pro user detection |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
 | `scripts/weekly_report.py` | PDF report generator |
-| `scripts/send_weekly_report.py` | R2 upload + Loops email |
+| `scripts/send_weekly_report.py` | R2 upload + email send |
+| `emails/send.js` | Resend email sender (CLI + API) |
+| `emails/templates/*.jsx` | React Email templates (WeeklyReport, Welcome) |
+| `scripts/src/email_sender.py` | Python wrapper for email system |
 
 ## Environment Variables
 
@@ -171,8 +193,8 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | send_weekly_report.py |
 | `CLOUDFLARE_R2_BUCKET_NAME` | send_weekly_report.py |
 | `CLOUDFLARE_R2_PUBLIC_URL` | send_weekly_report.py |
-| `LOOPS_API_KEY` | Worker (sync), send_weekly_report.py |
-| `LOOPS_TRANSACTIONAL_ID` | send_weekly_report.py |
+| `RESEND_API_KEY` | emails/send.js, scripts/src/email_sender.py |
+| `FROM_EMAIL` | emails/send.js (optional, defaults to hello@bevalcintel.com) |
 | `STRIPE_SECRET_KEY` | Worker (checkout/webhooks) |
 | `STRIPE_PRICE_ID` | Worker (checkout) |
 
@@ -202,7 +224,7 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_email ON watchlist(email);
 CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
 ```
 
-## Current State (Last Updated: 2026-01-05)
+## Current State (Last Updated: 2026-01-06)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
@@ -211,17 +233,18 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
 - [x] Pro user features (CSV export, watchlist storage + display)
 - [x] GitHub Actions weekly update workflow (paths fixed)
 - [x] Watchlist API endpoints (add/remove/check/counts)
-- [x] Watchlist syncs to Loops.so (watchlist_items contact property)
-- [ ] Weekly report automation (not yet tested)
-- [ ] Watchlist email alerts (needs Loops template + weekly_update.py logic)
+- [x] React Email + Resend email system (replaces Loops)
+- [x] Email templates: WeeklyReport, Welcome
+- [ ] Weekly report automation (not yet tested with Resend)
+- [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 
 ### Known Issues
-1. Weekly report workflow not yet tested
-2. Need to verify R2 upload and Loops email sending work in Actions
+1. Weekly report workflow not yet tested with new Resend email system
+2. Need to update send_weekly_report.py to use new email_sender.py wrapper
 3. Watchlist email alerts not implemented - requires:
-   - Loops transactional email template for alerts
+   - New WatchlistAlert.jsx email template
    - Logic in weekly_update.py to check new COLAs against watchlists
-   - Send alerts via Loops API
+   - Send alerts via email_sender.py
 
 ### Major TODO: Company Name Normalization (BLOCKS NEW_COMPANY SIGNAL)
 
@@ -276,3 +299,82 @@ The `signal` column is stored in D1 `colas` table, returned in search API, displ
 **Watchlist Track Options**: When viewing a COLA detail modal, Pro users see "Track" pills for Brand and Company only. Subcategory and Keyword options were removed to keep it simple.
 
 **Hero Email Form**: The top email signup form on index.html shows an inline confirmation message (same as footer form) instead of redirecting to a thank-you page.
+
+## Email System (React Email + Resend)
+
+The email system uses React Email for templates and Resend for delivery. This replaces the previous Loops.so integration.
+
+### Setup
+
+```bash
+cd emails
+npm install                    # Install dependencies
+```
+
+Add to your `.env`:
+```
+RESEND_API_KEY=re_xxxxxxxx
+FROM_EMAIL=BevAlc Intelligence <hello@bevalcintel.com>
+```
+
+### Available Templates
+
+| Template | File | Purpose |
+|----------|------|---------|
+| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Weekly PDF report with download link |
+| Welcome | `emails/templates/Welcome.jsx` | New subscriber welcome email |
+
+### Testing Emails Locally
+
+```bash
+# Visual preview in browser (hot reload)
+cd emails && npm run dev      # Opens localhost:3001
+
+# Send test email to yourself
+node emails/test-email.js     # Interactive mode
+node emails/test-email.js --email you@example.com --template weekly-report
+node emails/test-email.js --email you@example.com --all
+```
+
+### Sending Emails
+
+**From Node.js:**
+```javascript
+import { sendWeeklyReport, sendWelcome } from './emails/send.js';
+
+await sendWeeklyReport({
+  to: 'user@example.com',
+  weekEnding: 'January 5, 2026',
+  downloadLink: 'https://...',
+  newFilingsCount: '847',
+  newBrandsCount: '23',
+});
+
+await sendWelcome({
+  to: 'user@example.com',
+  firstName: 'John',
+});
+```
+
+**From Python:**
+```python
+from scripts.src.email_sender import send_weekly_report, send_welcome
+
+result = send_weekly_report(
+    to="user@example.com",
+    week_ending="January 5, 2026",
+    download_link="https://...",
+)
+
+result = send_welcome(to="user@example.com", first_name="John")
+```
+
+### Brand Colors (from style.css)
+
+The email templates use these brand colors:
+- Primary (teal): `#0d9488`
+- Text: `#1e293b`
+- Text Secondary: `#475569`
+- Background: `#ffffff`
+- Background Secondary: `#f8fafc`
+- Border: `#e2e8f0`
