@@ -852,147 +852,195 @@ a:hover {
 .how-it-works-container {
     max-width: 1100px;
     margin: 0 auto;
-}
-
-.hiw-problem {
-    background: rgba(220, 38, 38, 0.05);
-    border: 1px solid rgba(220, 38, 38, 0.2);
-    border-radius: var(--radius-xl);
-    padding: var(--space-2xl);
-    margin-bottom: var(--space-2xl);
-}
-
-.hiw-problem-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #f87171;
-    margin-bottom: var(--space-xl);
-    text-align: center;
-}
-
-.hiw-problem-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-xl);
+    grid-template-columns: 1fr 380px;
+    gap: var(--space-3xl);
+    align-items: start;
 }
 
-.hiw-problem-item {
-    display: flex;
-    gap: var(--space-md);
-    align-items: flex-start;
+.hiw-content {
+    max-width: 600px;
 }
 
-.hiw-problem-icon {
-    width: 32px;
-    height: 32px;
-    background: rgba(220, 38, 38, 0.2);
-    color: #f87171;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.875rem;
-    flex-shrink: 0;
-}
-
-.hiw-problem-item strong {
-    display: block;
-    color: var(--color-text-primary);
-    font-size: 1rem;
-    margin-bottom: var(--space-xs);
-}
-
-.hiw-problem-item p {
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
-    line-height: 1.5;
-}
-
-.hiw-solution {
-    background: rgba(13, 148, 136, 0.05);
-    border: 1px solid rgba(13, 148, 136, 0.2);
-    border-radius: var(--radius-xl);
-    padding: var(--space-2xl);
-}
-
-.hiw-solution-title {
-    font-size: 1.5rem;
-    font-weight: 700;
+.hiw-subheader {
+    font-size: 1.125rem;
     color: var(--color-accent-light);
     margin-bottom: var(--space-xl);
-    text-align: center;
+    font-weight: 500;
 }
 
-.hiw-steps {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-lg);
+.hiw-paragraphs {
+    margin-bottom: var(--space-xl);
 }
 
-.hiw-step {
-    flex: 1;
-    max-width: 280px;
-    text-align: center;
+.hiw-paragraphs p {
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+    margin-bottom: var(--space-lg);
+    max-width: 70ch;
 }
 
-.hiw-step-number {
-    width: 48px;
-    height: 48px;
-    background: var(--color-accent);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.25rem;
-    margin: 0 auto var(--space-md);
+.hiw-paragraphs p:last-child {
+    margin-bottom: 0;
 }
 
-.hiw-step-content h4 {
+.hiw-paragraphs strong {
+    color: var(--color-text-primary);
+}
+
+.hiw-benefits {
+    margin-bottom: var(--space-xl);
+}
+
+.hiw-benefits h3 {
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--color-text-primary);
-    margin-bottom: var(--space-sm);
+    margin-bottom: var(--space-md);
 }
 
-.hiw-step-content p {
-    font-size: 0.875rem;
+.hiw-benefits ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.hiw-benefits li {
+    font-size: 0.9375rem;
     color: var(--color-text-secondary);
-    line-height: 1.5;
+    line-height: 1.6;
+    padding: var(--space-sm) 0;
+    padding-left: var(--space-lg);
+    position: relative;
 }
 
-.hiw-step-arrow {
-    flex-shrink: 0;
+.hiw-benefits li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--color-accent-light);
+    font-weight: 700;
 }
 
-.hiw-step-arrow svg {
-    width: 24px;
-    height: 24px;
-    color: var(--color-accent);
+.hiw-benefits li strong {
+    color: var(--color-text-primary);
+}
+
+.hiw-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.hiw-cta-note {
+    font-size: 0.8125rem;
+    color: var(--color-text-tertiary);
+}
+
+/* Sample Card Visual */
+.hiw-visual {
+    position: sticky;
+    top: 100px;
+}
+
+.hiw-sample-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.hiw-sample-header {
+    background: var(--color-bg-tertiary);
+    padding: var(--space-sm) var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.hiw-sample-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-border);
+}
+
+.hiw-sample-dot:nth-child(1) { background: #ef4444; }
+.hiw-sample-dot:nth-child(2) { background: #f59e0b; }
+.hiw-sample-dot:nth-child(3) { background: #22c55e; }
+
+.hiw-sample-title {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+}
+
+.hiw-sample-content {
+    padding: var(--space-md);
+}
+
+.hiw-sample-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.hiw-sample-row:last-child {
+    border-bottom: none;
+}
+
+.hiw-sample-brand {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.hiw-sample-signal {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.hiw-sample-footer {
+    padding: var(--space-md);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.hiw-sample-footer a {
+    font-size: 0.875rem;
+    color: var(--color-accent-light);
+    font-weight: 500;
+}
+
+@media (max-width: 900px) {
+    .how-it-works-container {
+        grid-template-columns: 1fr;
+    }
+
+    .hiw-content {
+        max-width: 100%;
+    }
+
+    .hiw-visual {
+        position: static;
+        max-width: 400px;
+        margin: 0 auto;
+    }
 }
 
 @media (max-width: 768px) {
     .lead-signals-grid {
         grid-template-columns: 1fr;
-    }
-
-    .hiw-problem-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .hiw-steps {
-        flex-direction: column;
-    }
-
-    .hiw-step-arrow {
-        transform: rotate(90deg);
-    }
-
-    .hiw-step {
-        max-width: 100%;
     }
 }
 
