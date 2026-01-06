@@ -558,7 +558,6 @@ function renderResults(data) {
         }
         return `
         <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
-            <td class="cell-ttb-id">${escapeHtml(cola.ttb_id || '-')}</td>
             <td class="cell-brand">${escapeHtml(cola.brand_name || '-')}</td>
             <td class="cell-fanciful">${escapeHtml(cola.fanciful_name || '-')}</td>
             <td>${escapeHtml(cola.class_type_code || '-')}</td>
