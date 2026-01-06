@@ -55,6 +55,26 @@
         .not-pro-state h2 { font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-primary); }
         .not-pro-state p { color: var(--color-text-secondary); }
 
+        /* Free tier badge */
+        .free-badge { background: linear-gradient(135deg, #64748b, #475569); color: white; padding: 0.5rem 1rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.875rem; }
+
+        /* Locked section styles */
+        .account-section.locked { position: relative; overflow: hidden; }
+        .account-section.locked .section-content { filter: blur(3px); opacity: 0.6; pointer-events: none; user-select: none; }
+        .locked-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10, 25, 47, 0.7); border-radius: var(--radius-2xl); z-index: 10; }
+        .locked-overlay .lock-icon-small { width: 48px; height: 48px; background: rgba(251, 191, 36, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: #fbbf24; }
+        .locked-overlay h3 { color: var(--color-text-primary); font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .locked-overlay p { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem; text-align: center; max-width: 280px; }
+        .locked-overlay .btn-upgrade { background: linear-gradient(135deg, var(--color-accent), #0d7377); color: white; padding: 0.625rem 1.25rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.875rem; text-decoration: none; transition: all 0.2s ease; }
+        .locked-overlay .btn-upgrade:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4); }
+
+        /* Pro upgrade banner */
+        .upgrade-banner { background: linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%); border: 1px solid var(--color-accent); border-radius: var(--radius-2xl); padding: 1.5rem; margin-bottom: 1.5rem; text-align: center; }
+        .upgrade-banner h3 { color: var(--color-text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .upgrade-banner p { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .upgrade-banner .btn-upgrade-main { background: linear-gradient(135deg, var(--color-accent), #0d7377); color: white; padding: 0.75rem 2rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.9375rem; text-decoration: none; display: inline-block; transition: all 0.2s ease; }
+        .upgrade-banner .btn-upgrade-main:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4); }
+
         /* Watchlist Styles */
         .watchlist-container { min-height: 100px; overflow: hidden; }
         .watchlist-loading { color: var(--color-text-secondary); font-size: 0.875rem; }
@@ -85,17 +105,35 @@
 
     <nav class="nav">
         <div class="nav-container">
-            <a href="index.html" class="logo"><span class="logo-icon">◆</span><span class="logo-text">BevAlc Intelligence</span></a>
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+                <span class="user-status user-status-mobile" id="user-status-mobile"></span>
+            </a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
                 <a href="database.html" class="nav-link">Database</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
                 <a href="glossary.html" class="nav-link">Glossary</a>
+                <a href="account.html" class="nav-link active">Account</a>
             </div>
             <div class="nav-user" id="nav-user">
-                <a href="account.html" class="nav-link active">Account</a>
                 <a href="database.html" class="nav-cta">Go to Database</a>
             </div>
+            <!-- Mobile hamburger menu -->
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </div>
+        <!-- Mobile dropdown menu -->
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="index.html" class="mobile-menu-link">Home</a>
+            <a href="database.html" class="mobile-menu-link">Database</a>
+            <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
+            <a href="glossary.html" class="mobile-menu-link">Glossary</a>
+            <a href="account.html" class="mobile-menu-link">Account</a>
         </div>
     </nav>
 
@@ -106,16 +144,118 @@
                 <p>Loading your account...</p>
             </div>
             
-            <div class="not-pro-state" id="not-pro-state" style="display: none;">
-                <div class="lock-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
+            <!-- Free user account view with locked features -->
+            <div id="free-account-content" style="display: none;">
+                <div class="account-header">
+                    <h1>Account</h1>
+                    <p id="free-user-email">Loading...</p>
                 </div>
-                <h2>Pro Account Required</h2>
-                <p>Upgrade to Pro to access account management and category preferences.</p>
-                <a href="index.html#pricing" class="btn btn-glow" style="margin-top: 1.5rem;">View Pro Plans</a>
+
+                <!-- Upgrade Banner -->
+                <div class="upgrade-banner">
+                    <h3>Unlock Pro Features</h3>
+                    <p>Get weekly category reports, watchlist alerts, and CSV exports</p>
+                    <a href="index.html#pricing" class="btn-upgrade-main">Upgrade to Pro</a>
+                </div>
+
+                <div class="account-section">
+                    <h2><span class="section-icon">✦</span> Subscription</h2>
+                    <div class="subscription-status">
+                        <span class="free-badge">FREE</span>
+                        <div class="subscription-details"><span>Basic access</span></div>
+                    </div>
+                </div>
+
+                <!-- Locked Watchlist Section -->
+                <div class="account-section locked">
+                    <div class="locked-overlay">
+                        <div class="lock-icon-small">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </div>
+                        <h3>Pro Feature</h3>
+                        <p>Track specific brands and companies to get alerts when they file new labels</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                    </div>
+                    <div class="section-content">
+                        <h2><span class="section-icon">⭐</span> Watchlist</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                            You'll receive email alerts when new filings match your watched brands or companies.
+                        </p>
+                        <div class="watchlist-group">
+                            <h5>Brands</h5>
+                            <div class="watchlist-items">
+                                <div class="watchlist-item" style="opacity: 0.5;">
+                                    <span class="watchlist-item-icon">🏷️</span>
+                                    <span class="watchlist-item-value">Example Brand</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="watchlist-group">
+                            <h5>Companies</h5>
+                            <div class="watchlist-items">
+                                <div class="watchlist-item" style="opacity: 0.5;">
+                                    <span class="watchlist-item-icon">🏢</span>
+                                    <span class="watchlist-item-value">Example Company</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Locked Report Preferences Section -->
+                <div class="account-section locked">
+                    <div class="locked-overlay">
+                        <div class="lock-icon-small">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </div>
+                        <h3>Pro Feature</h3>
+                        <p>Choose which category reports you receive every Sunday</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                    </div>
+                    <div class="section-content">
+                        <h2><span class="section-icon">📊</span> Report Preferences</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
+                        <div class="category-grid">
+                            <div class="category-option"><input type="checkbox" disabled><label>Whiskey</label><span class="category-icon">🥃</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Vodka</label><span class="category-icon">🍸</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Tequila</label><span class="category-icon">🌵</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Rum</label><span class="category-icon">🏝️</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Gin</label><span class="category-icon">🫒</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Brandy</label><span class="category-icon">🍇</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Wine</label><span class="category-icon">🍷</span></div>
+                            <div class="category-option"><input type="checkbox" disabled><label>Beer</label><span class="category-icon">🍺</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Locked CSV Export Section -->
+                <div class="account-section locked">
+                    <div class="locked-overlay">
+                        <div class="lock-icon-small">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </div>
+                        <h3>Pro Feature</h3>
+                        <p>Export search results to CSV for analysis in Excel or other tools</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                    </div>
+                    <div class="section-content">
+                        <h2><span class="section-icon">📥</span> CSV Export</h2>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Export up to 10,000 records at a time from the database.</p>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn btn-glow" disabled style="opacity: 0.5;">Export Current Search</button>
+                            <span style="color: var(--color-text-secondary); font-size: 0.875rem;">Unlimited exports</span>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div id="account-content" style="display: none;">
@@ -206,7 +346,7 @@
 
         function showState(state) {
             document.getElementById('loading-state').style.display = state === 'loading' ? 'block' : 'none';
-            document.getElementById('not-pro-state').style.display = state === 'not-pro' ? 'block' : 'none';
+            document.getElementById('free-account-content').style.display = state === 'free' ? 'block' : 'none';
             document.getElementById('account-content').style.display = state === 'account' ? 'block' : 'none';
         }
 
@@ -226,7 +366,12 @@
 
         async function loadAccount() {
             const user = BevAlcAuth.getUser();
-            if (!user || !user.email) { showState('not-pro'); return; }
+            if (!user || !user.email) {
+                // No user - show free account with generic message
+                document.getElementById('free-user-email').textContent = 'Sign in to see your account';
+                showState('free');
+                return;
+            }
             currentEmail = user.email;
 
             // First check if user is Pro via Stripe
@@ -236,14 +381,22 @@
                 const statusData = await statusResponse.json();
                 if (statusData.success && statusData.status === 'pro') {
                     isPro = true;
+                    // Show Pro badge on mobile
+                    const mobileBadge = document.getElementById('user-status-mobile');
+                    if (mobileBadge) {
+                        mobileBadge.textContent = 'Pro';
+                        mobileBadge.style.display = 'inline-flex';
+                    }
                 }
-            } catch (e) { 
-                console.error('Error checking status:', e); 
+            } catch (e) {
+                console.error('Error checking status:', e);
             }
-            
-            if (!isPro) { 
-                showState('not-pro'); 
-                return; 
+
+            if (!isPro) {
+                // Free user - show account page with locked features
+                document.getElementById('free-user-email').textContent = user.email;
+                showState('free');
+                return;
             }
 
             // User is Pro - now try to load preferences
@@ -431,6 +584,31 @@
         document.getElementById('select-none')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = false; cb.closest('.category-option').classList.remove('selected'); }); });
         document.getElementById('save-btn')?.addEventListener('click', savePreferences);
         document.addEventListener('DOMContentLoaded', () => { loadAccount(); loadWatchlist(); });
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            menu.classList.toggle('open');
+            btn.classList.toggle('open');
+        }
+
+        function closeMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            menu.classList.remove('open');
+            btn.classList.remove('open');
+        }
+
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', toggleMobileMenu);
+
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+                closeMobileMenu();
+            }
+        });
     </script>
 </body>
 </html>
