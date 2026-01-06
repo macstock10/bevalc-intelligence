@@ -99,8 +99,9 @@ python -m src.cli resume  # Resume interrupted scrape
 
 | File | Purpose |
 |------|---------|
-| `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs |
-| `web/database.js` | Frontend search/filter logic, category mapping |
+| `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs, watchlist |
+| `web/database.js` | Frontend search/filter logic, category mapping, watchlist toggle |
+| `web/account.html` | Pro user account page - preferences, watchlist management |
 | `web/auth.js` | Stripe checkout, Pro user detection |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
 | `scripts/weekly_report.py` | PDF report generator |
@@ -127,6 +128,24 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 
 **`user_preferences`** table: Pro user category subscriptions
 - `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
+
+**`watchlist`** table: Pro user watchlist (brands/companies to track)
+- `id` (PK), `email`, `type` (brand/company), `value`, `created_at`
+- Unique constraint on (email, type, value)
+
+```sql
+-- Create watchlist table (run via wrangler d1 execute)
+CREATE TABLE IF NOT EXISTS watchlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    type TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(email, type, value)
+);
+CREATE INDEX IF NOT EXISTS idx_watchlist_email ON watchlist(email);
+CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
+```
 
 ## Current State (Last Updated: 2026-01-05)
 

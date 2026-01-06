@@ -54,6 +54,19 @@
         .not-pro-state .lock-icon { width: 64px; height: 64px; background: rgba(251, 191, 36, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: #fbbf24; }
         .not-pro-state h2 { font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-primary); }
         .not-pro-state p { color: var(--color-text-secondary); }
+
+        /* Watchlist Styles */
+        .watchlist-container { min-height: 100px; }
+        .watchlist-loading { color: var(--color-text-secondary); font-size: 0.875rem; }
+        .watchlist-group { margin-bottom: 1.5rem; }
+        .watchlist-group:last-child { margin-bottom: 0; }
+        .watchlist-group h5 { font-size: 0.875rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .watchlist-items { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .watchlist-empty { color: var(--color-text-secondary); font-size: 0.875rem; font-style: italic; }
+        .watchlist-item { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 0.875rem; color: var(--color-text-primary); }
+        .watchlist-item-value { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .watchlist-item-remove { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: transparent; border: none; color: var(--color-text-secondary); cursor: pointer; border-radius: 4px; transition: all 0.15s ease; }
+        .watchlist-item-remove:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
     </style>
 </head>
 <body>
@@ -107,7 +120,36 @@
                         <div class="subscription-details"><span>Active subscription</span></div>
                     </div>
                 </div>
-                
+
+                <div class="account-section">
+                    <h2><span class="section-icon">⭐</span> Watchlist</h2>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                        You'll receive email alerts when new filings match your watched brands or companies.
+                    </p>
+
+                    <div class="watchlist-container" id="watchlist-container">
+                        <div class="watchlist-loading" id="watchlist-loading">
+                            <span>Loading watchlist...</span>
+                        </div>
+
+                        <div class="watchlist-content" id="watchlist-content" style="display: none;">
+                            <div class="watchlist-group">
+                                <h5>Brands</h5>
+                                <div class="watchlist-items" id="watchlist-brands">
+                                    <p class="watchlist-empty">No brands watched yet. Click "Follow Brand" on any label in the database.</p>
+                                </div>
+                            </div>
+
+                            <div class="watchlist-group">
+                                <h5>Companies</h5>
+                                <div class="watchlist-items" id="watchlist-companies">
+                                    <p class="watchlist-empty">No companies watched yet. Click "Follow Company" on any label in the database.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="account-section">
                     <h2><span class="section-icon">📊</span> Report Preferences</h2>
                     <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
@@ -270,10 +312,112 @@
             } catch (e) { alert('Could not connect to server'); link.textContent = originalText; }
         }
 
+        async function loadWatchlist() {
+            const user = BevAlcAuth.getUser();
+            if (!user || !user.email) return;
+
+            const loadingEl = document.getElementById('watchlist-loading');
+            const contentEl = document.getElementById('watchlist-content');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/watchlist?email=${encodeURIComponent(user.email)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderWatchlist(data.watchlist);
+                    loadingEl.style.display = 'none';
+                    contentEl.style.display = 'block';
+                } else {
+                    loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Could not load watchlist</span>';
+                }
+            } catch (e) {
+                console.error('Error loading watchlist:', e);
+                loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Could not load watchlist</span>';
+            }
+        }
+
+        function renderWatchlist(watchlist) {
+            const brandsEl = document.getElementById('watchlist-brands');
+            const companiesEl = document.getElementById('watchlist-companies');
+
+            // Render brands
+            if (watchlist.brands && watchlist.brands.length > 0) {
+                brandsEl.innerHTML = watchlist.brands.map(item => `
+                    <div class="watchlist-item" data-type="brand" data-value="${escapeHtml(item.value)}">
+                        <span class="watchlist-item-value" title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</span>
+                        <button class="watchlist-item-remove" onclick="removeFromWatchlist('brand', '${escapeHtml(item.value).replace(/'/g, "\\'")}', this)" title="Remove">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                `).join('');
+            } else {
+                brandsEl.innerHTML = '<p class="watchlist-empty">No brands watched yet. Click "Follow Brand" on any label in the database.</p>';
+            }
+
+            // Render companies
+            if (watchlist.companies && watchlist.companies.length > 0) {
+                companiesEl.innerHTML = watchlist.companies.map(item => `
+                    <div class="watchlist-item" data-type="company" data-value="${escapeHtml(item.value)}">
+                        <span class="watchlist-item-value" title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</span>
+                        <button class="watchlist-item-remove" onclick="removeFromWatchlist('company', '${escapeHtml(item.value).replace(/'/g, "\\'")}', this)" title="Remove">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                `).join('');
+            } else {
+                companiesEl.innerHTML = '<p class="watchlist-empty">No companies watched yet. Click "Follow Company" on any label in the database.</p>';
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function removeFromWatchlist(type, value, buttonEl) {
+            const user = BevAlcAuth.getUser();
+            if (!user || !user.email) return;
+
+            const itemEl = buttonEl.closest('.watchlist-item');
+            itemEl.style.opacity = '0.5';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/watchlist/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email, type, value })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    itemEl.remove();
+                    // Check if list is empty and show empty message
+                    const container = document.getElementById(`watchlist-${type === 'brand' ? 'brands' : 'companies'}`);
+                    if (container && container.querySelectorAll('.watchlist-item').length === 0) {
+                        const emptyText = type === 'brand'
+                            ? 'No brands watched yet. Click "Follow Brand" on any label in the database.'
+                            : 'No companies watched yet. Click "Follow Company" on any label in the database.';
+                        container.innerHTML = `<p class="watchlist-empty">${emptyText}</p>`;
+                    }
+                } else {
+                    itemEl.style.opacity = '1';
+                    alert('Could not remove item: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                itemEl.style.opacity = '1';
+                console.error('Error removing from watchlist:', e);
+            }
+        }
+
         document.getElementById('select-all')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = true; cb.closest('.category-option').classList.add('selected'); }); });
         document.getElementById('select-none')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = false; cb.closest('.category-option').classList.remove('selected'); }); });
         document.getElementById('save-btn')?.addEventListener('click', savePreferences);
-        document.addEventListener('DOMContentLoaded', loadAccount);
+        document.addEventListener('DOMContentLoaded', () => { loadAccount(); loadWatchlist(); });
     </script>
 </body>
 </html>
