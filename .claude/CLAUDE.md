@@ -100,7 +100,9 @@ python -m src.cli resume  # Resume interrupted scrape
 | File | Purpose |
 |------|---------|
 | `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs, watchlist |
+| `worker/wrangler.toml` | Worker deployment config with D1 database binding |
 | `web/database.js` | Frontend search/filter logic, category mapping, watchlist toggle |
+| `web/database.html` | Main database UI - search, filters, results table |
 | `web/account.html` | Pro user account page - preferences, watchlist management |
 | `web/auth.js` | Stripe checkout, Pro user detection |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
@@ -184,3 +186,11 @@ def escape_sql_value(value):
 ```
 
 **GitHub Actions Mode**: `weekly_update.py` detects if local `consolidated_colas.db` exists. On GHA (no local DB), it skips the merge step and reads directly from the temp scrape DB.
+
+## UI Notes
+
+**Database Table Columns**: TTB ID column was removed. Table now starts with Brand Name, followed by Fanciful Name, Class/Type, Origin, Approval Date, Status, Company, State.
+
+**Watchlist Track Options**: When viewing a COLA detail modal, Pro users see "Track" pills for Brand and Company only. Subcategory and Keyword options were removed to keep it simple.
+
+**Hero Email Form**: The top email signup form on index.html shows an inline confirmation message (same as footer form) instead of redirecting to a thank-you page.
