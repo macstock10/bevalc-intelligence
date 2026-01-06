@@ -6,12 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **At the END of every working session, Claude MUST:**
 1. Update this CLAUDE.md with any new files, features, or architecture changes
-2. Update PROJECT_MAP.md if folder structure changed
-3. Update RUNBOOK.md if new procedures were added
-4. Commit changes with message "Update context docs after [brief description]"
+2. Update RUNBOOK.md if new operational procedures were added
+3. Commit changes with message "Update context docs after [brief description]"
 
 **At the START of every session, Claude SHOULD:**
-1. Read this file, PROJECT_MAP.md, and RUNBOOK.md
+1. Read this file and RUNBOOK.md
 2. Ask what the user wants to accomplish
 3. Reference these docs to understand current state
 
@@ -24,36 +23,39 @@ BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage a
 **Live Site**: https://bevalcintel.com
 **GitHub**: https://github.com/macstock10/bevalc-intelligence
 
-## Common Commands
+## Folder Structure
 
-```bash
-# Frontend: Auto-deploys on push to main (Netlify)
-
-# Deploy Cloudflare Worker
-cd worker && npx wrangler deploy
-
-# Test Worker locally
-cd worker && npx wrangler dev
-
-# Test Python scripts locally (use venv)
-cd scripts
-python -m venv venv
-venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-
-# Run weekly update (scrapes TTB, syncs to D1)
-python weekly_update.py              # Full run
-python weekly_update.py --dry-run    # Preview without D1 push
-python weekly_update.py --sync-only  # Skip scraping, just sync existing local data
-python weekly_update.py --days 7     # Custom lookback period
-
-# Generate weekly PDF report
-python weekly_report.py
-python weekly_report.py --dry-run
-
-# Manual TTB scraping (older CLI approach)
-python -m src.cli scrape --days 7
-python -m src.cli resume  # Resume interrupted scrape
+```
+bevalc-intelligence/
+├── .claude/
+│   └── CLAUDE.md              # This file - Claude context
+├── .github/
+│   └── workflows/
+│       ├── weekly-update.yml  # Scrapes TTB, updates D1
+│       └── weekly-report.yml  # Generates + sends reports
+├── scripts/
+│   ├── requirements.txt
+│   ├── weekly_update.py       # TTB scraper + D1 sync
+│   ├── weekly_report.py       # PDF report generator
+│   ├── send_weekly_report.py  # R2 upload + email send
+│   └── src/                   # Shared modules
+├── web/                       # Frontend (Netlify)
+│   ├── index.html
+│   ├── database.html
+│   ├── database.js
+│   ├── account.html
+│   ├── auth.js
+│   └── style.css
+├── worker/                    # Cloudflare Worker source
+│   ├── worker.js
+│   └── wrangler.toml          # Worker deployment config
+├── data/                      # Local only (gitignored)
+├── reports/                   # Generated reports (gitignored)
+├── logs/                      # Script logs (gitignored)
+├── .env                       # Secrets (gitignored)
+├── .gitignore
+├── netlify.toml
+└── RUNBOOK.md                 # Operations guide
 ```
 
 ## Architecture
@@ -84,16 +86,58 @@ python -m src.cli resume  # Resume interrupted scrape
 
 ### Data Flow
 
-1. **TTB Scraping** (`weekly_update.py`): Uses Selenium to scrape TTB COLA website, stores in local SQLite, syncs to Cloudflare D1
-2. **API Layer** (`worker/worker.js`): Cloudflare Worker handles all API requests - search, filters, Stripe checkout/webhooks, user preferences
-3. **Frontend** (`web/`): Static HTML/JS makes API calls to Worker, handles auth state via localStorage
-4. **Reports** (`weekly_report.py`): Queries D1, generates PDF with ReportLab/Matplotlib, uploads to R2, sends via Loops
+1. **Weekly Update** (Mondays 6am UTC):
+   - `weekly_update.py` scrapes last 14 days from TTB
+   - New COLAs synced to Cloudflare D1
+   - Records classified as NEW_BRAND / NEW_SKU / REFILE
+
+2. **Weekly Report** (Mondays 8am UTC):
+   - `weekly_report.py` queries D1 for historical data
+   - Generates PDF with charts and tables
+   - `send_weekly_report.py` uploads to R2 and sends via Loops
+
+3. **API Layer** (`worker/worker.js`):
+   - Handles search, filters, CSV export
+   - Stripe checkout/webhooks for Pro subscriptions
+   - User preferences and watchlist management
+
+4. **Frontend** (`web/`):
+   - Static HTML/JS makes API calls to Worker
+   - Auth state via localStorage
 
 ### Key Integration Points
 
 - **Stripe Webhooks**: Worker receives `checkout.session.completed` → creates `user_preferences` record in D1 → syncs to Loops
 - **Category Mapping**: Both `worker.js` and `database.js` share `TTB_CODE_CATEGORIES` mapping (TTB codes → categories like Whiskey, Vodka)
-- **D1 Sync**: `weekly_update.py` uses INSERT OR IGNORE for deduplication, classifies records as NEW_BRAND/NEW_SKU/REFILE
+- **D1 Sync**: `weekly_update.py` uses INSERT OR IGNORE for deduplication
+
+## Common Commands
+
+```bash
+# Frontend: Auto-deploys on push to main (Netlify)
+
+# Deploy Cloudflare Worker
+cd worker && npx wrangler deploy
+
+# Test Worker locally
+cd worker && npx wrangler dev
+
+# Test Python scripts locally (use venv)
+cd scripts
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+
+# Run weekly update (scrapes TTB, syncs to D1)
+python weekly_update.py              # Full run
+python weekly_update.py --dry-run    # Preview without D1 push
+python weekly_update.py --sync-only  # Skip scraping, just sync existing local data
+python weekly_update.py --days 7     # Custom lookback period
+
+# Generate weekly PDF report
+python weekly_report.py
+python weekly_report.py --dry-run
+```
 
 ## Key Files
 
@@ -101,8 +145,8 @@ python -m src.cli resume  # Resume interrupted scrape
 |------|---------|
 | `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs, watchlist |
 | `worker/wrangler.toml` | Worker deployment config with D1 database binding |
-| `web/database.js` | Frontend search/filter logic, category mapping, watchlist toggle |
 | `web/database.html` | Main database UI - search, filters, results table |
+| `web/database.js` | Frontend search/filter logic, category mapping, watchlist toggle |
 | `web/account.html` | Pro user account page - preferences, watchlist management |
 | `web/auth.js` | Stripe checkout, Pro user detection |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
@@ -118,8 +162,12 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 | `CLOUDFLARE_ACCOUNT_ID` | All scripts, Worker |
 | `CLOUDFLARE_D1_DATABASE_ID` | All scripts |
 | `CLOUDFLARE_API_TOKEN` | Scripts (D1 API) |
-| `CLOUDFLARE_R2_*` | send_weekly_report.py |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` | send_weekly_report.py |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | send_weekly_report.py |
+| `CLOUDFLARE_R2_BUCKET_NAME` | send_weekly_report.py |
+| `CLOUDFLARE_R2_PUBLIC_URL` | send_weekly_report.py |
 | `LOOPS_API_KEY` | Worker (sync), send_weekly_report.py |
+| `LOOPS_TRANSACTIONAL_ID` | send_weekly_report.py |
 | `STRIPE_SECRET_KEY` | Worker (checkout/webhooks) |
 | `STRIPE_PRICE_ID` | Worker (checkout) |
 
@@ -170,7 +218,7 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via Loops API
 
-### Technical Notes
+## Technical Notes
 
 **D1 Batch Insert Limit**: SQLite has ~999 parameter limit. When inserting batches to D1, use inline SQL values instead of parameterized queries:
 ```python
