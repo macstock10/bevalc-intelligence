@@ -15,13 +15,21 @@ You can list as many files as you want, in any order.
 import sqlite3
 import os
 import sys
+from pathlib import Path
 
-# Configuration
-DATA_DIR = "data"
-CONSOLIDATED_DB = os.path.join(DATA_DIR, "consolidated_colas.db")
+# =============================================================================
+# CONFIG - Auto-detect paths (works on Windows and Linux/GitHub Actions)
+# =============================================================================
+
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_DIR = SCRIPT_DIR.parent  # Goes up from /scripts to repo root
+
+DATA_DIR = BASE_DIR / "data"
+CONSOLIDATED_DB = str(DATA_DIR / "consolidated_colas.db")
 
 def ensure_consolidated_db():
     """Create consolidated DB with proper schema if it doesn't exist."""
+    os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(CONSOLIDATED_DB)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS colas (
@@ -162,16 +170,22 @@ def main():
     failed = 0
     
     for file_path in files_to_merge:
+        # Resolve path relative to BASE_DIR if it's a relative path
+        if not os.path.isabs(file_path):
+            resolved_path = str(BASE_DIR / file_path)
+        else:
+            resolved_path = file_path
+
         # Check if file exists
-        if not os.path.exists(file_path):
+        if not os.path.exists(resolved_path):
             print(f"  {file_path} - NOT FOUND (skipping)")
             failed += 1
             continue
-        
+
         print(f"  Processing {file_path}...", end=" ", flush=True)
-        
+
         try:
-            inserted, skipped = merge_database(file_path)
+            inserted, skipped = merge_database(resolved_path)
             total_inserted += inserted
             total_skipped += skipped
             successful += 1

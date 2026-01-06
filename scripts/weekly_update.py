@@ -1095,51 +1095,102 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
 # MAIN
 # ============================================================================
 
+def get_records_from_temp_db(temp_db: str) -> List[Dict]:
+    """
+    Read all COLA records from the temp scrape database.
+    Used when there's no local consolidated DB (GitHub Actions).
+    """
+    if not os.path.exists(temp_db):
+        return []
+
+    conn = sqlite3.connect(temp_db)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM colas").fetchall()
+    records = [dict(row) for row in rows]
+    conn.close()
+    return records
+
+
 def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, sync_only: bool = False):
     """
     Run the full weekly update pipeline.
+
+    Handles two scenarios:
+    - Local machine (Windows): consolidated_colas.db exists, merge new data into it
+    - GitHub Actions: No local DB, sync scraped records directly to D1
     """
     logger.info("=" * 60)
     logger.info("WEEKLY COLA UPDATE")
     logger.info(f"Started: {datetime.now()}")
     logger.info("=" * 60)
-    
+
+    # Check if we have a local consolidated DB
+    has_local_db = os.path.exists(DB_PATH)
+    if has_local_db:
+        logger.info(f"Local DB found: {DB_PATH}")
+    else:
+        logger.info(f"No local DB at {DB_PATH} (GitHub Actions mode)")
+
     results = {}
     new_records = []
-    
+
     if not sync_only:
         # Step 1: Scrape
         logger.info("\n[STEP 1/4] Scraping TTB...")
         scrape_result = scrape_recent_days(days)
         results['scrape'] = scrape_result
-        
+
         if not scrape_result.get('success'):
             logger.error("Scraping failed, aborting")
             return results
-        
-        # Step 2: Merge to local DB (now returns the actual new records)
-        logger.info("\n[STEP 2/4] Merging new data to local DB...")
-        merge_result = merge_new_data(scrape_result['temp_db'])
-        results['merge'] = merge_result
-        
-        if not merge_result.get('success'):
-            logger.error("Merge failed, aborting")
-            return results
-        
-        # Get the new records from merge
-        new_records = merge_result.get('new_records', [])
-        
-        # Step 3: Sync ONLY the new records to D1 (fast path)
+
+        temp_db = scrape_result['temp_db']
+
+        # Step 2: Merge to local DB OR read directly from temp DB
+        if has_local_db:
+            # Local machine: merge into consolidated DB
+            logger.info("\n[STEP 2/4] Merging new data to local DB...")
+            merge_result = merge_new_data(temp_db)
+            results['merge'] = merge_result
+
+            if not merge_result.get('success'):
+                logger.error("Merge failed, aborting")
+                return results
+
+            # Get the new records from merge
+            new_records = merge_result.get('new_records', [])
+        else:
+            # GitHub Actions: no local DB, read records directly from temp DB
+            logger.info("\n[STEP 2/4] No local DB - reading scraped records directly...")
+            new_records = get_records_from_temp_db(temp_db)
+            results['merge'] = {
+                'skipped': True,
+                'reason': 'No local consolidated DB',
+                'records_from_temp': len(new_records)
+            }
+            logger.info(f"Read {len(new_records):,} records from temp DB")
+
+            # Clean up temp DB
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+                logger.info(f"Removed temp database: {temp_db}")
+
+        # Step 3: Sync records to D1
         logger.info("\n[STEP 3/4] Syncing to Cloudflare D1...")
         sync_result = sync_to_d1(DB_PATH, dry_run=dry_run, records_to_sync=new_records)
         results['sync'] = sync_result
-        
+
     else:
         # Sync-only mode: use slow path (compare everything)
         logger.info("\n[SYNC ONLY MODE] Comparing local DB to D1...")
         results['scrape'] = {'skipped': True}
         results['merge'] = {'skipped': True}
-        
+
+        if not has_local_db:
+            logger.error("Cannot use --sync-only without a local consolidated DB")
+            results['sync'] = {'success': False, 'error': 'No local DB for sync-only mode'}
+            return results
+
         logger.info("\n[STEP 3/4] Syncing to Cloudflare D1...")
         sync_result = sync_to_d1(DB_PATH, dry_run=dry_run, records_to_sync=None)
         results['sync'] = sync_result
