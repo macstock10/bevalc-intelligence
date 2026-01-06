@@ -235,6 +235,14 @@ def escape_sql_value(value):
 
 **GitHub Actions Mode**: `weekly_update.py` detects if local `consolidated_colas.db` exists. On GHA (no local DB), it skips the merge step and reads directly from the temp scrape DB.
 
+**COLA Classification System**: Records are classified in `classify_new_records()` after D1 insertion. Priority order:
+1. **NEW_COMPANY** (purple badge) - `company_name` never seen before
+2. **NEW_BRAND** (green badge) - Company exists, but `(company_name, brand_name)` never seen
+3. **NEW_SKU** (blue badge) - Company+brand exists, but `(company_name, brand_name, fanciful_name)` never seen
+4. **REFILE** (gray badge) - All three exist (re-filing of existing product)
+
+The `signal` column is stored in D1 `colas` table, returned in search API, displayed in table, and included in CSV exports.
+
 ## UI Notes
 
 **Database Table Columns**: TTB ID column was removed. Table now starts with Brand Name, followed by Fanciful Name, Class/Type, Origin, Approval Date, Status, Company, State.
