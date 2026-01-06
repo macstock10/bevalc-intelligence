@@ -104,6 +104,18 @@ export default {
             } else if (path === '/api/user/list-by-category') {
                 response = await handleListUsersByCategory(url, env);
             }
+            // Watchlist endpoints
+            else if (path === '/api/watchlist' && request.method === 'GET') {
+                response = await handleGetWatchlist(url, env);
+            } else if (path === '/api/watchlist/check' && request.method === 'GET') {
+                response = await handleCheckWatchlist(url, env);
+            } else if (path === '/api/watchlist/counts' && request.method === 'GET') {
+                response = await handleWatchlistCounts(url, env);
+            } else if (path === '/api/watchlist/add' && request.method === 'POST') {
+                response = await handleAddToWatchlist(request, env);
+            } else if (path === '/api/watchlist/remove' && request.method === 'POST') {
+                response = await handleRemoveFromWatchlist(request, env);
+            }
             // Database endpoints
             else if (path === '/api/search') {
                 response = await handleSearch(url, env);
@@ -790,6 +802,249 @@ async function handleListUsersByCategory(url, env) {
             }))
         };
     } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// ==========================================
+// WATCHLIST HANDLERS
+// ==========================================
+
+async function handleGetWatchlist(url, env) {
+    const email = url.searchParams.get('email');
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    try {
+        // Verify user is Pro
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (!user || user.is_pro !== 1) {
+            return { success: false, error: 'Pro subscription required' };
+        }
+
+        // Get all watchlist items for this user
+        const result = await env.DB.prepare(`
+            SELECT type, value, created_at FROM watchlist
+            WHERE email = ?
+            ORDER BY created_at DESC
+        `).bind(email.toLowerCase()).all();
+
+        // Group by type
+        const watchlist = {
+            brands: [],
+            companies: []
+        };
+
+        for (const item of (result.results || [])) {
+            if (item.type === 'brand') {
+                watchlist.brands.push({ value: item.value, created_at: item.created_at });
+            } else if (item.type === 'company') {
+                watchlist.companies.push({ value: item.value, created_at: item.created_at });
+            }
+        }
+
+        return {
+            success: true,
+            watchlist
+        };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleCheckWatchlist(url, env) {
+    const email = url.searchParams.get('email');
+    const type = url.searchParams.get('type');
+    const value = url.searchParams.get('value');
+
+    if (!email || !type || !value) {
+        return { success: false, error: 'Email, type, and value required' };
+    }
+
+    try {
+        const result = await env.DB.prepare(`
+            SELECT 1 FROM watchlist WHERE email = ? AND type = ? AND value = ?
+        `).bind(email.toLowerCase(), type, value).first();
+
+        return {
+            success: true,
+            isWatching: !!result
+        };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleWatchlistCounts(url, env) {
+    const brand = url.searchParams.get('brand');
+    const company = url.searchParams.get('company');
+    const keyword = url.searchParams.get('keyword');
+    const subcategory = url.searchParams.get('subcategory');
+
+    const counts = {};
+
+    try {
+        if (brand) {
+            const result = await env.DB.prepare(
+                'SELECT COUNT(*) as cnt FROM colas WHERE brand_name = ?'
+            ).bind(brand).first();
+            counts.brand = result?.cnt || 0;
+        }
+
+        if (company) {
+            const result = await env.DB.prepare(
+                'SELECT COUNT(*) as cnt FROM colas WHERE company_name = ?'
+            ).bind(company).first();
+            counts.company = result?.cnt || 0;
+        }
+
+        if (keyword && keyword.length >= 3) {
+            const result = await env.DB.prepare(
+                'SELECT COUNT(*) as cnt FROM colas WHERE fanciful_name LIKE ?'
+            ).bind(`%${keyword}%`).first();
+            counts.keyword = result?.cnt || 0;
+        }
+
+        if (subcategory) {
+            const result = await env.DB.prepare(
+                'SELECT COUNT(*) as cnt FROM colas WHERE class_type_code = ?'
+            ).bind(subcategory).first();
+            counts.subcategory = result?.cnt || 0;
+        }
+
+        return { success: true, counts };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleAddToWatchlist(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const { email, type, value } = body;
+
+    if (!email || !type || !value) {
+        return { success: false, error: 'Email, type, and value required' };
+    }
+
+    // Only allow brand and company types for now
+    if (!['brand', 'company'].includes(type)) {
+        return { success: false, error: 'Invalid type. Must be brand or company.' };
+    }
+
+    try {
+        // Verify user is Pro
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (!user || user.is_pro !== 1) {
+            return { success: false, error: 'Pro subscription required' };
+        }
+
+        // Add to watchlist (INSERT OR IGNORE handles duplicates)
+        await env.DB.prepare(`
+            INSERT OR IGNORE INTO watchlist (email, type, value, created_at)
+            VALUES (?, ?, ?, datetime('now'))
+        `).bind(email.toLowerCase(), type, value).run();
+
+        // Sync to Loops for email alerts
+        await syncWatchlistToLoops(email.toLowerCase(), type, value, true, env);
+
+        return { success: true, message: 'Added to watchlist' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleRemoveFromWatchlist(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const { email, type, value } = body;
+
+    if (!email || !type || !value) {
+        return { success: false, error: 'Email, type, and value required' };
+    }
+
+    try {
+        await env.DB.prepare(`
+            DELETE FROM watchlist WHERE email = ? AND type = ? AND value = ?
+        `).bind(email.toLowerCase(), type, value).run();
+
+        // Sync to Loops
+        await syncWatchlistToLoops(email.toLowerCase(), type, value, false, env);
+
+        return { success: true, message: 'Removed from watchlist' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// Sync watchlist changes to Loops for email alerts
+async function syncWatchlistToLoops(email, type, value, isAdding, env) {
+    const loopsApiKey = env.LOOPS_API_KEY;
+
+    if (!loopsApiKey) {
+        console.log('LOOPS_API_KEY not configured, skipping watchlist sync');
+        return { success: false, error: 'Loops not configured' };
+    }
+
+    try {
+        // Get current watchlist for this user
+        const watchlistResult = await env.DB.prepare(`
+            SELECT type, value FROM watchlist WHERE email = ?
+        `).bind(email).all();
+
+        const brands = [];
+        const companies = [];
+
+        for (const item of (watchlistResult.results || [])) {
+            if (item.type === 'brand') brands.push(item.value);
+            else if (item.type === 'company') companies.push(item.value);
+        }
+
+        // Update Loops contact with watchlist data
+        const contactData = {
+            email: email,
+            watchlistBrands: brands.join(', '),
+            watchlistCompanies: companies.join(', '),
+            hasWatchlist: brands.length > 0 || companies.length > 0
+        };
+
+        const response = await fetch('https://app.loops.so/api/v1/contacts/update', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${loopsApiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(contactData)
+        });
+
+        if (!response.ok) {
+            const result = await response.json();
+            console.error('Loops watchlist sync failed:', result);
+            return { success: false, error: result.message || 'Loops sync failed' };
+        }
+
+        console.log(`Loops watchlist sync successful for ${email}`);
+        return { success: true };
+    } catch (e) {
+        console.error('Loops watchlist sync error:', e.message);
         return { success: false, error: e.message };
     }
 }

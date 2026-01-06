@@ -1,0 +1,14 @@
+name = "bevalc-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bevalc-colas"
+database_id = "377c1210-aca8-43a8-b575-7fc2f7e31616"
+
+# Secrets (set via wrangler secret put):
+# - STRIPE_SECRET_KEY
+# - STRIPE_PRICE_ID
+# - LOOPS_API_KEY
+# - REPORT_API_KEY
