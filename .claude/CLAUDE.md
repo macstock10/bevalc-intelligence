@@ -152,13 +152,35 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
 ### What's Working
 - [x] Frontend deployed on Netlify
 - [x] D1 database with 1M+ records
-- [x] Search/filter functionality
-- [x] Pro user features (CSV export, watchlist)
-- [x] GitHub Actions workflows created
-- [ ] Weekly update automation (testing in progress)
+- [x] Search/filter functionality with approval_date sorting
+- [x] Pro user features (CSV export, watchlist storage + display)
+- [x] GitHub Actions weekly update workflow (paths fixed)
+- [x] Watchlist API endpoints (add/remove/check/counts)
+- [x] Watchlist syncs to Loops.so (watchlist_items contact property)
 - [ ] Weekly report automation (not yet tested)
+- [ ] Watchlist email alerts (needs Loops template + weekly_update.py logic)
 
 ### Known Issues
-1. Weekly update workflow needs full test run to confirm paths work
-2. Weekly report workflow not yet tested
-3. Need to verify R2 upload and Loops email sending work in Actions
+1. Weekly report workflow not yet tested
+2. Need to verify R2 upload and Loops email sending work in Actions
+3. Watchlist email alerts not implemented - requires:
+   - Loops transactional email template for alerts
+   - Logic in weekly_update.py to check new COLAs against watchlists
+   - Send alerts via Loops API
+
+### Technical Notes
+
+**D1 Batch Insert Limit**: SQLite has ~999 parameter limit. When inserting batches to D1, use inline SQL values instead of parameterized queries:
+```python
+# BAD - hits parameter limit with large batches
+placeholders = ",".join(["(?,?,?,...)" for _ in records])
+stmt.bind(all_values)
+
+# GOOD - use inline escaped values
+def escape_sql_value(value):
+    if value is None: return "NULL"
+    if isinstance(value, (int, float)): return str(value)
+    return f"'{str(value).replace(chr(39), chr(39)+chr(39))}'"
+```
+
+**GitHub Actions Mode**: `weekly_update.py` detects if local `consolidated_colas.db` exists. On GHA (no local DB), it skips the merge step and reads directly from the temp scrape DB.

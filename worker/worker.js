@@ -1204,16 +1204,16 @@ async function handleSearch(url, env) {
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        orderByClause = `ORDER BY year ${sortOrder}, month ${sortOrder}, id ${sortOrder}`;
+        orderByClause = `ORDER BY approval_date ${sortOrder}, id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
 
     const dataQuery = `
-        SELECT 
-            ttb_id, status, brand_name, fanciful_name, 
-            class_type_code, origin_code, approval_date
-        FROM colas 
+        SELECT
+            ttb_id, status, brand_name, fanciful_name,
+            class_type_code, origin_code, approval_date, signal
+        FROM colas
         WHERE ${whereClause}
         ${orderByClause}
         LIMIT ? OFFSET ?
@@ -1365,21 +1365,21 @@ async function handleExport(url, env) {
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        orderByClause = `ORDER BY year ${sortOrder}, month ${sortOrder}, id ${sortOrder}`;
+        orderByClause = `ORDER BY approval_date ${sortOrder}, id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
 
     // Export query - all fields from detail card
     const dataQuery = `
-        SELECT 
+        SELECT
             ttb_id, brand_name, fanciful_name, status, approval_date,
             class_type_code, origin_code, type_of_application,
             vendor_code, serial_number, total_bottle_capacity,
             for_sale_in, qualifications, plant_registry,
             company_name, street, state, contact_person, phone_number,
             grape_varietal, wine_vintage, appellation, alcohol_content, ph_level
-        FROM colas 
+        FROM colas
         WHERE ${whereClause}
         ${orderByClause}
         LIMIT ?

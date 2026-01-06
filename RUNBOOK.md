@@ -21,7 +21,8 @@
 ### Cloudflare Worker
 - **Deploy**: `cd worker && npx wrangler deploy`
 - **Dashboard**: https://dash.cloudflare.com ? Workers & Pages
-- **Note**: Worker code in `worker/worker.js` — do NOT edit in Cloudflare dashboard
+- **Config**: `worker/wrangler.toml` contains D1 binding (database_id)
+- **Note**: Worker code in `worker/worker.js` - do NOT edit in Cloudflare dashboard
 
 ### GitHub Actions (Scheduled)
 - **Weekly COLA Update**: Mondays 6am UTC (1am EST)
@@ -79,6 +80,11 @@ SELECT COUNT(*) FROM colas WHERE approval_date > date('now', '-7 days');
 ### "D1 API error: 429"
 - Rate limited. Script batches at 500 records.
 - Reduce D1_BATCH_SIZE if needed.
+
+### "too many SQL variables" in D1 insert
+- SQLite has ~999 parameter limit per query.
+- Scripts use inline SQL values (not parameterized) to avoid this.
+- See `escape_sql_value()` function in weekly_update.py.
 
 ### Netlify deploy shows "Not Found"
 - Check Build settings ? Publish directory = `web`

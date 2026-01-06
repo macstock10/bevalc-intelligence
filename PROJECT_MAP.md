@@ -3,23 +3,23 @@
 ## Architecture Overview
 ```
 User Browser
-     ¦
+     ï¿½
      ?
 +-------------+     +------------------+
-¦   Netlify   ¦     ¦  Cloudflare D1   ¦
-¦  (web/)     ¦----?¦  (1M+ records)   ¦
+ï¿½   Netlify   ï¿½     ï¿½  Cloudflare D1   ï¿½
+ï¿½  (web/)     ï¿½----?ï¿½  (1M+ records)   ï¿½
 +-------------+     +------------------+
-                            ¦
+                            ï¿½
                             ?
                     +------------------+
-                    ¦  Cloudflare R2   ¦
-                    ¦  (PDF storage)   ¦
+                    ï¿½  Cloudflare R2   ï¿½
+                    ï¿½  (PDF storage)   ï¿½
                     +------------------+
-                            ¦
+                            ï¿½
                             ?
                     +------------------+
-                    ¦    Loops.so      ¦
-                    ¦  (Email sends)   ¦
+                    ï¿½    Loops.so      ï¿½
+                    ï¿½  (Email sends)   ï¿½
                     +------------------+
 
 GitHub Actions (Weekly):
@@ -32,26 +32,27 @@ GitHub Actions (Weekly):
 ```
 bevalc-intelligence/
 +-- .claude/                 # Claude Code context
-¦   +-- CLAUDE.md
+ï¿½   +-- CLAUDE.md
 +-- .github/
-¦   +-- workflows/
-¦       +-- weekly-update.yml    # Scrapes TTB, updates D1
-¦       +-- weekly-report.yml    # Generates + sends reports
+ï¿½   +-- workflows/
+ï¿½       +-- weekly-update.yml    # Scrapes TTB, updates D1
+ï¿½       +-- weekly-report.yml    # Generates + sends reports
 +-- scripts/
-¦   +-- requirements.txt
-¦   +-- weekly_update.py         # TTB scraper + D1 sync
-¦   +-- weekly_report.py         # PDF report generator
-¦   +-- send_weekly_report.py    # R2 upload + email send
-¦   +-- src/                     # Shared modules
+ï¿½   +-- requirements.txt
+ï¿½   +-- weekly_update.py         # TTB scraper + D1 sync
+ï¿½   +-- weekly_report.py         # PDF report generator
+ï¿½   +-- send_weekly_report.py    # R2 upload + email send
+ï¿½   +-- src/                     # Shared modules
 +-- web/                         # Frontend (Netlify)
-¦   +-- index.html
-¦   +-- database.html
-¦   +-- database.js
-¦   +-- auth.js
-¦   +-- style.css
-¦   +-- worker.js                # Copy of Cloudflare Worker
+ï¿½   +-- index.html
+ï¿½   +-- database.html
+ï¿½   +-- database.js
+ï¿½   +-- auth.js
+ï¿½   +-- style.css
+ï¿½   +-- worker.js                # Copy of Cloudflare Worker
 +-- worker/                      # Cloudflare Worker source
-¦   +-- worker.js
+ï¿½   +-- worker.js
+ï¿½   +-- wrangler.toml             # Worker deployment config
 +-- data/                        # Local only (gitignored)
 +-- reports/                     # Generated reports (gitignored)
 +-- logs/                        # Script logs (gitignored)
@@ -86,10 +87,12 @@ bevalc-intelligence/
 
 | File | Purpose |
 |------|---------|
-| `web/database.js` | Frontend search/filter logic |
+| `web/database.js` | Frontend search/filter logic, watchlist toggle |
+| `web/account.html` | Pro user account page, watchlist display |
 | `web/auth.js` | Stripe + user auth |
-| `worker/worker.js` | API endpoints (D1 queries) |
-| `scripts/weekly_update.py` | TTB scraper |
+| `worker/worker.js` | API endpoints (search, export, watchlist, Stripe) |
+| `worker/wrangler.toml` | Worker deployment config with D1 binding |
+| `scripts/weekly_update.py` | TTB scraper + D1 sync |
 | `scripts/weekly_report.py` | PDF generator |
 
 ## Environment Variables
