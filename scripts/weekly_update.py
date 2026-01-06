@@ -182,14 +182,25 @@ def d1_get_existing_ttb_ids() -> set:
     return all_ids
 
 
+def escape_sql_value(value) -> str:
+    """Escape a value for inline SQL."""
+    if value is None:
+        return "NULL"
+    if isinstance(value, (int, float)):
+        return str(value)
+    # Escape single quotes by doubling them
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
 def d1_insert_batch(records: List[Dict]) -> Dict:
     """
-    Insert a batch of records into D1 using bulk INSERT.
+    Insert a batch of records into D1 using bulk INSERT with inline values.
     Uses INSERT OR IGNORE to skip duplicates.
     """
     if not records:
         return {"success": True, "inserted": 0}
-    
+
     columns = [
         'ttb_id', 'status', 'vendor_code', 'serial_number', 'class_type_code',
         'origin_code', 'brand_name', 'fanciful_name', 'type_of_application',
@@ -198,30 +209,27 @@ def d1_insert_batch(records: List[Dict]) -> Dict:
         'alcohol_content', 'ph_level', 'plant_registry', 'company_name',
         'street', 'state', 'contact_person', 'phone_number', 'year', 'month'
     ]
-    
+
     columns_str = ', '.join(columns)
-    
-    # Build bulk INSERT with multiple value sets
-    # Each row: (?, ?, ?, ...)
-    placeholders_per_row = ', '.join(['?' for _ in columns])
-    
-    all_values = []
-    value_sets = []
-    
+
+    # Build individual INSERT statements with inline values (avoids parameter limit)
+    statements = []
     for record in records:
-        values = [record.get(col) for col in columns]
-        all_values.extend(values)
-        value_sets.append(f"({placeholders_per_row})")
-    
-    values_str = ', '.join(value_sets)
-    sql = f"INSERT OR IGNORE INTO colas ({columns_str}) VALUES {values_str}"
-    
-    result = d1_execute(sql, all_values)
-    
+        values = [escape_sql_value(record.get(col)) for col in columns]
+        values_str = ', '.join(values)
+        statements.append(f"INSERT OR IGNORE INTO colas ({columns_str}) VALUES ({values_str});")
+
+    # Join all statements into one SQL block
+    sql = '\n'.join(statements)
+
+    result = d1_execute(sql)
+
     if result.get("success"):
-        # Get number of rows actually inserted
-        inserted = result.get("result", [{}])[0].get("meta", {}).get("changes", 0)
-        return {"success": True, "inserted": inserted}
+        # Sum up changes from all statements
+        total_changes = 0
+        for res in result.get("result", []):
+            total_changes += res.get("meta", {}).get("changes", 0)
+        return {"success": True, "inserted": total_changes}
     else:
         return {"success": False, "inserted": 0, "errors": [result.get("error", "Unknown error")]}
 
