@@ -645,6 +645,11 @@ a:hover {
     letter-spacing: 0.03em;
 }
 
+.signal-new-company {
+    background: rgba(167, 139, 250, 0.2);
+    color: #a78bfa;
+}
+
 .signal-new-brand {
     background: rgba(34, 197, 94, 0.2);
     color: #4ade80;

@@ -1373,7 +1373,7 @@ async function handleExport(url, env) {
     // Export query - all fields from detail card
     const dataQuery = `
         SELECT
-            ttb_id, brand_name, fanciful_name, status, approval_date,
+            ttb_id, brand_name, fanciful_name, signal, status, approval_date,
             class_type_code, origin_code, type_of_application,
             vendor_code, serial_number, total_bottle_capacity,
             for_sale_in, qualifications, plant_registry,

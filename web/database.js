@@ -1160,6 +1160,7 @@ async function exportCSV() {
             'ttb_id',
             'brand_name',
             'fanciful_name',
+            'signal',
             'status',
             'approval_date',
             'class_type_code',
@@ -1182,11 +1183,12 @@ async function exportCSV() {
             'alcohol_content',
             'ph_level'
         ];
-        
+
         const headers = [
             'TTB ID',
             'Brand Name',
             'Fanciful Name',
+            'Signal',
             'Status',
             'Approval Date',
             'Subcategory',

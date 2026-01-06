@@ -1019,38 +1019,60 @@ def merge_new_data(temp_db: str) -> Dict:
 def classify_new_records(new_records: List[Dict]) -> Dict:
     """
     Classify new records and UPDATE their signal in D1.
-    
-    NEW_BRAND = first time seeing company_name + brand_name
-    NEW_SKU = company+brand exists, but first time seeing company + brand + fanciful_name
-    REFILE = we've seen company + brand + fanciful_name before
+
+    Priority order (highest to lowest):
+    1. NEW_COMPANY = first time seeing company_name
+    2. NEW_BRAND = company exists, but first time seeing company_name + brand_name
+    3. NEW_SKU = company+brand exists, but first time seeing company + brand + fanciful_name
+    4. REFILE = we've seen company + brand + fanciful_name before
     """
     if not new_records:
-        return {'total': 0, 'new_brands': 0, 'new_skus': 0, 'refiles': 0}
-    
+        return {'total': 0, 'new_companies': 0, 'new_brands': 0, 'new_skus': 0, 'refiles': 0}
+
     logger.info(f"Classifying {len(new_records):,} new records...")
-    
+
     stats = {
         'total': len(new_records),
+        'new_companies': 0,
         'new_brands': 0,
         'new_skus': 0,
         'refiles': 0,
+        'new_company_list': [],
         'new_brand_list': [],
         'new_sku_list': []
     }
-    
+
     for i, record in enumerate(new_records):
         ttb_id = record.get('ttb_id')
         company_name = record.get('company_name', '') or ''
         brand_name = record.get('brand_name', '') or ''
         fanciful_name = record.get('fanciful_name', '') or ''
-        
+
         if not company_name or not brand_name:
             # Can't classify without these fields, mark as REFILE
             d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['REFILE', ttb_id])
             stats['refiles'] += 1
             continue
-        
-        # Check 1: Has this company+brand filed before?
+
+        # Check 1: Is this a new company?
+        company_result = d1_execute(
+            "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND ttb_id != ?",
+            [company_name, ttb_id]
+        )
+        company_existed = False
+        if company_result.get("success") and company_result.get("result"):
+            cnt = company_result["result"][0].get("results", [{}])[0].get("cnt", 0)
+            company_existed = cnt > 0
+
+        if not company_existed:
+            # NEW_COMPANY
+            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_COMPANY', ttb_id])
+            stats['new_companies'] += 1
+            if len(stats['new_company_list']) < 20:
+                stats['new_company_list'].append(company_name[:40])
+            continue
+
+        # Check 2: Has this company+brand filed before?
         brand_result = d1_execute(
             "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND ttb_id != ?",
             [company_name, brand_name, ttb_id]
@@ -1059,7 +1081,7 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
         if brand_result.get("success") and brand_result.get("result"):
             cnt = brand_result["result"][0].get("results", [{}])[0].get("cnt", 0)
             brand_existed = cnt > 0
-        
+
         if not brand_existed:
             # NEW_BRAND
             d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_BRAND', ttb_id])
@@ -1067,8 +1089,8 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
             if len(stats['new_brand_list']) < 20:
                 stats['new_brand_list'].append(f"{brand_name} ({company_name[:25]})")
             continue
-        
-        # Check 2: Has this company+brand+fanciful filed before?
+
+        # Check 3: Has this company+brand+fanciful filed before?
         sku_result = d1_execute(
             "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND fanciful_name = ? AND ttb_id != ?",
             [company_name, brand_name, fanciful_name, ttb_id]
@@ -1077,7 +1099,7 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
         if sku_result.get("success") and sku_result.get("result"):
             cnt = sku_result["result"][0].get("results", [{}])[0].get("cnt", 0)
             sku_existed = cnt > 0
-        
+
         if not sku_existed:
             # NEW_SKU
             d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_SKU', ttb_id])
@@ -1088,15 +1110,16 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
             # REFILE
             d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['REFILE', ttb_id])
             stats['refiles'] += 1
-        
+
         if (i + 1) % 100 == 0:
             logger.info(f"  Classified {i+1}/{len(new_records)}...")
-    
+
     logger.info(f"Classification complete:")
+    logger.info(f"  New companies: {stats['new_companies']:,}")
     logger.info(f"  New brands: {stats['new_brands']:,}")
     logger.info(f"  New SKUs: {stats['new_skus']:,}")
     logger.info(f"  Refiles: {stats['refiles']:,}")
-    
+
     return stats
 
 # ============================================================================

@@ -759,6 +759,12 @@ a:hover { color: var(--color-primary-hover); }
     white-space: nowrap;
 }
 
+.signal-badge.signal-new-company {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(124, 58, 237, 0.3);
+}
+
 .signal-badge.signal-new-brand {
     background: linear-gradient(135deg, #059669 0%, #10b981 100%);
     color: white;
