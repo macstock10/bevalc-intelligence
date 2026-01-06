@@ -9,6 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Update RUNBOOK.md if new operational procedures were added
 3. Commit changes with message "Update context docs after [brief description]"
 
+**After EVERY code change, Claude MUST provide the PowerShell command to commit and push:**
+```powershell
+git add -A && git commit -m "Description of change" && git push
+```
+
 **At the START of every session, Claude SHOULD:**
 1. Read this file and RUNBOOK.md
 2. Ask what the user wants to accomplish

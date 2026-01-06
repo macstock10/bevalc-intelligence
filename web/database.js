@@ -538,12 +538,30 @@ function renderResults(data) {
         `;
         return;
     }
-    
+
+    // Check if user is Pro for signal column
+    let isPro = false;
+    const userInfo = localStorage.getItem('bevalc_user');
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            isPro = user.isPro === true;
+        } catch (e) {}
+    }
+
+    const lockIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+
     elements.resultsBody.innerHTML = data.map(cola => {
         let signalHtml = '-';
-        if (cola.signal) {
-            const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
-            signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
+        if (isPro) {
+            // Pro users see actual signals
+            if (cola.signal) {
+                const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
+                signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
+            }
+        } else {
+            // Free users see locked state
+            signalHtml = `<span class="signal-badge signal-locked" onclick="showProUpgradePrompt(); event.stopPropagation();">${lockIcon} Upgrade</span>`;
         }
         return `
         <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
