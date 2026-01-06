@@ -681,34 +681,71 @@
             const btnLoading = submitBtn.querySelector('.btn-loading');
 
             if (email) {
+                // Validate before showing loading
+                if (!isValidEmail(email)) {
+                    alert('Please enter a valid email address (e.g., name@example.com)');
+                    return;
+                }
+
                 btnText.style.display = 'none';
                 btnLoading.style.display = 'inline-flex';
                 submitBtn.disabled = true;
 
-                await submitEmail(email, false, true);
+                await submitEmail(email);
             }
         });
-        
+
         // Main signup form submission
         document.getElementById('signup-form')?.addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('email').value.trim();
-            
+
             if (email) {
+                // Validate before showing loading
+                if (!isValidEmail(email)) {
+                    alert('Please enter a valid email address (e.g., name@example.com)');
+                    return;
+                }
+
                 const submitBtn = document.getElementById('submit-btn');
                 const btnText = submitBtn.querySelector('.btn-text');
                 const btnLoading = submitBtn.querySelector('.btn-loading');
-                
+
                 btnText.style.display = 'none';
                 btnLoading.style.display = 'inline-flex';
                 submitBtn.disabled = true;
-                
-                await submitEmail(email, true);
+
+                await submitEmail(email);
             }
         });
         
+        // Email validation helper
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        // Show success on BOTH email forms
+        function showBothSuccessUIs() {
+            // Hero form
+            const heroForm = document.getElementById('hero-email-form');
+            const heroMicrocopy = document.getElementById('hero-microcopy');
+            const heroSuccess = document.getElementById('hero-signup-success');
+            if (heroForm) heroForm.style.display = 'none';
+            if (heroMicrocopy) heroMicrocopy.style.display = 'none';
+            if (heroSuccess) heroSuccess.style.display = 'block';
+
+            // Bottom form
+            const bottomForm = document.getElementById('signup-form');
+            const bottomMicrocopy = document.getElementById('final-microcopy');
+            const bottomSuccess = document.getElementById('signup-success');
+            if (bottomForm) bottomForm.style.display = 'none';
+            if (bottomMicrocopy) bottomMicrocopy.style.display = 'none';
+            if (bottomSuccess) bottomSuccess.style.display = 'block';
+        }
+
         // Shared email submission function
-        async function submitEmail(email, showBottomSuccessUI = false, showHeroSuccessUI = false) {
+        async function submitEmail(email) {
             try {
                 // 1. Send to Loops (for their UI, analytics, unsubscribe handling)
                 const loopsPromise = fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
@@ -737,17 +774,8 @@
 
                 BevAlcAuth.grantAccess();
 
-                if (showBottomSuccessUI) {
-                    document.getElementById('signup-form').style.display = 'none';
-                    document.getElementById('final-microcopy').style.display = 'none';
-                    document.getElementById('signup-success').style.display = 'block';
-                } else if (showHeroSuccessUI) {
-                    document.getElementById('hero-email-form').style.display = 'none';
-                    document.getElementById('hero-microcopy').style.display = 'none';
-                    document.getElementById('hero-signup-success').style.display = 'block';
-                } else {
-                    window.location.href = 'database.html';
-                }
+                // Show success on BOTH forms
+                showBothSuccessUIs();
 
             } catch (error) {
                 console.error('Signup error:', error);
@@ -758,17 +786,8 @@
                     signedUpAt: new Date().toISOString()
                 }));
 
-                if (showBottomSuccessUI) {
-                    document.getElementById('signup-form').style.display = 'none';
-                    document.getElementById('final-microcopy').style.display = 'none';
-                    document.getElementById('signup-success').style.display = 'block';
-                } else if (showHeroSuccessUI) {
-                    document.getElementById('hero-email-form').style.display = 'none';
-                    document.getElementById('hero-microcopy').style.display = 'none';
-                    document.getElementById('hero-signup-success').style.display = 'block';
-                } else {
-                    window.location.href = 'database.html';
-                }
+                // Show success on BOTH forms even on error
+                showBothSuccessUIs();
             }
         }
     </script>

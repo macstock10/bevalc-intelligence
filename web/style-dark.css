@@ -1361,7 +1361,12 @@ a:hover {
     .nav-links {
         display: none;
     }
-    
+
+    /* Hide "Go to Database" button on mobile - menu remains */
+    .nav-cta {
+        display: none;
+    }
+
     .hero-title {
         font-size: 2rem;
     }
