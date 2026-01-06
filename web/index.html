@@ -644,30 +644,13 @@
                                 proCta.disabled = true;
                                 proCta.style.cursor = 'default';
                             }
-                            
-                            // Add Account link to nav for Pro users
-                            const navUser = document.getElementById('nav-user');
-                            if (navUser && !document.getElementById('nav-account-link')) {
-                                const accountLink = document.createElement('a');
-                                accountLink.id = 'nav-account-link';
-                                accountLink.href = 'account.html';
-                                accountLink.className = 'nav-link';
-                                accountLink.textContent = 'Account';
-                                navUser.insertBefore(accountLink, navUser.firstChild);
-                            }
-                            
+
                             user.isPro = true;
                             BevAlcAuth.setUser(user);
                         } else {
                             // User is not Pro - clear Pro status from localStorage
                             user.isPro = false;
                             BevAlcAuth.setUser(user);
-                            
-                            // Remove Account link if it exists
-                            const accountLink = document.getElementById('nav-account-link');
-                            if (accountLink) {
-                                accountLink.remove();
-                            }
                         }
                     } catch (e) {
                         console.log('Could not check subscription status');
@@ -797,7 +780,24 @@
         // Shared email submission function
         async function submitEmail(email) {
             try {
-                // 1. Send to Loops (for their UI, analytics, unsubscribe handling)
+                // 1. Check if user already exists
+                const checkResponse = await fetch(`${API_BASE}/api/user/check?email=${encodeURIComponent(email)}`);
+                const checkData = await checkResponse.json();
+
+                if (checkData.exists) {
+                    // User already has an account - show welcome back message
+                    localStorage.setItem('bevalc_user', JSON.stringify({
+                        email: email,
+                        signedUpAt: new Date().toISOString()
+                    }));
+                    BevAlcAuth.grantAccess();
+
+                    // Show "welcome back" message instead of signup success
+                    showWelcomeBackUI();
+                    return;
+                }
+
+                // 2. Send to Loops (for their UI, analytics, unsubscribe handling)
                 const loopsPromise = fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -807,7 +807,7 @@
                     })
                 }).catch(e => console.log('Loops error:', e));
 
-                // 2. Send to D1 (for weekly report script to query)
+                // 3. Send to D1 (for weekly report script to query)
                 const d1Promise = fetch(`${API_BASE}/api/user/signup-free`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -838,6 +838,47 @@
 
                 // Show success on BOTH forms even on error
                 showBothSuccessUIs();
+            }
+        }
+
+        // Show "Welcome Back" UI for existing users
+        function showWelcomeBackUI() {
+            // Hero form area
+            const heroForm = document.getElementById('hero-email-form');
+            const heroMicrocopy = document.getElementById('hero-microcopy');
+            const heroSuccess = document.getElementById('hero-signup-success');
+            if (heroForm) heroForm.style.display = 'none';
+            if (heroMicrocopy) heroMicrocopy.style.display = 'none';
+            if (heroSuccess) {
+                heroSuccess.style.display = 'block';
+                heroSuccess.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <h3>Welcome Back!</h3>
+                    <p>You already have an account.</p>
+                    <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                `;
+            }
+
+            // Bottom form area
+            const bottomForm = document.getElementById('signup-form');
+            const bottomMicrocopy = document.getElementById('final-microcopy');
+            const bottomSuccess = document.getElementById('signup-success');
+            if (bottomForm) bottomForm.style.display = 'none';
+            if (bottomMicrocopy) bottomMicrocopy.style.display = 'none';
+            if (bottomSuccess) {
+                bottomSuccess.style.display = 'block';
+                bottomSuccess.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <h3>Welcome Back!</h3>
+                    <p>You already have an account.</p>
+                    <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                `;
             }
         }
     </script>

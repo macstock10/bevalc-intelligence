@@ -251,17 +251,6 @@ async function checkProStatus(email) {
         }
         
         if (data.success && data.status === 'pro') {
-            // Add Account link to nav for Pro users
-            const navUser = document.getElementById('nav-user');
-            if (navUser && !document.getElementById('nav-account-link')) {
-                const accountLink = document.createElement('a');
-                accountLink.id = 'nav-account-link';
-                accountLink.href = 'account.html';
-                accountLink.className = 'nav-link';
-                accountLink.textContent = 'Account';
-                navUser.insertBefore(accountLink, navUser.firstChild);
-            }
-            
             // Unlock CSV export button for Pro users
             updateCSVButtonState(true);
         } else {

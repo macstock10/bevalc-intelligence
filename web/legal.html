@@ -16,17 +16,33 @@
             <a href="index.html" class="logo">
                 <span class="logo-icon">◆</span>
                 <span class="logo-text">BevAlc Intelligence</span>
+                <span class="user-status user-status-mobile" id="user-status-mobile"></span>
             </a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
                 <a href="database.html" class="nav-link">Database</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
                 <a href="glossary.html" class="nav-link">Glossary</a>
+                <a href="account.html" class="nav-link">Account</a>
             </div>
             <div class="nav-user" id="nav-user">
                 <span class="user-greeting" id="user-greeting"></span>
                 <a href="index.html#signup" class="nav-cta" id="nav-cta">Get Access</a>
             </div>
+            <!-- Mobile hamburger menu -->
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </div>
+        <!-- Mobile dropdown menu -->
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="index.html" class="mobile-menu-link">Home</a>
+            <a href="database.html" class="mobile-menu-link">Database</a>
+            <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
+            <a href="glossary.html" class="mobile-menu-link">Glossary</a>
+            <a href="account.html" class="mobile-menu-link">Account</a>
         </div>
     </nav>
 
@@ -150,27 +166,49 @@
                 const data = await response.json();
                 
                 if (data.success && data.status === 'pro') {
-                    const navUser = document.getElementById('nav-user');
-                    if (navUser && !document.getElementById('nav-account-link')) {
-                        const accountLink = document.createElement('a');
-                        accountLink.id = 'nav-account-link';
-                        accountLink.href = 'account.html';
-                        accountLink.className = 'nav-link';
-                        accountLink.textContent = 'Account';
-                        navUser.insertBefore(accountLink, navUser.firstChild);
-                    }
-                    
                     const navCta = document.getElementById('nav-cta');
                     if (navCta) {
                         navCta.textContent = 'Go to Database';
                         navCta.href = 'database.html';
                         navCta.style.display = 'inline-flex';
                     }
+
+                    // Show Pro badge on mobile
+                    const mobileBadge = document.getElementById('user-status-mobile');
+                    if (mobileBadge) {
+                        mobileBadge.textContent = 'Pro';
+                        mobileBadge.style.display = 'inline-flex';
+                    }
                 }
             } catch (e) {
                 console.log('Could not check Pro status');
             }
         }
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            menu.classList.toggle('open');
+            btn.classList.toggle('open');
+        }
+
+        function closeMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            menu.classList.remove('open');
+            btn.classList.remove('open');
+        }
+
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', toggleMobileMenu);
+
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('mobile-menu');
+            const btn = document.getElementById('mobile-menu-btn');
+            if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+                closeMobileMenu();
+            }
+        });
     </script>
 </body>
 </html>

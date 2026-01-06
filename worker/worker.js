@@ -103,6 +103,10 @@ export default {
                 response = await handleSendPreferencesLink(request, env);
             } else if (path === '/api/user/list-by-category') {
                 response = await handleListUsersByCategory(url, env);
+            } else if (path === '/api/user/check' && request.method === 'GET') {
+                response = await handleCheckUserExists(url, env);
+            } else if (path === '/api/user/signup-free' && request.method === 'POST') {
+                response = await handleSignupFree(request, env);
             }
             // Watchlist endpoints
             else if (path === '/api/watchlist' && request.method === 'GET') {
@@ -802,6 +806,78 @@ async function handleListUsersByCategory(url, env) {
             }))
         };
     } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// Check if user exists (for login/signup flow)
+async function handleCheckUserExists(url, env) {
+    const email = url.searchParams.get('email');
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    try {
+        // Check user_preferences table
+        const user = await env.DB.prepare(
+            'SELECT email FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (user) {
+            return { success: true, exists: true };
+        }
+
+        // Also check Stripe for existing customers
+        const stripeSecretKey = env.STRIPE_SECRET_KEY;
+        if (stripeSecretKey) {
+            const searchResponse = await fetch(
+                `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email.toLowerCase())}'`,
+                { headers: { 'Authorization': `Bearer ${stripeSecretKey}` } }
+            );
+            const searchData = await searchResponse.json();
+
+            if (searchData.data && searchData.data.length > 0) {
+                return { success: true, exists: true };
+            }
+        }
+
+        return { success: true, exists: false };
+    } catch (e) {
+        console.error('Check user error:', e);
+        return { success: true, exists: false }; // Default to false on error
+    }
+}
+
+// Sign up a free user
+async function handleSignupFree(request, env) {
+    try {
+        const body = await request.json();
+        const email = body.email?.toLowerCase()?.trim();
+
+        if (!email) {
+            return { success: false, error: 'Email required' };
+        }
+
+        // Check if user already exists
+        const existing = await env.DB.prepare(
+            'SELECT email FROM user_preferences WHERE email = ?'
+        ).bind(email).first();
+
+        if (existing) {
+            return { success: true, message: 'User already exists', existing: true };
+        }
+
+        // Create new free user record
+        const newToken = generateToken();
+        await env.DB.prepare(`
+            INSERT INTO user_preferences (email, is_pro, preferences_token, categories, receive_free_report, updated_at)
+            VALUES (?, 0, ?, '[]', 1, datetime('now'))
+        `).bind(email, newToken).run();
+
+        return { success: true, message: 'User created', existing: false };
+    } catch (e) {
+        console.error('Signup free error:', e);
         return { success: false, error: e.message };
     }
 }

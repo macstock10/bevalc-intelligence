@@ -297,16 +297,6 @@
                 const data = await response.json();
 
                 if (data.success && data.status === 'pro') {
-                    const navUser = document.getElementById('nav-user');
-                    if (navUser && !document.getElementById('nav-account-link')) {
-                        const accountLink = document.createElement('a');
-                        accountLink.id = 'nav-account-link';
-                        accountLink.href = 'account.html';
-                        accountLink.className = 'nav-link';
-                        accountLink.textContent = 'Account';
-                        navUser.insertBefore(accountLink, navUser.firstChild);
-                    }
-
                     // Update nav CTA
                     const navCta = document.getElementById('nav-cta');
                     if (navCta) {
