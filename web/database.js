@@ -524,7 +524,7 @@ function renderResults(data) {
     if (!data || data.length === 0) {
         elements.resultsBody.innerHTML = `
             <tr>
-                <td colspan="8" class="no-results">
+                <td colspan="7" class="no-results">
                     <div class="no-results-content">
                         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="11" cy="11" r="8"></circle>
@@ -902,9 +902,7 @@ async function loadWatchlistStates(record, userEmail, isPro) {
     
     const types = [
         { type: 'brand', value: record.brand_name },
-        { type: 'company', value: record.company_name },
-        { type: 'keyword', value: record.fanciful_name },
-        { type: 'subcategory', value: record.class_type_code }
+        { type: 'company', value: record.company_name }
     ];
     
     for (const item of types) {
@@ -1085,7 +1083,7 @@ function hideLoading() {
 function showError(message) {
     elements.resultsBody.innerHTML = `
         <tr>
-            <td colspan="8" class="no-results">
+            <td colspan="7" class="no-results">
                 <div class="no-results-content error">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="12" r="10"></circle>
