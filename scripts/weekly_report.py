@@ -1191,7 +1191,7 @@ def build_pdf(df: pd.DataFrame, metrics: Dict, out_pdf: str):
     cta_content.append(button_tbl)
     cta_content.append(Spacer(1, 4))
     cta_content.append(Paragraph(
-        f"<b>Upgrade to Pro:</b> Full lists + watchlists + CSV exports + label image links ($49/mo)",
+        f"<b>Upgrade to Pro:</b> Full lists + watchlists + CSV exports + label image links ($99/mo)",
         styles["BI_Small"]
     ))
     
@@ -1486,7 +1486,7 @@ def build_pdf(df: pd.DataFrame, metrics: Dict, out_pdf: str):
     # ==========================================================================
     upgrade_content2 = [
         Paragraph(
-            '<b>Upgrade to Pro ($49/mo)</b>',
+            '<b>Upgrade to Pro ($99/mo)</b>',
             styles["BI_CTATitle"]
         ),
         Paragraph(
