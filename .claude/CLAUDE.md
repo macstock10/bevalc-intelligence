@@ -266,6 +266,7 @@ ORDER BY filings DESC;
 - [x] Company SEO pages show "Filing Entity" column (actual TTB company_name vs normalized)
 - [x] Signal classification for all historical records (NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE)
 - [x] Refile count tracking - shows "(current)" or "(X refiles)" under signal badge
+- [x] Company SEO pages show DBA names ("Also operates as: X, Y, Z")
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
@@ -381,6 +382,47 @@ Company SEO pages now show a "Filing Entity" column instead of just the brand na
 **Implementation:**
 - Query joins `colas` with `company_aliases` to get `co.company_name as filing_entity`
 - Added "Filing Entity" column to recent filings table on company pages
+
+### Company Page DBA Names Display (COMPLETED 2026-01-07)
+
+Company SEO pages now show DBA (doing-business-as) names in the header when a company files under multiple trade names.
+
+**Background:**
+TTB filings often use compound names like "WOLVERINE DISTILLING COMPANY, Stadium Beverage Company LLC" where:
+- First part = DBA/trade name (Wolverine Distilling Company)
+- Second part = Legal filing entity (Stadium Beverage Company LLC)
+
+This caused confusion when brands from "different" companies appeared on the same page.
+
+**Solution:**
+Added "Also operates as:" line under company stats showing all DBA names:
+```
+Stadium Beverage Company Llc Brands & Portfolio
+20+ Brands · 69 Total Filings · Since 04/04/2017
+Also operates as: WOLVERINE DISTILLING COMPANY
+```
+
+**Implementation:**
+- Query extracts DBA names from `company_aliases` where `raw_name` contains a comma
+- Uses `ROW_NUMBER() OVER (PARTITION BY UPPER(...))` to dedupe case variations
+- Limited to 10 DBAs max to keep header clean
+- Only shows line if company has DBAs (most don't)
+
+**SQL query:**
+```sql
+SELECT dba_name FROM (
+    SELECT TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1)) as dba_name,
+           ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1))) ORDER BY raw_name) as rn
+    FROM company_aliases
+    WHERE company_id = ? AND raw_name LIKE '%,%'
+) WHERE rn = 1
+ORDER BY dba_name
+LIMIT 10
+```
+
+**Examples:**
+- Stadium Beverage Company LLC → "Also operates as: WOLVERINE DISTILLING COMPANY"
+- Diageo Americas Supply, Inc. → "Also operates as: Aviation American Gin, CASCADE HOLLOW DISTILLING CO., DON JULIO TEQUILA COMPANY, GEORGE A. DICKEL & CO., Guinness Taproom, THE JEREMIAH WEED CO."
 
 ### Company Name Normalization (COMPLETED 2026-01-06)
 
