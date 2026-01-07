@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"\nimport os\nimport requests\n\nif os.path.exists\\(''.env''\\):\n    with open\\(''.env'', ''r''\\) as f:\n        for line in f:\n            line = line.strip\\(\\)\n            if line and not line.startswith\\(''#''\\) and ''='' in line:\n                key, value = line.split\\(''='', 1\\)\n                os.environ[key.strip\\(\\)] = value.strip\\(\\).strip\\(''\"\"''\\).strip\\(\"\"''\"\"\\)\n\naccount_id = os.environ.get\\(''CLOUDFLARE_ACCOUNT_ID''\\)\ndb_id = os.environ.get\\(''CLOUDFLARE_D1_DATABASE_ID''\\)\ntoken = os.environ.get\\(''CLOUDFLARE_API_TOKEN''\\)\n\nurl = f''https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{db_id}/query''\nheaders = {''Authorization'': f''Bearer {token}'', ''Content-Type'': ''application/json''}\n\ndef query\\(sql\\):\n    resp = requests.post\\(url, headers=headers, json={''sql'': sql}\\)\n    return resp.json\\(\\).get\\(''result'', [{}]\\)[0].get\\(''results'', []\\)\n\n# Get table schema\nprint\\(''=== COLAS TABLE SCHEMA ===''\\)\nschema = query\\(\"\"PRAGMA table_info\\(colas\\)\"\"\\)\nfor col in schema:\n    print\\(f\"\"  {col[''name'']}: {col[''type'']}\"\"\\)\n\n# Sample a record to see actual data\nprint\\(\\)\nprint\\(''=== SAMPLE RECORD ===''\\)\nsample = query\\(''SELECT * FROM colas LIMIT 1''\\)\nif sample:\n    for k, v in sample[0].items\\(\\):\n        print\\(f\"\"  {k}: {v}\"\"\\)\n\")",
+      "Bash(pip install:*)",
+      "Bash(python normalize_companies.py:*)",
+      "Bash(python -c:*)",
+      "Bash(npx wrangler deploy)",
+      "Bash(curl:*)"
+    ]
+  }
+}

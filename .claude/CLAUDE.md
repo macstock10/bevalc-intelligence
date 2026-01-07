@@ -245,6 +245,8 @@ ORDER BY filings DESC;
 - [x] Email templates: WeeklyReport, Welcome
 - [x] Weekly report email with real D1 data (send_weekly_report.py)
 - [x] Company name normalization (34K → 25K companies, 26% reduction)
+- [x] Programmatic SEO pages (~145K pages: companies, brands, categories)
+- [x] Dynamic sitemap.xml
 - [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 
 ### Known Issues
@@ -252,6 +254,27 @@ ORDER BY filings DESC;
    - New WatchlistAlert.jsx email template
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via email_sender.py
+
+### Programmatic SEO Pages (COMPLETED 2026-01-06)
+
+**URL Structure:**
+- `/company/[slug]` - Company pages (21,509 pages with 3+ filings)
+- `/brand/[slug]` - Brand pages (122,868 pages with 2+ filings)
+- `/category/[category]/[year]` - Category trend pages (~70 pages)
+- `/sitemap.xml` - Dynamic sitemap
+
+**Features:**
+- Server-rendered HTML matching existing site design
+- JSON-LD structured data for Google
+- Internal linking (company ↔ brand ↔ category)
+- Breadcrumb navigation
+- Category bar charts, filing timelines
+- Related companies/brands sections
+
+**Examples:**
+- `/company/diageo-americas-supply-inc` - 1,358 filings, 20 brands, category breakdown
+- `/brand/crown-royal` - Filing timeline, products, related brands
+- `/category/tequila/2025` - 3,562 filings, +4% YoY, top filers
 
 ### Company Name Normalization (COMPLETED 2026-01-06)
 

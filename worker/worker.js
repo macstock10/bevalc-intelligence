@@ -80,6 +80,17 @@ export default {
         }
 
         try {
+            // SEO Pages (HTML responses)
+            if (path.startsWith('/company/')) {
+                return await handleCompanyPage(path, env, corsHeaders);
+            } else if (path.startsWith('/brand/')) {
+                return await handleBrandPage(path, env, corsHeaders);
+            } else if (path.startsWith('/category/')) {
+                return await handleCategoryPage(path, env, corsHeaders);
+            } else if (path === '/sitemap.xml') {
+                return await handleSitemap(env);
+            }
+
             let response;
 
             // Stripe endpoints
@@ -1518,7 +1529,7 @@ async function handleRecord(url, env) {
 
 async function handleStats(env) {
     const stats = await env.DB.prepare(`
-        SELECT 
+        SELECT
             COUNT(*) as total,
             COUNT(DISTINCT origin_code) as origins,
             COUNT(DISTINCT class_type_code) as class_types,
@@ -1531,4 +1542,680 @@ async function handleStats(env) {
         success: true,
         stats
     };
+}
+
+// ==========================================
+// SEO PAGE HANDLERS
+// ==========================================
+
+const BASE_URL = 'https://bevalcintel.com';
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
+function makeSlug(name) {
+    if (!name) return '';
+    return name.toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/'/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .replace(/-+/g, '-');
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat().format(num || 0);
+}
+
+function getPageLayout(title, description, content, jsonLd = null, canonical = null) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(title)} | BevAlc Intelligence</title>
+    <meta name="description" content="${escapeHtml(description)}">
+    <link rel="canonical" href="${canonical || BASE_URL}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
+    <style>
+        .seo-page { padding-top: 100px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+        .seo-header { margin-bottom: 32px; }
+        .seo-header h1 { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
+        .seo-header .meta { color: var(--color-text-secondary); font-size: 1.1rem; }
+        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 32px; }
+        .seo-card { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 24px; }
+        .seo-card h2 { font-size: 1rem; color: var(--color-text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: var(--color-text); }
+        .stat-label { font-size: 0.875rem; color: var(--color-text-secondary); }
+        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .brand-chip { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; transition: border-color var(--transition-fast); }
+        .brand-chip:hover { border-color: var(--color-primary); }
+        .brand-chip a { color: var(--color-text); font-weight: 500; }
+        .brand-chip .count { color: var(--color-text-tertiary); font-size: 0.875rem; }
+        .filings-table { width: 100%; border-collapse: collapse; }
+        .filings-table th, .filings-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--color-border); }
+        .filings-table th { background: var(--color-bg-secondary); font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .filings-table tr:hover { background: var(--color-bg-secondary); }
+        .signal-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .signal-NEW_BRAND { background: #dcfce7; color: #166534; }
+        .signal-NEW_SKU { background: #dbeafe; color: #1e40af; }
+        .signal-REFILE { background: #f3f4f6; color: #6b7280; }
+        .bar-chart { margin: 8px 0; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 8px; }
+        .bar-label { width: 120px; font-size: 0.875rem; color: var(--color-text-secondary); }
+        .bar-container { flex: 1; height: 24px; background: var(--color-bg-tertiary); border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--color-primary); border-radius: 4px; }
+        .bar-value { width: 60px; text-align: right; font-size: 0.875rem; font-weight: 500; }
+        .related-links { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--color-border); }
+        .related-links h3 { margin-bottom: 16px; }
+        .related-links a { display: inline-block; margin-right: 16px; margin-bottom: 8px; color: var(--color-primary); }
+        .breadcrumb { margin-bottom: 16px; font-size: 0.875rem; color: var(--color-text-secondary); }
+        .breadcrumb a { color: var(--color-text-secondary); }
+        .breadcrumb a:hover { color: var(--color-primary); }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">BevAlc Intelligence</a>
+            <div class="nav-links">
+                <a href="/database.html">Database</a>
+                <a href="/#pricing">Pricing</a>
+            </div>
+        </div>
+    </nav>
+    <main class="seo-page">
+        ${content}
+    </main>
+    <footer style="padding: 48px 24px; text-align: center; color: var(--color-text-secondary); border-top: 1px solid var(--color-border); margin-top: 64px;">
+        <p>&copy; ${new Date().getFullYear()} BevAlc Intelligence. TTB COLA data updated weekly.</p>
+        <p style="margin-top: 8px;"><a href="/database.html">Search Database</a> · <a href="/#pricing">Pricing</a></p>
+    </footer>
+</body>
+</html>`;
+}
+
+// Company Page Handler
+async function handleCompanyPage(path, env, corsHeaders) {
+    const slug = path.replace('/company/', '').replace(/\/$/, '');
+
+    if (!slug) {
+        return new Response('Not Found', { status: 404 });
+    }
+
+    // Get company by slug
+    const company = await env.DB.prepare(`
+        SELECT * FROM companies WHERE slug = ? AND total_filings >= 3
+    `).bind(slug).first();
+
+    if (!company) {
+        return new Response('Company not found', { status: 404 });
+    }
+
+    // Get top brands for this company
+    const brandsResult = await env.DB.prepare(`
+        SELECT brand_name, COUNT(*) as cnt
+        FROM colas co
+        JOIN company_aliases ca ON co.company_name = ca.raw_name
+        WHERE ca.company_id = ?
+        GROUP BY brand_name
+        ORDER BY cnt DESC
+        LIMIT 20
+    `).bind(company.id).all();
+    const brands = brandsResult.results || [];
+
+    // Get category breakdown
+    const categoriesResult = await env.DB.prepare(`
+        SELECT class_type_code, COUNT(*) as cnt
+        FROM colas co
+        JOIN company_aliases ca ON co.company_name = ca.raw_name
+        WHERE ca.company_id = ?
+        GROUP BY class_type_code
+        ORDER BY cnt DESC
+        LIMIT 10
+    `).bind(company.id).all();
+    const categories = categoriesResult.results || [];
+
+    // Get recent filings
+    const recentResult = await env.DB.prepare(`
+        SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal
+        FROM colas co
+        JOIN company_aliases ca ON co.company_name = ca.raw_name
+        WHERE ca.company_id = ?
+        ORDER BY approval_date DESC
+        LIMIT 10
+    `).bind(company.id).all();
+    const recentFilings = recentResult.results || [];
+
+    // Get related companies (same top category)
+    const topCategory = categories[0]?.class_type_code;
+    let relatedCompanies = [];
+    if (topCategory) {
+        const relatedResult = await env.DB.prepare(`
+            SELECT c.canonical_name, c.slug, c.total_filings
+            FROM companies c
+            WHERE c.id != ? AND c.total_filings >= 10
+            ORDER BY c.total_filings DESC
+            LIMIT 5
+        `).bind(company.id).all();
+        relatedCompanies = relatedResult.results || [];
+    }
+
+    // Calculate category percentages
+    const totalCatFilings = categories.reduce((sum, c) => sum + c.cnt, 0);
+    const categoryBars = categories.slice(0, 6).map(c => ({
+        name: getCategory(c.class_type_code),
+        count: c.cnt,
+        pct: Math.round((c.cnt / totalCatFilings) * 100)
+    }));
+
+    // Build HTML
+    const title = company.display_name;
+    const description = `${company.display_name} has filed ${formatNumber(company.total_filings)} TTB COLA applications. View their brands, filing history, and product categories.`;
+
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": company.canonical_name,
+        "description": description,
+        "url": `${BASE_URL}/company/${slug}`
+    };
+
+    const content = `
+        <div class="breadcrumb">
+            <a href="/">Home</a> / <a href="/database.html">Database</a> / Company
+        </div>
+        <header class="seo-header">
+            <h1>${escapeHtml(company.display_name)}</h1>
+            <p class="meta">${formatNumber(company.total_filings)} Total Filings · ${company.variant_count} Name Variations · First Filing: ${escapeHtml(company.first_filing || 'N/A')}</p>
+        </header>
+
+        <div class="seo-grid">
+            <div class="seo-card">
+                <h2>Filing Stats</h2>
+                <div class="stat-value">${formatNumber(company.total_filings)}</div>
+                <div class="stat-label">Total COLA Filings</div>
+            </div>
+            <div class="seo-card">
+                <h2>Brands</h2>
+                <div class="stat-value">${formatNumber(brands.length)}${brands.length === 20 ? '+' : ''}</div>
+                <div class="stat-label">Distinct Brands Filed</div>
+            </div>
+            <div class="seo-card">
+                <h2>Categories</h2>
+                <div class="bar-chart">
+                    ${categoryBars.map(c => `
+                        <div class="bar-row">
+                            <div class="bar-label">${escapeHtml(c.name)}</div>
+                            <div class="bar-container"><div class="bar-fill" style="width: ${c.pct}%"></div></div>
+                            <div class="bar-value">${c.pct}%</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div class="seo-card" style="margin-bottom: 32px;">
+            <h2>Brands (${brands.length}${brands.length === 20 ? '+' : ''})</h2>
+            <div class="brand-grid">
+                ${brands.map(b => `
+                    <div class="brand-chip">
+                        <a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>
+                        <span class="count">${formatNumber(b.cnt)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="seo-card">
+            <h2>Recent Filings</h2>
+            <table class="filings-table">
+                <thead>
+                    <tr>
+                        <th>Brand</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Date</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${recentFilings.map(f => `
+                        <tr>
+                            <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
+                            <td>${escapeHtml(f.fanciful_name || '-')}</td>
+                            <td>${escapeHtml(getCategory(f.class_type_code))}</td>
+                            <td>${escapeHtml(f.approval_date)}</td>
+                            <td>${f.signal ? `<span class="signal-badge signal-${f.signal}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
+        </div>
+
+        <div class="related-links">
+            <h3>Related Companies</h3>
+            ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
+        </div>
+    `;
+
+    return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/company/${slug}`), {
+        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+    });
+}
+
+// Brand Page Handler
+async function handleBrandPage(path, env, corsHeaders) {
+    const slug = path.replace('/brand/', '').replace(/\/$/, '');
+
+    if (!slug) {
+        return new Response('Not Found', { status: 404 });
+    }
+
+    // Find brand by slug (need to query colas directly since we don't have a brands slug table)
+    const brandResult = await env.DB.prepare(`
+        SELECT brand_name, COUNT(*) as cnt
+        FROM colas
+        GROUP BY brand_name
+        HAVING cnt >= 2
+        ORDER BY cnt DESC
+    `).all();
+
+    const allBrands = brandResult.results || [];
+    const brand = allBrands.find(b => makeSlug(b.brand_name) === slug);
+
+    if (!brand) {
+        return new Response('Brand not found', { status: 404 });
+    }
+
+    // Get company for this brand
+    const companyResult = await env.DB.prepare(`
+        SELECT co.company_name, c.canonical_name, c.slug
+        FROM colas co
+        LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
+        LEFT JOIN companies c ON ca.company_id = c.id
+        WHERE co.brand_name = ?
+        GROUP BY co.company_name
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+    `).bind(brand.brand_name).first();
+
+    // Get category for this brand
+    const categoryResult = await env.DB.prepare(`
+        SELECT class_type_code, COUNT(*) as cnt
+        FROM colas WHERE brand_name = ?
+        GROUP BY class_type_code
+        ORDER BY cnt DESC
+        LIMIT 1
+    `).bind(brand.brand_name).first();
+    const primaryCategory = categoryResult ? getCategory(categoryResult.class_type_code) : 'Other';
+
+    // Get filing timeline by year
+    const timelineResult = await env.DB.prepare(`
+        SELECT year, COUNT(*) as cnt,
+               SUM(CASE WHEN signal = 'NEW_SKU' THEN 1 ELSE 0 END) as new_skus
+        FROM colas WHERE brand_name = ?
+        GROUP BY year
+        ORDER BY year DESC
+        LIMIT 5
+    `).bind(brand.brand_name).all();
+    const timeline = timelineResult.results || [];
+
+    // Get recent products
+    const productsResult = await env.DB.prepare(`
+        SELECT ttb_id, fanciful_name, class_type_code, approval_date, signal
+        FROM colas WHERE brand_name = ?
+        ORDER BY approval_date DESC
+        LIMIT 15
+    `).bind(brand.brand_name).all();
+    const products = productsResult.results || [];
+
+    // Get related brands (same category)
+    const relatedResult = await env.DB.prepare(`
+        SELECT brand_name, COUNT(*) as cnt
+        FROM colas
+        WHERE class_type_code LIKE ? AND brand_name != ?
+        GROUP BY brand_name
+        HAVING cnt >= 5
+        ORDER BY cnt DESC
+        LIMIT 6
+    `).bind(`%${primaryCategory.toUpperCase().slice(0,4)}%`, brand.brand_name).all();
+    const relatedBrands = relatedResult.results || [];
+
+    const maxTimeline = Math.max(...timeline.map(t => t.cnt), 1);
+
+    const title = brand.brand_name;
+    const description = `${brand.brand_name} has ${formatNumber(brand.cnt)} TTB COLA filings. View product timeline, new SKUs, and filing history.`;
+
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Brand",
+        "name": brand.brand_name,
+        "category": primaryCategory,
+        "description": description,
+        "url": `${BASE_URL}/brand/${slug}`,
+        ...(companyResult?.canonical_name && {
+            "manufacturer": {
+                "@type": "Organization",
+                "name": companyResult.canonical_name
+            }
+        })
+    };
+
+    const content = `
+        <div class="breadcrumb">
+            <a href="/">Home</a> / <a href="/database.html">Database</a> / Brand
+        </div>
+        <header class="seo-header">
+            <h1>${escapeHtml(brand.brand_name)}</h1>
+            <p class="meta">
+                ${companyResult?.canonical_name ? `by <a href="/company/${companyResult.slug}">${escapeHtml(companyResult.canonical_name)}</a> · ` : ''}
+                ${escapeHtml(primaryCategory)} · ${formatNumber(brand.cnt)} Filings
+            </p>
+        </header>
+
+        <div class="seo-grid">
+            <div class="seo-card">
+                <h2>Total Filings</h2>
+                <div class="stat-value">${formatNumber(brand.cnt)}</div>
+                <div class="stat-label">COLA Applications</div>
+            </div>
+            <div class="seo-card">
+                <h2>Category</h2>
+                <div class="stat-value" style="font-size: 1.5rem;">${escapeHtml(primaryCategory)}</div>
+                <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View category trends →</a></div>
+            </div>
+            <div class="seo-card">
+                <h2>Filing Timeline</h2>
+                <div class="bar-chart">
+                    ${timeline.map(t => `
+                        <div class="bar-row">
+                            <div class="bar-label">${t.year}</div>
+                            <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((t.cnt / maxTimeline) * 100)}%"></div></div>
+                            <div class="bar-value">${t.cnt}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div class="seo-card">
+            <h2>Products (${products.length}${products.length === 15 ? '+' : ''})</h2>
+            <table class="filings-table">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${products.map(p => `
+                        <tr>
+                            <td>${escapeHtml(p.fanciful_name || '(Standard)')}</td>
+                            <td>${escapeHtml(getCategory(p.class_type_code))}</td>
+                            <td>${escapeHtml(p.approval_date)}</td>
+                            <td>${p.signal ? `<span class="signal-badge signal-${p.signal}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a></p>
+        </div>
+
+        <div class="related-links">
+            <h3>More ${primaryCategory} Brands</h3>
+            ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
+        </div>
+    `;
+
+    return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`), {
+        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+    });
+}
+
+// Category Page Handler
+async function handleCategoryPage(path, env, corsHeaders) {
+    const parts = path.replace('/category/', '').replace(/\/$/, '').split('/');
+    const categorySlug = parts[0];
+    const year = parseInt(parts[1]) || new Date().getFullYear();
+
+    // Map slug to category name
+    const categoryMap = {
+        'whiskey': 'Whiskey', 'vodka': 'Vodka', 'tequila': 'Tequila',
+        'rum': 'Rum', 'gin': 'Gin', 'brandy': 'Brandy',
+        'wine': 'Wine', 'beer': 'Beer', 'liqueur': 'Liqueur',
+        'cocktails': 'Cocktails', 'other': 'Other'
+    };
+
+    const category = categoryMap[categorySlug];
+    if (!category) {
+        return new Response('Category not found', { status: 404 });
+    }
+
+    // Get patterns for this category
+    const categoryPatterns = {
+        'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
+        'Vodka': ['%VODKA%'],
+        'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
+        'Rum': ['%RUM%', '%CACHACA%'],
+        'Gin': ['%GIN%'],
+        'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
+        'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
+        'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', '%PORTER%'],
+        'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%'],
+        'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%']
+    };
+
+    const patterns = categoryPatterns[category] || [`%${category.toUpperCase()}%`];
+    const patternCondition = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
+
+    // Get total filings for this year
+    const totalResult = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM colas
+        WHERE year = ? AND (${patternCondition})
+    `).bind(year, ...patterns).first();
+    const totalFilings = totalResult?.cnt || 0;
+
+    // Get previous year for comparison
+    const prevResult = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM colas
+        WHERE year = ? AND (${patternCondition})
+    `).bind(year - 1, ...patterns).first();
+    const prevFilings = prevResult?.cnt || 1;
+    const yoyChange = Math.round(((totalFilings - prevFilings) / prevFilings) * 100);
+
+    // Get new brands count
+    const newBrandsResult = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT brand_name) as cnt FROM colas
+        WHERE year = ? AND signal = 'NEW_BRAND' AND (${patternCondition})
+    `).bind(year, ...patterns).first();
+    const newBrands = newBrandsResult?.cnt || 0;
+
+    // Get monthly trend
+    const monthlyResult = await env.DB.prepare(`
+        SELECT month, COUNT(*) as cnt FROM colas
+        WHERE year = ? AND (${patternCondition})
+        GROUP BY month ORDER BY month
+    `).bind(year, ...patterns).all();
+    const monthly = monthlyResult.results || [];
+    const maxMonthly = Math.max(...monthly.map(m => m.cnt), 1);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Get top filing companies
+    const topCompaniesResult = await env.DB.prepare(`
+        SELECT c.canonical_name, c.slug, COUNT(*) as cnt
+        FROM colas co
+        JOIN company_aliases ca ON co.company_name = ca.raw_name
+        JOIN companies c ON ca.company_id = c.id
+        WHERE co.year = ? AND (${patternCondition})
+        GROUP BY c.id
+        ORDER BY cnt DESC
+        LIMIT 10
+    `).bind(year, ...patterns).all();
+    const topCompanies = topCompaniesResult.results || [];
+
+    // Get top new brands
+    const topBrandsResult = await env.DB.prepare(`
+        SELECT brand_name, COUNT(*) as cnt
+        FROM colas
+        WHERE year = ? AND signal IN ('NEW_BRAND', 'NEW_SKU') AND (${patternCondition})
+        GROUP BY brand_name
+        ORDER BY cnt DESC
+        LIMIT 10
+    `).bind(year, ...patterns).all();
+    const topBrands = topBrandsResult.results || [];
+
+    // Available years
+    const yearsResult = await env.DB.prepare(`
+        SELECT DISTINCT year FROM colas WHERE year >= 2020 ORDER BY year DESC
+    `).all();
+    const years = (yearsResult.results || []).map(r => r.year);
+
+    const title = `${category} Filings ${year}`;
+    const description = `${formatNumber(totalFilings)} ${category} TTB COLA filings in ${year}. ${yoyChange >= 0 ? '+' : ''}${yoyChange}% vs ${year-1}. View top filers, new brands, and monthly trends.`;
+
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": `${category} Industry TTB Filings - ${year}`,
+        "description": description,
+        "url": `${BASE_URL}/category/${categorySlug}/${year}`
+    };
+
+    const content = `
+        <div class="breadcrumb">
+            <a href="/">Home</a> / <a href="/database.html">Database</a> / Category
+        </div>
+        <header class="seo-header">
+            <h1>${category} Filings in ${year}</h1>
+            <p class="meta">${formatNumber(totalFilings)} Total Filings · ${formatNumber(newBrands)} New Brands · ${yoyChange >= 0 ? '+' : ''}${yoyChange}% vs ${year - 1}</p>
+        </header>
+
+        <div class="seo-grid">
+            <div class="seo-card">
+                <h2>Total Filings</h2>
+                <div class="stat-value">${formatNumber(totalFilings)}</div>
+                <div class="stat-label">${yoyChange >= 0 ? '↑' : '↓'} ${Math.abs(yoyChange)}% year-over-year</div>
+            </div>
+            <div class="seo-card">
+                <h2>New Brands</h2>
+                <div class="stat-value">${formatNumber(newBrands)}</div>
+                <div class="stat-label">Brands first seen in ${year}</div>
+            </div>
+            <div class="seo-card">
+                <h2>Monthly Trend</h2>
+                <div class="bar-chart">
+                    ${monthly.map(m => `
+                        <div class="bar-row">
+                            <div class="bar-label">${monthNames[m.month - 1]}</div>
+                            <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((m.cnt / maxMonthly) * 100)}%"></div></div>
+                            <div class="bar-value">${m.cnt}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div class="seo-grid">
+            <div class="seo-card">
+                <h2>Top Filing Companies</h2>
+                <table class="filings-table">
+                    <tbody>
+                        ${topCompanies.map((c, i) => `
+                            <tr>
+                                <td>${i + 1}.</td>
+                                <td><a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a></td>
+                                <td style="text-align: right;">${formatNumber(c.cnt)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="seo-card">
+                <h2>Top Active Brands</h2>
+                <table class="filings-table">
+                    <tbody>
+                        ${topBrands.map((b, i) => `
+                            <tr>
+                                <td>${i + 1}.</td>
+                                <td><a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a></td>
+                                <td style="text-align: right;">${formatNumber(b.cnt)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="related-links">
+            <h3>Browse by Year</h3>
+            ${years.map(y => y === year ? `<strong>${y}</strong>` : `<a href="/category/${categorySlug}/${y}">${y}</a>`).join(' ')}
+            <h3 style="margin-top: 24px;">Other Categories</h3>
+            ${Object.entries(categoryMap).filter(([s]) => s !== categorySlug).map(([s, n]) => `<a href="/category/${s}/${year}">${n}</a>`).join('')}
+        </div>
+    `;
+
+    return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/category/${categorySlug}/${year}`), {
+        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+    });
+}
+
+// Sitemap Handler
+async function handleSitemap(env) {
+    const urls = [];
+
+    // Static pages
+    urls.push({ loc: BASE_URL, priority: '1.0' });
+    urls.push({ loc: `${BASE_URL}/database.html`, priority: '0.9' });
+
+    // Company pages (3+ filings)
+    const companiesResult = await env.DB.prepare(`
+        SELECT slug FROM companies WHERE total_filings >= 3 ORDER BY total_filings DESC LIMIT 50000
+    `).all();
+    for (const c of (companiesResult.results || [])) {
+        urls.push({ loc: `${BASE_URL}/company/${c.slug}`, priority: '0.7' });
+    }
+
+    // Brand pages (top 50k by filings for performance)
+    const brandsResult = await env.DB.prepare(`
+        SELECT brand_name FROM (
+            SELECT brand_name, COUNT(*) as cnt FROM colas GROUP BY brand_name HAVING cnt >= 2
+        ) ORDER BY cnt DESC LIMIT 50000
+    `).all();
+    for (const b of (brandsResult.results || [])) {
+        urls.push({ loc: `${BASE_URL}/brand/${makeSlug(b.brand_name)}`, priority: '0.6' });
+    }
+
+    // Category pages
+    const categories = ['whiskey', 'vodka', 'tequila', 'rum', 'gin', 'brandy', 'wine', 'beer', 'liqueur', 'cocktails'];
+    const years = [2026, 2025, 2024, 2023, 2022, 2021];
+    for (const cat of categories) {
+        for (const year of years) {
+            urls.push({ loc: `${BASE_URL}/category/${cat}/${year}`, priority: '0.8' });
+        }
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    <priority>${u.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    return new Response(xml, {
+        headers: { 'Content-Type': 'application/xml' }
+    });
 }
