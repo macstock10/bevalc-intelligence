@@ -1843,29 +1843,12 @@ async function handleBrandPage(path, env, corsHeaders) {
         return new Response('Not Found', { status: 404 });
     }
 
-    // Convert slug back to brand name (e.g., "crown-royal" -> "CROWN ROYAL")
-    const approxBrandName = slug.replace(/-/g, ' ').toUpperCase();
+    // Fast lookup via brand_slugs table
+    const brandResult = await env.DB.prepare(`
+        SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?
+    `).bind(slug).first();
 
-    // Try exact match first (fastest path - uses index)
-    let brandResult = await env.DB.prepare(`
-        SELECT brand_name, COUNT(*) as cnt
-        FROM colas
-        WHERE brand_name = ?
-        GROUP BY brand_name
-    `).bind(approxBrandName).first();
-
-    // If no exact match, try case-insensitive
     if (!brandResult) {
-        brandResult = await env.DB.prepare(`
-            SELECT brand_name, COUNT(*) as cnt
-            FROM colas
-            WHERE UPPER(brand_name) = ?
-            GROUP BY brand_name
-            LIMIT 1
-        `).bind(approxBrandName).first();
-    }
-
-    if (!brandResult || brandResult.cnt < 2) {
         return new Response('Brand not found', { status: 404 });
     }
 
@@ -1913,16 +1896,8 @@ async function handleBrandPage(path, env, corsHeaders) {
     `).bind(brand.brand_name).all();
     const products = productsResult.results || [];
 
-    // Get related brands (same category, recent filings only for performance)
-    const relatedResult = await env.DB.prepare(`
-        SELECT brand_name, COUNT(*) as cnt
-        FROM colas
-        WHERE class_type_code LIKE ? AND brand_name != ? AND year >= 2024
-        GROUP BY brand_name
-        ORDER BY cnt DESC
-        LIMIT 6
-    `).bind(`%${primaryCategory.toUpperCase().slice(0,4)}%`, brand.brand_name).all();
-    const relatedBrands = relatedResult.results || [];
+    // Skip related brands query for performance - would require precomputed table
+    const relatedBrands = [];
 
     const maxTimeline = Math.max(...timeline.map(t => t.cnt), 1);
 

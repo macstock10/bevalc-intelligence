@@ -662,10 +662,10 @@ function updateResultsCount(pagination) {
 // ============================================
 
 function openModal(record) {
-    // Make brand name a clickable link to brand page
+    // Make brand name a clickable link to brand page (opens in new tab)
     const brandSlug = makeSlug(record.brand_name);
     if (brandSlug) {
-        elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>`;
+        elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>`;
     } else {
         elements.modalTitle.textContent = record.brand_name || 'Unknown Brand';
     }
@@ -783,14 +783,14 @@ function openModal(record) {
                             }
                         }
                         
-                        // Company link field
+                        // Company link field (opens in new tab)
                         if (f.isCompanyLink && f.value) {
                             const companySlug = makeSlug(f.value);
                             return `
                                 <div class="detail-item">
                                     <span class="detail-label">${f.label}</span>
                                     <span class="detail-value">
-                                        <a href="/company/${companySlug}" style="color: var(--color-primary);">${escapeHtml(f.value)}</a>
+                                        <a href="/company/${companySlug}" target="_blank" rel="noopener" style="color: var(--color-primary);">${escapeHtml(f.value)}</a>
                                     </span>
                                 </div>
                             `;
