@@ -676,189 +676,25 @@ export function ProWeeklyReport({
   weekOverWeekChange = "+12%",
 
   // Watchlist activity - NEW filings from tracked brands/companies
-  watchlistMatches = [
-    {
-      brand: "Crown Royal",
-      fancifulName: "Crown Royal Peach",
-      company: "Diageo Americas Supply Inc",
-      signal: "NEW_SKU",
-      category: "Whiskey",
-      ttbId: "24087001000453",
-      ttbLink:
-        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000453",
-      matchType: "company", // or 'brand'
-    },
-    {
-      brand: "Johnnie Walker",
-      fancifulName: "Johnnie Walker Blue Label Ghost",
-      company: "Diageo Americas Supply Inc",
-      signal: "NEW_SKU",
-      category: "Whiskey",
-      ttbId: "24087001000454",
-      ttbLink:
-        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000454",
-      matchType: "company",
-    },
-    {
-      brand: "Casamigos",
-      fancifulName: "Casamigos Cristalino",
-      company: "Casamigos Spirits Company",
-      signal: "NEW_BRAND",
-      category: "Tequila",
-      ttbId: "24087001000455",
-      ttbLink:
-        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000455",
-      matchType: "brand",
-    },
-  ],
+  watchlistMatches = [],
 
   // Category data (user's subscribed categories with breakdown)
-  categoryData = [
-    { label: "Whiskey", value: 487, change: "+15%" },
-    { label: "Tequila", value: 356, change: "+23%" },
-    { label: "Vodka", value: 234, change: "-5%" },
-    { label: "Wine", value: 198, change: "+8%" },
-    { label: "Beer", value: 176, change: "+2%" },
-    { label: "RTD", value: 164, change: "+31%" },
-  ],
+  categoryData = [],
 
   // Top filing companies (velocity signals)
-  topCompaniesList = [
-    { company: "Diageo Americas Supply Inc", filings: 89, change: "+34" },
-    { company: "Constellation Brands", filings: 67, change: "+12" },
-    { company: "Pernod Ricard USA", filings: 54, change: "+8" },
-    { company: "E. & J. Gallo Winery", filings: 48, change: "-3" },
-    { company: "Brown-Forman Corporation", filings: 42, change: "+15" },
-  ],
+  topCompaniesList = [],
 
   // Notable new brands (first-time filers)
-  notableNewBrands = [
-    {
-      brand: "Casa Dragones",
-      company: "Casa Dragones LLC",
-      category: "Tequila",
-      ttbId: "24087001000456",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000456",
-    },
-    {
-      brand: "Kentucky Owl",
-      company: "Kentucky Owl LLC",
-      category: "Whiskey",
-      ttbId: "24087001000457",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000457",
-    },
-    {
-      brand: "Cutwater Spirits",
-      company: "Cutwater Spirits LLC",
-      category: "RTD",
-      ttbId: "24087001000458",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000458",
-    },
-  ],
+  notableNewBrands = [],
 
   // Filing spikes (M&A signals - companies with unusual activity)
-  filingSpikes = [
-    {
-      company: "Sazerac Company",
-      thisWeek: 45,
-      avgWeek: 12,
-      percentIncrease: 275,
-    },
-    {
-      company: "Heaven Hill Brands",
-      thisWeek: 38,
-      avgWeek: 15,
-      percentIncrease: 153,
-    },
-  ],
+  filingSpikes = [],
 
   // Full new brands & SKUs list (unlocked for Pro)
-  newFilingsList = [
-    {
-      brand: "Clase Azul",
-      fancifulName: "Clase Azul Ultra",
-      company: "Clase Azul Mexico",
-      signal: "NEW_BRAND",
-      category: "Tequila",
-      ttbId: "24087001000459",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000459",
-    },
-    {
-      brand: "High Noon",
-      fancifulName: "High Noon Pineapple",
-      company: "E. & J. Gallo Winery",
-      signal: "NEW_SKU",
-      category: "RTD",
-      ttbId: "24087001000460",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000460",
-    },
-    {
-      brand: "Buffalo Trace",
-      fancifulName: "Buffalo Trace Single Barrel Select",
-      company: "Sazerac Company",
-      signal: "NEW_SKU",
-      category: "Whiskey",
-      ttbId: "24087001000461",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000461",
-    },
-    {
-      brand: "Aperol",
-      fancifulName: "Aperol Spritz RTD",
-      company: "Campari America",
-      signal: "NEW_SKU",
-      category: "RTD",
-      ttbId: "24087001000462",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000462",
-    },
-    {
-      brand: "Teremana",
-      fancifulName: "Teremana Cristalino",
-      company: "Teremana LLC",
-      signal: "NEW_SKU",
-      category: "Tequila",
-      ttbId: "24087001000463",
-      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000463",
-    },
-  ],
+  newFilingsList = [],
 
   // Category-specific reports (based on user's subscribed categories)
-  categoryReports = [
-    {
-      category: "Whiskey",
-      totalFilings: 487,
-      change: "+15%",
-      newBrands: [
-        { brand: "Kentucky Owl", company: "Kentucky Owl LLC", ttbId: "24087001000457", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000457" },
-        { brand: "Bardstown Bourbon", company: "Bardstown Bourbon Company", ttbId: "24087001000458", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000458" },
-      ],
-      newSkus: [
-        { brand: "Buffalo Trace", fancifulName: "Buffalo Trace Single Barrel Select", company: "Sazerac Company", ttbId: "24087001000461", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000461" },
-        { brand: "Maker's Mark", fancifulName: "Maker's Mark 46 Cask Strength", company: "Beam Suntory", ttbId: "24087001000462", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000462" },
-      ],
-      topCompanies: [
-        { company: "Sazerac Company", filings: 34 },
-        { company: "Brown-Forman Corporation", filings: 28 },
-        { company: "Beam Suntory", filings: 22 },
-      ],
-    },
-    {
-      category: "Tequila",
-      totalFilings: 356,
-      change: "+23%",
-      newBrands: [
-        { brand: "Casa Dragones", company: "Casa Dragones LLC", ttbId: "24087001000456", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000456" },
-      ],
-      newSkus: [
-        { brand: "Casamigos", fancifulName: "Casamigos Cristalino", company: "Casamigos Spirits Company", ttbId: "24087001000455", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000455" },
-        { brand: "Teremana", fancifulName: "Teremana Cristalino", company: "Teremana LLC", ttbId: "24087001000463", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000463" },
-      ],
-      topCompanies: [
-        { company: "Diageo Americas Supply Inc", filings: 45 },
-        { company: "Becle S.A.B.", filings: 32 },
-        { company: "Proximo Spirits", filings: 24 },
-      ],
-    },
-  ],
+  categoryReports = [],
 
   // Links
   databaseUrl = "https://bevalcintel.com/database",
@@ -869,12 +705,14 @@ export function ProWeeklyReport({
   weekStartDate = "",
   weekEndDate = "",
 }) {
-  const maxCategoryValue = Math.max(...categoryData.map((d) => d.value));
+  const maxCategoryValue = categoryData.length > 0
+    ? Math.max(...categoryData.map((d) => d.value))
+    : 0;
 
-  // Build CSV export URL with date filters
-  const csvExportUrl = weekStartDate && weekEndDate
-    ? `${databaseUrl}?date_from=${weekStartDate}&date_to=${weekEndDate}`
-    : databaseUrl;
+  // Build filtered database URL with date and signal filters
+  const newFilingsUrl = weekStartDate && weekEndDate
+    ? `${databaseUrl}?date_from=${weekStartDate}&date_to=${weekEndDate}&signal=NEW_BRAND,NEW_SKU`
+    : `${databaseUrl}?signal=NEW_BRAND,NEW_SKU`;
   const greeting = firstName ? `${firstName}, here's your` : "Your";
   const hasWatchlistMatches = watchlistMatches && watchlistMatches.length > 0;
   const hasFilingSpikes = filingSpikes && filingSpikes.length > 0;
@@ -1382,44 +1220,44 @@ export function ProWeeklyReport({
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
+                          padding: "10px 8px",
                           fontSize: "11px",
                           fontWeight: "600",
                           color: colors.orange,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           borderBottom: `1px solid ${colors.border}`,
-                          width: "80px",
+                          width: "55px",
                           textAlign: "center",
                         }}
                       >
-                        This Week
+                        Week
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
+                          padding: "10px 8px",
                           fontSize: "11px",
                           fontWeight: "600",
                           color: colors.orange,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           borderBottom: `1px solid ${colors.border}`,
-                          width: "80px",
+                          width: "55px",
                           textAlign: "center",
                         }}
                       >
-                        Avg Week
+                        Avg
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
+                          padding: "10px 8px",
                           fontSize: "11px",
                           fontWeight: "600",
                           color: colors.orange,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           borderBottom: `1px solid ${colors.border}`,
-                          width: "70px",
+                          width: "55px",
                           textAlign: "center",
                         }}
                       >
@@ -1443,14 +1281,15 @@ export function ProWeeklyReport({
                               i < filingSpikes.length - 1
                                 ? `1px solid ${colors.border}`
                                 : "none",
+                            wordBreak: "break-word",
                           }}
                         >
                           <CompanyLink name={row.company} />
                         </td>
                         <td
                           style={{
-                            padding: "12px",
-                            fontSize: "14px",
+                            padding: "8px",
+                            fontSize: "13px",
                             fontWeight: "600",
                             color: colors.text,
                             borderBottom:
@@ -1458,13 +1297,14 @@ export function ProWeeklyReport({
                                 ? `1px solid ${colors.border}`
                                 : "none",
                             textAlign: "center",
+                            width: "55px",
                           }}
                         >
                           {row.thisWeek}
                         </td>
                         <td
                           style={{
-                            padding: "12px",
+                            padding: "8px",
                             fontSize: "13px",
                             color: colors.textTertiary,
                             borderBottom:
@@ -1472,13 +1312,14 @@ export function ProWeeklyReport({
                                 ? `1px solid ${colors.border}`
                                 : "none",
                             textAlign: "center",
+                            width: "55px",
                           }}
                         >
                           {row.avgWeek}
                         </td>
                         <td
                           style={{
-                            padding: "12px",
+                            padding: "8px",
                             fontSize: "12px",
                             fontWeight: "700",
                             color: colors.orange,
@@ -1487,6 +1328,7 @@ export function ProWeeklyReport({
                                 ? `1px solid ${colors.border}`
                                 : "none",
                             textAlign: "center",
+                            width: "55px",
                           }}
                         >
                           +{row.percentIncrease}%
@@ -1528,6 +1370,7 @@ export function ProWeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
+                      width: "40%",
                     }}
                   >
                     Brand
@@ -1541,6 +1384,7 @@ export function ProWeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
+                      width: "45%",
                     }}
                   >
                     Company
@@ -1554,7 +1398,7 @@ export function ProWeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
-                      width: "60px",
+                      width: "50px",
                     }}
                   >
                     Category
@@ -1578,6 +1422,7 @@ export function ProWeeklyReport({
                             ? `1px solid ${colors.border}`
                             : "none",
                         wordBreak: "break-word",
+                        width: "40%",
                       }}
                     >
                       <Link
@@ -1597,6 +1442,7 @@ export function ProWeeklyReport({
                             ? `1px solid ${colors.border}`
                             : "none",
                         wordBreak: "break-word",
+                        width: "45%",
                       }}
                     >
                       <CompanyLink name={row.company} />
@@ -1608,7 +1454,7 @@ export function ProWeeklyReport({
                           i < notableNewBrands.length - 1
                             ? `1px solid ${colors.border}`
                             : "none",
-                        width: "60px",
+                        width: "50px",
                         textAlign: "center",
                       }}
                     >
@@ -1744,7 +1590,7 @@ export function ProWeeklyReport({
               }}
             >
               <Link
-                href={csvExportUrl}
+                href={newFilingsUrl}
                 style={{
                   color: colors.primaryDark,
                   fontSize: "14px",
@@ -1783,19 +1629,8 @@ export function ProWeeklyReport({
                 bevalcintel.com
               </Link>
               {" | "}
-              <Link href={preferencesUrl} style={{ color: colors.textTertiary }}>
-                Manage preferences
-              </Link>
-              {" | "}
               <Link href={accountUrl} style={{ color: colors.textTertiary }}>
-                Account
-              </Link>
-              {" | "}
-              <Link
-                href="{{unsubscribeUrl}}"
-                style={{ color: colors.textTertiary }}
-              >
-                Unsubscribe
+                Manage preferences
               </Link>
             </Text>
             <Text

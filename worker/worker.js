@@ -1191,13 +1191,13 @@ async function handleSearch(url, env) {
     const params = url.searchParams;
     const page = Math.max(1, parseInt(params.get('page')) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 50));
-    
+
     const sortColumn = params.get('sort') || 'approval_date';
     const sortOrder = params.get('order') === 'asc' ? 'ASC' : 'DESC';
-    
+
     const validSortColumns = ['ttb_id', 'brand_name', 'class_type_code', 'origin_code', 'approval_date', 'status'];
     const safeSortColumn = validSortColumns.includes(sortColumn) ? sortColumn : 'approval_date';
-    
+
     const MAX_PAGES = 500;
     if (page > MAX_PAGES) {
         return {
@@ -1205,7 +1205,7 @@ async function handleSearch(url, env) {
             error: `Page limit exceeded. Maximum ${MAX_PAGES} pages allowed.`
         };
     }
-    
+
     const offset = (page - 1) * limit;
 
     const query = params.get('q')?.trim();
@@ -1215,6 +1215,7 @@ async function handleSearch(url, env) {
     const status = params.get('status');
     const dateFrom = params.get('date_from');
     const dateTo = params.get('date_to');
+    const signal = params.get('signal');  // NEW_BRAND, NEW_SKU, REFILE, or comma-separated
 
     let whereClause = '1=1';
     const queryParams = [];
@@ -1282,6 +1283,17 @@ async function handleSearch(url, env) {
             const [year, month] = parts;
             whereClause += ' AND (year < ? OR (year = ? AND month <= ?))';
             queryParams.push(parseInt(year), parseInt(year), parseInt(month));
+        }
+    }
+
+    // Signal filter: NEW_BRAND, NEW_SKU, REFILE, or comma-separated (e.g., "NEW_BRAND,NEW_SKU")
+    if (signal) {
+        const validSignals = ['NEW_BRAND', 'NEW_SKU', 'NEW_COMPANY', 'REFILE'];
+        const signals = signal.split(',').map(s => s.trim().toUpperCase()).filter(s => validSignals.includes(s));
+        if (signals.length > 0) {
+            const placeholders = signals.map(() => '?').join(',');
+            whereClause += ` AND signal IN (${placeholders})`;
+            signals.forEach(s => queryParams.push(s));
         }
     }
 

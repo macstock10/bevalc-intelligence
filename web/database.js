@@ -162,11 +162,62 @@ document.addEventListener('DOMContentLoaded', async function() {
     checkAccess();
     setupEventListeners();
     await loadFilters();
+
+    // Apply URL parameters to filters before initial search
+    applyUrlFilters();
+
     await performSearch();
 
     // Check for ttb URL parameter to open modal directly
     await checkUrlModal();
 });
+
+// Read URL parameters and apply to filter elements
+function applyUrlFilters() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // Search query
+    const q = urlParams.get('q');
+    if (q && elements.searchInput) {
+        elements.searchInput.value = q;
+    }
+
+    // Category filter
+    const category = urlParams.get('category');
+    if (category && elements.filterCategory) {
+        elements.filterCategory.value = category;
+        updateSubcategoryDropdown();
+    }
+
+    // Origin filter
+    const origin = urlParams.get('origin');
+    if (origin && elements.filterOrigin) {
+        elements.filterOrigin.value = origin;
+    }
+
+    // Status filter
+    const status = urlParams.get('status');
+    if (status && elements.filterStatus) {
+        elements.filterStatus.value = status;
+    }
+
+    // Date range filters
+    const dateFrom = urlParams.get('date_from');
+    if (dateFrom && elements.filterDateFrom) {
+        elements.filterDateFrom.value = dateFrom;
+    }
+
+    const dateTo = urlParams.get('date_to');
+    if (dateTo && elements.filterDateTo) {
+        elements.filterDateTo.value = dateTo;
+    }
+
+    // Signal filter (stored in state for API call, no UI element)
+    const signal = urlParams.get('signal');
+    if (signal) {
+        state.signalFilter = signal;
+    }
+}
 
 // Check for ttb parameter in URL and open modal if found
 async function checkUrlModal() {
@@ -479,7 +530,10 @@ async function performSearch() {
         
         const dateTo = elements.filterDateTo.value;
         if (dateTo) params.append('date_to', dateTo);
-        
+
+        // Signal filter from URL parameter (e.g., NEW_BRAND,NEW_SKU)
+        if (state.signalFilter) params.append('signal', state.signalFilter);
+
         const response = await fetch(`${API_BASE}/api/search?${params}`);
         const data = await response.json();
         
