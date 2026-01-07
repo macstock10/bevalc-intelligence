@@ -2283,7 +2283,7 @@ ${sitemaps.map(s => `  <sitemap>
         const brandsResult = await env.DB.prepare(`
             SELECT brand_name FROM (
                 SELECT brand_name, COUNT(*) as cnt FROM colas
-                GROUP BY brand_name HAVING cnt >= 2
+                GROUP BY brand_name HAVING cnt >= 1
                 ORDER BY cnt DESC
             )
             LIMIT ? OFFSET ?

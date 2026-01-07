@@ -10,6 +10,9 @@
 /sitemap-brands-3.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-3.xml 200
 /sitemap-brands-4.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-4.xml 200
 /sitemap-brands-5.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-5.xml 200
+/sitemap-brands-6.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-6.xml 200
+/sitemap-brands-7.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-7.xml 200
+/sitemap-brands-8.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-8.xml 200
 
 # Proxy API routes to Cloudflare Worker
 /api/*      https://bevalc-api.mac-rowan.workers.dev/api/:splat      200

@@ -217,9 +217,10 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 **`brands`** table: Brand entities (257K brands)
 - `brand_key` (PK), `company_key`, `brand_name`, `brand_name_norm`, `first_seen_date`, `first_seen_ttb_id`, `filing_count`, `created_at`
 
-**`brand_slugs`** table: Fast slug-to-brand lookup for SEO pages (120K entries)
+**`brand_slugs`** table: Fast slug-to-brand lookup for SEO pages (240K entries)
 - `slug` (PK), `brand_name`, `filing_count`
 - Used by brand SEO pages for O(1) lookup instead of GROUP BY
+- **TODO**: `weekly_update.py` should add new brands to this table when they appear
 
 **`user_preferences`** table: Pro user category subscriptions
 - `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
@@ -277,16 +278,14 @@ ORDER BY filings DESC;
 
 **URL Structure:**
 - `/company/[slug]` - Company pages (21,509 pages with 3+ filings)
-- `/brand/[slug]` - Brand pages (122,868 pages with 2+ filings)
+- `/brand/[slug]` - Brand pages (240,605 pages with 1+ filings)
 - `/category/[category]/[year]` - Category trend pages (~70 pages)
 
 **Sitemap Structure** (split for Google's 50k URL limit):
 - `/sitemap.xml` - Sitemap index pointing to child sitemaps
 - `/sitemap-static.xml` - Static pages + category pages (~62 URLs)
 - `/sitemap-companies.xml` - All company pages (~21k URLs)
-- `/sitemap-brands-1.xml` - Brands 1-45k
-- `/sitemap-brands-2.xml` - Brands 45k-90k
-- `/sitemap-brands-3.xml` - Brands 90k+ (remaining ~33k)
+- `/sitemap-brands-1.xml` through `/sitemap-brands-6.xml` - All brands (~240k URLs, 45k per file)
 
 Sitemaps are dynamically generated and auto-expand as new brands are added.
 
