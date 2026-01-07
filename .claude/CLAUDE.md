@@ -217,6 +217,10 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 **`brands`** table: Brand entities (257K brands)
 - `brand_key` (PK), `company_key`, `brand_name`, `brand_name_norm`, `first_seen_date`, `first_seen_ttb_id`, `filing_count`, `created_at`
 
+**`brand_slugs`** table: Fast slug-to-brand lookup for SEO pages (120K entries)
+- `slug` (PK), `brand_name`, `filing_count`
+- Used by brand SEO pages for O(1) lookup instead of GROUP BY
+
 **`user_preferences`** table: Pro user category subscriptions
 - `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
 
@@ -261,10 +265,10 @@ ORDER BY filings DESC;
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via email_sender.py
 
-2. SEO pages slow on first load (~5-10s uncached) - D1 queries are slow for:
-   - Brand lookups (no index on brand_name slug)
-   - Related brands query (full table scan)
-   - Consider creating a `brands` lookup table with slugs (like companies)
+2. ~~SEO pages slow on first load~~ **FIXED** - now 0.1-0.3s:
+   - Created `brand_slugs` table for fast brand lookups
+   - Added indexes on `colas.company_name` and `colas.brand_name`
+   - Removed slow related brands query (would need precomputed table)
 
 3. Scraping vulnerability - all data accessible via SEO pages + sitemap
    - Consider: rate limiting SEO pages, limiting data shown, honeypot entries
