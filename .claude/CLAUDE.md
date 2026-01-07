@@ -252,11 +252,12 @@ ORDER BY filings DESC;
 - [x] Email templates: WeeklyReport, Welcome
 - [x] Weekly report email with real D1 data (send_weekly_report.py)
 - [x] Company name normalization (34K → 25K companies, 26% reduction)
-- [x] Programmatic SEO pages (~145K pages: companies, brands, categories)
-- [x] Dynamic sitemap.xml (split into 5 files for Google 50k limit)
+- [x] Programmatic SEO pages (~262K pages: 21K companies, 240K brands, categories)
+- [x] Dynamic sitemap.xml (split into 10 files for Google 50k limit)
 - [x] SEO page caching (1hr browser, 24hr edge)
 - [x] Google Search Console sitemap submitted
-- [x] Database modal links to brand/company SEO pages
+- [x] Database modal links to brand/company SEO pages (open in new tab)
+- [x] Brand slugs auto-updated by weekly_update.py (new brands get SEO pages automatically)
 - [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 - [ ] Scraping protection (rate limiting, bot detection)
 
