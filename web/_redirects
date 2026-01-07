@@ -1,0 +1,8 @@
+# Proxy SEO pages to Cloudflare Worker
+/company/*  https://bevalc-api.mac-rowan.workers.dev/company/:splat  200
+/brand/*    https://bevalc-api.mac-rowan.workers.dev/brand/:splat    200
+/category/* https://bevalc-api.mac-rowan.workers.dev/category/:splat 200
+/sitemap.xml https://bevalc-api.mac-rowan.workers.dev/sitemap.xml   200
+
+# Proxy API routes to Cloudflare Worker
+/api/*      https://bevalc-api.mac-rowan.workers.dev/api/:splat      200

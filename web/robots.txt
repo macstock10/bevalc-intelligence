@@ -1,0 +1,11 @@
+# BevAlc Intelligence - robots.txt
+# Allow all crawlers to index all pages
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://bevalcintel.com/sitemap.xml
+
+# Crawl-delay for politeness (optional)
+Crawl-delay: 1
