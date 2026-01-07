@@ -175,14 +175,12 @@ async function checkUrlModal() {
 
     if (ttbId) {
         try {
-            // Fetch the specific record by TTB ID
-            const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(ttbId)}&limit=1`);
+            // Fetch the full record by TTB ID using /api/record endpoint
+            const response = await fetch(`${API_BASE}/api/record?id=${encodeURIComponent(ttbId)}`);
             const data = await response.json();
 
-            if (data.success && data.data && data.data.length > 0) {
-                // Find exact match by ttb_id
-                const record = data.data.find(r => r.ttb_id === ttbId) || data.data[0];
-                openModal(record);
+            if (data.success && data.data) {
+                openModal(data.data);
             }
         } catch (e) {
             console.error('Error loading modal from URL:', e);

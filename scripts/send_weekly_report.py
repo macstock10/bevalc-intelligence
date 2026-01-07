@@ -658,11 +658,18 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     filing_spikes = sorted(filing_spikes, key=lambda x: x["percentIncrease"], reverse=True)[:3]
 
     # 5. Notable new brands (NEW_BRAND filings from this week)
+    # Filter by subscribed categories if user has preferences set
+    category_filter_sql = ""
+    if subscribed_categories:
+        category_conditions = [get_category_sql_filter(cat) for cat in subscribed_categories]
+        category_filter_sql = f"AND ({' OR '.join(category_conditions)})"
+
     notable_brands = d1_query(f"""
         SELECT ttb_id, brand_name, company_name, class_type_code
         FROM colas
         WHERE {this_week_sql}
         AND signal = 'NEW_BRAND'
+        {category_filter_sql}
         ORDER BY approval_date DESC
         LIMIT 5
     """)
@@ -678,15 +685,17 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
         })
 
     # 6. Full new filings list (first 20 NEW_BRAND + NEW_SKU)
+    # Also filtered by subscribed categories if user has preferences
     new_filings = d1_query(f"""
         SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
         FROM colas
         WHERE {this_week_sql}
         AND signal IN ('NEW_BRAND', 'NEW_SKU')
+        {category_filter_sql}
         ORDER BY
             CASE signal WHEN 'NEW_BRAND' THEN 1 ELSE 2 END,
             approval_date DESC
-        LIMIT 20
+        LIMIT 50
     """)
 
     new_filings_list = []
