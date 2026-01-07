@@ -52,7 +52,8 @@ bevalc-intelligence/
 │   ├── requirements.txt
 │   ├── weekly_update.py       # TTB scraper + D1 sync
 │   ├── weekly_report.py       # PDF report generator
-│   ├── send_weekly_report.py  # R2 upload + email send
+│   ├── send_weekly_report.py  # Query D1 + send weekly email
+│   ├── normalize_companies.py # Company name normalization
 │   └── src/
 │       └── email_sender.py    # Python wrapper for email system
 ├── web/                       # Frontend (Netlify)
@@ -175,7 +176,8 @@ node emails/send.js welcome --to you@example.com --firstName "John"
 | `web/auth.js` | Stripe checkout, Pro user detection |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
 | `scripts/weekly_report.py` | PDF report generator |
-| `scripts/send_weekly_report.py` | R2 upload + email send |
+| `scripts/send_weekly_report.py` | Query D1 + send weekly email via Resend |
+| `scripts/normalize_companies.py` | Company name normalization (fuzzy matching) |
 | `emails/send.js` | Resend email sender (CLI + API) |
 | `emails/templates/*.jsx` | React Email templates (WeeklyReport, Welcome) |
 | `scripts/src/email_sender.py` | Python wrapper for email system |
@@ -203,6 +205,16 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 **`colas`** table: 1M+ COLA records
 - `ttb_id` (PK), `brand_name`, `fanciful_name`, `class_type_code`, `origin_code`, `approval_date`, `status`, `company_name`, `state`, `year`, `month`, `signal` (NEW_BRAND/NEW_SKU/REFILE)
 
+**`companies`** table: Normalized company entities (25,224 companies from 34,178 raw names)
+- `id` (PK), `canonical_name`, `display_name`, `match_key`, `total_filings`, `variant_count`, `first_filing`, `last_filing`, `confidence`, `created_at`
+
+**`company_aliases`** table: Maps raw company_name strings to normalized company IDs
+- `id` (PK), `raw_name` (UNIQUE), `company_id` (FK → companies), `created_at`
+- Use this to join colas.company_name to companies table
+
+**`brands`** table: Brand entities (257K brands)
+- `brand_key` (PK), `company_key`, `brand_name`, `brand_name_norm`, `first_seen_date`, `first_seen_ttb_id`, `filing_count`, `created_at`
+
 **`user_preferences`** table: Pro user category subscriptions
 - `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
 
@@ -211,17 +223,13 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 - Unique constraint on (email, type, value)
 
 ```sql
--- Create watchlist table (run via wrangler d1 execute)
-CREATE TABLE IF NOT EXISTS watchlist (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT NOT NULL,
-    type TEXT NOT NULL,
-    value TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(email, type, value)
-);
-CREATE INDEX IF NOT EXISTS idx_watchlist_email ON watchlist(email);
-CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
+-- Query filings by normalized company name
+SELECT c.canonical_name, COUNT(*) as filings
+FROM colas co
+JOIN company_aliases ca ON co.company_name = ca.raw_name
+JOIN companies c ON ca.company_id = c.id
+GROUP BY c.id
+ORDER BY filings DESC;
 ```
 
 ## Current State (Last Updated: 2026-01-06)
@@ -235,37 +243,41 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_type_value ON watchlist(type, value);
 - [x] Watchlist API endpoints (add/remove/check/counts)
 - [x] React Email + Resend email system (replaces Loops)
 - [x] Email templates: WeeklyReport, Welcome
-- [ ] Weekly report automation (not yet tested with Resend)
+- [x] Weekly report email with real D1 data (send_weekly_report.py)
+- [x] Company name normalization (34K → 25K companies, 26% reduction)
 - [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 
 ### Known Issues
-1. Weekly report workflow not yet tested with new Resend email system
-2. Need to update send_weekly_report.py to use new email_sender.py wrapper
-3. Watchlist email alerts not implemented - requires:
+1. Watchlist email alerts not implemented - requires:
    - New WatchlistAlert.jsx email template
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via email_sender.py
 
-### Major TODO: Company Name Normalization (BLOCKS NEW_COMPANY SIGNAL)
+### Company Name Normalization (COMPLETED 2026-01-06)
 
-**Problem:** The same company appears under many string variations (e.g., "DIAGEO NORTH AMERICA INC", "Diageo North America, Inc.", "DIAGEO NORTH AMERICA"). The database has 34,179 unique `company_name` values, but many are duplicates. This makes NEW_COMPANY classification unreliable and blocks company-level features.
+**Solution implemented:**
+- Created `companies` table (25,224 normalized entities)
+- Created `company_aliases` table (34,178 raw name → company_id mappings)
+- Script: `scripts/normalize_companies.py` with fuzzy matching via `rapidfuzz`
+- Compound name parsing extracts legal entities (e.g., "DON JULIO, DIAGEO INC" → DIAGEO INC)
+- 26% reduction in duplicate companies
 
-**Data:**
-- 34K unique company_name strings
-- ~17K companies with <10 filings (long tail - most important for lead gen)
-- ~2,500 companies with 100+ filings (63% of all filings)
+**Results:**
+- Jackson Family Wines: 38 variants consolidated
+- E. & J. Gallo Winery: 23 variants consolidated
+- Foley Family Wines: 24 variants consolidated
+- Major companies (Diageo, Constellation, Pernod) correctly identified as separate legal entities
 
-**Proposed Solution:**
-1. Create `companies` table (canonical entities) and `company_aliases` table (raw string → company_id mapping)
-2. Normalize strings: uppercase, remove punctuation, standardize suffixes (INC/LLC/CORP)
-3. Fuzzy match remaining duplicates using `rapidfuzz` library
-4. Add `company_id` column to `colas` table
-5. Backfill 1.3M records (~60-90 min runtime)
-6. Update `weekly_update.py` to normalize on ingest
+**Usage:**
+```bash
+python scripts/normalize_companies.py --analyze   # Preview stats
+python scripts/normalize_companies.py --export    # Export to JSON
+python scripts/normalize_companies.py --apply     # Write to D1
+```
 
-**Estimated effort:** 2-3 hours development + 1-2 hours backfill runtime
-
-**Blocks:** NEW_COMPANY signal accuracy, company profile pages, company follow alerts, filing velocity metrics, growth tracking
+**Next steps to fully integrate:**
+1. Update `weekly_update.py` to normalize new companies on ingest
+2. Update NEW_COMPANY signal classification to use normalized company_id
 
 ## Technical Notes
 
