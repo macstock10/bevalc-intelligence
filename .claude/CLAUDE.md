@@ -251,6 +251,7 @@ ORDER BY filings DESC;
 - [x] Dynamic sitemap.xml (split into 5 files for Google 50k limit)
 - [x] SEO page caching (1hr browser, 24hr edge)
 - [x] Google Search Console sitemap submitted
+- [x] Database modal links to brand/company SEO pages
 - [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 - [ ] Scraping protection (rate limiting, bot detection)
 
@@ -378,6 +379,11 @@ The `signal` column is stored in D1 `colas` table, returned in search API, displ
 **Watchlist Track Options**: When viewing a COLA detail modal, Pro users see "Track" pills for Brand and Company only. Subcategory and Keyword options were removed to keep it simple.
 
 **Hero Email Form**: The top email signup form on index.html shows an inline confirmation message (same as footer form) instead of redirecting to a thank-you page.
+
+**Database Modal Links**: When clicking a row in the database table, the modal now has clickable links:
+- Brand name (modal title) → `/brand/[slug]` SEO page
+- Company name → `/company/[slug]` SEO page
+Uses `makeSlug()` function in database.js to generate URL slugs.
 
 ## Email System (React Email + Resend)
 

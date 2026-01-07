@@ -662,7 +662,13 @@ function updateResultsCount(pagination) {
 // ============================================
 
 function openModal(record) {
-    elements.modalTitle.textContent = record.brand_name || 'Unknown Brand';
+    // Make brand name a clickable link to brand page
+    const brandSlug = makeSlug(record.brand_name);
+    if (brandSlug) {
+        elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>`;
+    } else {
+        elements.modalTitle.textContent = record.brand_name || 'Unknown Brand';
+    }
     elements.modalSubtitle.textContent = `TTB ID: ${record.ttb_id}`;
     
     // Get user info for Pro check
@@ -712,7 +718,7 @@ function openModal(record) {
         {
             title: 'Company Information',
             fields: [
-                { label: 'Company Name', value: record.company_name },
+                { label: 'Company Name', value: record.company_name, isCompanyLink: true },
                 { label: 'Street', value: record.street, isPro: true },
                 { label: 'State', value: record.state },
                 { label: 'Contact Person', value: record.contact_person, isPro: true },
@@ -777,6 +783,19 @@ function openModal(record) {
                             }
                         }
                         
+                        // Company link field
+                        if (f.isCompanyLink && f.value) {
+                            const companySlug = makeSlug(f.value);
+                            return `
+                                <div class="detail-item">
+                                    <span class="detail-label">${f.label}</span>
+                                    <span class="detail-value">
+                                        <a href="/company/${companySlug}" style="color: var(--color-primary);">${escapeHtml(f.value)}</a>
+                                    </span>
+                                </div>
+                            `;
+                        }
+
                         // Free field: normal rendering
                         return `
                             <div class="detail-item">
@@ -1279,4 +1298,13 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function makeSlug(text) {
+    if (!text) return '';
+    return text
+        .toLowerCase()
+        .replace(/['']/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 }
