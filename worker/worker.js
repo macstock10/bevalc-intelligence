@@ -1303,7 +1303,8 @@ async function handleSearch(url, env) {
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        orderByClause = `ORDER BY approval_date ${sortOrder}, id ${sortOrder}`;
+        // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -1311,7 +1312,7 @@ async function handleSearch(url, env) {
     const dataQuery = `
         SELECT
             ttb_id, status, brand_name, fanciful_name,
-            class_type_code, origin_code, approval_date, signal
+            class_type_code, origin_code, approval_date, signal, refile_count
         FROM colas
         WHERE ${whereClause}
         ${orderByClause}
@@ -1464,7 +1465,8 @@ async function handleExport(url, env) {
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        orderByClause = `ORDER BY approval_date ${sortOrder}, id ${sortOrder}`;
+        // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -1862,12 +1864,13 @@ async function handleCompanyPage(path, env, corsHeaders) {
     const categories = categoriesResult.results || [];
 
     // Get recent filings (include the actual filing company_name)
+    // Use year/month/day for proper chronological sorting (newest first, so NEW_COMPANY appears at bottom)
     const recentResult = await env.DB.prepare(`
         SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, co.company_name as filing_entity
         FROM colas co
         JOIN company_aliases ca ON co.company_name = ca.raw_name
         WHERE ca.company_id = ?
-        ORDER BY approval_date DESC
+        ORDER BY COALESCE(co.year, 9999) DESC, COALESCE(co.month, 99) DESC, CAST(SUBSTR(co.approval_date, 4, 2) AS INTEGER) DESC, co.ttb_id DESC
         LIMIT 10
     `).bind(company.id).all();
     const recentFilings = recentResult.results || [];
@@ -1885,6 +1888,20 @@ async function handleCompanyPage(path, env, corsHeaders) {
         `).bind(company.id).all();
         relatedCompanies = relatedResult.results || [];
     }
+
+    // Get DBA names (compound aliases like "DBA NAME, LEGAL ENTITY")
+    // Use UPPER() for deduplication, keep original case for display
+    const dbaResult = await env.DB.prepare(`
+        SELECT dba_name FROM (
+            SELECT TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1)) as dba_name,
+                   ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1))) ORDER BY raw_name) as rn
+            FROM company_aliases
+            WHERE company_id = ? AND raw_name LIKE '%,%'
+        ) WHERE rn = 1
+        ORDER BY dba_name
+        LIMIT 10
+    `).bind(company.id).all();
+    const dbaNames = (dbaResult.results || []).map(r => r.dba_name).filter(n => n && n.length > 0);
 
     // Calculate category percentages
     const totalCatFilings = categories.reduce((sum, c) => sum + c.cnt, 0);
@@ -1922,6 +1939,7 @@ async function handleCompanyPage(path, env, corsHeaders) {
         <header class="seo-header">
             <h1>${escapeHtml(company.display_name)} Brands & Portfolio</h1>
             <p class="meta">${formatNumber(brands.length)}+ Brands · ${formatNumber(company.total_filings)} Total Filings · Since ${escapeHtml(company.first_filing || 'N/A')}</p>
+            ${dbaNames.length > 0 ? `<p class="meta" style="margin-top: 4px; font-size: 0.9rem;">Also operates as: ${dbaNames.map(n => escapeHtml(n)).join(', ')}</p>` : ''}
         </header>
 
         <section class="seo-card pro-locked" style="margin-bottom: 32px;">
@@ -2084,10 +2102,11 @@ async function handleBrandPage(path, env, corsHeaders) {
     const timeline = timelineResult.results || [];
 
     // Get recent products
+    // Use year/month/day for proper chronological sorting (newest first)
     const productsResult = await env.DB.prepare(`
         SELECT ttb_id, fanciful_name, class_type_code, approval_date, signal
         FROM colas WHERE brand_name = ?
-        ORDER BY approval_date DESC
+        ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, ttb_id DESC
         LIMIT 15
     `).bind(brand.brand_name).all();
     const products = productsResult.results || [];
