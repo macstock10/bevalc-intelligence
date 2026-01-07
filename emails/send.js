@@ -14,11 +14,20 @@ import { render } from '@react-email/components';
 import { WeeklyReport } from './templates/WeeklyReport.jsx';
 import { Welcome } from './templates/Welcome.jsx';
 
-// Initialize Resend with API key from environment
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialize Resend (allows dotenv to load first)
+let _resend = null;
+function getResend() {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY environment variable is required');
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 // Default from address - update this with your verified domain
-const FROM_EMAIL = process.env.FROM_EMAIL || 'BevAlc Intelligence <hello@bevalcintel.com>';
+const getFromEmail = () => process.env.FROM_EMAIL || 'BevAlc Intelligence <hello@bevalcintel.com>';
 
 /**
  * Send the weekly report email
@@ -26,21 +35,39 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'BevAlc Intelligence <hello@bevalci
 export async function sendWeeklyReport({
   to,
   weekEnding,
-  downloadLink,
-  newFilingsCount = null,
-  newBrandsCount = null,
+  summary,
+  totalFilings,
+  newBrands,
+  newSkus,
+  newCompanies,
+  topFiler,
+  topFilerCount,
+  categoryData,
+  topCompaniesList,
+  topExtensionsList,
+  proPreviewLabel,
+  databaseUrl,
 }) {
   const html = await render(
     WeeklyReport({
       weekEnding,
-      downloadLink,
-      ...(newFilingsCount && { newFilingsCount }),
-      ...(newBrandsCount && { newBrandsCount }),
+      summary,
+      totalFilings,
+      newBrands,
+      newSkus,
+      newCompanies,
+      topFiler,
+      topFilerCount,
+      categoryData,
+      topCompaniesList,
+      topExtensionsList,
+      proPreviewLabel,
+      databaseUrl,
     })
   );
 
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
+  const result = await getResend().emails.send({
+    from: getFromEmail(),
     to,
     subject: `Your BevAlc Weekly Snapshot - ${weekEnding}`,
     html,
@@ -63,8 +90,8 @@ export async function sendWelcome({
     })
   );
 
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
+  const result = await getResend().emails.send({
+    from: getFromEmail(),
     to,
     subject: firstName
       ? `Welcome to BevAlc Intelligence, ${firstName}!`
@@ -101,8 +128,8 @@ export async function sendTestEmail({
 
   const html = await render(Component(props));
 
-  const result = await resend.emails.send({
-    from: FROM_EMAIL,
+  const result = await getResend().emails.send({
+    from: getFromEmail(),
     to,
     subject,
     html,

@@ -304,6 +304,91 @@ The `signal` column is stored in D1 `colas` table, returned in search API, displ
 
 The email system uses React Email for templates and Resend for delivery. This replaces the previous Loops.so integration.
 
+### Email Flow Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           EMAIL TRIGGERS & RECIPIENTS                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────┐                                                       │
+│  │ 1. WELCOME EMAIL │                                                       │
+│  └────────┬─────────┘                                                       │
+│           │                                                                  │
+│   TRIGGER: User signs up via form on index.html                             │
+│   WHO GETS IT: New subscriber (single email)                                │
+│   WHEN: Immediately after signup                                            │
+│   SENT BY: Worker (after creating user_preferences record)                  │
+│   STATUS: Template ready, NOT YET WIRED UP to worker.js                     │
+│                                                                              │
+│  ┌────────────────────────┐                                                 │
+│  │ 2. WEEKLY REPORT EMAIL │                                                 │
+│  └────────┬───────────────┘                                                 │
+│           │                                                                  │
+│   TRIGGER: GitHub Action cron (Mondays 8am UTC)                             │
+│   WHO GETS IT: All users where subscribed_free_report = 1 (in D1)           │
+│   WHEN: Every Monday morning                                                │
+│   SENT BY: scripts/send_weekly_report.py                                    │
+│   STATUS: Template ready, send_weekly_report.py needs update to use Resend  │
+│                                                                              │
+│  ┌─────────────────────────┐                                                │
+│  │ 3. WATCHLIST ALERT      │  (NOT YET BUILT)                               │
+│  └────────┬────────────────┘                                                │
+│           │                                                                  │
+│   TRIGGER: New COLA matches a user's watchlist (brand or company)           │
+│   WHO GETS IT: Pro users with matching watchlist items                      │
+│   WHEN: After weekly_update.py finds matches                                │
+│   SENT BY: weekly_update.py (to be implemented)                             │
+│   STATUS: Needs template + logic in weekly_update.py                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Email Templates
+
+| Template | File | Trigger | Recipients |
+|----------|------|---------|------------|
+| Welcome | `emails/templates/Welcome.jsx` | User signup | Single new subscriber |
+| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Monday cron job | All free subscribers |
+| WatchlistAlert | NOT BUILT | New COLA matches watchlist | Pro users with matches |
+
+#### WeeklyReport Template Features
+The weekly report is an embedded HTML email (not a PDF attachment) with:
+- **Summary** - AI-generated one-liner about the week's trends
+- **Stat Tiles** - Total Filings, New Brands, New SKUs, New Companies, Top Filer
+- **Category Breakdown** - CSS bar charts showing filings by category
+- **Top Filing Companies** - Companies ranked by total filings this week (green header)
+- **Top Brand Extensions** - Brands adding the most new SKUs this week (blue header)
+- **Pro Feature Preview** - Single COLA teaser with signal badge (NEW_BRAND/NEW_SKU) and TTB link
+- **CTA** - "See more on database" linking to bevalcintel.com/database
+
+Category color badges: Whiskey (amber), Tequila (green), Vodka (blue), Wine (red), Beer (yellow), RTD (purple), Gin (cyan)
+
+#### Data Source
+The test-email.js uses hardcoded sample data. When the weekly report is sent for real via send_weekly_report.py, it will query D1 for actual data:
+- `topCompaniesList` - Query: companies with most filings in the past week
+- `topExtensionsList` - Query: brands with most NEW_SKU filings in the past week
+- `categoryData` - Query: filings grouped by category code
+
+### User Segments (from D1 `user_preferences` table)
+
+| Segment | Query | Emails They Receive |
+|---------|-------|---------------------|
+| Free subscribers | `subscribed_free_report = 1` | Welcome, Weekly Report |
+| Pro users | `is_pro = 1` | Welcome, Weekly Report, Watchlist Alerts |
+| Unsubscribed | `subscribed_free_report = 0` | None |
+
+### Integration Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Email templates (JSX) | Ready | WeeklyReport, Welcome created |
+| Resend API integration | Ready | `emails/send.js` with lazy init |
+| Python wrapper | Ready | `scripts/src/email_sender.py` |
+| Worker welcome email | NOT WIRED | Need to call Resend after signup in worker.js |
+| send_weekly_report.py | NEEDS UPDATE | Currently uses Loops, needs to use email_sender.py |
+| Watchlist alerts | NOT BUILT | Need template + weekly_update.py logic |
+
 ### Setup
 
 ```bash
@@ -317,64 +402,39 @@ RESEND_API_KEY=re_xxxxxxxx
 FROM_EMAIL=BevAlc Intelligence <hello@bevalcintel.com>
 ```
 
-### Available Templates
-
-| Template | File | Purpose |
-|----------|------|---------|
-| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Weekly PDF report with download link |
-| Welcome | `emails/templates/Welcome.jsx` | New subscriber welcome email |
-
-### Testing Emails Locally
+### Testing Emails
 
 ```bash
-# Visual preview in browser (hot reload)
-cd emails && npm run dev      # Opens localhost:3001
-
-# Send test email to yourself
-node emails/test-email.js     # Interactive mode
-node emails/test-email.js --email you@example.com --template weekly-report
-node emails/test-email.js --email you@example.com --all
+cd emails
+npm test                       # Interactive test tool
+npm run dev                    # Preview in browser at localhost:3001
 ```
 
 ### Sending Emails
 
-**From Node.js:**
-```javascript
-import { sendWeeklyReport, sendWelcome } from './emails/send.js';
-
-await sendWeeklyReport({
-  to: 'user@example.com',
-  weekEnding: 'January 5, 2026',
-  downloadLink: 'https://...',
-  newFilingsCount: '847',
-  newBrandsCount: '23',
-});
-
-await sendWelcome({
-  to: 'user@example.com',
-  firstName: 'John',
-});
-```
-
-**From Python:**
+**From Python (recommended for scripts):**
 ```python
 from scripts.src.email_sender import send_weekly_report, send_welcome
 
-result = send_weekly_report(
+# Welcome email
+send_welcome(to="user@example.com", first_name="John")
+
+# Weekly report
+send_weekly_report(
     to="user@example.com",
     week_ending="January 5, 2026",
     download_link="https://...",
 )
+```
 
-result = send_welcome(to="user@example.com", first_name="John")
+**From Node.js (for worker.js):**
+```javascript
+import { sendWelcome } from './emails/send.js';
+await sendWelcome({ to: 'user@example.com', firstName: 'John' });
 ```
 
 ### Brand Colors (from style.css)
 
-The email templates use these brand colors:
 - Primary (teal): `#0d9488`
 - Text: `#1e293b`
-- Text Secondary: `#475569`
 - Background: `#ffffff`
-- Background Secondary: `#f8fafc`
-- Border: `#e2e8f0`

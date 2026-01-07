@@ -7,15 +7,21 @@
     "dev": "email dev --port 3001",
     "preview": "email preview",
     "build": "email build",
-    "test": "node test-email.js"
+    "test": "tsx test-email.js",
+    "send": "tsx send.js"
   },
   "dependencies": {
     "@react-email/components": "^0.0.31",
     "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-email": "^3.0.4",
     "resend": "^4.0.0"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.0"
+  },
+  "overrides": {
+    "react-dom": "^18.3.1"
   }
 }
