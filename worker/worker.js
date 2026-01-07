@@ -1652,10 +1652,28 @@ async function handleCompanyPage(path, env, corsHeaders) {
         return new Response('Not Found', { status: 404 });
     }
 
-    // Get company by slug
-    const company = await env.DB.prepare(`
+    // Get company by slug (try direct match first)
+    let company = await env.DB.prepare(`
         SELECT * FROM companies WHERE slug = ? AND total_filings >= 3
     `).bind(slug).first();
+
+    // If not found, try to find via company_aliases (handles DBA names like "Moonshine Depot, RMRH Enterprises")
+    if (!company) {
+        // Convert slug to search terms (e.g., "moonshine-depot-rmrh" -> ["moonshine", "depot", "rmrh"])
+        const searchTerms = slug.split('-').filter(t => t.length > 2);
+        // Search for raw_name containing these terms
+        if (searchTerms.length >= 2) {
+            const pattern = `%${searchTerms.slice(0, 3).join('%')}%`;
+            const aliasResult = await env.DB.prepare(`
+                SELECT c.* FROM companies c
+                JOIN company_aliases ca ON c.id = ca.company_id
+                WHERE UPPER(ca.raw_name) LIKE UPPER(?)
+                AND c.total_filings >= 3
+                LIMIT 1
+            `).bind(pattern).first();
+            company = aliasResult;
+        }
+    }
 
     if (!company) {
         return new Response('Company not found', { status: 404 });
