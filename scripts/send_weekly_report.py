@@ -388,8 +388,128 @@ def fetch_email_metrics() -> Dict:
 # PRO USER METRICS
 # ============================================================================
 
-def fetch_pro_metrics(user_email: str, watchlist: List[Dict]) -> Dict:
-    """Fetch metrics for a PRO user including watchlist matches and spikes."""
+# TTB codes that map to each category (for SQL filtering)
+CATEGORY_TTB_CODES = {
+    'Whiskey': ['WHISKY', 'WHISKEY', 'BOURBON', 'SCOTCH', 'RYE', 'MALT'],
+    'Vodka': ['VODKA'],
+    'Tequila': ['TEQUILA', 'MEZCAL', 'AGAVE'],
+    'Gin': ['GIN'],
+    'Wine': ['WINE', 'CHAMPAGNE', 'SPARKLING'],
+    'Beer': ['BEER', 'ALE', 'MALT BEVERAGES', 'STOUT', 'LAGER'],
+    'RTD': ['COCKTAIL', 'MARGARITA', 'SELTZER', 'COOLER'],
+    'Rum': ['RUM'],
+    'Brandy': ['BRANDY', 'COGNAC'],
+    'Liqueur': ['CORDIAL', 'AMARETTO', 'TRIPLE SEC', 'LIQUEUR'],
+}
+
+def get_category_sql_filter(category: str) -> str:
+    """Generate SQL filter to match a category based on TTB codes."""
+    codes = CATEGORY_TTB_CODES.get(category, [category])
+    conditions = [f"class_type_code LIKE '%{code}%'" for code in codes]
+    return f"({' OR '.join(conditions)})"
+
+
+def fetch_category_report(category: str, this_week_sql: str, last_week_sql: str) -> Dict:
+    """Fetch category-specific report data (new brands, new SKUs, top companies)."""
+    category_filter = get_category_sql_filter(category)
+
+    # Total filings in this category this week
+    total_result = d1_query(f"""
+        SELECT COUNT(*) as count FROM colas
+        WHERE {this_week_sql}
+        AND {category_filter}
+        AND status = 'APPROVED'
+    """)
+    total_filings = total_result[0]["count"] if total_result else 0
+
+    # Total filings last week for change calculation
+    last_week_result = d1_query(f"""
+        SELECT COUNT(*) as count FROM colas
+        WHERE {last_week_sql}
+        AND {category_filter}
+        AND status = 'APPROVED'
+    """)
+    last_week_count = last_week_result[0]["count"] if last_week_result else 0
+
+    # Calculate change
+    if last_week_count > 0:
+        pct_change = int(((total_filings - last_week_count) / last_week_count) * 100)
+        change = f"+{pct_change}%" if pct_change >= 0 else f"{pct_change}%"
+    else:
+        change = ""
+
+    # New Brands in this category
+    new_brands_result = d1_query(f"""
+        SELECT ttb_id, brand_name, company_name
+        FROM colas
+        WHERE {this_week_sql}
+        AND {category_filter}
+        AND signal = 'NEW_BRAND'
+        ORDER BY approval_date DESC
+        LIMIT 5
+    """)
+
+    new_brands = []
+    for row in new_brands_result:
+        new_brands.append({
+            "brand": row["brand_name"],
+            "company": row["company_name"],
+            "ttbId": row["ttb_id"],
+            "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+        })
+
+    # New SKUs in this category
+    new_skus_result = d1_query(f"""
+        SELECT ttb_id, brand_name, fanciful_name, company_name
+        FROM colas
+        WHERE {this_week_sql}
+        AND {category_filter}
+        AND signal = 'NEW_SKU'
+        ORDER BY approval_date DESC
+        LIMIT 5
+    """)
+
+    new_skus = []
+    for row in new_skus_result:
+        new_skus.append({
+            "brand": row["brand_name"],
+            "fancifulName": row.get("fanciful_name") or row["brand_name"],
+            "company": row["company_name"],
+            "ttbId": row["ttb_id"],
+            "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+        })
+
+    # Top companies filing in this category
+    top_companies_result = d1_query(f"""
+        SELECT company_name, COUNT(*) as filings
+        FROM colas
+        WHERE {this_week_sql}
+        AND {category_filter}
+        AND status = 'APPROVED'
+        GROUP BY company_name
+        ORDER BY filings DESC
+        LIMIT 3
+    """)
+
+    top_companies = []
+    for row in top_companies_result:
+        top_companies.append({
+            "company": row["company_name"],
+            "filings": row["filings"]
+        })
+
+    return {
+        "category": category,
+        "totalFilings": total_filings,
+        "change": change,
+        "newBrands": new_brands,
+        "newSkus": new_skus,
+        "topCompanies": top_companies,
+    }
+
+
+def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categories: List[str] = None) -> Dict:
+    """Fetch metrics for a PRO user including watchlist matches, spikes, and category reports."""
     this_week_start, this_week_end, last_week_start, last_week_end = get_week_dates()
     this_week_sql = date_range_sql(this_week_start, this_week_end)
     last_week_sql = date_range_sql(last_week_start, last_week_end)
@@ -397,6 +517,18 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict]) -> Dict:
 
     # Get base metrics first
     base_metrics = fetch_email_metrics()
+
+    # Fetch category-specific reports for user's subscribed categories
+    category_reports = []
+    if subscribed_categories:
+        for category in subscribed_categories:
+            try:
+                report = fetch_category_report(category, this_week_sql, last_week_sql)
+                # Only include if there's meaningful data
+                if report["totalFilings"] > 0 or report["newBrands"] or report["newSkus"]:
+                    category_reports.append(report)
+            except Exception as e:
+                logger.warning(f"Failed to fetch category report for {category}: {e}")
 
     # Extract watched brands and companies
     watched_brands = [w["value"] for w in watchlist if w.get("type") == "brand"]
@@ -603,6 +735,7 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict]) -> Dict:
         "notableNewBrands": notable_new_brands,
         "filingSpikes": filing_spikes,
         "newFilingsList": new_filings_list,
+        "categoryReports": category_reports,  # Category-specific data for subscribed categories
         "databaseUrl": "https://bevalcintel.com/database",
         "accountUrl": "https://bevalcintel.com/account.html",
         "preferencesUrl": "https://bevalcintel.com/preferences.html",
@@ -624,10 +757,10 @@ def get_free_subscribers() -> List[str]:
 
 
 def get_pro_subscribers() -> List[Dict]:
-    """Get Pro subscribers with their watchlist."""
-    # Get Pro users
+    """Get Pro subscribers with their watchlist and subscribed categories."""
+    # Get Pro users with their category subscriptions
     pro_users = d1_query("""
-        SELECT email, stripe_customer_id FROM user_preferences
+        SELECT email, stripe_customer_id, categories FROM user_preferences
         WHERE is_pro = 1
     """)
 
@@ -636,6 +769,13 @@ def get_pro_subscribers() -> List[Dict]:
         email = user.get("email")
         if not email:
             continue
+
+        # Parse subscribed categories from JSON
+        categories_json = user.get("categories") or "[]"
+        try:
+            subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
+        except json.JSONDecodeError:
+            subscribed_categories = []
 
         # Get their watchlist
         watchlist = d1_query(f"""
@@ -648,6 +788,7 @@ def get_pro_subscribers() -> List[Dict]:
             "watchlist": watchlist,
             "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
             "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
+            "subscribedCategories": subscribed_categories,
         })
 
     return pro_subscribers
@@ -758,12 +899,19 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
     if single_email:
         # Check if single email is a Pro user
         pro_check = d1_query(f"""
-            SELECT is_pro FROM user_preferences
+            SELECT is_pro, categories FROM user_preferences
             WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
         """)
         is_pro = pro_check[0].get("is_pro", 0) if pro_check else 0
 
         if is_pro:
+            # Parse subscribed categories
+            categories_json = pro_check[0].get("categories") or "[]" if pro_check else "[]"
+            try:
+                subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
+            except json.JSONDecodeError:
+                subscribed_categories = []
+
             watchlist = d1_query(f"""
                 SELECT type, value FROM watchlist
                 WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
@@ -773,8 +921,11 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
                 "watchlist": watchlist,
                 "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
                 "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
+                "subscribedCategories": subscribed_categories,
             }]
             logger.info(f"Sending Pro report to: {single_email}")
+            if subscribed_categories:
+                logger.info(f"  Subscribed categories: {', '.join(subscribed_categories)}")
         else:
             free_subscribers = [single_email]
             logger.info(f"Sending free report to: {single_email}")
@@ -816,10 +967,11 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
         for subscriber in pro_subscribers:
             email = subscriber["email"]
             watchlist = subscriber.get("watchlist", [])
+            subscribed_categories = subscriber.get("subscribedCategories", [])
 
             try:
                 # Fetch Pro-specific metrics for this user
-                pro_metrics = fetch_pro_metrics(email, watchlist)
+                pro_metrics = fetch_pro_metrics(email, watchlist, subscribed_categories)
                 pro_metrics["firstName"] = ""  # Could extract from email or store in DB
                 pro_metrics["watchedCompaniesCount"] = subscriber["watchedCompaniesCount"]
                 pro_metrics["watchedBrandsCount"] = subscriber["watchedBrandsCount"]
@@ -828,6 +980,7 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
                     logger.info(f"  [DRY RUN] Would send Pro report to: {email}")
                     logger.info(f"    - Watchlist matches: {len(pro_metrics.get('watchlistMatches', []))}")
                     logger.info(f"    - Filing spikes: {len(pro_metrics.get('filingSpikes', []))}")
+                    logger.info(f"    - Category reports: {len(pro_metrics.get('categoryReports', []))} ({', '.join(subscribed_categories) or 'none'})")
                     sent += 1
                 else:
                     if send_email_via_node(email, pro_metrics, "pro-weekly-report"):

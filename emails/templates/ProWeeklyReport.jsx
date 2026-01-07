@@ -105,6 +105,7 @@ function StatTile({ label, value, subtext, trend, highlight = false }) {
         padding: "16px",
         textAlign: "center",
         width: "33%",
+        verticalAlign: "top",
       }}
     >
       <Text
@@ -149,10 +150,11 @@ function StatTile({ label, value, subtext, trend, highlight = false }) {
   );
 }
 
-// CSS Bar Chart Row
+// CSS Bar Chart Row - uses pixel widths for email client compatibility
 function BarRow({ label, value, maxValue, color = colors.primary, link }) {
-  const percentage = Math.min(Math.round((value / maxValue) * 100), 100);
-  const barWidth = Math.max(percentage, 5);
+  // Calculate pixel width (max bar is 140px, min is 10px)
+  const barWidthPx = Math.max(Math.round((value / maxValue) * 140), 10);
+  const remainingPx = 140 - barWidthPx;
 
   const labelContent = link ? (
     <Link
@@ -210,11 +212,18 @@ function BarRow({ label, value, maxValue, color = colors.primary, link }) {
                 style={{
                   backgroundColor: color,
                   height: "14px",
-                  width: `${barWidth}%`,
-                  borderRadius: "4px",
+                  width: `${barWidthPx}px`,
+                  borderRadius: barWidthPx === 140 ? "4px" : "4px 0 0 4px",
                 }}
               ></td>
-              <td style={{ height: "14px" }}></td>
+              {remainingPx > 0 && (
+                <td
+                  style={{
+                    height: "14px",
+                    width: `${remainingPx}px`,
+                  }}
+                ></td>
+              )}
             </tr>
           </tbody>
         </table>
@@ -401,6 +410,215 @@ function SectionHeader({ title, subtitle, color = colors.text, icon }) {
   );
 }
 
+// Category icons mapping
+const categoryIcons = {
+  Whiskey: "🥃",
+  Vodka: "🍸",
+  Tequila: "🌵",
+  Rum: "🏝️",
+  Gin: "🫒",
+  Brandy: "🍇",
+  Wine: "🍷",
+  Beer: "🍺",
+  Liqueur: "🍬",
+  RTD: "🥤",
+};
+
+// Category Report Section Component
+function CategoryReportSection({ category, data }) {
+  const colorScheme = categoryColors[category] || categoryColors.default;
+  const icon = categoryIcons[category] || "📦";
+  const hasNewBrands = data.newBrands && data.newBrands.length > 0;
+  const hasNewSkus = data.newSkus && data.newSkus.length > 0;
+  const hasTopCompanies = data.topCompanies && data.topCompanies.length > 0;
+
+  return (
+    <>
+      <Hr style={{ borderTop: `2px solid ${colorScheme.text}`, margin: "24px 0" }} />
+
+      {/* Category Header */}
+      <Text
+        style={{
+          fontSize: "18px",
+          fontWeight: "700",
+          color: colorScheme.text,
+          margin: "0 0 4px 0",
+        }}
+      >
+        {icon} {category} Report
+      </Text>
+      <Text
+        style={{
+          fontSize: "13px",
+          color: colors.textSecondary,
+          margin: "0 0 16px 0",
+        }}
+      >
+        {data.totalFilings} filings this week
+        {data.change && ` (${data.change} vs last week)`}
+      </Text>
+
+      {/* New Brands in Category */}
+      {hasNewBrands && (
+        <>
+          <Text
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: colorScheme.text,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              margin: "0 0 8px 0",
+            }}
+          >
+            New Brands
+          </Text>
+          <table
+            width="100%"
+            cellPadding="0"
+            cellSpacing="0"
+            style={{
+              borderRadius: "8px",
+              border: `1px solid ${colorScheme.text}`,
+              borderCollapse: "separate",
+              overflow: "hidden",
+              marginBottom: "16px",
+            }}
+          >
+            <tbody>
+              <tr style={{ backgroundColor: colorScheme.bg }}>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}>TTB</td>
+              </tr>
+              {data.newBrands.slice(0, 5).map((item, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
+                    <BrandLink name={item.brand} style={{ fontWeight: "500" }} />
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", color: colors.textSecondary, borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
+                    <CompanyLink name={item.company} />
+                  </td>
+                  <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
+                    <Link href={item.ttbLink} style={{ color: colorScheme.text, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* New SKUs in Category */}
+      {hasNewSkus && (
+        <>
+          <Text
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: colorScheme.text,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              margin: "0 0 8px 0",
+            }}
+          >
+            New SKUs
+          </Text>
+          <table
+            width="100%"
+            cellPadding="0"
+            cellSpacing="0"
+            style={{
+              borderRadius: "8px",
+              border: `1px solid ${colors.border}`,
+              borderCollapse: "separate",
+              overflow: "hidden",
+              marginBottom: "16px",
+            }}
+          >
+            <tbody>
+              <tr style={{ backgroundColor: colors.bgTertiary }}>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand / Product</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}>TTB</td>
+              </tr>
+              {data.newSkus.slice(0, 5).map((item, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
+                    <BrandLink name={item.brand} style={{ fontWeight: "500" }} />
+                    {item.fancifulName && item.fancifulName !== item.brand && (
+                      <Text style={{ fontSize: "11px", color: colors.textTertiary, margin: "2px 0 0 0", wordBreak: "break-word" }}>{item.fancifulName}</Text>
+                    )}
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", color: colors.textSecondary, borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
+                    <CompanyLink name={item.company} />
+                  </td>
+                  <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
+                    <Link href={item.ttbLink} style={{ color: colors.primary, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Top Companies in Category */}
+      {hasTopCompanies && (
+        <>
+          <Text
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: colorScheme.text,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              margin: "0 0 8px 0",
+            }}
+          >
+            Top Filers in {category}
+          </Text>
+          <table
+            width="100%"
+            cellPadding="0"
+            cellSpacing="0"
+            style={{
+              borderRadius: "8px",
+              border: `1px solid ${colors.border}`,
+              borderCollapse: "separate",
+              overflow: "hidden",
+              marginBottom: "8px",
+            }}
+          >
+            <tbody>
+              {data.topCompanies.slice(0, 3).map((item, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", borderBottom: i < Math.min(data.topCompanies.length, 3) - 1 ? `1px solid ${colors.border}` : "none" }}>
+                    <CompanyLink name={item.company} style={{ fontWeight: "500" }} />
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: "13px", fontWeight: "600", color: colors.text, borderBottom: i < Math.min(data.topCompanies.length, 3) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "right", width: "80px" }}>
+                    {item.filings} filings
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Link to category page */}
+      <Text style={{ fontSize: "12px", color: colors.textTertiary, margin: "8px 0 0 0" }}>
+        <Link
+          href={`https://bevalcintel.com/category/${makeSlug(category)}/${new Date().getFullYear()}`}
+          style={{ color: colorScheme.text, textDecoration: "none" }}
+        >
+          View all {category} filings →
+        </Link>
+      </Text>
+    </>
+  );
+}
+
 // Main Pro Weekly Report Component
 export function ProWeeklyReport({
   // Personalization
@@ -568,6 +786,45 @@ export function ProWeeklyReport({
     },
   ],
 
+  // Category-specific reports (based on user's subscribed categories)
+  categoryReports = [
+    {
+      category: "Whiskey",
+      totalFilings: 487,
+      change: "+15%",
+      newBrands: [
+        { brand: "Kentucky Owl", company: "Kentucky Owl LLC", ttbId: "24087001000457", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000457" },
+        { brand: "Bardstown Bourbon", company: "Bardstown Bourbon Company", ttbId: "24087001000458", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000458" },
+      ],
+      newSkus: [
+        { brand: "Buffalo Trace", fancifulName: "Buffalo Trace Single Barrel Select", company: "Sazerac Company", ttbId: "24087001000461", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000461" },
+        { brand: "Maker's Mark", fancifulName: "Maker's Mark 46 Cask Strength", company: "Beam Suntory", ttbId: "24087001000462", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000462" },
+      ],
+      topCompanies: [
+        { company: "Sazerac Company", filings: 34 },
+        { company: "Brown-Forman Corporation", filings: 28 },
+        { company: "Beam Suntory", filings: 22 },
+      ],
+    },
+    {
+      category: "Tequila",
+      totalFilings: 356,
+      change: "+23%",
+      newBrands: [
+        { brand: "Casa Dragones", company: "Casa Dragones LLC", ttbId: "24087001000456", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000456" },
+      ],
+      newSkus: [
+        { brand: "Casamigos", fancifulName: "Casamigos Cristalino", company: "Casamigos Spirits Company", ttbId: "24087001000455", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000455" },
+        { brand: "Teremana", fancifulName: "Teremana Cristalino", company: "Teremana LLC", ttbId: "24087001000463", ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000463" },
+      ],
+      topCompanies: [
+        { company: "Diageo Americas Supply Inc", filings: 45 },
+        { company: "Becle S.A.B.", filings: 32 },
+        { company: "Proximo Spirits", filings: 24 },
+      ],
+    },
+  ],
+
   // Links
   databaseUrl = "https://bevalcintel.com/database",
   accountUrl = "https://bevalcintel.com/account.html",
@@ -577,6 +834,7 @@ export function ProWeeklyReport({
   const greeting = firstName ? `${firstName}, here's your` : "Your";
   const hasWatchlistMatches = watchlistMatches && watchlistMatches.length > 0;
   const hasFilingSpikes = filingSpikes && filingSpikes.length > 0;
+  const hasCategoryReports = categoryReports && categoryReports.length > 0;
 
   return (
     <Html>
@@ -858,7 +1116,7 @@ export function ProWeeklyReport({
             {/* Category Breakdown */}
             <SectionHeader
               title="Filings by Category"
-              subtitle="Total approvals across all categories this week"
+              subtitle="Unique filings across all categories this week"
             />
             <table
               width="100%"
@@ -1326,6 +1584,11 @@ export function ProWeeklyReport({
                 ))}
               </tbody>
             </table>
+
+            {/* Category-Specific Reports (based on user's subscribed categories) */}
+            {hasCategoryReports && categoryReports.map((report, idx) => (
+              <CategoryReportSection key={idx} category={report.category} data={report} />
+            ))}
 
             <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
 
