@@ -71,6 +71,42 @@ function makeSlug(name) {
     .replace(/^-+|-+$/g, "");
 }
 
+// Helper to generate database modal link
+function getDatabaseLink(ttbId) {
+  return `https://bevalcintel.com/database?q=${ttbId}`;
+}
+
+// Helper to group and sort filings by category
+function groupByCategory(filings) {
+  // Group by category
+  const grouped = {};
+  for (const filing of filings) {
+    const cat = filing.category || 'Other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(filing);
+  }
+
+  // Sort each group alphabetically by brand name
+  for (const cat in grouped) {
+    grouped[cat].sort((a, b) => (a.brand || '').localeCompare(b.brand || ''));
+  }
+
+  // Define category order (most common first)
+  const categoryOrder = ['Whiskey', 'Tequila', 'Vodka', 'Wine', 'Beer', 'RTD', 'Gin', 'Rum', 'Brandy', 'Liqueur', 'Other'];
+
+  // Sort categories by predefined order
+  const sortedCategories = Object.keys(grouped).sort((a, b) => {
+    const aIdx = categoryOrder.indexOf(a);
+    const bIdx = categoryOrder.indexOf(b);
+    if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+
+  return { grouped, sortedCategories };
+}
+
 // Pro Badge Component
 function ProBadge() {
   return (
@@ -324,25 +360,19 @@ function WatchlistRow({ filing, index, totalRows }) {
           padding: "12px",
           fontSize: "13px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+          wordBreak: "break-word",
         }}
       >
         <BrandLink name={filing.brand} style={{ fontWeight: "600" }} />
         <br />
-        <Text
-          style={{
-            fontSize: "12px",
-            color: colors.textTertiary,
-            margin: "4px 0 0 0",
-          }}
-        >
-          {filing.fancifulName || filing.brand}
-        </Text>
+        <CategoryBadge category={filing.category} />
       </td>
       <td
         style={{
           padding: "12px",
           fontSize: "13px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+          wordBreak: "break-word",
         }}
       >
         <CompanyLink name={filing.company} />
@@ -363,7 +393,7 @@ function WatchlistRow({ filing, index, totalRows }) {
         }}
       >
         <Link
-          href={filing.ttbLink}
+          href={getDatabaseLink(filing.ttbId)}
           style={{
             color: colors.primary,
             fontSize: "12px",
@@ -489,7 +519,7 @@ function CategoryReportSection({ category, data }) {
               <tr style={{ backgroundColor: colorScheme.bg }}>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand</td>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
-                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}>TTB</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}></td>
               </tr>
               {data.newBrands.slice(0, 5).map((item, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
@@ -500,7 +530,7 @@ function CategoryReportSection({ category, data }) {
                     <CompanyLink name={item.company} />
                   </td>
                   <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
-                    <Link href={item.ttbLink} style={{ color: colorScheme.text, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
+                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colorScheme.text, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
                   </td>
                 </tr>
               ))}
@@ -540,7 +570,7 @@ function CategoryReportSection({ category, data }) {
               <tr style={{ backgroundColor: colors.bgTertiary }}>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand / Product</td>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
-                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}>TTB</td>
+                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}></td>
               </tr>
               {data.newSkus.slice(0, 5).map((item, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
@@ -554,7 +584,7 @@ function CategoryReportSection({ category, data }) {
                     <CompanyLink name={item.company} />
                   </td>
                   <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
-                    <Link href={item.ttbLink} style={{ color: colors.primary, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
+                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colors.primary, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
                   </td>
                 </tr>
               ))}
@@ -829,8 +859,17 @@ export function ProWeeklyReport({
   databaseUrl = "https://bevalcintel.com/database",
   accountUrl = "https://bevalcintel.com/account.html",
   preferencesUrl = "https://bevalcintel.com/preferences.html",
+
+  // Date range for CSV export link (YYYY-MM-DD format)
+  weekStartDate = "",
+  weekEndDate = "",
 }) {
   const maxCategoryValue = Math.max(...categoryData.map((d) => d.value));
+
+  // Build CSV export URL with date filters
+  const csvExportUrl = weekStartDate && weekEndDate
+    ? `${databaseUrl}?date_from=${weekStartDate}&date_to=${weekEndDate}`
+    : databaseUrl;
   const greeting = firstName ? `${firstName}, here's your` : "Your";
   const hasWatchlistMatches = watchlistMatches && watchlistMatches.length > 0;
   const hasFilingSpikes = filingSpikes && filingSpikes.length > 0;
@@ -976,15 +1015,15 @@ export function ProWeeklyReport({
               width="100%"
               cellPadding="0"
               cellSpacing="8"
-              style={{ marginBottom: "24px" }}
+              style={{ marginBottom: "12px" }}
             >
               <tbody>
                 <tr>
                   <StatTile label="New Companies" value={newCompanies} />
                   <StatTile
-                    label="Top Filer"
-                    value={topFiler}
-                    subtext={`${topFilerCount} filings`}
+                    label="Categories"
+                    value={categoryData.length}
+                    subtext="active"
                   />
                   <StatTile
                     label="Watchlist"
@@ -995,6 +1034,25 @@ export function ProWeeklyReport({
                 </tr>
               </tbody>
             </table>
+
+            {/* Top Filer callout */}
+            <Text
+              style={{
+                fontSize: "13px",
+                color: colors.textSecondary,
+                margin: "0 0 24px 0",
+                textAlign: "center",
+              }}
+            >
+              Top filer this week:{" "}
+              <Link
+                href={`https://bevalcintel.com/company/${makeSlug(topFiler)}`}
+                style={{ color: colors.primary, fontWeight: "600", textDecoration: "none" }}
+              >
+                {topFiler}
+              </Link>
+              {" "}with {topFilerCount} filings
+            </Text>
 
             {/* WATCHLIST ACTIVITY SECTION */}
             {hasWatchlistMatches && (
@@ -1510,7 +1568,6 @@ export function ProWeeklyReport({
                       textAlign: "center",
                     }}
                   >
-                    TTB
                   </td>
                 </tr>
                 {/* Data Rows */}
@@ -1569,7 +1626,7 @@ export function ProWeeklyReport({
                       }}
                     >
                       <Link
-                        href={row.ttbLink}
+                        href={getDatabaseLink(row.ttbId)}
                         style={{
                           color: colors.purple,
                           fontSize: "12px",
@@ -1592,162 +1649,123 @@ export function ProWeeklyReport({
 
             <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
 
-            {/* Full New Filings List (UNLOCKED for Pro) */}
+            {/* Full New Filings List (UNLOCKED for Pro) - Grouped by Category */}
             <SectionHeader
               title="All New Brands & SKUs"
-              subtitle={`Complete list of ${newBrands} new brands and ${newSkus} new SKUs filed this week`}
+              subtitle={`Complete list of ${newBrands} new brands and ${newSkus} new SKUs filed this week, grouped by category`}
               color={colors.blue}
             />
-            <table
-              width="100%"
-              cellPadding="0"
-              cellSpacing="0"
-              style={{
-                borderRadius: "8px",
-                border: `1px solid ${colors.border}`,
-                borderCollapse: "separate",
-                overflow: "hidden",
-                marginBottom: "16px",
-              }}
-            >
-              <tbody>
-                {/* Header Row */}
-                <tr style={{ backgroundColor: colors.blueLight }}>
-                  <td
-                    style={{
-                      padding: "10px 12px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.blue,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderBottom: `1px solid ${colors.border}`,
-                    }}
-                  >
-                    Brand / Product
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 12px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.blue,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderBottom: `1px solid ${colors.border}`,
-                    }}
-                  >
-                    Company
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 12px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.blue,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderBottom: `1px solid ${colors.border}`,
-                      width: "70px",
-                    }}
-                  >
-                    Signal
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 12px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.blue,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderBottom: `1px solid ${colors.border}`,
-                      width: "50px",
-                      textAlign: "center",
-                    }}
-                  >
-                    TTB
-                  </td>
-                </tr>
-                {/* Data Rows */}
-                {newFilingsList.map((row, i) => (
-                  <tr
-                    key={i}
-                    style={{
-                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
-                    }}
-                  >
-                    <td
+            {(() => {
+              const { grouped, sortedCategories } = groupByCategory(newFilingsList);
+              return sortedCategories.map((category, catIdx) => {
+                const categoryColorScheme = categoryColors[category] || categoryColors.default;
+                const filings = grouped[category];
+                return (
+                  <React.Fragment key={catIdx}>
+                    {/* Category Header */}
+                    <Text
                       style={{
-                        padding: "12px",
                         fontSize: "13px",
-                        borderBottom:
-                          i < newFilingsList.length - 1
-                            ? `1px solid ${colors.border}`
-                            : "none",
+                        fontWeight: "700",
+                        color: categoryColorScheme.text,
+                        backgroundColor: categoryColorScheme.bg,
+                        padding: "8px 12px",
+                        borderRadius: "6px 6px 0 0",
+                        margin: catIdx > 0 ? "16px 0 0 0" : "0",
                       }}
                     >
-                      <BrandLink name={row.brand} style={{ fontWeight: "600" }} />
-                      <br />
-                      <Text
-                        style={{
-                          fontSize: "12px",
-                          color: colors.textTertiary,
-                          margin: "4px 0 0 0",
-                        }}
-                      >
-                        {row.fancifulName}
-                      </Text>
-                    </td>
-                    <td
+                      {categoryIcons[category] || "📦"} {category} ({filings.length})
+                    </Text>
+                    <table
+                      width="100%"
+                      cellPadding="0"
+                      cellSpacing="0"
                       style={{
-                        padding: "12px",
-                        fontSize: "13px",
-                        borderBottom:
-                          i < newFilingsList.length - 1
-                            ? `1px solid ${colors.border}`
-                            : "none",
+                        borderRadius: "0 0 8px 8px",
+                        border: `1px solid ${colors.border}`,
+                        borderTop: "none",
+                        borderCollapse: "separate",
+                        overflow: "hidden",
+                        marginBottom: "0",
                       }}
                     >
-                      <CompanyLink name={row.company} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "12px",
-                        borderBottom:
-                          i < newFilingsList.length - 1
-                            ? `1px solid ${colors.border}`
-                            : "none",
-                      }}
-                    >
-                      <SignalBadge signal={row.signal} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "12px",
-                        borderBottom:
-                          i < newFilingsList.length - 1
-                            ? `1px solid ${colors.border}`
-                            : "none",
-                        textAlign: "center",
-                      }}
-                    >
-                      <Link
-                        href={row.ttbLink}
-                        style={{
-                          color: colors.blue,
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          textDecoration: "none",
-                        }}
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <tbody>
+                        {filings.map((row, i) => (
+                          <tr
+                            key={i}
+                            style={{
+                              backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                fontSize: "13px",
+                                borderBottom:
+                                  i < filings.length - 1
+                                    ? `1px solid ${colors.border}`
+                                    : "none",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              <BrandLink name={row.brand} style={{ fontWeight: "600" }} />
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                fontSize: "13px",
+                                borderBottom:
+                                  i < filings.length - 1
+                                    ? `1px solid ${colors.border}`
+                                    : "none",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              <CompanyLink name={row.company} />
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                borderBottom:
+                                  i < filings.length - 1
+                                    ? `1px solid ${colors.border}`
+                                    : "none",
+                                width: "70px",
+                              }}
+                            >
+                              <SignalBadge signal={row.signal} />
+                            </td>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                borderBottom:
+                                  i < filings.length - 1
+                                    ? `1px solid ${colors.border}`
+                                    : "none",
+                                textAlign: "center",
+                                width: "50px",
+                              }}
+                            >
+                              <Link
+                                href={getDatabaseLink(row.ttbId)}
+                                style={{
+                                  color: colors.primary,
+                                  fontSize: "12px",
+                                  fontWeight: "500",
+                                  textDecoration: "none",
+                                }}
+                              >
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </React.Fragment>
+                );
+              });
+            })()}
 
             <Text
               style={{
@@ -1784,10 +1802,10 @@ export function ProWeeklyReport({
                   margin: "0 0 8px 0",
                 }}
               >
-                Need this data in a spreadsheet?
+                Need this week's data in a spreadsheet?
               </Text>
               <Link
-                href={databaseUrl}
+                href={csvExportUrl}
                 style={{
                   display: "inline-block",
                   backgroundColor: colors.primary,
@@ -1799,7 +1817,7 @@ export function ProWeeklyReport({
                   textDecoration: "none",
                 }}
               >
-                Export to CSV
+                Export This Week to CSV
               </Link>
             </Section>
           </Section>

@@ -736,6 +736,8 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
         "filingSpikes": filing_spikes,
         "newFilingsList": new_filings_list,
         "categoryReports": category_reports,  # Category-specific data for subscribed categories
+        "weekStartDate": this_week_start.strftime("%Y-%m-%d"),
+        "weekEndDate": this_week_end.strftime("%Y-%m-%d"),
         "databaseUrl": "https://bevalcintel.com/database",
         "accountUrl": "https://bevalcintel.com/account.html",
         "preferencesUrl": "https://bevalcintel.com/preferences.html",
