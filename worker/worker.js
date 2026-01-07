@@ -1726,6 +1726,33 @@ async function handleCompanyPage(path, env, corsHeaders) {
     `).bind(company.id).all();
     const recentFilings = recentResult.results || [];
 
+    // Check if any of these brands were previously filed by other companies
+    const brandNames = [...new Set(recentFilings.map(f => f.brand_name))];
+    const brandOtherFilers = {};
+    if (brandNames.length > 0) {
+        const placeholders = brandNames.map(() => '?').join(',');
+        const otherFilersResult = await env.DB.prepare(`
+            SELECT brand_name, company_name, MIN(approval_date) as first_filed
+            FROM colas
+            WHERE brand_name IN (${placeholders})
+            AND company_name NOT IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+            GROUP BY brand_name, company_name
+            ORDER BY first_filed ASC
+        `).bind(...brandNames, company.id).all();
+
+        for (const row of (otherFilersResult.results || [])) {
+            if (!brandOtherFilers[row.brand_name]) {
+                brandOtherFilers[row.brand_name] = [];
+            }
+            brandOtherFilers[row.brand_name].push({
+                company: row.company_name,
+                firstFiled: row.first_filed
+            });
+        }
+    }
+
     // Get related companies (same top category)
     const topCategory = categories[0]?.class_type_code;
     let relatedCompanies = [];
@@ -1836,15 +1863,20 @@ async function handleCompanyPage(path, env, corsHeaders) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${recentFilings.map(f => `
+                    ${recentFilings.map(f => {
+                        const otherFilers = brandOtherFilers[f.brand_name] || [];
+                        const otherFilerNote = otherFilers.length > 0
+                            ? `<div style="font-size: 0.75rem; color: var(--color-text-tertiary); margin-top: 2px;">Also filed by ${otherFilers.slice(0, 2).map(o => o.company.split(',')[0].trim()).join(', ')}${otherFilers.length > 2 ? ` +${otherFilers.length - 2} more` : ''}</div>`
+                            : '';
+                        return `
                         <tr>
-                            <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
+                            <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a>${otherFilerNote}</td>
                             <td>${escapeHtml(f.fanciful_name || '-')}</td>
                             <td>${escapeHtml(getCategory(f.class_type_code))}</td>
                             <td>${escapeHtml(f.approval_date)}</td>
                             <td>${f.signal ? `<span class="signal-badge signal-${f.signal}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
                         </tr>
-                    `).join('')}
+                    `}).join('')}
                 </tbody>
             </table>
             <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
