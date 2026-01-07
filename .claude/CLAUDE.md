@@ -234,7 +234,7 @@ GROUP BY c.id
 ORDER BY filings DESC;
 ```
 
-## Current State (Last Updated: 2026-01-06)
+## Current State (Last Updated: 2026-01-07)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
@@ -248,14 +248,25 @@ ORDER BY filings DESC;
 - [x] Weekly report email with real D1 data (send_weekly_report.py)
 - [x] Company name normalization (34K → 25K companies, 26% reduction)
 - [x] Programmatic SEO pages (~145K pages: companies, brands, categories)
-- [x] Dynamic sitemap.xml
+- [x] Dynamic sitemap.xml (split into 5 files for Google 50k limit)
+- [x] SEO page caching (1hr browser, 24hr edge)
+- [x] Google Search Console sitemap submitted
 - [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
+- [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
 1. Watchlist email alerts not implemented - requires:
    - New WatchlistAlert.jsx email template
    - Logic in weekly_update.py to check new COLAs against watchlists
    - Send alerts via email_sender.py
+
+2. SEO pages slow on first load (~5-10s uncached) - D1 queries are slow for:
+   - Brand lookups (no index on brand_name slug)
+   - Related brands query (full table scan)
+   - Consider creating a `brands` lookup table with slugs (like companies)
+
+3. Scraping vulnerability - all data accessible via SEO pages + sitemap
+   - Consider: rate limiting SEO pages, limiting data shown, honeypot entries
 
 ### Programmatic SEO Pages (COMPLETED 2026-01-06)
 
@@ -283,14 +294,22 @@ Sitemaps are dynamically generated and auto-expand as new brands are added.
 
 **Features:**
 - Server-rendered HTML matching existing site design
-- JSON-LD structured data for Google
+- JSON-LD structured data for Google (Organization with Brand array)
 - Internal linking (company ↔ brand ↔ category)
 - Breadcrumb navigation
 - Category bar charts, filing timelines
 - Related companies/brands sections
+- Edge caching: `Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400`
+
+**Company Pages (Brand-Focused for SEO):**
+- Title format: `[Company] Brands & Portfolio | BevAlc Intelligence`
+- Meta description mentions top 5 brands by name
+- Opening paragraph lists brand names in natural text
+- JSON-LD includes top 10 brands as structured Brand objects
+- Helps rank for searches like "Diageo brands" not just "Diageo COLA filings"
 
 **Examples:**
-- `/company/diageo-americas-supply-inc` - 1,358 filings, 20 brands, category breakdown
+- `/company/diageo-americas-supply-inc` - "Diageo Americas Supply, Inc. Brands & Portfolio"
 - `/brand/crown-royal` - Filing timeline, products, related brands
 - `/category/tequila/2025` - 3,562 filings, +4% YoY, top filers
 
