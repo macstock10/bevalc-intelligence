@@ -13,10 +13,11 @@ import {
   Text,
 } from "@react-email/components";
 
-// Brand colors
+// Brand colors (matches bevalcintel.com)
 const colors = {
   primary: "#0d9488",
   primaryDark: "#0f766e",
+  primaryLight: "#ccfbf1",
   text: "#1e293b",
   textSecondary: "#475569",
   textTertiary: "#64748b",
@@ -30,6 +31,8 @@ const colors = {
   blueLight: "#dbeafe",
   purple: "#8b5cf6",
   purpleLight: "#ede9fe",
+  orange: "#f97316",
+  orangeLight: "#ffedd5",
   red: "#ef4444",
 };
 
@@ -55,41 +58,64 @@ const signalColors = {
   REFILE: { bg: "#f1f5f9", text: "#475569", label: "Refile" },
 };
 
+// Helper to generate URL slug
+function makeSlug(name) {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 // Stat Tile Component
-function StatTile({ label, value, subtext, trend }) {
+function StatTile({ label, value, subtext, trend, highlight = false }) {
   return (
-    <td style={{
-      backgroundColor: colors.bg,
-      border: `1px solid ${colors.border}`,
-      borderRadius: "8px",
-      padding: "16px",
-      textAlign: "center",
-      width: "33%",
-    }}>
-      <Text style={{
-        fontSize: "28px",
-        fontWeight: "700",
-        color: colors.primary,
-        margin: "0",
-        lineHeight: "1.2",
-      }}>
+    <td
+      style={{
+        backgroundColor: highlight ? colors.primaryLight : colors.bg,
+        border: `1px solid ${highlight ? colors.primary : colors.border}`,
+        borderRadius: "8px",
+        padding: "16px",
+        textAlign: "center",
+        width: "33%",
+        verticalAlign: "top",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: "28px",
+          fontWeight: "700",
+          color: highlight ? colors.primaryDark : colors.primary,
+          margin: "0",
+          lineHeight: "1.2",
+        }}
+      >
         {value}
       </Text>
-      <Text style={{
-        fontSize: "12px",
-        color: colors.textSecondary,
-        margin: "4px 0 0 0",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-      }}>
+      <Text
+        style={{
+          fontSize: "11px",
+          color: highlight ? colors.primaryDark : colors.textSecondary,
+          margin: "4px 0 0 0",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+        }}
+      >
         {label}
       </Text>
       {subtext && (
-        <Text style={{
-          fontSize: "11px",
-          color: trend === "up" ? colors.green : trend === "down" ? colors.red : colors.textTertiary,
-          margin: "4px 0 0 0",
-        }}>
+        <Text
+          style={{
+            fontSize: "11px",
+            color:
+              trend === "up"
+                ? colors.green
+                : trend === "down"
+                  ? colors.red
+                  : colors.textTertiary,
+            margin: "4px 0 0 0",
+          }}
+        >
           {subtext}
         </Text>
       )}
@@ -97,47 +123,79 @@ function StatTile({ label, value, subtext, trend }) {
   );
 }
 
-// CSS Bar Chart Row - Using tables for email client compatibility
-function BarRow({ label, value, maxValue, color = colors.primary }) {
-  const percentage = Math.min(Math.round((value / maxValue) * 100), 100);
-  const barWidth = Math.max(percentage, 5); // Minimum 5% so bar is visible
+// CSS Bar Chart Row - uses pixel widths for email client compatibility
+function BarRow({ label, value, maxValue, color = colors.primary, link }) {
+  const barWidthPx = Math.max(Math.round((value / maxValue) * 140), 10);
+  const remainingPx = 140 - barWidthPx;
+
+  const labelContent = link ? (
+    <Link
+      href={link}
+      style={{
+        color: colors.text,
+        textDecoration: "none",
+        fontWeight: "500",
+      }}
+    >
+      {label}
+    </Link>
+  ) : (
+    label
+  );
 
   return (
     <tr>
-      <td style={{
-        padding: "8px 0",
-        fontSize: "13px",
-        fontWeight: "500",
-        color: colors.text,
-        width: "90px",
-      }}>
-        {label}
+      <td
+        style={{
+          padding: "8px 0",
+          fontSize: "13px",
+          fontWeight: "500",
+          color: colors.text,
+          width: "100px",
+        }}
+      >
+        {labelContent}
       </td>
-      <td style={{
-        padding: "8px 0",
-        fontSize: "13px",
-        fontWeight: "600",
-        color: colors.textSecondary,
-        width: "50px",
-        textAlign: "right",
-      }}>
-        {value}
+      <td
+        style={{
+          padding: "8px 0",
+          fontSize: "13px",
+          fontWeight: "600",
+          color: colors.textSecondary,
+          width: "50px",
+          textAlign: "right",
+        }}
+      >
+        {value.toLocaleString()}
       </td>
       <td style={{ padding: "8px 0 8px 12px" }}>
-        {/* Bar using nested table for email client compatibility */}
-        <table cellPadding="0" cellSpacing="0" width="140" style={{
-          backgroundColor: colors.bgTertiary,
-          borderRadius: "4px",
-        }}>
+        <table
+          cellPadding="0"
+          cellSpacing="0"
+          width="140"
+          style={{
+            backgroundColor: colors.bgTertiary,
+            borderRadius: "4px",
+          }}
+        >
           <tbody>
             <tr>
-              <td style={{
-                backgroundColor: color,
-                height: "14px",
-                width: `${barWidth}%`,
-                borderRadius: "4px",
-              }}></td>
-              <td style={{ height: "14px" }}></td>
+              <td
+                style={{
+                  backgroundColor: color,
+                  height: "14px",
+                  width: `${barWidthPx}px`,
+                  borderRadius: barWidthPx === 140 ? "4px" : "4px 0 0 4px",
+                }}
+              ></td>
+              {remainingPx > 0 && (
+                <td
+                  style={{
+                    height: "14px",
+                    width: `${remainingPx}px`,
+                  }}
+                ></td>
+              )}
             </tr>
           </tbody>
         </table>
@@ -150,15 +208,17 @@ function BarRow({ label, value, maxValue, color = colors.primary }) {
 function CategoryBadge({ category }) {
   const colorScheme = categoryColors[category] || categoryColors.default;
   return (
-    <span style={{
-      display: "inline-block",
-      backgroundColor: colorScheme.bg,
-      color: colorScheme.text,
-      fontSize: "11px",
-      fontWeight: "600",
-      padding: "3px 8px",
-      borderRadius: "4px",
-    }}>
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: colorScheme.bg,
+        color: colorScheme.text,
+        fontSize: "11px",
+        fontWeight: "600",
+        padding: "3px 8px",
+        borderRadius: "4px",
+      }}
+    >
       {category}
     </span>
   );
@@ -168,19 +228,70 @@ function CategoryBadge({ category }) {
 function SignalBadge({ signal }) {
   const config = signalColors[signal] || signalColors.REFILE;
   return (
-    <span style={{
-      display: "inline-block",
-      backgroundColor: config.bg,
-      color: config.text,
-      fontSize: "10px",
-      fontWeight: "600",
-      padding: "2px 6px",
-      borderRadius: "3px",
-      textTransform: "uppercase",
-      letterSpacing: "0.5px",
-    }}>
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: config.bg,
+        color: config.text,
+        fontSize: "10px",
+        fontWeight: "600",
+        padding: "2px 6px",
+        borderRadius: "3px",
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+      }}
+    >
       {config.label}
     </span>
+  );
+}
+
+// Section Header Component
+function SectionHeader({ title, subtitle, color = colors.text }) {
+  return (
+    <>
+      <Text
+        style={{
+          fontSize: "14px",
+          fontWeight: "700",
+          color: color,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          margin: "0 0 4px 0",
+        }}
+      >
+        {title}
+      </Text>
+      {subtitle && (
+        <Text
+          style={{
+            fontSize: "12px",
+            color: colors.textTertiary,
+            margin: "0 0 16px 0",
+          }}
+        >
+          {subtitle}
+        </Text>
+      )}
+    </>
+  );
+}
+
+// Linked Company Name
+function CompanyLink({ name, style = {} }) {
+  const slug = makeSlug(name);
+  return (
+    <Link
+      href={`https://bevalcintel.com/company/${slug}`}
+      style={{
+        color: colors.text,
+        textDecoration: "none",
+        fontWeight: "500",
+        ...style,
+      }}
+    >
+      {name}
+    </Link>
   );
 }
 
@@ -224,126 +335,155 @@ export function WeeklyReport({
     { brand: "Hendrick's", company: "William Grant", category: "Gin", newSkus: 5 },
   ],
 
-  // Pro preview - sample label with TTB link
-  proPreviewLabel = {
-    brand: "Clase Azul Reposado",
-    company: "Clase Azul",
-    signal: "NEW_BRAND",
-    ttbId: "24087001000453",
-    ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000453",
-  },
+  // Notable new brands preview (show 3 to free users)
+  notableNewBrandsPreview = [
+    { brand: "Casa Dragones", company: "Casa Dragones LLC", category: "Tequila" },
+    { brand: "Kentucky Owl", company: "Kentucky Owl LLC", category: "Whiskey" },
+    { brand: "Cutwater Spirits", company: "Cutwater Spirits LLC", category: "RTD" },
+  ],
 
   // Links
   databaseUrl = "https://bevalcintel.com/database",
   pricingUrl = "https://bevalcintel.com/#pricing",
 }) {
-  const maxCategoryValue = Math.max(...categoryData.map(d => d.value));
+  const maxCategoryValue = categoryData.length > 0
+    ? Math.max(...categoryData.map((d) => d.value))
+    : 0;
 
   return (
     <Html>
       <Head />
       <Preview>BevAlc Weekly: {totalFilings} filings, {newBrands} new brands - {summary}</Preview>
-      <Body style={{
-        backgroundColor: colors.bgSecondary,
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        margin: 0,
-        padding: 0,
-      }}>
-        <Container style={{
-          margin: "0 auto",
-          padding: "32px 16px",
-          maxWidth: "560px",
-        }}>
+      <Body
+        style={{
+          backgroundColor: colors.bgSecondary,
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        <Container
+          style={{
+            margin: "0 auto",
+            padding: "24px 16px",
+            maxWidth: "600px",
+          }}
+        >
           {/* Header */}
           <Section style={{ textAlign: "center", marginBottom: "24px" }}>
-            <Link href="https://bevalcintel.com" style={{
-              color: colors.primary,
-              fontSize: "20px",
-              fontWeight: "600",
-              textDecoration: "none",
-            }}>
+            <Link
+              href="https://bevalcintel.com"
+              style={{
+                color: colors.primary,
+                fontSize: "20px",
+                fontWeight: "600",
+                textDecoration: "none",
+              }}
+            >
               BevAlc Intelligence
             </Link>
-            <Text style={{
-              fontSize: "13px",
-              color: colors.textTertiary,
-              margin: "4px 0 0 0",
-            }}>
+            <Text
+              style={{
+                fontSize: "13px",
+                color: colors.textTertiary,
+                margin: "4px 0 0 0",
+              }}
+            >
               Weekly Market Snapshot
             </Text>
           </Section>
 
           {/* Main Card */}
-          <Section style={{
-            backgroundColor: colors.bg,
-            borderRadius: "12px",
-            border: `1px solid ${colors.border}`,
-            padding: "24px",
-          }}>
+          <Section
+            style={{
+              backgroundColor: colors.bg,
+              borderRadius: "12px",
+              border: `1px solid ${colors.border}`,
+              padding: "24px",
+            }}
+          >
             {/* Week & Summary */}
-            <Text style={{
-              fontSize: "12px",
-              color: colors.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              margin: "0 0 4px 0",
-            }}>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "1px",
+                margin: "0 0 4px 0",
+              }}
+            >
               Week Ending {weekEnding}
             </Text>
-            <Heading style={{
-              fontSize: "18px",
-              fontWeight: "600",
-              color: colors.text,
-              margin: "0 0 20px 0",
-              lineHeight: "1.4",
-            }}>
-              {summary}
+            <Heading
+              style={{
+                fontSize: "20px",
+                fontWeight: "700",
+                color: colors.text,
+                margin: "0 0 8px 0",
+                lineHeight: "1.3",
+              }}
+            >
+              This week in beverage alcohol
             </Heading>
+            <Text
+              style={{
+                fontSize: "15px",
+                color: colors.textSecondary,
+                margin: "0 0 20px 0",
+                lineHeight: "1.5",
+              }}
+            >
+              {summary}
+            </Text>
 
             {/* Stat Tiles - Row 1 */}
             <table width="100%" cellPadding="0" cellSpacing="8" style={{ marginBottom: "8px" }}>
               <tbody>
                 <tr>
                   <StatTile label="Total Filings" value={totalFilings} />
-                  <StatTile label="New Brands" value={newBrands} />
+                  <StatTile label="New Brands" value={newBrands} highlight={true} />
                   <StatTile label="New SKUs" value={newSkus} />
                 </tr>
               </tbody>
             </table>
 
             {/* Stat Tiles - Row 2 */}
-            <table width="100%" cellPadding="0" cellSpacing="8" style={{ marginBottom: "24px" }}>
+            <table width="100%" cellPadding="0" cellSpacing="8" style={{ marginBottom: "12px" }}>
               <tbody>
                 <tr>
                   <StatTile label="New Companies" value={newCompanies} />
-                  <StatTile
-                    label="Top Filer"
-                    value={topFiler}
-                    subtext={`${topFilerCount} filings`}
-                  />
+                  <StatTile label="Categories" value={categoryData.length} subtext="active" />
                   <td style={{ width: "33%" }}></td>
                 </tr>
               </tbody>
             </table>
 
-            {/* Category Activity Bar Chart */}
-            <Text style={{
-              fontSize: "13px",
-              fontWeight: "600",
-              color: colors.text,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              margin: "0 0 4px 0",
-            }}>
-              Filings by Category
+            {/* Top Filer callout */}
+            <Text
+              style={{
+                fontSize: "13px",
+                color: colors.textSecondary,
+                margin: "0 0 24px 0",
+                textAlign: "center",
+              }}
+            >
+              Top filer this week:{" "}
+              <Link
+                href={`https://bevalcintel.com/company/${makeSlug(topFiler)}`}
+                style={{ color: colors.primary, fontWeight: "600", textDecoration: "none" }}
+              >
+                {topFiler}
+              </Link>
+              {" "}with {topFilerCount} filings
             </Text>
-            <Text style={{
-              fontSize: "11px",
-              color: colors.textTertiary,
-              margin: "0 0 12px 0",
-            }}>
-              Total approvals this week
-            </Text>
+
+            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
+
+            {/* Category Breakdown */}
+            <SectionHeader
+              title="Filings by Category"
+              subtitle="Total approvals this week"
+            />
             <table width="100%" cellPadding="0" cellSpacing="0" style={{ marginBottom: "24px" }}>
               <tbody>
                 {categoryData.map((item, i) => (
@@ -352,6 +492,7 @@ export function WeeklyReport({
                     label={item.label}
                     value={item.value}
                     maxValue={maxCategoryValue}
+                    link={`https://bevalcintel.com/category/${makeSlug(item.label)}/${new Date().getFullYear()}`}
                   />
                 ))}
               </tbody>
@@ -373,346 +514,431 @@ export function WeeklyReport({
                   padding: "14px 28px",
                 }}
               >
-                See more on database
+                Search All Filings in Database
               </Button>
             </Section>
 
             <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
 
             {/* Top Filing Companies */}
-            <Text style={{
-              fontSize: "13px",
-              fontWeight: "600",
-              color: colors.text,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              margin: "0 0 4px 0",
-            }}>
-              Top Filing Companies
-            </Text>
-            <Text style={{
-              fontSize: "11px",
-              color: colors.textTertiary,
-              margin: "0 0 12px 0",
-            }}>
-              Companies with the most filings this week
-            </Text>
-            <table width="100%" cellPadding="0" cellSpacing="0" style={{
-              borderRadius: "8px",
-              border: `1px solid ${colors.border}`,
-              borderCollapse: "separate",
-              overflow: "hidden",
-              marginBottom: "24px",
-            }}>
+            <SectionHeader
+              title="Top Filers This Week"
+              subtitle="Companies with the most filing activity"
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                marginBottom: "24px",
+              }}
+            >
               <tbody>
                 {/* Header Row */}
                 <tr style={{ backgroundColor: colors.greenLight }}>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.green,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                  }}>Company</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.green,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                    width: "90px",
-                  }}>Top Category</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.green,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                    width: "60px",
-                    textAlign: "center",
-                  }}>Filings</td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "90px",
+                    }}
+                  >
+                    Top Category
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "70px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Filings
+                  </td>
                 </tr>
                 {/* Data Rows */}
                 {topCompaniesList.map((row, i) => (
-                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
-                    <td style={{
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      color: colors.text,
-                      borderBottom: i < topCompaniesList.length - 1 ? `1px solid ${colors.border}` : "none",
-                    }}>{row.company}</td>
-                    <td style={{
-                      padding: "10px 12px",
-                      borderBottom: i < topCompaniesList.length - 1 ? `1px solid ${colors.border}` : "none",
-                    }}>
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <CompanyLink name={row.company} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
                       <CategoryBadge category={row.category} />
                     </td>
-                    <td style={{
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: colors.text,
-                      borderBottom: i < topCompaniesList.length - 1 ? `1px solid ${colors.border}` : "none",
-                      textAlign: "center",
-                    }}>{row.filings}</td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: colors.text,
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.filings}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
             {/* Top Brand Extensions */}
-            <Text style={{
-              fontSize: "13px",
-              fontWeight: "600",
-              color: colors.text,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              margin: "0 0 4px 0",
-            }}>
-              Top Brand Extensions
-            </Text>
-            <Text style={{
-              fontSize: "11px",
-              color: colors.textTertiary,
-              margin: "0 0 12px 0",
-            }}>
-              Brands adding the most new SKUs this week
-            </Text>
-            <table width="100%" cellPadding="0" cellSpacing="0" style={{
-              borderRadius: "8px",
-              border: `1px solid ${colors.border}`,
-              borderCollapse: "separate",
-              overflow: "hidden",
-              marginBottom: "24px",
-            }}>
+            <SectionHeader
+              title="Top Brand Extensions"
+              subtitle="Brands adding the most new SKUs this week"
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                marginBottom: "24px",
+              }}
+            >
               <tbody>
                 {/* Header Row */}
                 <tr style={{ backgroundColor: colors.blueLight }}>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.blue,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                  }}>Brand</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.blue,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                  }}>Company</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.blue,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                    width: "90px",
-                  }}>Category</td>
-                  <td style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: colors.blue,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    borderBottom: `1px solid ${colors.border}`,
-                    width: "70px",
-                    textAlign: "center",
-                  }}>New SKUs</td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Brand
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "70px",
+                      textAlign: "center",
+                    }}
+                  >
+                    New SKUs
+                  </td>
                 </tr>
                 {/* Data Rows */}
                 {topExtensionsList.map((row, i) => (
-                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
-                    <td style={{
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      color: colors.text,
-                      borderBottom: i < topExtensionsList.length - 1 ? `1px solid ${colors.border}` : "none",
-                    }}>{row.brand}</td>
-                    <td style={{
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      color: colors.textSecondary,
-                      borderBottom: i < topExtensionsList.length - 1 ? `1px solid ${colors.border}` : "none",
-                    }}>{row.company}</td>
-                    <td style={{
-                      padding: "10px 12px",
-                      borderBottom: i < topExtensionsList.length - 1 ? `1px solid ${colors.border}` : "none",
-                    }}>
-                      <CategoryBadge category={row.category} />
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        color: colors.text,
+                        borderBottom:
+                          i < topExtensionsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <Link
+                        href={`https://bevalcintel.com/brand/${makeSlug(row.brand)}`}
+                        style={{ color: colors.text, textDecoration: "none" }}
+                      >
+                        {row.brand}
+                      </Link>
                     </td>
-                    <td style={{
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: colors.text,
-                      borderBottom: i < topExtensionsList.length - 1 ? `1px solid ${colors.border}` : "none",
-                      textAlign: "center",
-                    }}>{row.newSkus}</td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        color: colors.textSecondary,
+                        borderBottom:
+                          i < topExtensionsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      {row.company}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: colors.text,
+                        borderBottom:
+                          i < topExtensionsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.newSkus}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            {/* Locked New Brands & SKUs Table (Pro Feature) */}
-            <Text style={{
-              fontSize: "13px",
-              fontWeight: "600",
-              color: colors.text,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              margin: "0 0 4px 0",
-            }}>
-              New Brands & SKUs This Week
-            </Text>
-            <Text style={{
-              fontSize: "11px",
-              color: colors.textTertiary,
-              margin: "0 0 12px 0",
-            }}>
-              Every new product filed with the TTB
-            </Text>
+            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
 
-            {/* Locked table container */}
-            <div style={{ position: "relative", marginBottom: "24px" }}>
-              {/* Blurred preview table */}
-              <table width="100%" cellPadding="0" cellSpacing="0" style={{
+            {/* Notable New Brands Preview */}
+            <SectionHeader
+              title="Notable New Brands"
+              subtitle="First-time brand filings this week"
+              color={colors.purple}
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
                 borderRadius: "8px",
                 border: `1px solid ${colors.border}`,
                 borderCollapse: "separate",
                 overflow: "hidden",
-                opacity: "0.4",
-                filter: "blur(1px)",
-              }}>
-                <tbody>
-                  <tr style={{ backgroundColor: colors.purpleLight }}>
-                    <td style={{
-                      padding: "8px 12px",
+                marginBottom: "16px",
+              }}
+            >
+              <tbody>
+                {/* Header Row */}
+                <tr style={{ backgroundColor: colors.purpleLight }}>
+                  <td
+                    style={{
+                      padding: "10px 12px",
                       fontSize: "11px",
                       fontWeight: "600",
                       color: colors.purple,
                       textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
-                    }}>Brand</td>
-                    <td style={{
-                      padding: "8px 12px",
+                    }}
+                  >
+                    Brand
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
                       fontSize: "11px",
                       fontWeight: "600",
                       color: colors.purple,
                       textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
-                    }}>Product</td>
-                    <td style={{
-                      padding: "8px 12px",
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 8px",
                       fontSize: "11px",
                       fontWeight: "600",
                       color: colors.purple,
                       textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
-                      width: "80px",
-                    }}>Signal</td>
-                  </tr>
-                  {/* Placeholder blurred rows */}
-                  {[1, 2, 3, 4, 5].map((_, i) => (
-                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
-                      <td style={{
-                        padding: "10px 12px",
+                      width: "70px",
+                    }}
+                  >
+                    Category
+                  </td>
+                </tr>
+                {/* Data Rows */}
+                {notableNewBrandsPreview.slice(0, 3).map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
                         fontSize: "13px",
-                        color: colors.textTertiary,
-                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
-                      }}>Premium Brand {i + 1}</td>
-                      <td style={{
-                        padding: "10px 12px",
+                        fontWeight: "500",
+                        color: colors.text,
+                        borderBottom:
+                          i < Math.min(notableNewBrandsPreview.length, 3) - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      {row.brand}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
                         fontSize: "13px",
-                        color: colors.textTertiary,
-                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
-                      }}>New Product Name</td>
-                      <td style={{
-                        padding: "10px 12px",
-                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
-                      }}>
-                        <span style={{
-                          backgroundColor: colors.greenLight,
-                          color: colors.green,
-                          fontSize: "10px",
-                          padding: "2px 6px",
-                          borderRadius: "3px",
-                        }}>NEW</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Lock overlay */}
-              <table width="100%" cellPadding="0" cellSpacing="0" style={{
-                position: "absolute",
-                top: "50%",
-                left: "0",
-                transform: "translateY(-50%)",
-              }}>
-                <tbody>
-                  <tr>
-                    <td style={{ textAlign: "center", padding: "20px" }}>
-                      <Text style={{
-                        fontSize: "20px",
-                        margin: "0 0 8px 0",
-                      }}>
-                        🔒
-                      </Text>
-                      <Text style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: colors.purple,
-                        margin: "0 0 4px 0",
-                      }}>
-                        Pro Feature
-                      </Text>
-                      <Text style={{
-                        fontSize: "12px",
                         color: colors.textSecondary,
-                        margin: "0 0 12px 0",
-                      }}>
-                        See all 179 new brands & SKUs filed this week
-                      </Text>
-                      <Link
-                        href={pricingUrl}
-                        style={{
-                          display: "inline-block",
-                          backgroundColor: colors.purple,
-                          color: "#ffffff",
-                          fontSize: "13px",
-                          fontWeight: "600",
-                          padding: "10px 20px",
-                          borderRadius: "6px",
-                          textDecoration: "none",
-                        }}
-                      >
-                        Upgrade to Pro
-                      </Link>
+                        borderBottom:
+                          i < Math.min(notableNewBrandsPreview.length, 3) - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      {row.company}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        borderBottom:
+                          i < Math.min(notableNewBrandsPreview.length, 3) - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      <CategoryBadge category={row.category} />
                     </td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0 0 24px 0",
+                textAlign: "center",
+              }}
+            >
+              + {parseInt(newBrands) - 3} more new brands this week
+            </Text>
 
-            {/* Secondary CTA */}
+            {/* Locked Full List - Pro Feature */}
+            <Section
+              style={{
+                backgroundColor: colors.purpleLight,
+                borderRadius: "8px",
+                border: `2px solid ${colors.purple}`,
+                padding: "24px",
+                textAlign: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: "18px",
+                  margin: "0 0 8px 0",
+                }}
+              >
+                🔒
+              </Text>
+              <Text
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  color: colors.purple,
+                  margin: "0 0 8px 0",
+                }}
+              >
+                All {parseInt(newBrands) + parseInt(newSkus)} New Brands & SKUs
+              </Text>
+              <Text
+                style={{
+                  fontSize: "14px",
+                  color: colors.textSecondary,
+                  margin: "0 0 16px 0",
+                  lineHeight: "1.5",
+                }}
+              >
+                Get the complete list of every new product filed with the TTB this week, plus watchlist alerts, filing spike detection, and direct links to official TTB labels.
+              </Text>
+              <Link
+                href={pricingUrl}
+                style={{
+                  display: "inline-block",
+                  backgroundColor: colors.purple,
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                }}
+              >
+                Upgrade to Pro
+              </Link>
+            </Section>
+
+            {/* Browse database link */}
             <Section style={{ textAlign: "center" }}>
               <Link
                 href={databaseUrl}
@@ -728,94 +954,99 @@ export function WeeklyReport({
             </Section>
           </Section>
 
-          {/* Pro Feature Preview */}
-          <Section style={{
-            backgroundColor: colors.bg,
-            borderRadius: "12px",
-            border: `2px solid ${colors.purple}`,
-            padding: "20px",
-            marginTop: "16px",
-          }}>
+          {/* Pro Features Card */}
+          <Section
+            style={{
+              backgroundColor: colors.bg,
+              borderRadius: "12px",
+              border: `2px solid ${colors.primary}`,
+              padding: "24px",
+              marginTop: "16px",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: "16px",
+                fontWeight: "700",
+                color: colors.primary,
+                margin: "0 0 12px 0",
+                textAlign: "center",
+              }}
+            >
+              Unlock Pro Features
+            </Text>
+
             <table width="100%" cellPadding="0" cellSpacing="0">
               <tbody>
                 <tr>
-                  <td>
-                    <Text style={{
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.purple,
-                      textTransform: "uppercase",
-                      letterSpacing: "1px",
-                      margin: "0 0 12px 0",
-                    }}>
-                      Pro Feature: Direct TTB Label Access
+                  <td style={{ padding: "8px 0" }}>
+                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
+                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
+                      Complete new brands & SKUs list every week
                     </Text>
-                    <table cellPadding="0" cellSpacing="0" style={{ marginBottom: "12px" }}>
-                      <tbody>
-                        <tr>
-                          <td style={{ paddingRight: "8px" }}>
-                            <SignalBadge signal={proPreviewLabel.signal} />
-                          </td>
-                          <td>
-                            <Text style={{
-                              fontSize: "14px",
-                              fontWeight: "600",
-                              color: colors.text,
-                              margin: "0",
-                            }}>
-                              {proPreviewLabel.brand}
-                            </Text>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <Text style={{
-                      fontSize: "13px",
-                      color: colors.textSecondary,
-                      margin: "0 0 12px 0",
-                    }}>
-                      {proPreviewLabel.company}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "8px 0" }}>
+                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
+                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
+                      Watchlist alerts for brands & companies you track
                     </Text>
-                    <Link
-                      href={proPreviewLabel.ttbLink}
-                      style={{
-                        display: "inline-block",
-                        backgroundColor: colors.purple,
-                        color: "#ffffff",
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        padding: "8px 14px",
-                        borderRadius: "6px",
-                        textDecoration: "none",
-                      }}
-                    >
-                      View Label on TTB.gov
-                    </Link>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "8px 0" }}>
+                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
+                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
+                      Filing spike detection (M&A signals)
+                    </Text>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "8px 0" }}>
+                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
+                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
+                      Unlimited CSV exports
+                    </Text>
                   </td>
                 </tr>
               </tbody>
             </table>
-            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "16px 0 12px 0" }} />
-            <Text style={{
-              fontSize: "12px",
-              color: colors.textSecondary,
-              margin: "0",
-            }}>
-              <strong style={{ color: colors.purple }}>Pro members</strong> get one-click access to official TTB labels for every filing, plus category-specific reports, watchlist alerts, and unlimited CSV exports.{" "}
-              <Link href={pricingUrl} style={{ color: colors.purple, textDecoration: "underline" }}>
-                See all Pro features
+
+            <Section style={{ textAlign: "center", marginTop: "16px" }}>
+              <Link
+                href={pricingUrl}
+                style={{
+                  color: colors.primary,
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  textDecoration: "underline",
+                }}
+              >
+                See all Pro features →
               </Link>
-            </Text>
+            </Section>
           </Section>
 
           {/* Footer */}
           <Section style={{ textAlign: "center", marginTop: "24px" }}>
-            <Text style={{
-              fontSize: "12px",
-              color: colors.textTertiary,
-              margin: "0",
-              lineHeight: "1.6",
-            }}>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0 0 8px 0",
+              }}
+            >
+              You're receiving this because you signed up at bevalcintel.com.
+            </Text>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0",
+                lineHeight: "1.6",
+              }}
+            >
               <Link href="https://bevalcintel.com" style={{ color: colors.textTertiary }}>
                 bevalcintel.com
               </Link>
@@ -827,6 +1058,15 @@ export function WeeklyReport({
               <Link href="{{unsubscribeUrl}}" style={{ color: colors.textTertiary }}>
                 Unsubscribe
               </Link>
+            </Text>
+            <Text
+              style={{
+                fontSize: "11px",
+                color: colors.textTertiary,
+                margin: "16px 0 0 0",
+              }}
+            >
+              &copy; {new Date().getFullYear()} BevAlc Intelligence. All rights reserved.
             </Text>
           </Section>
         </Container>

@@ -631,10 +631,22 @@ function renderResults(data) {
     elements.resultsBody.innerHTML = data.map(cola => {
         let signalHtml = '-';
         if (isPro) {
-            // Pro users see actual signals
+            // Pro users see actual signals with refile note
             if (cola.signal) {
                 const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
-                signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>`;
+                let noteHtml = '';
+
+                // Show note for first-time filings (NEW_COMPANY, NEW_BRAND, NEW_SKU)
+                if (cola.signal !== 'REFILE') {
+                    const refileCount = cola.refile_count || 0;
+                    if (refileCount > 0) {
+                        noteHtml = `<span class="signal-note">(${refileCount} refile${refileCount > 1 ? 's' : ''})</span>`;
+                    } else {
+                        noteHtml = `<span class="signal-note signal-note-current">(current)</span>`;
+                    }
+                }
+
+                signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>${noteHtml}`;
             }
         } else {
             // Free users see locked state

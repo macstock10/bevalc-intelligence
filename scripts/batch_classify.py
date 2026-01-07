@@ -70,8 +70,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def d1_execute(sql: str, params: List[Any] = None) -> Dict:
-    """Execute SQL against D1."""
+def d1_execute(sql: str, params: List[Any] = None, max_retries: int = 3) -> Dict:
+    """Execute SQL against D1 with retry logic."""
+    import time
+
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json"
@@ -81,13 +83,23 @@ def d1_execute(sql: str, params: List[Any] = None) -> Dict:
     if params:
         payload["params"] = params
 
-    response = requests.post(D1_API_URL, headers=headers, json=payload)
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(D1_API_URL, headers=headers, json=payload, timeout=60)
 
-    if response.status_code != 200:
-        logger.error(f"D1 API error: {response.status_code} - {response.text}")
-        return {"success": False, "error": response.text}
+            if response.status_code != 200:
+                logger.error(f"D1 API error: {response.status_code} - {response.text}")
+                return {"success": False, "error": response.text}
 
-    return response.json()
+            return response.json()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(f"Connection error, retrying in {wait_time}s... ({attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"D1 API connection failed after {max_retries} attempts: {e}")
+                raise
 
 
 def escape_sql_value(value) -> str:
@@ -137,7 +149,8 @@ def analyze_current_state():
 def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
     """
     Fetch ALL records from D1, sorted chronologically.
-    Returns list of dicts with ttb_id, company_name, brand_name, fanciful_name, approval_date.
+    Returns list of dicts with ttb_id, company_name, brand_name, fanciful_name, approval_date, company_id.
+    Uses company_aliases to get normalized company_id for proper classification.
     """
     all_records = []
     offset = 0
@@ -147,14 +160,17 @@ def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
     while True:
         # Order by year, month, then day (extracted from MM/DD/YYYY string)
         # This ensures proper chronological order even though approval_date is a string
+        # Join with company_aliases to get normalized company_id
         result = d1_execute(f"""
-            SELECT ttb_id, company_name, brand_name, fanciful_name, approval_date
-            FROM colas
+            SELECT c.ttb_id, c.company_name, c.brand_name, c.fanciful_name, c.approval_date,
+                   COALESCE(ca.company_id, -1) as company_id
+            FROM colas c
+            LEFT JOIN company_aliases ca ON c.company_name = ca.raw_name
             ORDER BY
-                COALESCE(year, 9999) ASC,
-                COALESCE(month, 99) ASC,
-                CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ASC,
-                ttb_id ASC
+                COALESCE(c.year, 9999) ASC,
+                COALESCE(c.month, 99) ASC,
+                CAST(SUBSTR(c.approval_date, 4, 2) AS INTEGER) ASC,
+                c.ttb_id ASC
             LIMIT {batch_size} OFFSET {offset}
         """)
 
@@ -215,13 +231,14 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     logger.info("\n[PASS 1] Classifying records...")
 
     # Track what we've seen (in chronological order)
-    seen_companies: Set[str] = set()
-    seen_brands: Set[Tuple[str, str]] = set()  # (company, brand)
-    seen_skus: Set[Tuple[str, str, str]] = set()  # (company, brand, fanciful)
+    # Use normalized company_id instead of raw company_name to handle variants
+    seen_companies: Set[int] = set()  # company_id
+    seen_brands: Set[Tuple[int, str]] = set()  # (company_id, brand)
+    seen_skus: Set[Tuple[int, str, str]] = set()  # (company_id, brand, fanciful)
 
     # Track first instances for each SKU (to update refile_count later)
-    # Key: (company, brand, fanciful) -> ttb_id of first instance
-    sku_first_instance: Dict[Tuple[str, str, str], str] = {}
+    # Key: (company_id, brand, fanciful) -> ttb_id of first instance
+    sku_first_instance: Dict[Tuple[int, str, str], str] = {}
 
     # Track classifications
     classifications: Dict[str, str] = {}  # ttb_id -> signal
@@ -235,15 +252,17 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
 
     for i, record in enumerate(all_records):
         ttb_id = record.get("ttb_id")
-        company = (record.get("company_name") or "").strip()
+        company_id = record.get("company_id", -1)  # Normalized company ID from company_aliases
         brand = (record.get("brand_name") or "").strip()
         fanciful = (record.get("fanciful_name") or "").strip()
 
-        company_key = company.lower()
-        brand_key = (company.lower(), brand.lower())
-        sku_key = (company.lower(), brand.lower(), fanciful.lower())
+        # Use company_id for company tracking (handles name variants like "Archetype Distillery, LLC" vs "Archetype Distillery, Archetype Distillery, LLC")
+        company_key = company_id
+        brand_key = (company_id, brand.lower())
+        sku_key = (company_id, brand.lower(), fanciful.lower())
 
-        if not company or not brand:
+        if company_id == -1 or not brand:
+            # No normalized company or no brand - treat as refile
             classifications[ttb_id] = 'REFILE'
             stats['refiles'] += 1
             continue
@@ -286,16 +305,16 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     # ==================== PASS 2: Calculate refile_count ====================
     logger.info("\n[PASS 2] Calculating refile counts...")
 
-    # Count refilings per SKU
-    sku_counts: Dict[Tuple[str, str, str], int] = defaultdict(int)
+    # Count refilings per SKU (using company_id for consistency)
+    sku_counts: Dict[Tuple[int, str, str], int] = defaultdict(int)
 
     for record in all_records:
-        company = (record.get("company_name") or "").strip().lower()
+        company_id = record.get("company_id", -1)
         brand = (record.get("brand_name") or "").strip().lower()
         fanciful = (record.get("fanciful_name") or "").strip().lower()
 
-        if company and brand:
-            sku_key = (company, brand, fanciful)
+        if company_id != -1 and brand:
+            sku_key = (company_id, brand, fanciful)
             sku_counts[sku_key] += 1
 
     # Calculate refile_count for first instances
@@ -312,35 +331,46 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     # ==================== Apply Updates ====================
     logger.info("\n[PASS 3] Applying updates to D1...")
 
-    # Build UPDATE statements
-    updates = []
+    # Group ttb_ids by (signal, refile_count) for bulk updates
+    # This is MUCH faster than individual UPDATE statements
+    groups: Dict[Tuple[str, int], List[str]] = defaultdict(list)
 
     for ttb_id, signal in classifications.items():
-        ttb_escaped = escape_sql_value(ttb_id)
-        signal_escaped = escape_sql_value(signal)
         refile_count = refile_counts.get(ttb_id, 0)
+        groups[(signal, refile_count)].append(ttb_id)
 
-        updates.append(
-            f"UPDATE colas SET signal = {signal_escaped}, refile_count = {refile_count} WHERE ttb_id = {ttb_escaped};"
-        )
-
-    logger.info(f"Total updates: {len(updates):,}")
+    logger.info(f"Total records to update: {len(classifications):,}")
+    logger.info(f"Grouped into {len(groups):,} unique (signal, refile_count) combinations")
 
     if dry_run:
         logger.info("[DRY RUN] No changes made")
         return stats
 
-    # Execute in batches
+    # Execute bulk updates - each UPDATE handles many ttb_ids at once
     total_updated = 0
-    batch_size = 500
+    chunk_size = 500  # IDs per UPDATE statement (avoid SQL size limits)
+    total_statements = sum((len(ids) + chunk_size - 1) // chunk_size for ids in groups.values())
+    statements_done = 0
 
-    for i in range(0, len(updates), batch_size):
-        batch = updates[i:i + batch_size]
-        updated = execute_batch_updates(batch, dry_run=False)
-        total_updated += updated
+    for (signal, refile_count), ttb_ids in groups.items():
+        signal_escaped = escape_sql_value(signal)
 
-        if (i + batch_size) % 10000 == 0 or i + batch_size >= len(updates):
-            logger.info(f"  Updated {min(i + batch_size, len(updates)):,}/{len(updates):,} records...")
+        # Split into chunks to avoid SQL size limits
+        for chunk_start in range(0, len(ttb_ids), chunk_size):
+            chunk = ttb_ids[chunk_start:chunk_start + chunk_size]
+            ids_list = ','.join(escape_sql_value(tid) for tid in chunk)
+
+            sql = f"UPDATE colas SET signal = {signal_escaped}, refile_count = {refile_count} WHERE ttb_id IN ({ids_list});"
+
+            result = d1_execute(sql)
+            if result.get("success"):
+                for res in result.get("result", []):
+                    total_updated += res.get("meta", {}).get("changes", 0)
+
+            statements_done += 1
+            if statements_done % 100 == 0 or statements_done == total_statements:
+                pct = (statements_done / total_statements) * 100
+                logger.info(f"  Progress: {statements_done:,}/{total_statements:,} statements ({pct:.1f}%) - {total_updated:,} rows updated")
 
     # Summary
     logger.info("\n" + "=" * 60)

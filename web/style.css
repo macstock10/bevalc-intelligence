@@ -811,6 +811,18 @@ a:hover { color: var(--color-primary-hover); }
     text-align: center;
 }
 
+.signal-note {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--color-text-tertiary);
+    margin-top: 2px;
+    font-weight: 400;
+}
+
+.signal-note-current {
+    color: var(--color-primary);
+}
+
 /* Blur overlay */
 .blur-overlay {
     position: absolute;

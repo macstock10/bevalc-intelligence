@@ -55,6 +55,8 @@ bevalc-intelligence/
 │   ├── weekly_report.py       # PDF report generator
 │   ├── send_weekly_report.py  # Query D1 + send weekly email
 │   ├── normalize_companies.py # Company name normalization
+│   ├── generate_sitemaps.py   # Generate static sitemaps, upload to R2
+│   ├── batch_classify.py      # Batch classify historical records
 │   └── src/
 │       └── email_sender.py    # Python wrapper for email system
 ├── web/                       # Frontend (Netlify)
@@ -182,6 +184,7 @@ node emails/send.js welcome --to you@example.com --firstName "John"
 | `scripts/send_weekly_report.py` | Query D1 + send weekly email via Resend |
 | `scripts/normalize_companies.py` | Company name normalization (fuzzy matching) |
 | `scripts/batch_classify.py` | Batch classify historical records with signals + refile counts |
+| `scripts/generate_sitemaps.py` | Generate static sitemaps and upload to R2 |
 | `emails/send.js` | Resend email sender (CLI + API) |
 | `emails/templates/*.jsx` | React Email templates (WeeklyReport, Welcome) |
 | `scripts/src/email_sender.py` | Python wrapper for email system |
@@ -291,9 +294,19 @@ ORDER BY filings DESC;
 - `/sitemap.xml` - Sitemap index pointing to child sitemaps
 - `/sitemap-static.xml` - Static pages + category pages (~62 URLs)
 - `/sitemap-companies.xml` - All company pages (~21k URLs)
-- `/sitemap-brands-1.xml` through `/sitemap-brands-8.xml` - All brands (~240k URLs, ~30k per file)
+- `/sitemap-brands-1.xml` through `/sitemap-brands-6.xml` - All brands (~240k URLs, ~45k per file)
 
-Sitemaps are dynamically generated and auto-expand as new brands are added.
+**Sitemap Generation** (UPDATED 2026-01-07):
+Sitemaps are pre-generated and stored in R2 for performance:
+```bash
+python scripts/generate_sitemaps.py              # Generate and upload to R2
+python scripts/generate_sitemaps.py --dry-run    # Preview without upload
+python scripts/generate_sitemaps.py --local      # Save locally only
+```
+
+The weekly GitHub Action automatically regenerates sitemaps after `weekly_update.py` runs, ensuring new brands get SEO pages indexed.
+
+Sitemaps are served from R2 via the worker (`R2_SITEMAP_URL` constant). This avoids D1 query timeouts that occurred when generating 240K+ brand URLs dynamically.
 
 **How SEO Pages Are Served:**
 1. User visits `bevalcintel.com/company/diageo-americas-supply-inc`
@@ -326,9 +339,6 @@ Sitemaps are dynamically generated and auto-expand as new brands are added.
 **Google Search Console:**
 - Site verified and sitemap submitted (2026-01-06)
 - Sitemap URL: `https://bevalcintel.com/sitemap.xml`
-
-**Technical Note:**
-Netlify `_redirects` requires explicit rules for each sitemap file (wildcards like `sitemap-*.xml` don't work). If more brand sitemaps are needed in the future, add rules to `web/_redirects`.
 
 ### Pro Email Category Filtering (COMPLETED 2026-01-07)
 

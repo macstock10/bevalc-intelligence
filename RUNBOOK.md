@@ -8,6 +8,7 @@
 | Deploy worker | `cd worker && npx wrangler deploy` |
 | Run scraper manually | GitHub Actions ? Weekly COLA Update ? Run workflow |
 | Run report manually | GitHub Actions ? Weekly Report ? Run workflow |
+| Regenerate sitemaps | `cd scripts && python generate_sitemaps.py` |
 | Check logs | GitHub Actions ? click workflow run ? view logs |
 
 ## Deployment
@@ -111,10 +112,38 @@ SELECT COUNT(*) FROM colas WHERE approval_date > date('now', '-7 days');
 2. Add workflow file in `.github/workflows/`
 3. Add required secrets to GitHub
 
+## Sitemaps
+
+Sitemaps are pre-generated and stored in R2 for performance (240K+ brand URLs caused timeouts when generated dynamically).
+
+### Automatic Regeneration
+The weekly GitHub Action automatically regenerates sitemaps after `weekly_update.py` runs:
+1. `weekly_update.py` scrapes TTB and syncs new COLAs to D1
+2. `generate_sitemaps.py` queries D1 and uploads new sitemaps to R2
+3. Worker serves sitemaps from R2 (24h edge cache)
+
+### Manual Regeneration
+If sitemaps need updating outside the weekly cycle:
+```bash
+cd scripts && python generate_sitemaps.py
+```
+
+### Sitemap Files (in R2 bucket)
+- `sitemaps/sitemap.xml` - Index file
+- `sitemaps/sitemap-static.xml` - Static pages (~62 URLs)
+- `sitemaps/sitemap-companies.xml` - Company pages (~21k URLs)
+- `sitemaps/sitemap-brands-{1-6}.xml` - Brand pages (~240k URLs total)
+
+### Check Sitemap Health
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://bevalcintel.com/sitemap.xml
+curl -s -o /dev/null -w "%{http_code}" https://bevalcintel.com/sitemap-brands-1.xml
+```
+
 ## Contacts / Resources
 
 - **TTB COLA Database**: https://ttbonline.gov/colasonline/publicSearchColasBasic.do
 - **Cloudflare Dashboard**: https://dash.cloudflare.com
 - **Netlify Dashboard**: https://app.netlify.com
-- **Loops Dashboard**: https://app.loops.so
+- **Resend Dashboard**: https://resend.com/emails
 - **GitHub Repo**: https://github.com/macstock10/bevalc-intelligence
