@@ -181,6 +181,7 @@ node emails/send.js welcome --to you@example.com --firstName "John"
 | `scripts/weekly_report.py` | PDF report generator |
 | `scripts/send_weekly_report.py` | Query D1 + send weekly email via Resend |
 | `scripts/normalize_companies.py` | Company name normalization (fuzzy matching) |
+| `scripts/batch_classify.py` | Batch classify historical records with signals + refile counts |
 | `emails/send.js` | Resend email sender (CLI + API) |
 | `emails/templates/*.jsx` | React Email templates (WeeklyReport, Welcome) |
 | `scripts/src/email_sender.py` | Python wrapper for email system |
@@ -206,7 +207,7 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 ## Database Schema (D1)
 
 **`colas`** table: 1M+ COLA records
-- `ttb_id` (PK), `brand_name`, `fanciful_name`, `class_type_code`, `origin_code`, `approval_date`, `status`, `company_name`, `state`, `year`, `month`, `signal` (NEW_BRAND/NEW_SKU/REFILE)
+- `ttb_id` (PK), `brand_name`, `fanciful_name`, `class_type_code`, `origin_code`, `approval_date`, `status`, `company_name`, `state`, `year`, `month`, `signal` (NEW_COMPANY/NEW_BRAND/NEW_SKU/REFILE), `refile_count` (number of subsequent refilings for first instances)
 
 **`companies`** table: Normalized company entities (25,224 companies from 34,178 raw names)
 - `id` (PK), `canonical_name`, `display_name`, `match_key`, `total_filings`, `variant_count`, `first_filing`, `last_filing`, `confidence`, `created_at`
@@ -263,6 +264,8 @@ ORDER BY filings DESC;
 - [x] Pro email respects user category preferences (filters filings by subscribed categories)
 - [x] Database URL filtering (?signal=NEW_BRAND,NEW_SKU&date_from=... populates filters on load)
 - [x] Company SEO pages show "Filing Entity" column (actual TTB company_name vs normalized)
+- [x] Signal classification for all historical records (NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE)
+- [x] Refile count tracking - shows "(current)" or "(X refiles)" under signal badge
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
@@ -429,6 +432,34 @@ def escape_sql_value(value):
 4. **REFILE** (gray badge) - All three exist (re-filing of existing product)
 
 The `signal` column is stored in D1 `colas` table, returned in search API, displayed in table, and included in CSV exports.
+
+**Refile Count Tracking**: First-time filings (NEW_COMPANY, NEW_BRAND, NEW_SKU) also track how many times the SKU was subsequently refiled via `refile_count`. The database page shows:
+- "(current)" under signal badge if `refile_count = 0` (no later refilings)
+- "(X refiles)" under signal badge if `refile_count > 0` (X subsequent refilings exist)
+
+This helps users understand if a "new" brand/SKU was later refiled or if it's still current.
+
+**Batch Classification Script** (`scripts/batch_classify.py`): One-time script to classify all historical records that had null signals. Processes records chronologically (oldest first) to correctly identify first-time filings.
+```bash
+python batch_classify.py --analyze    # Check current state
+python batch_classify.py --dry-run    # Preview changes
+python batch_classify.py              # Run full classification
+```
+
+**Historical Classification Results** (Run 2026-01-07):
+- Total records: 1,636,391
+- NEW_COMPANY: 32,090 (2.0%)
+- NEW_BRAND: 450,920 (27.6%)
+- NEW_SKU: 511,663 (31.3%)
+- REFILE: 641,718 (39.2%)
+- SKUs with future refilings: 237,549
+
+**Critical: Chronological Date Sorting**: The batch_classify.py script must process records in chronological order to correctly identify "first-time" filings. The ORDER BY clause uses:
+```sql
+ORDER BY COALESCE(year, 9999) ASC, COALESCE(month, 99) ASC,
+         CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ASC, ttb_id ASC
+```
+Do NOT sort by `approval_date` string directly - it's MM/DD/YYYY format and sorts lexicographically wrong.
 
 ## UI Notes
 
