@@ -321,17 +321,33 @@ async function handleStripeWebhook(request, env, corsHeaders) {
 
 async function handleCustomerStatus(url, env) {
     const email = url.searchParams.get('email');
-    
+
     if (!email) {
         return { success: false, error: 'Email required' };
     }
-    
+
+    // First check D1 database for is_pro flag (allows admin overrides)
+    const dbUser = await env.DB.prepare(
+        'SELECT is_pro, stripe_customer_id FROM user_preferences WHERE email = ?'
+    ).bind(email).first();
+
+    if (dbUser && dbUser.is_pro === 1) {
+        return {
+            success: true,
+            status: 'pro',
+            email,
+            customerId: dbUser.stripe_customer_id || null,
+            source: 'database'
+        };
+    }
+
+    // Fall back to Stripe check
     const stripeSecretKey = env.STRIPE_SECRET_KEY;
-    
+
     if (!stripeSecretKey) {
         return { success: false, error: 'Stripe not configured' };
     }
-    
+
     const response = await fetch(
         `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
         {
@@ -340,15 +356,15 @@ async function handleCustomerStatus(url, env) {
             }
         }
     );
-    
+
     const data = await response.json();
-    
+
     if (!data.data || data.data.length === 0) {
         return { success: true, status: 'free', email };
     }
-    
+
     const customer = data.data[0];
-    
+
     const subsResponse = await fetch(
         `https://api.stripe.com/v1/subscriptions?customer=${customer.id}&status=active`,
         {
@@ -357,9 +373,9 @@ async function handleCustomerStatus(url, env) {
             }
         }
     );
-    
+
     const subsData = await subsResponse.json();
-    
+
     if (subsData.data && subsData.data.length > 0) {
         return {
             success: true,
@@ -369,7 +385,7 @@ async function handleCustomerStatus(url, env) {
             subscriptionId: subsData.data[0].id
         };
     }
-    
+
     return { success: true, status: 'free', email };
 }
 
