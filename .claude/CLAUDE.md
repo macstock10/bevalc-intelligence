@@ -62,7 +62,9 @@ bevalc-intelligence/
 │   ├── database.js
 │   ├── account.html
 │   ├── auth.js
-│   └── style.css
+│   ├── style.css
+│   ├── _redirects             # Netlify proxy rules for SEO pages
+│   └── robots.txt             # Crawler instructions + sitemap reference
 ├── worker/                    # Cloudflare Worker source
 │   ├── worker.js
 │   └── wrangler.toml          # Worker deployment config
@@ -261,7 +263,23 @@ ORDER BY filings DESC;
 - `/company/[slug]` - Company pages (21,509 pages with 3+ filings)
 - `/brand/[slug]` - Brand pages (122,868 pages with 2+ filings)
 - `/category/[category]/[year]` - Category trend pages (~70 pages)
-- `/sitemap.xml` - Dynamic sitemap
+
+**Sitemap Structure** (split for Google's 50k URL limit):
+- `/sitemap.xml` - Sitemap index pointing to child sitemaps
+- `/sitemap-static.xml` - Static pages + category pages (~62 URLs)
+- `/sitemap-companies.xml` - All company pages (~21k URLs)
+- `/sitemap-brands-1.xml` - Brands 1-45k
+- `/sitemap-brands-2.xml` - Brands 45k-90k
+- `/sitemap-brands-3.xml` - Brands 90k+ (remaining ~33k)
+
+Sitemaps are dynamically generated and auto-expand as new brands are added.
+
+**How SEO Pages Are Served:**
+1. User visits `bevalcintel.com/company/diageo-americas-supply-inc`
+2. Netlify receives request, checks `web/_redirects`
+3. Redirect rule proxies to `bevalc-api.mac-rowan.workers.dev/company/...`
+4. Cloudflare Worker renders HTML page with data from D1
+5. Response returned to user (200 status, not a redirect)
 
 **Features:**
 - Server-rendered HTML matching existing site design
@@ -275,6 +293,10 @@ ORDER BY filings DESC;
 - `/company/diageo-americas-supply-inc` - 1,358 filings, 20 brands, category breakdown
 - `/brand/crown-royal` - Filing timeline, products, related brands
 - `/category/tequila/2025` - 3,562 filings, +4% YoY, top filers
+
+**Google Search Console:**
+- Site verified and sitemap submitted (2026-01-06)
+- Sitemap URL: `https://bevalcintel.com/sitemap.xml`
 
 ### Company Name Normalization (COMPLETED 2026-01-06)
 
