@@ -1709,7 +1709,16 @@ export function ProWeeklyReport({
                                 wordBreak: "break-word",
                               }}
                             >
-                              <BrandLink name={row.brand} style={{ fontWeight: "600" }} />
+                              <Link
+                                href={getDatabaseLink(row.ttbId)}
+                                style={{
+                                  color: colors.text,
+                                  fontWeight: "600",
+                                  textDecoration: "none",
+                                }}
+                              >
+                                {row.brand}
+                              </Link>
                             </td>
                             <td
                               style={{
@@ -1731,33 +1740,10 @@ export function ProWeeklyReport({
                                   i < filings.length - 1
                                     ? `1px solid ${colors.border}`
                                     : "none",
-                                width: "70px",
+                                width: "80px",
                               }}
                             >
                               <SignalBadge signal={row.signal} />
-                            </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                borderBottom:
-                                  i < filings.length - 1
-                                    ? `1px solid ${colors.border}`
-                                    : "none",
-                                textAlign: "center",
-                                width: "50px",
-                              }}
-                            >
-                              <Link
-                                href={getDatabaseLink(row.ttbId)}
-                                style={{
-                                  color: colors.primary,
-                                  fontSize: "12px",
-                                  fontWeight: "500",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                View
-                              </Link>
                             </td>
                           </tr>
                         ))}
