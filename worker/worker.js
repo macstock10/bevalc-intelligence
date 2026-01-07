@@ -87,8 +87,8 @@ export default {
                 return await handleBrandPage(path, env, corsHeaders);
             } else if (path.startsWith('/category/')) {
                 return await handleCategoryPage(path, env, corsHeaders);
-            } else if (path === '/sitemap.xml') {
-                return await handleSitemap(env);
+            } else if (path === '/sitemap.xml' || path.startsWith('/sitemap-')) {
+                return await handleSitemap(path, env);
             }
 
             let response;
@@ -2173,49 +2173,109 @@ async function handleCategoryPage(path, env, corsHeaders) {
 }
 
 // Sitemap Handler
-async function handleSitemap(env) {
-    const urls = [];
+async function handleSitemap(path, env) {
+    // Sitemap index - lists all child sitemaps
+    if (path === '/sitemap.xml') {
+        // Count brands to determine how many brand sitemaps we need
+        const brandCountResult = await env.DB.prepare(`
+            SELECT COUNT(*) as cnt FROM (
+                SELECT brand_name FROM colas GROUP BY brand_name HAVING COUNT(*) >= 2
+            )
+        `).first();
+        const brandCount = brandCountResult?.cnt || 0;
+        const brandSitemapCount = Math.ceil(brandCount / 45000); // Use 45k to stay safely under 50k
 
-    // Static pages
-    urls.push({ loc: BASE_URL, priority: '1.0' });
-    urls.push({ loc: `${BASE_URL}/database.html`, priority: '0.9' });
-
-    // Company pages (3+ filings)
-    const companiesResult = await env.DB.prepare(`
-        SELECT slug FROM companies WHERE total_filings >= 3 ORDER BY total_filings DESC LIMIT 50000
-    `).all();
-    for (const c of (companiesResult.results || [])) {
-        urls.push({ loc: `${BASE_URL}/company/${c.slug}`, priority: '0.7' });
-    }
-
-    // Brand pages (top 50k by filings for performance)
-    const brandsResult = await env.DB.prepare(`
-        SELECT brand_name FROM (
-            SELECT brand_name, COUNT(*) as cnt FROM colas GROUP BY brand_name HAVING cnt >= 2
-        ) ORDER BY cnt DESC LIMIT 50000
-    `).all();
-    for (const b of (brandsResult.results || [])) {
-        urls.push({ loc: `${BASE_URL}/brand/${makeSlug(b.brand_name)}`, priority: '0.6' });
-    }
-
-    // Category pages
-    const categories = ['whiskey', 'vodka', 'tequila', 'rum', 'gin', 'brandy', 'wine', 'beer', 'liqueur', 'cocktails'];
-    const years = [2026, 2025, 2024, 2023, 2022, 2021];
-    for (const cat of categories) {
-        for (const year of years) {
-            urls.push({ loc: `${BASE_URL}/category/${cat}/${year}`, priority: '0.8' });
+        const sitemaps = [
+            `${BASE_URL}/sitemap-static.xml`,
+            `${BASE_URL}/sitemap-companies.xml`
+        ];
+        for (let i = 1; i <= brandSitemapCount; i++) {
+            sitemaps.push(`${BASE_URL}/sitemap-brands-${i}.xml`);
         }
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemaps.map(s => `  <sitemap>
+    <loc>${s}</loc>
+  </sitemap>`).join('\n')}
+</sitemapindex>`;
+
+        return new Response(xml, {
+            headers: { 'Content-Type': 'application/xml' }
+        });
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    // Static pages + categories sitemap
+    if (path === '/sitemap-static.xml') {
+        const urls = [];
+        urls.push({ loc: BASE_URL, priority: '1.0' });
+        urls.push({ loc: `${BASE_URL}/database.html`, priority: '0.9' });
+
+        const categories = ['whiskey', 'vodka', 'tequila', 'rum', 'gin', 'brandy', 'wine', 'beer', 'liqueur', 'cocktails'];
+        const years = [2026, 2025, 2024, 2023, 2022, 2021];
+        for (const cat of categories) {
+            for (const year of years) {
+                urls.push({ loc: `${BASE_URL}/category/${cat}/${year}`, priority: '0.8' });
+            }
+        }
+
+        return new Response(generateUrlsetXml(urls), {
+            headers: { 'Content-Type': 'application/xml' }
+        });
+    }
+
+    // Companies sitemap
+    if (path === '/sitemap-companies.xml') {
+        const companiesResult = await env.DB.prepare(`
+            SELECT slug FROM companies WHERE total_filings >= 3 ORDER BY total_filings DESC
+        `).all();
+
+        const urls = (companiesResult.results || []).map(c => ({
+            loc: `${BASE_URL}/company/${c.slug}`,
+            priority: '0.7'
+        }));
+
+        return new Response(generateUrlsetXml(urls), {
+            headers: { 'Content-Type': 'application/xml' }
+        });
+    }
+
+    // Brand sitemaps (paginated)
+    const brandMatch = path.match(/^\/sitemap-brands-(\d+)\.xml$/);
+    if (brandMatch) {
+        const page = parseInt(brandMatch[1], 10);
+        const pageSize = 45000;
+        const offset = (page - 1) * pageSize;
+
+        const brandsResult = await env.DB.prepare(`
+            SELECT brand_name FROM (
+                SELECT brand_name, COUNT(*) as cnt FROM colas
+                GROUP BY brand_name HAVING cnt >= 2
+                ORDER BY cnt DESC
+            )
+            LIMIT ? OFFSET ?
+        `).bind(pageSize, offset).all();
+
+        const urls = (brandsResult.results || []).map(b => ({
+            loc: `${BASE_URL}/brand/${makeSlug(b.brand_name)}`,
+            priority: '0.6'
+        }));
+
+        return new Response(generateUrlsetXml(urls), {
+            headers: { 'Content-Type': 'application/xml' }
+        });
+    }
+
+    // 404 for unknown sitemap paths
+    return new Response('Not found', { status: 404 });
+}
+
+function generateUrlsetXml(urls) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(u => `  <url>
     <loc>${u.loc}</loc>
     <priority>${u.priority}</priority>
   </url>`).join('\n')}
 </urlset>`;
-
-    return new Response(xml, {
-        headers: { 'Content-Type': 'application/xml' }
-    });
 }
