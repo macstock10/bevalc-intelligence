@@ -570,6 +570,148 @@ export function WeeklyReport({
               </tbody>
             </table>
 
+            {/* Locked New Brands & SKUs Table (Pro Feature) */}
+            <Text style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: colors.text,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              margin: "0 0 4px 0",
+            }}>
+              New Brands & SKUs This Week
+            </Text>
+            <Text style={{
+              fontSize: "11px",
+              color: colors.textTertiary,
+              margin: "0 0 12px 0",
+            }}>
+              Every new product filed with the TTB
+            </Text>
+
+            {/* Locked table container */}
+            <div style={{ position: "relative", marginBottom: "24px" }}>
+              {/* Blurred preview table */}
+              <table width="100%" cellPadding="0" cellSpacing="0" style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                opacity: "0.4",
+                filter: "blur(1px)",
+              }}>
+                <tbody>
+                  <tr style={{ backgroundColor: colors.purpleLight }}>
+                    <td style={{
+                      padding: "8px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}>Brand</td>
+                    <td style={{
+                      padding: "8px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}>Product</td>
+                    <td style={{
+                      padding: "8px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "80px",
+                    }}>Signal</td>
+                  </tr>
+                  {/* Placeholder blurred rows */}
+                  {[1, 2, 3, 4, 5].map((_, i) => (
+                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
+                      <td style={{
+                        padding: "10px 12px",
+                        fontSize: "13px",
+                        color: colors.textTertiary,
+                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
+                      }}>Premium Brand {i + 1}</td>
+                      <td style={{
+                        padding: "10px 12px",
+                        fontSize: "13px",
+                        color: colors.textTertiary,
+                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
+                      }}>New Product Name</td>
+                      <td style={{
+                        padding: "10px 12px",
+                        borderBottom: i < 4 ? `1px solid ${colors.border}` : "none",
+                      }}>
+                        <span style={{
+                          backgroundColor: colors.greenLight,
+                          color: colors.green,
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "3px",
+                        }}>NEW</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Lock overlay */}
+              <table width="100%" cellPadding="0" cellSpacing="0" style={{
+                position: "absolute",
+                top: "50%",
+                left: "0",
+                transform: "translateY(-50%)",
+              }}>
+                <tbody>
+                  <tr>
+                    <td style={{ textAlign: "center", padding: "20px" }}>
+                      <Text style={{
+                        fontSize: "20px",
+                        margin: "0 0 8px 0",
+                      }}>
+                        🔒
+                      </Text>
+                      <Text style={{
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: colors.purple,
+                        margin: "0 0 4px 0",
+                      }}>
+                        Pro Feature
+                      </Text>
+                      <Text style={{
+                        fontSize: "12px",
+                        color: colors.textSecondary,
+                        margin: "0 0 12px 0",
+                      }}>
+                        See all 179 new brands & SKUs filed this week
+                      </Text>
+                      <Link
+                        href={pricingUrl}
+                        style={{
+                          display: "inline-block",
+                          backgroundColor: colors.purple,
+                          color: "#ffffff",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          padding: "10px 20px",
+                          borderRadius: "6px",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Upgrade to Pro
+                      </Link>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
             {/* Secondary CTA */}
             <Section style={{ textAlign: "center" }}>
               <Link
