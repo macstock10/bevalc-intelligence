@@ -1,0 +1,1601 @@
+import React from "react";
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Heading,
+  Hr,
+  Html,
+  Link,
+  Preview,
+  Section,
+  Text,
+} from "@react-email/components";
+
+// Brand colors (matches bevalcintel.com)
+const colors = {
+  primary: "#0d9488",
+  primaryDark: "#0f766e",
+  primaryLight: "#ccfbf1",
+  text: "#1e293b",
+  textSecondary: "#475569",
+  textTertiary: "#64748b",
+  bg: "#ffffff",
+  bgSecondary: "#f8fafc",
+  bgTertiary: "#f1f5f9",
+  border: "#e2e8f0",
+  green: "#10b981",
+  greenLight: "#d1fae5",
+  blue: "#3b82f6",
+  blueLight: "#dbeafe",
+  purple: "#8b5cf6",
+  purpleLight: "#ede9fe",
+  orange: "#f97316",
+  orangeLight: "#ffedd5",
+  red: "#ef4444",
+  redLight: "#fee2e2",
+  amber: "#f59e0b",
+  amberLight: "#fef3c7",
+};
+
+// Category colors for badges
+const categoryColors = {
+  Whiskey: { bg: "#fef3c7", text: "#92400e" },
+  Tequila: { bg: "#d1fae5", text: "#065f46" },
+  Vodka: { bg: "#dbeafe", text: "#1e40af" },
+  Wine: { bg: "#fce7f3", text: "#9d174d" },
+  Beer: { bg: "#fed7aa", text: "#9a3412" },
+  RTD: { bg: "#e0e7ff", text: "#3730a3" },
+  Gin: { bg: "#ccfbf1", text: "#0f766e" },
+  Rum: { bg: "#fecaca", text: "#991b1b" },
+  Brandy: { bg: "#f5d0fe", text: "#86198f" },
+  Liqueur: { bg: "#fef9c3", text: "#854d0e" },
+  default: { bg: "#f1f5f9", text: "#475569" },
+};
+
+// Signal badge colors
+const signalColors = {
+  NEW_BRAND: { bg: "#d1fae5", text: "#065f46", label: "New Brand" },
+  NEW_SKU: { bg: "#dbeafe", text: "#1e40af", label: "New SKU" },
+  NEW_COMPANY: { bg: "#ede9fe", text: "#5b21b6", label: "New Company" },
+  REFILE: { bg: "#f1f5f9", text: "#475569", label: "Refile" },
+};
+
+// Helper to generate URL slug
+function makeSlug(name) {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Pro Badge Component
+function ProBadge() {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: colors.primary,
+        color: "#ffffff",
+        fontSize: "10px",
+        fontWeight: "700",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        marginLeft: "8px",
+        verticalAlign: "middle",
+      }}
+    >
+      Pro
+    </span>
+  );
+}
+
+// Stat Tile Component
+function StatTile({ label, value, subtext, trend, highlight = false }) {
+  return (
+    <td
+      style={{
+        backgroundColor: highlight ? colors.primaryLight : colors.bg,
+        border: `1px solid ${highlight ? colors.primary : colors.border}`,
+        borderRadius: "8px",
+        padding: "16px",
+        textAlign: "center",
+        width: "33%",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: "28px",
+          fontWeight: "700",
+          color: highlight ? colors.primaryDark : colors.primary,
+          margin: "0",
+          lineHeight: "1.2",
+        }}
+      >
+        {value}
+      </Text>
+      <Text
+        style={{
+          fontSize: "11px",
+          color: highlight ? colors.primaryDark : colors.textSecondary,
+          margin: "4px 0 0 0",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+        }}
+      >
+        {label}
+      </Text>
+      {subtext && (
+        <Text
+          style={{
+            fontSize: "11px",
+            color:
+              trend === "up"
+                ? colors.green
+                : trend === "down"
+                  ? colors.red
+                  : colors.textTertiary,
+            margin: "4px 0 0 0",
+          }}
+        >
+          {subtext}
+        </Text>
+      )}
+    </td>
+  );
+}
+
+// CSS Bar Chart Row
+function BarRow({ label, value, maxValue, color = colors.primary, link }) {
+  const percentage = Math.min(Math.round((value / maxValue) * 100), 100);
+  const barWidth = Math.max(percentage, 5);
+
+  const labelContent = link ? (
+    <Link
+      href={link}
+      style={{
+        color: colors.text,
+        textDecoration: "none",
+        fontWeight: "500",
+      }}
+    >
+      {label}
+    </Link>
+  ) : (
+    label
+  );
+
+  return (
+    <tr>
+      <td
+        style={{
+          padding: "8px 0",
+          fontSize: "13px",
+          fontWeight: "500",
+          color: colors.text,
+          width: "100px",
+        }}
+      >
+        {labelContent}
+      </td>
+      <td
+        style={{
+          padding: "8px 0",
+          fontSize: "13px",
+          fontWeight: "600",
+          color: colors.textSecondary,
+          width: "50px",
+          textAlign: "right",
+        }}
+      >
+        {value.toLocaleString()}
+      </td>
+      <td style={{ padding: "8px 0 8px 12px" }}>
+        <table
+          cellPadding="0"
+          cellSpacing="0"
+          width="140"
+          style={{
+            backgroundColor: colors.bgTertiary,
+            borderRadius: "4px",
+          }}
+        >
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  backgroundColor: color,
+                  height: "14px",
+                  width: `${barWidth}%`,
+                  borderRadius: "4px",
+                }}
+              ></td>
+              <td style={{ height: "14px" }}></td>
+            </tr>
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  );
+}
+
+// Category Badge Component
+function CategoryBadge({ category }) {
+  const colorScheme = categoryColors[category] || categoryColors.default;
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: colorScheme.bg,
+        color: colorScheme.text,
+        fontSize: "11px",
+        fontWeight: "600",
+        padding: "3px 8px",
+        borderRadius: "4px",
+      }}
+    >
+      {category}
+    </span>
+  );
+}
+
+// Signal Badge Component
+function SignalBadge({ signal }) {
+  const config = signalColors[signal] || signalColors.REFILE;
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: config.bg,
+        color: config.text,
+        fontSize: "10px",
+        fontWeight: "600",
+        padding: "2px 6px",
+        borderRadius: "3px",
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+      }}
+    >
+      {config.label}
+    </span>
+  );
+}
+
+// Linked Company Name
+function CompanyLink({ name, style = {} }) {
+  const slug = makeSlug(name);
+  return (
+    <Link
+      href={`https://bevalcintel.com/company/${slug}`}
+      style={{
+        color: colors.text,
+        textDecoration: "none",
+        fontWeight: "500",
+        ...style,
+      }}
+    >
+      {name}
+    </Link>
+  );
+}
+
+// Linked Brand Name
+function BrandLink({ name, style = {} }) {
+  const slug = makeSlug(name);
+  return (
+    <Link
+      href={`https://bevalcintel.com/brand/${slug}`}
+      style={{
+        color: colors.text,
+        textDecoration: "none",
+        fontWeight: "500",
+        ...style,
+      }}
+    >
+      {name}
+    </Link>
+  );
+}
+
+// Watchlist Match Row
+function WatchlistRow({ filing, index, totalRows }) {
+  const isLast = index === totalRows - 1;
+  return (
+    <tr
+      style={{
+        backgroundColor: index % 2 === 0 ? colors.bg : colors.bgSecondary,
+      }}
+    >
+      <td
+        style={{
+          padding: "12px",
+          fontSize: "13px",
+          borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+        }}
+      >
+        <BrandLink name={filing.brand} style={{ fontWeight: "600" }} />
+        <br />
+        <Text
+          style={{
+            fontSize: "12px",
+            color: colors.textTertiary,
+            margin: "4px 0 0 0",
+          }}
+        >
+          {filing.fancifulName || filing.brand}
+        </Text>
+      </td>
+      <td
+        style={{
+          padding: "12px",
+          fontSize: "13px",
+          borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+        }}
+      >
+        <CompanyLink name={filing.company} />
+      </td>
+      <td
+        style={{
+          padding: "12px",
+          borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+        }}
+      >
+        <SignalBadge signal={filing.signal} />
+      </td>
+      <td
+        style={{
+          padding: "12px",
+          borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+          textAlign: "center",
+        }}
+      >
+        <Link
+          href={filing.ttbLink}
+          style={{
+            color: colors.primary,
+            fontSize: "12px",
+            fontWeight: "500",
+            textDecoration: "none",
+          }}
+        >
+          View
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+// Section Header Component
+function SectionHeader({ title, subtitle, color = colors.text, icon }) {
+  return (
+    <>
+      <Text
+        style={{
+          fontSize: "14px",
+          fontWeight: "700",
+          color: color,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          margin: "0 0 4px 0",
+        }}
+      >
+        {icon && <span style={{ marginRight: "6px" }}>{icon}</span>}
+        {title}
+      </Text>
+      {subtitle && (
+        <Text
+          style={{
+            fontSize: "12px",
+            color: colors.textTertiary,
+            margin: "0 0 16px 0",
+          }}
+        >
+          {subtitle}
+        </Text>
+      )}
+    </>
+  );
+}
+
+// Main Pro Weekly Report Component
+export function ProWeeklyReport({
+  // Personalization
+  firstName = "",
+  email = "subscriber@example.com",
+  watchedCompaniesCount = 5,
+  watchedBrandsCount = 12,
+
+  // Week info
+  weekEnding = "January 5, 2026",
+  summary = "Tequila filings up 23% as brands prep for spring launches",
+
+  // Stat tiles
+  totalFilings = "2,847",
+  newBrands = "127",
+  newSkus = "843",
+  newCompanies = "34",
+  topFiler = "Diageo",
+  topFilerCount = "89",
+  weekOverWeekChange = "+12%",
+
+  // Watchlist activity - NEW filings from tracked brands/companies
+  watchlistMatches = [
+    {
+      brand: "Crown Royal",
+      fancifulName: "Crown Royal Peach",
+      company: "Diageo Americas Supply Inc",
+      signal: "NEW_SKU",
+      category: "Whiskey",
+      ttbId: "24087001000453",
+      ttbLink:
+        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000453",
+      matchType: "company", // or 'brand'
+    },
+    {
+      brand: "Johnnie Walker",
+      fancifulName: "Johnnie Walker Blue Label Ghost",
+      company: "Diageo Americas Supply Inc",
+      signal: "NEW_SKU",
+      category: "Whiskey",
+      ttbId: "24087001000454",
+      ttbLink:
+        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000454",
+      matchType: "company",
+    },
+    {
+      brand: "Casamigos",
+      fancifulName: "Casamigos Cristalino",
+      company: "Casamigos Spirits Company",
+      signal: "NEW_BRAND",
+      category: "Tequila",
+      ttbId: "24087001000455",
+      ttbLink:
+        "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000455",
+      matchType: "brand",
+    },
+  ],
+
+  // Category data (user's subscribed categories with breakdown)
+  categoryData = [
+    { label: "Whiskey", value: 487, change: "+15%" },
+    { label: "Tequila", value: 356, change: "+23%" },
+    { label: "Vodka", value: 234, change: "-5%" },
+    { label: "Wine", value: 198, change: "+8%" },
+    { label: "Beer", value: 176, change: "+2%" },
+    { label: "RTD", value: 164, change: "+31%" },
+  ],
+
+  // Top filing companies (velocity signals)
+  topCompaniesList = [
+    { company: "Diageo Americas Supply Inc", filings: 89, change: "+34" },
+    { company: "Constellation Brands", filings: 67, change: "+12" },
+    { company: "Pernod Ricard USA", filings: 54, change: "+8" },
+    { company: "E. & J. Gallo Winery", filings: 48, change: "-3" },
+    { company: "Brown-Forman Corporation", filings: 42, change: "+15" },
+  ],
+
+  // Notable new brands (first-time filers)
+  notableNewBrands = [
+    {
+      brand: "Casa Dragones",
+      company: "Casa Dragones LLC",
+      category: "Tequila",
+      ttbId: "24087001000456",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000456",
+    },
+    {
+      brand: "Kentucky Owl",
+      company: "Kentucky Owl LLC",
+      category: "Whiskey",
+      ttbId: "24087001000457",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000457",
+    },
+    {
+      brand: "Cutwater Spirits",
+      company: "Cutwater Spirits LLC",
+      category: "RTD",
+      ttbId: "24087001000458",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000458",
+    },
+  ],
+
+  // Filing spikes (M&A signals - companies with unusual activity)
+  filingSpikes = [
+    {
+      company: "Sazerac Company",
+      thisWeek: 45,
+      avgWeek: 12,
+      percentIncrease: 275,
+    },
+    {
+      company: "Heaven Hill Brands",
+      thisWeek: 38,
+      avgWeek: 15,
+      percentIncrease: 153,
+    },
+  ],
+
+  // Full new brands & SKUs list (unlocked for Pro)
+  newFilingsList = [
+    {
+      brand: "Clase Azul",
+      fancifulName: "Clase Azul Ultra",
+      company: "Clase Azul Mexico",
+      signal: "NEW_BRAND",
+      category: "Tequila",
+      ttbId: "24087001000459",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000459",
+    },
+    {
+      brand: "High Noon",
+      fancifulName: "High Noon Pineapple",
+      company: "E. & J. Gallo Winery",
+      signal: "NEW_SKU",
+      category: "RTD",
+      ttbId: "24087001000460",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000460",
+    },
+    {
+      brand: "Buffalo Trace",
+      fancifulName: "Buffalo Trace Single Barrel Select",
+      company: "Sazerac Company",
+      signal: "NEW_SKU",
+      category: "Whiskey",
+      ttbId: "24087001000461",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000461",
+    },
+    {
+      brand: "Aperol",
+      fancifulName: "Aperol Spritz RTD",
+      company: "Campari America",
+      signal: "NEW_SKU",
+      category: "RTD",
+      ttbId: "24087001000462",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000462",
+    },
+    {
+      brand: "Teremana",
+      fancifulName: "Teremana Cristalino",
+      company: "Teremana LLC",
+      signal: "NEW_SKU",
+      category: "Tequila",
+      ttbId: "24087001000463",
+      ttbLink: "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000463",
+    },
+  ],
+
+  // Links
+  databaseUrl = "https://bevalcintel.com/database",
+  accountUrl = "https://bevalcintel.com/account.html",
+  preferencesUrl = "https://bevalcintel.com/preferences.html",
+}) {
+  const maxCategoryValue = Math.max(...categoryData.map((d) => d.value));
+  const greeting = firstName ? `${firstName}, here's your` : "Your";
+  const hasWatchlistMatches = watchlistMatches && watchlistMatches.length > 0;
+  const hasFilingSpikes = filingSpikes && filingSpikes.length > 0;
+
+  return (
+    <Html>
+      <Head />
+      <Preview>
+        Pro Report: {totalFilings} filings, {newBrands} new brands
+        {hasWatchlistMatches
+          ? ` + ${watchlistMatches.length} watchlist matches`
+          : ""}{" "}
+        - {weekEnding}
+      </Preview>
+      <Body
+        style={{
+          backgroundColor: colors.bgSecondary,
+          fontFamily:
+            'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        <Container
+          style={{
+            margin: "0 auto",
+            padding: "24px 16px",
+            maxWidth: "600px",
+          }}
+        >
+          {/* Header */}
+          <Section style={{ textAlign: "center", marginBottom: "24px" }}>
+            <Link
+              href="https://bevalcintel.com"
+              style={{
+                color: colors.primary,
+                fontSize: "20px",
+                fontWeight: "600",
+                textDecoration: "none",
+              }}
+            >
+              BevAlc Intelligence
+            </Link>
+            <ProBadge />
+            <Text
+              style={{
+                fontSize: "13px",
+                color: colors.textTertiary,
+                margin: "4px 0 0 0",
+              }}
+            >
+              Weekly Pro Report
+            </Text>
+          </Section>
+
+          {/* Main Card */}
+          <Section
+            style={{
+              backgroundColor: colors.bg,
+              borderRadius: "12px",
+              border: `1px solid ${colors.border}`,
+              padding: "24px",
+            }}
+          >
+            {/* Personalized Greeting */}
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "1px",
+                margin: "0 0 4px 0",
+              }}
+            >
+              Week Ending {weekEnding}
+            </Text>
+            <Heading
+              style={{
+                fontSize: "20px",
+                fontWeight: "700",
+                color: colors.text,
+                margin: "0 0 8px 0",
+                lineHeight: "1.3",
+              }}
+            >
+              {greeting} weekly intel
+            </Heading>
+            <Text
+              style={{
+                fontSize: "15px",
+                color: colors.textSecondary,
+                margin: "0 0 8px 0",
+                lineHeight: "1.5",
+              }}
+            >
+              {summary}
+            </Text>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0 0 20px 0",
+              }}
+            >
+              You're tracking{" "}
+              <strong style={{ color: colors.text }}>
+                {watchedCompaniesCount} companies
+              </strong>{" "}
+              and{" "}
+              <strong style={{ color: colors.text }}>
+                {watchedBrandsCount} brands
+              </strong>
+            </Text>
+
+            {/* Stat Tiles - Row 1 */}
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="8"
+              style={{ marginBottom: "8px" }}
+            >
+              <tbody>
+                <tr>
+                  <StatTile
+                    label="Total Filings"
+                    value={totalFilings}
+                    subtext={weekOverWeekChange}
+                    trend={weekOverWeekChange.startsWith("+") ? "up" : "down"}
+                  />
+                  <StatTile
+                    label="New Brands"
+                    value={newBrands}
+                    highlight={true}
+                  />
+                  <StatTile label="New SKUs" value={newSkus} />
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Stat Tiles - Row 2 */}
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="8"
+              style={{ marginBottom: "24px" }}
+            >
+              <tbody>
+                <tr>
+                  <StatTile label="New Companies" value={newCompanies} />
+                  <StatTile
+                    label="Top Filer"
+                    value={topFiler}
+                    subtext={`${topFilerCount} filings`}
+                  />
+                  <StatTile
+                    label="Watchlist"
+                    value={hasWatchlistMatches ? watchlistMatches.length : "0"}
+                    subtext="matches"
+                    highlight={hasWatchlistMatches}
+                  />
+                </tr>
+              </tbody>
+            </table>
+
+            {/* WATCHLIST ACTIVITY SECTION */}
+            {hasWatchlistMatches && (
+              <>
+                <Hr
+                  style={{
+                    borderTop: `2px solid ${colors.primary}`,
+                    margin: "24px 0",
+                  }}
+                />
+
+                <SectionHeader
+                  title="Watchlist Activity"
+                  subtitle="New filings from your tracked brands and companies"
+                  color={colors.primary}
+                />
+
+                <table
+                  width="100%"
+                  cellPadding="0"
+                  cellSpacing="0"
+                  style={{
+                    borderRadius: "8px",
+                    border: `2px solid ${colors.primary}`,
+                    borderCollapse: "separate",
+                    overflow: "hidden",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <tbody>
+                    {/* Header Row */}
+                    <tr style={{ backgroundColor: colors.primaryLight }}>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.primaryDark,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                        }}
+                      >
+                        Brand / Product
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.primaryDark,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                        }}
+                      >
+                        Company
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.primaryDark,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                          width: "80px",
+                        }}
+                      >
+                        Signal
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.primaryDark,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                          width: "50px",
+                          textAlign: "center",
+                        }}
+                      >
+                        TTB
+                      </td>
+                    </tr>
+                    {/* Data Rows */}
+                    {watchlistMatches.map((filing, i) => (
+                      <WatchlistRow
+                        key={i}
+                        filing={filing}
+                        index={i}
+                        totalRows={watchlistMatches.length}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+
+                <Section style={{ textAlign: "center", marginBottom: "24px" }}>
+                  <Link
+                    href={accountUrl}
+                    style={{
+                      color: colors.primary,
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      textDecoration: "none",
+                    }}
+                  >
+                    Manage your watchlist
+                  </Link>
+                </Section>
+              </>
+            )}
+
+            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
+
+            {/* Category Breakdown */}
+            <SectionHeader
+              title="Filings by Category"
+              subtitle="Total approvals across all categories this week"
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{ marginBottom: "24px" }}
+            >
+              <tbody>
+                {categoryData.map((item, i) => (
+                  <BarRow
+                    key={i}
+                    label={item.label}
+                    value={item.value}
+                    maxValue={maxCategoryValue}
+                    link={`https://bevalcintel.com/category/${makeSlug(item.label)}/${new Date().getFullYear()}`}
+                  />
+                ))}
+              </tbody>
+            </table>
+
+            {/* Primary CTA */}
+            <Section style={{ textAlign: "center", margin: "24px 0" }}>
+              <Button
+                href={databaseUrl}
+                style={{
+                  backgroundColor: colors.primary,
+                  borderRadius: "8px",
+                  color: "#ffffff",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  textAlign: "center",
+                  display: "inline-block",
+                  padding: "14px 28px",
+                }}
+              >
+                Search All Filings in Database
+              </Button>
+            </Section>
+
+            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
+
+            {/* Top Filing Companies (Velocity Signals) */}
+            <SectionHeader
+              title="Top Filers This Week"
+              subtitle="Companies with the most filing activity"
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                marginBottom: "24px",
+              }}
+            >
+              <tbody>
+                {/* Header Row */}
+                <tr style={{ backgroundColor: colors.greenLight }}>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "70px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Filings
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.green,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "70px",
+                      textAlign: "center",
+                    }}
+                  >
+                    vs Avg
+                  </td>
+                </tr>
+                {/* Data Rows */}
+                {topCompaniesList.map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <CompanyLink name={row.company} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        color: colors.text,
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.filings}
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: row.change.startsWith("+")
+                          ? colors.green
+                          : row.change.startsWith("-")
+                            ? colors.red
+                            : colors.textTertiary,
+                        borderBottom:
+                          i < topCompaniesList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.change}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Filing Spikes (M&A Signals) */}
+            {hasFilingSpikes && (
+              <>
+                <SectionHeader
+                  title="Unusual Filing Activity"
+                  subtitle="Companies with significant spikes vs. their 4-week average"
+                  color={colors.orange}
+                />
+                <table
+                  width="100%"
+                  cellPadding="0"
+                  cellSpacing="0"
+                  style={{
+                    borderRadius: "8px",
+                    border: `1px solid ${colors.orange}`,
+                    borderCollapse: "separate",
+                    overflow: "hidden",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <tbody>
+                    {/* Header Row */}
+                    <tr style={{ backgroundColor: colors.orangeLight }}>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.orange,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                        }}
+                      >
+                        Company
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.orange,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                          width: "80px",
+                          textAlign: "center",
+                        }}
+                      >
+                        This Week
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.orange,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                          width: "80px",
+                          textAlign: "center",
+                        }}
+                      >
+                        Avg Week
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: colors.orange,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          borderBottom: `1px solid ${colors.border}`,
+                          width: "70px",
+                          textAlign: "center",
+                        }}
+                      >
+                        Spike
+                      </td>
+                    </tr>
+                    {/* Data Rows */}
+                    {filingSpikes.map((row, i) => (
+                      <tr
+                        key={i}
+                        style={{
+                          backgroundColor:
+                            i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: "12px",
+                            fontSize: "13px",
+                            borderBottom:
+                              i < filingSpikes.length - 1
+                                ? `1px solid ${colors.border}`
+                                : "none",
+                          }}
+                        >
+                          <CompanyLink name={row.company} />
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: colors.text,
+                            borderBottom:
+                              i < filingSpikes.length - 1
+                                ? `1px solid ${colors.border}`
+                                : "none",
+                            textAlign: "center",
+                          }}
+                        >
+                          {row.thisWeek}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px",
+                            fontSize: "13px",
+                            color: colors.textTertiary,
+                            borderBottom:
+                              i < filingSpikes.length - 1
+                                ? `1px solid ${colors.border}`
+                                : "none",
+                            textAlign: "center",
+                          }}
+                        >
+                          {row.avgWeek}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px",
+                            fontSize: "12px",
+                            fontWeight: "700",
+                            color: colors.orange,
+                            borderBottom:
+                              i < filingSpikes.length - 1
+                                ? `1px solid ${colors.border}`
+                                : "none",
+                            textAlign: "center",
+                          }}
+                        >
+                          +{row.percentIncrease}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {/* Notable New Brands */}
+            <SectionHeader
+              title="Notable New Brands"
+              subtitle="First-time brand filings worth watching"
+              color={colors.purple}
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                marginBottom: "24px",
+              }}
+            >
+              <tbody>
+                {/* Header Row */}
+                <tr style={{ backgroundColor: colors.purpleLight }}>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Brand
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "80px",
+                    }}
+                  >
+                    Category
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.purple,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "50px",
+                      textAlign: "center",
+                    }}
+                  >
+                    TTB
+                  </td>
+                </tr>
+                {/* Data Rows */}
+                {notableNewBrands.map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        borderBottom:
+                          i < notableNewBrands.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <BrandLink name={row.brand} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        color: colors.textSecondary,
+                        borderBottom:
+                          i < notableNewBrands.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <CompanyLink name={row.company} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom:
+                          i < notableNewBrands.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <CategoryBadge category={row.category} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom:
+                          i < notableNewBrands.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      <Link
+                        href={row.ttbLink}
+                        style={{
+                          color: colors.purple,
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          textDecoration: "none",
+                        }}
+                      >
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
+
+            {/* Full New Filings List (UNLOCKED for Pro) */}
+            <SectionHeader
+              title="All New Brands & SKUs"
+              subtitle={`Complete list of ${newBrands} new brands and ${newSkus} new SKUs filed this week`}
+              color={colors.blue}
+            />
+            <table
+              width="100%"
+              cellPadding="0"
+              cellSpacing="0"
+              style={{
+                borderRadius: "8px",
+                border: `1px solid ${colors.border}`,
+                borderCollapse: "separate",
+                overflow: "hidden",
+                marginBottom: "16px",
+              }}
+            >
+              <tbody>
+                {/* Header Row */}
+                <tr style={{ backgroundColor: colors.blueLight }}>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Brand / Product
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    Company
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "70px",
+                    }}
+                  >
+                    Signal
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: colors.blue,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      borderBottom: `1px solid ${colors.border}`,
+                      width: "50px",
+                      textAlign: "center",
+                    }}
+                  >
+                    TTB
+                  </td>
+                </tr>
+                {/* Data Rows */}
+                {newFilingsList.map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary,
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        borderBottom:
+                          i < newFilingsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <BrandLink name={row.brand} style={{ fontWeight: "600" }} />
+                      <br />
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          color: colors.textTertiary,
+                          margin: "4px 0 0 0",
+                        }}
+                      >
+                        {row.fancifulName}
+                      </Text>
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        fontSize: "13px",
+                        borderBottom:
+                          i < newFilingsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <CompanyLink name={row.company} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom:
+                          i < newFilingsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                      }}
+                    >
+                      <SignalBadge signal={row.signal} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "12px",
+                        borderBottom:
+                          i < newFilingsList.length - 1
+                            ? `1px solid ${colors.border}`
+                            : "none",
+                        textAlign: "center",
+                      }}
+                    >
+                      <Link
+                        href={row.ttbLink}
+                        style={{
+                          color: colors.blue,
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          textDecoration: "none",
+                        }}
+                      >
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                textAlign: "center",
+                margin: "0 0 24px 0",
+              }}
+            >
+              Showing first {newFilingsList.length} of {parseInt(newBrands) + parseInt(newSkus)} new filings.{" "}
+              <Link
+                href={`${databaseUrl}?signal=NEW_BRAND,NEW_SKU`}
+                style={{ color: colors.primary, textDecoration: "none" }}
+              >
+                View all in database
+              </Link>
+            </Text>
+
+            {/* Download CSV CTA */}
+            <Section
+              style={{
+                backgroundColor: colors.bgTertiary,
+                borderRadius: "8px",
+                padding: "16px",
+                textAlign: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: colors.text,
+                  margin: "0 0 8px 0",
+                }}
+              >
+                Need this data in a spreadsheet?
+              </Text>
+              <Link
+                href={databaseUrl}
+                style={{
+                  display: "inline-block",
+                  backgroundColor: colors.primary,
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  textDecoration: "none",
+                }}
+              >
+                Export to CSV
+              </Link>
+            </Section>
+          </Section>
+
+          {/* Footer */}
+          <Section style={{ textAlign: "center", marginTop: "24px" }}>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0 0 8px 0",
+              }}
+            >
+              You're receiving this because you have an active Pro subscription.
+            </Text>
+            <Text
+              style={{
+                fontSize: "12px",
+                color: colors.textTertiary,
+                margin: "0",
+                lineHeight: "1.6",
+              }}
+            >
+              <Link
+                href="https://bevalcintel.com"
+                style={{ color: colors.textTertiary }}
+              >
+                bevalcintel.com
+              </Link>
+              {" | "}
+              <Link href={preferencesUrl} style={{ color: colors.textTertiary }}>
+                Manage preferences
+              </Link>
+              {" | "}
+              <Link href={accountUrl} style={{ color: colors.textTertiary }}>
+                Account
+              </Link>
+              {" | "}
+              <Link
+                href="{{unsubscribeUrl}}"
+                style={{ color: colors.textTertiary }}
+              >
+                Unsubscribe
+              </Link>
+            </Text>
+            <Text
+              style={{
+                fontSize: "11px",
+                color: colors.textTertiary,
+                margin: "16px 0 0 0",
+              }}
+            >
+              &copy; {new Date().getFullYear()} BevAlc Intelligence. All rights reserved.
+            </Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+
+export default ProWeeklyReport;

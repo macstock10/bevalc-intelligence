@@ -63,6 +63,154 @@ const testData = {
       ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000453',
     },
   },
+  proWeeklyReport: {
+    firstName: 'John',
+    watchedCompaniesCount: 5,
+    watchedBrandsCount: 12,
+    weekEnding: 'January 5, 2026',
+    summary: 'Tequila filings up 23% as brands prep for spring launches',
+    totalFilings: '2,847',
+    newBrands: '127',
+    newSkus: '843',
+    newCompanies: '34',
+    topFiler: 'Diageo',
+    topFilerCount: '89',
+    weekOverWeekChange: '+12%',
+    watchlistMatches: [
+      {
+        brand: 'Crown Royal',
+        fancifulName: 'Crown Royal Peach',
+        company: 'Diageo Americas Supply Inc',
+        signal: 'NEW_SKU',
+        category: 'Whiskey',
+        ttbId: '24087001000453',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000453',
+        matchType: 'company',
+      },
+      {
+        brand: 'Johnnie Walker',
+        fancifulName: 'Johnnie Walker Blue Label Ghost',
+        company: 'Diageo Americas Supply Inc',
+        signal: 'NEW_SKU',
+        category: 'Whiskey',
+        ttbId: '24087001000454',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000454',
+        matchType: 'company',
+      },
+      {
+        brand: 'Casamigos',
+        fancifulName: 'Casamigos Cristalino',
+        company: 'Casamigos Spirits Company',
+        signal: 'NEW_BRAND',
+        category: 'Tequila',
+        ttbId: '24087001000455',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000455',
+        matchType: 'brand',
+      },
+    ],
+    categoryData: [
+      { label: 'Whiskey', value: 487, change: '+15%' },
+      { label: 'Tequila', value: 356, change: '+23%' },
+      { label: 'Vodka', value: 234, change: '-5%' },
+      { label: 'Wine', value: 198, change: '+8%' },
+      { label: 'Beer', value: 176, change: '+2%' },
+      { label: 'RTD', value: 164, change: '+31%' },
+    ],
+    topCompaniesList: [
+      { company: 'Diageo Americas Supply Inc', filings: 89, change: '+34' },
+      { company: 'Constellation Brands', filings: 67, change: '+12' },
+      { company: 'Pernod Ricard USA', filings: 54, change: '+8' },
+      { company: 'E. & J. Gallo Winery', filings: 48, change: '-3' },
+      { company: 'Brown-Forman Corporation', filings: 42, change: '+15' },
+    ],
+    notableNewBrands: [
+      {
+        brand: 'Casa Dragones',
+        company: 'Casa Dragones LLC',
+        category: 'Tequila',
+        ttbId: '24087001000456',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000456',
+      },
+      {
+        brand: 'Kentucky Owl',
+        company: 'Kentucky Owl LLC',
+        category: 'Whiskey',
+        ttbId: '24087001000457',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000457',
+      },
+      {
+        brand: 'Cutwater Spirits',
+        company: 'Cutwater Spirits LLC',
+        category: 'RTD',
+        ttbId: '24087001000458',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000458',
+      },
+    ],
+    filingSpikes: [
+      {
+        company: 'Sazerac Company',
+        thisWeek: 45,
+        avgWeek: 12,
+        percentIncrease: 275,
+      },
+      {
+        company: 'Heaven Hill Brands',
+        thisWeek: 38,
+        avgWeek: 15,
+        percentIncrease: 153,
+      },
+    ],
+    newFilingsList: [
+      {
+        brand: 'Clase Azul',
+        fancifulName: 'Clase Azul Ultra',
+        company: 'Clase Azul Mexico',
+        signal: 'NEW_BRAND',
+        category: 'Tequila',
+        ttbId: '24087001000459',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000459',
+      },
+      {
+        brand: 'High Noon',
+        fancifulName: 'High Noon Pineapple',
+        company: 'E. & J. Gallo Winery',
+        signal: 'NEW_SKU',
+        category: 'RTD',
+        ttbId: '24087001000460',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000460',
+      },
+      {
+        brand: 'Buffalo Trace',
+        fancifulName: 'Buffalo Trace Single Barrel Select',
+        company: 'Sazerac Company',
+        signal: 'NEW_SKU',
+        category: 'Whiskey',
+        ttbId: '24087001000461',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000461',
+      },
+      {
+        brand: 'Aperol',
+        fancifulName: 'Aperol Spritz RTD',
+        company: 'Campari America',
+        signal: 'NEW_SKU',
+        category: 'RTD',
+        ttbId: '24087001000462',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000462',
+      },
+      {
+        brand: 'Teremana',
+        fancifulName: 'Teremana Cristalino',
+        company: 'Teremana LLC',
+        signal: 'NEW_SKU',
+        category: 'Tequila',
+        ttbId: '24087001000463',
+        ttbLink: 'https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=24087001000463',
+      },
+    ],
+    databaseUrl: 'https://bevalcintel.com/database',
+    accountUrl: 'https://bevalcintel.com/account.html',
+    preferencesUrl: 'https://bevalcintel.com/preferences.html',
+  },
   welcome: {
     firstName: 'Test',
   },
@@ -89,6 +237,28 @@ async function sendTestWeeklyReport(email) {
       to: email,
       template: 'weekly-report',
       props: testData.weeklyReport,
+    });
+
+    if (result.error) {
+      console.error('  Failed:', result.error.message);
+      return false;
+    }
+
+    console.log('  Success! Message ID:', result.data?.id);
+    return true;
+  } catch (error) {
+    console.error('  Error:', error.message);
+    return false;
+  }
+}
+
+async function sendTestProWeeklyReport(email) {
+  console.log('\nSending test Pro weekly report...');
+  try {
+    const result = await sendTestEmail({
+      to: email,
+      template: 'pro-weekly-report',
+      props: testData.proWeeklyReport,
     });
 
     if (result.error) {
@@ -143,11 +313,12 @@ async function interactiveMode() {
   }
 
   console.log('\nWhich template do you want to test?');
-  console.log('  1. Weekly Report');
-  console.log('  2. Welcome Email');
-  console.log('  3. All templates');
+  console.log('  1. Weekly Report (Free)');
+  console.log('  2. Pro Weekly Report');
+  console.log('  3. Welcome Email');
+  console.log('  4. All templates');
 
-  const choice = await promptUser('\nEnter choice (1-3): ');
+  const choice = await promptUser('\nEnter choice (1-4): ');
 
   let success = true;
 
@@ -156,12 +327,16 @@ async function interactiveMode() {
       success = await sendTestWeeklyReport(email);
       break;
     case '2':
-      success = await sendTestWelcome(email);
+      success = await sendTestProWeeklyReport(email);
       break;
     case '3':
+      success = await sendTestWelcome(email);
+      break;
+    case '4':
       const r1 = await sendTestWeeklyReport(email);
-      const r2 = await sendTestWelcome(email);
-      success = r1 && r2;
+      const r2 = await sendTestProWeeklyReport(email);
+      const r3 = await sendTestWelcome(email);
+      success = r1 && r2 && r3;
       break;
     default:
       console.error('Invalid choice');
@@ -197,11 +372,13 @@ Usage:
   node test-email.js --email <addr> --all               # Send all templates
 
 Templates:
-  weekly-report    Weekly PDF report email
-  welcome          New subscriber welcome email
+  weekly-report      Weekly report email (free users)
+  pro-weekly-report  Pro weekly report email (paid subscribers)
+  welcome            New subscriber welcome email
 
 Examples:
   node test-email.js --email you@example.com --template weekly-report
+  node test-email.js --email you@example.com --template pro-weekly-report
   node test-email.js --email you@example.com --all
 `);
       process.exit(0);
@@ -227,15 +404,18 @@ Examples:
 
   if (sendAll) {
     const r1 = await sendTestWeeklyReport(email);
-    const r2 = await sendTestWelcome(email);
-    success = r1 && r2;
+    const r2 = await sendTestProWeeklyReport(email);
+    const r3 = await sendTestWelcome(email);
+    success = r1 && r2 && r3;
   } else if (template === 'weekly-report') {
     success = await sendTestWeeklyReport(email);
+  } else if (template === 'pro-weekly-report') {
+    success = await sendTestProWeeklyReport(email);
   } else if (template === 'welcome') {
     success = await sendTestWelcome(email);
   } else {
     console.error('Unknown template:', template);
-    console.error('Use: weekly-report, welcome, or --all');
+    console.error('Use: weekly-report, pro-weekly-report, welcome, or --all');
     process.exit(1);
   }
 

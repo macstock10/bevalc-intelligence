@@ -1,3 +1,11 @@
+# Redirect extensionless URLs to .html (for email links, etc.)
+/database   /database.html   301
+/glossary   /glossary.html   301
+/account    /account.html    301
+/legal      /legal.html      301
+/preferences /preferences.html 301
+/success    /success.html    301
+
 # Proxy SEO pages to Cloudflare Worker
 /company/*  https://bevalc-api.mac-rowan.workers.dev/company/:splat  200
 /brand/*    https://bevalc-api.mac-rowan.workers.dev/brand/:splat    200

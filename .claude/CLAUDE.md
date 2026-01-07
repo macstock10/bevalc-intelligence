@@ -46,7 +46,8 @@ bevalc-intelligence/
 │   ├── components/
 │   │   └── Layout.jsx         # Shared email layout (brand colors)
 │   └── templates/
-│       ├── WeeklyReport.jsx   # Weekly PDF report email
+│       ├── WeeklyReport.jsx   # Free weekly report email
+│       ├── ProWeeklyReport.jsx # Pro weekly report email (comprehensive)
 │       └── Welcome.jsx        # New subscriber welcome email
 ├── scripts/
 │   ├── requirements.txt
@@ -239,7 +240,7 @@ GROUP BY c.id
 ORDER BY filings DESC;
 ```
 
-## Current State (Last Updated: 2026-01-07)
+## Current State (Last Updated: 2026-01-06)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
@@ -249,8 +250,9 @@ ORDER BY filings DESC;
 - [x] GitHub Actions weekly update workflow (paths fixed)
 - [x] Watchlist API endpoints (add/remove/check/counts)
 - [x] React Email + Resend email system (replaces Loops)
-- [x] Email templates: WeeklyReport, Welcome
+- [x] Email templates: WeeklyReport, ProWeeklyReport, Welcome
 - [x] Weekly report email with real D1 data (send_weekly_report.py)
+- [x] Pro weekly report with watchlist matches, filing spikes, linked SEO pages
 - [x] Company name normalization (34K → 25K companies, 26% reduction)
 - [x] Programmatic SEO pages (~262K pages: 21K companies, 240K brands, categories)
 - [x] Dynamic sitemap.xml (split into 10 files for Google 50k limit)
@@ -258,14 +260,10 @@ ORDER BY filings DESC;
 - [x] Google Search Console sitemap submitted
 - [x] Database modal links to brand/company SEO pages (open in new tab)
 - [x] Brand slugs auto-updated by weekly_update.py (new brands get SEO pages automatically)
-- [ ] Watchlist email alerts (needs new template + weekly_update.py logic)
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
-1. Watchlist email alerts not implemented - requires:
-   - New WatchlistAlert.jsx email template
-   - Logic in weekly_update.py to check new COLAs against watchlists
-   - Send alerts via email_sender.py
+1. Welcome email not wired up - worker.js needs to call Resend after user signup
 
 2. ~~SEO pages slow on first load~~ **FIXED** - now 0.1-0.3s:
    - Created `brand_slugs` table for fast brand lookups
@@ -410,25 +408,25 @@ The email system uses React Email for templates and Resend for delivery. This re
 │   SENT BY: Worker (after creating user_preferences record)                  │
 │   STATUS: Template ready, NOT YET WIRED UP to worker.js                     │
 │                                                                              │
-│  ┌────────────────────────┐                                                 │
-│  │ 2. WEEKLY REPORT EMAIL │                                                 │
-│  └────────┬───────────────┘                                                 │
+│  ┌─────────────────────────────┐                                            │
+│  │ 2. FREE WEEKLY REPORT EMAIL │                                            │
+│  └────────┬────────────────────┘                                            │
 │           │                                                                  │
 │   TRIGGER: GitHub Action cron (Mondays 8am UTC)                             │
-│   WHO GETS IT: All users where subscribed_free_report = 1 (in D1)           │
+│   WHO GETS IT: Free users where subscribed_free_report = 1                  │
 │   WHEN: Every Monday morning                                                │
 │   SENT BY: scripts/send_weekly_report.py                                    │
-│   STATUS: Template ready, send_weekly_report.py needs update to use Resend  │
+│   STATUS: COMPLETE                                                          │
 │                                                                              │
-│  ┌─────────────────────────┐                                                │
-│  │ 3. WATCHLIST ALERT      │  (NOT YET BUILT)                               │
-│  └────────┬────────────────┘                                                │
+│  ┌────────────────────────────┐                                             │
+│  │ 3. PRO WEEKLY REPORT EMAIL │                                             │
+│  └────────┬───────────────────┘                                             │
 │           │                                                                  │
-│   TRIGGER: New COLA matches a user's watchlist (brand or company)           │
-│   WHO GETS IT: Pro users with matching watchlist items                      │
-│   WHEN: After weekly_update.py finds matches                                │
-│   SENT BY: weekly_update.py (to be implemented)                             │
-│   STATUS: Needs template + logic in weekly_update.py                        │
+│   TRIGGER: GitHub Action cron (Mondays 8am UTC)                             │
+│   WHO GETS IT: Pro users where is_pro = 1                                   │
+│   WHEN: Every Monday morning                                                │
+│   SENT BY: scripts/send_weekly_report.py                                    │
+│   STATUS: COMPLETE - includes watchlist matches, filing spikes, etc.        │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -438,45 +436,60 @@ The email system uses React Email for templates and Resend for delivery. This re
 | Template | File | Trigger | Recipients |
 |----------|------|---------|------------|
 | Welcome | `emails/templates/Welcome.jsx` | User signup | Single new subscriber |
-| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Monday cron job | All free subscribers |
-| WatchlistAlert | NOT BUILT | New COLA matches watchlist | Pro users with matches |
+| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Monday cron job | Free subscribers |
+| ProWeeklyReport | `emails/templates/ProWeeklyReport.jsx` | Monday cron job | Pro subscribers |
 
-#### WeeklyReport Template Features
-The weekly report is an embedded HTML email (not a PDF attachment) with:
-- **Summary** - AI-generated one-liner about the week's trends
+#### WeeklyReport Template (Free Users)
+The free weekly report is an embedded HTML email with:
+- **Summary** - One-liner about the week's trends
 - **Stat Tiles** - Total Filings, New Brands, New SKUs, New Companies, Top Filer
 - **Category Breakdown** - CSS bar charts showing filings by category
-- **Top Filing Companies** - Companies ranked by total filings this week (green header)
-- **Top Brand Extensions** - Brands adding the most new SKUs this week (blue header)
-- **Pro Feature Preview** - Single COLA teaser with signal badge (NEW_BRAND/NEW_SKU) and TTB link
-- **CTA** - "See more on database" linking to bevalcintel.com/database
+- **Top Filing Companies** - Companies ranked by total filings this week
+- **Top Brand Extensions** - Brands adding the most new SKUs this week
+- **Pro Feature Preview** - Single COLA teaser to encourage upgrade
+- **LOCKED Section** - Blurred "All New Brands & SKUs" table with upgrade CTA
 
-Category color badges: Whiskey (amber), Tequila (green), Vodka (blue), Wine (red), Beer (yellow), RTD (purple), Gin (cyan)
+#### ProWeeklyReport Template (Paid Users)
+The Pro weekly report is a comprehensive data-rich email with:
+- **Personalized Header** - User's name, Pro badge, watchlist count
+- **Summary Stats** - 6 stat tiles including week-over-week trends
+- **Watchlist Activity** - New filings from tracked brands/companies (teal highlight)
+- **Category Breakdown** - Bar charts with links to category pages
+- **Top Filers** - Companies with most filings + change vs 4-week average
+- **Filing Spikes** - Companies with unusual activity (M&A signals, orange highlight)
+- **Notable New Brands** - First-time brand filings (purple highlight)
+- **All New Brands & SKUs** - Full table (unlocked) with signal badges and TTB links
+- **CSV Export CTA** - Direct link to download data
+
+All company and brand names are clickable links to their SEO pages:
+- Company names → `/company/[slug]`
+- Brand names → `/brand/[slug]`
+- Categories → `/category/[category]/[year]`
+
+Category color badges: Whiskey (amber), Tequila (green), Vodka (blue), Wine (pink), Beer (orange), RTD (indigo), Gin (cyan)
 
 #### Data Source
-The test-email.js uses hardcoded sample data. When the weekly report is sent for real via send_weekly_report.py, it will query D1 for actual data:
-- `topCompaniesList` - Query: companies with most filings in the past week
-- `topExtensionsList` - Query: brands with most NEW_SKU filings in the past week
-- `categoryData` - Query: filings grouped by category code
+`send_weekly_report.py` queries D1 for all metrics:
+- **Base metrics** (both templates): total filings, new brands/SKUs, top companies, category breakdown
+- **Pro metrics** (Pro only): watchlist matches, filing spikes vs 4-week average, full filings list
 
 ### User Segments (from D1 `user_preferences` table)
 
 | Segment | Query | Emails They Receive |
 |---------|-------|---------------------|
-| Free subscribers | `subscribed_free_report = 1` | Welcome, Weekly Report |
-| Pro users | `is_pro = 1` | Welcome, Weekly Report, Watchlist Alerts |
+| Free subscribers | `subscribed_free_report = 1 AND is_pro = 0` | Welcome, WeeklyReport |
+| Pro users | `is_pro = 1` | Welcome, ProWeeklyReport (with watchlist data) |
 | Unsubscribed | `subscribed_free_report = 0` | None |
 
 ### Integration Status
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Email templates (JSX) | Ready | WeeklyReport, Welcome created |
-| Resend API integration | Ready | `emails/send.js` with lazy init |
-| Python wrapper | Ready | `scripts/src/email_sender.py` |
+| Email templates (JSX) | COMPLETE | WeeklyReport, ProWeeklyReport, Welcome |
+| Resend API integration | COMPLETE | `emails/send.js` with lazy init |
+| Python wrapper | COMPLETE | `scripts/src/email_sender.py` |
+| send_weekly_report.py | COMPLETE | Sends WeeklyReport to free, ProWeeklyReport to Pro |
 | Worker welcome email | NOT WIRED | Need to call Resend after signup in worker.js |
-| send_weekly_report.py | NEEDS UPDATE | Currently uses Loops, needs to use email_sender.py |
-| Watchlist alerts | NOT BUILT | Need template + weekly_update.py logic |
 
 ### Setup
 
@@ -497,6 +510,12 @@ FROM_EMAIL=BevAlc Intelligence <hello@bevalcintel.com>
 cd emails
 npm test                       # Interactive test tool
 npm run dev                    # Preview in browser at localhost:3001
+
+# Send specific templates
+node test-email.js --email you@example.com --template weekly-report
+node test-email.js --email you@example.com --template pro-weekly-report
+node test-email.js --email you@example.com --template welcome
+node test-email.js --email you@example.com --all    # Send all templates
 ```
 
 ### Sending Emails

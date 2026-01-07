@@ -136,13 +136,16 @@ export function Layout({ preview, children }) {
             <Text style={styles.footerText}>
               You're receiving this because you signed up at bevalcintel.com.
               <br />
-              <Link href="https://bevalcintel.com/preferences" style={styles.footerLink}>
+              <Link href="https://bevalcintel.com/preferences.html" style={styles.footerLink}>
                 Manage preferences
               </Link>
               {" | "}
               <Link href="{{unsubscribeUrl}}" style={styles.footerLink}>
                 Unsubscribe
               </Link>
+            </Text>
+            <Text style={{ ...styles.footerText, marginTop: "16px" }}>
+              &copy; {new Date().getFullYear()} BevAlc Intelligence. All rights reserved.
             </Text>
           </Section>
         </Container>

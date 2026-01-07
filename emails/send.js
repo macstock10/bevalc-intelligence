@@ -12,6 +12,7 @@
 import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import { WeeklyReport } from './templates/WeeklyReport.jsx';
+import { ProWeeklyReport } from './templates/ProWeeklyReport.jsx';
 import { Welcome } from './templates/Welcome.jsx';
 
 // Lazy initialize Resend (allows dotenv to load first)
@@ -77,6 +78,71 @@ export async function sendWeeklyReport({
 }
 
 /**
+ * Send the Pro weekly report email (for paying subscribers)
+ */
+export async function sendProWeeklyReport({
+  to,
+  firstName,
+  email,
+  watchedCompaniesCount,
+  watchedBrandsCount,
+  weekEnding,
+  summary,
+  totalFilings,
+  newBrands,
+  newSkus,
+  newCompanies,
+  topFiler,
+  topFilerCount,
+  weekOverWeekChange,
+  watchlistMatches,
+  categoryData,
+  topCompaniesList,
+  notableNewBrands,
+  filingSpikes,
+  newFilingsList,
+  databaseUrl,
+  accountUrl,
+  preferencesUrl,
+}) {
+  const html = await render(
+    ProWeeklyReport({
+      firstName,
+      email: email || to,
+      watchedCompaniesCount,
+      watchedBrandsCount,
+      weekEnding,
+      summary,
+      totalFilings,
+      newBrands,
+      newSkus,
+      newCompanies,
+      topFiler,
+      topFilerCount,
+      weekOverWeekChange,
+      watchlistMatches,
+      categoryData,
+      topCompaniesList,
+      notableNewBrands,
+      filingSpikes,
+      newFilingsList,
+      databaseUrl,
+      accountUrl,
+      preferencesUrl,
+    })
+  );
+
+  const result = await getResend().emails.send({
+    from: getFromEmail(),
+    to,
+    subject: `Your Pro Intel Report - ${weekEnding}`,
+    html,
+  });
+
+  return result;
+}
+
+/**
  * Send the welcome email
  */
 export async function sendWelcome({
@@ -118,6 +184,10 @@ export async function sendTestEmail({
       Component = WeeklyReport;
       subject = `[TEST] Weekly Report - ${props.weekEnding || 'Preview'}`;
       break;
+    case 'pro-weekly-report':
+      Component = ProWeeklyReport;
+      subject = `[TEST] Pro Weekly Report - ${props.weekEnding || 'Preview'}`;
+      break;
     case 'welcome':
       Component = Welcome;
       subject = '[TEST] Welcome Email';
@@ -153,8 +223,9 @@ Usage:
   node send.js <template> --to <email> [options]
 
 Templates:
-  weekly-report    Weekly PDF report email
-  welcome          New subscriber welcome email
+  weekly-report      Weekly report email (free users)
+  pro-weekly-report  Pro weekly report email (paid subscribers)
+  welcome            New subscriber welcome email
 
 Options:
   --to             Recipient email (required)
@@ -162,17 +233,20 @@ Options:
 
 Weekly Report Options:
   --weekEnding     Date string (e.g., "January 5, 2026")
-  --downloadLink   URL to the PDF report
-  --newFilingsCount Number of new filings
-  --newBrandsCount  Number of new brands
+
+Pro Weekly Report Options:
+  --firstName      Recipient's first name
+  --weekEnding     Date string (e.g., "January 5, 2026")
+  (All other props are passed as JSON or use defaults)
 
 Welcome Options:
   --firstName      Recipient's first name
 
 Examples:
-  node send.js weekly-report --to user@example.com --weekEnding "January 5, 2026" --downloadLink "https://..."
+  node send.js weekly-report --to user@example.com --weekEnding "January 5, 2026"
+  node send.js pro-weekly-report --to pro@example.com --firstName "John" --weekEnding "January 5, 2026"
   node send.js welcome --to user@example.com --firstName "John"
-  node send.js weekly-report --to test@example.com --test
+  node send.js pro-weekly-report --to test@example.com --test
 `);
     process.exit(0);
   }
@@ -221,9 +295,15 @@ Examples:
             weekEnding: options.weekEnding || new Date().toLocaleDateString('en-US', {
               year: 'numeric', month: 'long', day: 'numeric'
             }),
-            downloadLink: options.downloadLink || 'https://bevalcintel.com',
-            newFilingsCount: options.newFilingsCount,
-            newBrandsCount: options.newBrandsCount,
+          });
+          break;
+        case 'pro-weekly-report':
+          result = await sendProWeeklyReport({
+            to: options.to,
+            firstName: options.firstName || '',
+            weekEnding: options.weekEnding || new Date().toLocaleDateString('en-US', {
+              year: 'numeric', month: 'long', day: 'numeric'
+            }),
           });
           break;
         case 'welcome':

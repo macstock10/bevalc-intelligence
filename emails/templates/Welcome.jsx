@@ -118,7 +118,7 @@ export function Welcome({
           specific brands and companies, and unlimited CSV exports.
         </Text>
         <Link
-          href="https://bevalcintel.com/pricing"
+          href="https://bevalcintel.com/#pricing"
           style={{
             ...styles.link,
             fontSize: "14px",

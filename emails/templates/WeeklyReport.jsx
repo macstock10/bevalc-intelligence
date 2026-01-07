@@ -820,7 +820,7 @@ export function WeeklyReport({
                 bevalcintel.com
               </Link>
               {" | "}
-              <Link href="https://bevalcintel.com/preferences" style={{ color: colors.textTertiary }}>
+              <Link href="https://bevalcintel.com/preferences.html" style={{ color: colors.textTertiary }}>
                 Manage preferences
               </Link>
               {" | "}

@@ -5,11 +5,14 @@ Runs after weekly_update.py (e.g., Monday 8am UTC via GitHub Actions):
 1. Queries D1 for this week's filing metrics
 2. Computes week-over-week trends
 3. Sends HTML email via Resend (React Email templates)
+   - Free users get the basic WeeklyReport
+   - Pro users get the ProWeeklyReport with watchlist matches, spikes, etc.
 
 USAGE:
     python send_weekly_report.py
     python send_weekly_report.py --dry-run
     python send_weekly_report.py --email you@example.com  # Test single email
+    python send_weekly_report.py --pro-only  # Only send Pro reports
 """
 
 import os
@@ -58,6 +61,16 @@ def get_category(class_type_code: str) -> str:
         if ttb_code in code or code in ttb_code:
             return category
     return 'Other'
+
+def make_slug(name: str) -> str:
+    """Convert name to URL slug."""
+    if not name:
+        return ""
+    import re
+    slug = name.lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    slug = slug.strip('-')
+    return slug
 
 # ============================================================================
 # LOAD ENVIRONMENT
@@ -152,8 +165,6 @@ def get_week_dates() -> Tuple[datetime, datetime, datetime, datetime]:
 
 def date_range_sql(start: datetime, end: datetime) -> str:
     """Generate SQL WHERE clause for date range using year/month/day columns."""
-    # Use year/month/day columns for proper date comparison
-    # This handles the case where dates span year boundaries
     conditions = []
 
     if start.year == end.year:
@@ -171,8 +182,19 @@ def date_range_sql(start: datetime, end: datetime) -> str:
     return "(" + " OR ".join(conditions) + ")"
 
 
+def get_four_week_range() -> str:
+    """Get date range SQL for the past 4 weeks (for calculating averages)."""
+    today = datetime.now()
+    four_weeks_ago = today - timedelta(days=28)
+    return date_range_sql(four_weeks_ago, today)
+
+
+# ============================================================================
+# FREE USER METRICS
+# ============================================================================
+
 def fetch_email_metrics() -> Dict:
-    """Fetch all metrics needed for the weekly email from D1."""
+    """Fetch all metrics needed for the FREE weekly email from D1."""
     this_week_start, this_week_end, last_week_start, last_week_end = get_week_dates()
 
     this_week_sql = date_range_sql(this_week_start, this_week_end)
@@ -362,46 +384,300 @@ def fetch_email_metrics() -> Dict:
     }
 
 
+# ============================================================================
+# PRO USER METRICS
+# ============================================================================
+
+def fetch_pro_metrics(user_email: str, watchlist: List[Dict]) -> Dict:
+    """Fetch metrics for a PRO user including watchlist matches and spikes."""
+    this_week_start, this_week_end, last_week_start, last_week_end = get_week_dates()
+    this_week_sql = date_range_sql(this_week_start, this_week_end)
+    last_week_sql = date_range_sql(last_week_start, last_week_end)
+    four_week_sql = get_four_week_range()
+
+    # Get base metrics first
+    base_metrics = fetch_email_metrics()
+
+    # Extract watched brands and companies
+    watched_brands = [w["value"] for w in watchlist if w.get("type") == "brand"]
+    watched_companies = [w["value"] for w in watchlist if w.get("type") == "company"]
+
+    # 1. Watchlist matches - filings from watched brands/companies
+    watchlist_matches = []
+
+    if watched_companies:
+        # Escape single quotes in company names for SQL
+        company_list = ", ".join([f"'{c.replace(chr(39), chr(39)+chr(39))}'" for c in watched_companies])
+        company_matches = d1_query(f"""
+            SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
+            FROM colas
+            WHERE {this_week_sql}
+            AND company_name IN ({company_list})
+            AND signal IN ('NEW_BRAND', 'NEW_SKU', 'NEW_COMPANY')
+            ORDER BY approval_date DESC
+            LIMIT 15
+        """)
+        for row in company_matches:
+            watchlist_matches.append({
+                "brand": row["brand_name"],
+                "fancifulName": row.get("fanciful_name") or row["brand_name"],
+                "company": row["company_name"],
+                "signal": row["signal"],
+                "category": get_category(row.get("class_type_code", "")),
+                "ttbId": row["ttb_id"],
+                "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}",
+                "matchType": "company"
+            })
+
+    if watched_brands:
+        # Escape single quotes in brand names for SQL
+        brand_list = ", ".join([f"'{b.replace(chr(39), chr(39)+chr(39))}'" for b in watched_brands])
+        brand_matches = d1_query(f"""
+            SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
+            FROM colas
+            WHERE {this_week_sql}
+            AND brand_name IN ({brand_list})
+            AND signal IN ('NEW_BRAND', 'NEW_SKU')
+            ORDER BY approval_date DESC
+            LIMIT 10
+        """)
+        for row in brand_matches:
+            # Avoid duplicates if company was already matched
+            if not any(m["ttbId"] == row["ttb_id"] for m in watchlist_matches):
+                watchlist_matches.append({
+                    "brand": row["brand_name"],
+                    "fancifulName": row.get("fanciful_name") or row["brand_name"],
+                    "company": row["company_name"],
+                    "signal": row["signal"],
+                    "category": get_category(row.get("class_type_code", "")),
+                    "ttbId": row["ttb_id"],
+                    "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}",
+                    "matchType": "brand"
+                })
+
+    # Limit to top 10 watchlist matches
+    watchlist_matches = watchlist_matches[:10]
+
+    # 2. Calculate week-over-week change
+    total_this = int(base_metrics["totalFilings"])
+    total_last_result = d1_query(f"""
+        SELECT COUNT(*) as count FROM colas
+        WHERE {last_week_sql}
+        AND status = 'APPROVED'
+    """)
+    total_last = total_last_result[0]["count"] if total_last_result else 0
+    if total_last > 0:
+        pct_change = int(((total_this - total_last) / total_last) * 100)
+        week_over_week_change = f"+{pct_change}%" if pct_change >= 0 else f"{pct_change}%"
+    else:
+        week_over_week_change = "+0%"
+
+    # 3. Top companies with vs avg comparison
+    # First get 4-week averages per company
+    avg_per_company = d1_query(f"""
+        SELECT company_name, ROUND(COUNT(*) / 4.0) as avg_filings
+        FROM colas
+        WHERE {four_week_sql}
+        AND status = 'APPROVED'
+        GROUP BY company_name
+        HAVING COUNT(*) >= 4
+    """)
+    avg_lookup = {r["company_name"]: r["avg_filings"] for r in avg_per_company}
+
+    # Top companies this week with change vs avg
+    top_companies_with_change = []
+    for comp in base_metrics.get("topCompaniesList", []):
+        avg = avg_lookup.get(comp["company"], 0)
+        change = comp["filings"] - avg if avg > 0 else comp["filings"]
+        top_companies_with_change.append({
+            "company": comp["company"],
+            "filings": comp["filings"],
+            "change": f"+{change}" if change >= 0 else str(change)
+        })
+
+    # 4. Filing spikes (M&A signals) - companies with unusual activity
+    filing_spikes = []
+    this_week_by_company = d1_query(f"""
+        SELECT company_name, COUNT(*) as filings
+        FROM colas
+        WHERE {this_week_sql}
+        AND status = 'APPROVED'
+        GROUP BY company_name
+        HAVING COUNT(*) >= 10
+        ORDER BY filings DESC
+    """)
+
+    for row in this_week_by_company:
+        company = row["company_name"]
+        this_week_count = row["filings"]
+        avg = avg_lookup.get(company, 0)
+
+        if avg > 0 and this_week_count >= avg * 2:  # 2x or more than average
+            pct_increase = int(((this_week_count - avg) / avg) * 100)
+            if pct_increase >= 100:  # Only show 100%+ spikes
+                filing_spikes.append({
+                    "company": company,
+                    "thisWeek": this_week_count,
+                    "avgWeek": int(avg),
+                    "percentIncrease": pct_increase
+                })
+
+    # Sort by percent increase and take top 3
+    filing_spikes = sorted(filing_spikes, key=lambda x: x["percentIncrease"], reverse=True)[:3]
+
+    # 5. Notable new brands (NEW_BRAND filings from this week)
+    notable_brands = d1_query(f"""
+        SELECT ttb_id, brand_name, company_name, class_type_code
+        FROM colas
+        WHERE {this_week_sql}
+        AND signal = 'NEW_BRAND'
+        ORDER BY approval_date DESC
+        LIMIT 5
+    """)
+
+    notable_new_brands = []
+    for row in notable_brands:
+        notable_new_brands.append({
+            "brand": row["brand_name"],
+            "company": row["company_name"],
+            "category": get_category(row.get("class_type_code", "")),
+            "ttbId": row["ttb_id"],
+            "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+        })
+
+    # 6. Full new filings list (first 20 NEW_BRAND + NEW_SKU)
+    new_filings = d1_query(f"""
+        SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
+        FROM colas
+        WHERE {this_week_sql}
+        AND signal IN ('NEW_BRAND', 'NEW_SKU')
+        ORDER BY
+            CASE signal WHEN 'NEW_BRAND' THEN 1 ELSE 2 END,
+            approval_date DESC
+        LIMIT 20
+    """)
+
+    new_filings_list = []
+    for row in new_filings:
+        new_filings_list.append({
+            "brand": row["brand_name"],
+            "fancifulName": row.get("fanciful_name") or row["brand_name"],
+            "company": row["company_name"],
+            "signal": row["signal"],
+            "category": get_category(row.get("class_type_code", "")),
+            "ttbId": row["ttb_id"],
+            "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+        })
+
+    # 7. Category data with change indicators
+    category_data_with_change = []
+    for cat in base_metrics.get("categoryData", []):
+        # Get last week's count for this category
+        last_week_cat = d1_query(f"""
+            SELECT COUNT(*) as count
+            FROM colas
+            WHERE {last_week_sql}
+            AND status = 'APPROVED'
+        """)
+        # For simplicity, calculate change from the stored last_week_totals if available
+        # This is already calculated in fetch_email_metrics, but we need to pass it
+        category_data_with_change.append({
+            "label": cat["label"],
+            "value": cat["value"],
+            "change": ""  # We'll calculate this properly
+        })
+
+    return {
+        "weekEnding": base_metrics["weekEnding"],
+        "summary": base_metrics["summary"],
+        "totalFilings": base_metrics["totalFilings"],
+        "newBrands": base_metrics["newBrands"],
+        "newSkus": base_metrics["newSkus"],
+        "newCompanies": base_metrics["newCompanies"],
+        "topFiler": base_metrics["topFiler"],
+        "topFilerCount": base_metrics["topFilerCount"],
+        "weekOverWeekChange": week_over_week_change,
+        "watchlistMatches": watchlist_matches,
+        "categoryData": base_metrics["categoryData"],
+        "topCompaniesList": top_companies_with_change,
+        "notableNewBrands": notable_new_brands,
+        "filingSpikes": filing_spikes,
+        "newFilingsList": new_filings_list,
+        "databaseUrl": "https://bevalcintel.com/database",
+        "accountUrl": "https://bevalcintel.com/account.html",
+        "preferencesUrl": "https://bevalcintel.com/preferences.html",
+    }
+
+
+# ============================================================================
+# SUBSCRIBERS
+# ============================================================================
+
 def get_free_subscribers() -> List[str]:
-    """Get email addresses of free report subscribers."""
+    """Get email addresses of free report subscribers (non-Pro)."""
     results = d1_query("""
         SELECT email FROM user_preferences
-        WHERE subscribed_free_report = 1
-        OR subscribed_free_report IS NULL
+        WHERE (subscribed_free_report = 1 OR subscribed_free_report IS NULL)
+        AND (is_pro = 0 OR is_pro IS NULL)
     """)
     return [row["email"] for row in results if row.get("email")]
+
+
+def get_pro_subscribers() -> List[Dict]:
+    """Get Pro subscribers with their watchlist."""
+    # Get Pro users
+    pro_users = d1_query("""
+        SELECT email, stripe_customer_id FROM user_preferences
+        WHERE is_pro = 1
+    """)
+
+    pro_subscribers = []
+    for user in pro_users:
+        email = user.get("email")
+        if not email:
+            continue
+
+        # Get their watchlist
+        watchlist = d1_query(f"""
+            SELECT type, value FROM watchlist
+            WHERE email = '{email.replace(chr(39), chr(39)+chr(39))}'
+        """)
+
+        pro_subscribers.append({
+            "email": email,
+            "watchlist": watchlist,
+            "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
+            "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
+        })
+
+    return pro_subscribers
 
 
 # ============================================================================
 # SEND VIA RESEND (Node.js)
 # ============================================================================
 
-def send_email_via_node(to: str, metrics: Dict) -> bool:
+def send_email_via_node(to: str, metrics: Dict, template: str = "weekly-report") -> bool:
     """Send email by calling the Node.js email sender."""
-    # Build props JSON
     props = json.dumps(metrics)
 
-    # Call Node.js script
-    cmd = [
-        "npx", "tsx",
-        str(EMAILS_DIR / "send.js"),
-        "weekly-report",
-        "--to", to,
-        "--test"  # Use test mode for now (adds [TEST] prefix)
-    ]
-
-    # For production, we'd pass all the props. For now, let's use a simpler approach
-    # by creating a temporary script that imports and calls the send function
-
     send_script = f'''
-import {{ sendWeeklyReport }} from './send.js';
+import {{ sendWeeklyReport, sendProWeeklyReport }} from './send.js';
 
 const metrics = {props};
 
-const result = await sendWeeklyReport({{
-    to: "{to}",
-    ...metrics
-}});
+let result;
+if ("{template}" === "pro-weekly-report") {{
+    result = await sendProWeeklyReport({{
+        to: "{to}",
+        ...metrics
+    }});
+}} else {{
+    result = await sendWeeklyReport({{
+        to: "{to}",
+        ...metrics
+    }});
+}}
 
 if (result.error) {{
     console.error("Error:", result.error.message);
@@ -427,7 +703,7 @@ if (result.error) {{
         )
 
         if result.returncode == 0:
-            logger.info(f"  Sent to {to}: {result.stdout.strip()}")
+            logger.info(f"  Sent ({template}) to {to}: {result.stdout.strip()}")
             return True
         else:
             logger.error(f"  Failed for {to}: {result.stderr}")
@@ -449,24 +725,26 @@ if (result.error) {{
 # MAIN
 # ============================================================================
 
-def run_send_report(dry_run: bool = False, single_email: str = None):
+def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: bool = False):
     """Main function to query metrics and send emails."""
     logger.info("=" * 60)
     logger.info("WEEKLY REPORT EMAIL")
     logger.info(f"Started: {datetime.now()}")
     if dry_run:
         logger.info("[DRY RUN MODE]")
+    if pro_only:
+        logger.info("[PRO ONLY MODE]")
     logger.info("=" * 60)
 
-    # Step 1: Fetch metrics from D1
-    logger.info("\n[STEP 1] Fetching metrics from D1...")
+    # Step 1: Fetch base metrics from D1
+    logger.info("\n[STEP 1] Fetching base metrics from D1...")
     try:
-        metrics = fetch_email_metrics()
-        logger.info(f"Week ending: {metrics['weekEnding']}")
-        logger.info(f"Total filings: {metrics['totalFilings']}")
-        logger.info(f"New brands: {metrics['newBrands']}")
-        logger.info(f"New SKUs: {metrics['newSkus']}")
-        logger.info(f"Summary: {metrics['summary']}")
+        base_metrics = fetch_email_metrics()
+        logger.info(f"Week ending: {base_metrics['weekEnding']}")
+        logger.info(f"Total filings: {base_metrics['totalFilings']}")
+        logger.info(f"New brands: {base_metrics['newBrands']}")
+        logger.info(f"New SKUs: {base_metrics['newSkus']}")
+        logger.info(f"Summary: {base_metrics['summary']}")
     except Exception as e:
         logger.error(f"Failed to fetch metrics: {e}")
         return
@@ -474,31 +752,90 @@ def run_send_report(dry_run: bool = False, single_email: str = None):
     # Step 2: Get subscribers
     logger.info("\n[STEP 2] Loading subscribers...")
 
-    if single_email:
-        subscribers = [single_email]
-        logger.info(f"Sending to single email: {single_email}")
-    else:
-        subscribers = get_free_subscribers()
-        logger.info(f"Found {len(subscribers)} subscribers")
+    free_subscribers = []
+    pro_subscribers = []
 
-    if not subscribers:
+    if single_email:
+        # Check if single email is a Pro user
+        pro_check = d1_query(f"""
+            SELECT is_pro FROM user_preferences
+            WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
+        """)
+        is_pro = pro_check[0].get("is_pro", 0) if pro_check else 0
+
+        if is_pro:
+            watchlist = d1_query(f"""
+                SELECT type, value FROM watchlist
+                WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
+            """)
+            pro_subscribers = [{
+                "email": single_email,
+                "watchlist": watchlist,
+                "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
+                "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
+            }]
+            logger.info(f"Sending Pro report to: {single_email}")
+        else:
+            free_subscribers = [single_email]
+            logger.info(f"Sending free report to: {single_email}")
+    else:
+        if not pro_only:
+            free_subscribers = get_free_subscribers()
+            logger.info(f"Found {len(free_subscribers)} free subscribers")
+
+        pro_subscribers = get_pro_subscribers()
+        logger.info(f"Found {len(pro_subscribers)} Pro subscribers")
+
+    total_subscribers = len(free_subscribers) + len(pro_subscribers)
+    if total_subscribers == 0:
         logger.info("No subscribers found.")
         return
 
     # Step 3: Send emails
-    logger.info(f"\n[STEP 3] Sending emails to {len(subscribers)} recipients...")
-
     sent = 0
     failed = 0
 
-    for email in subscribers:
-        if dry_run:
-            logger.info(f"  [DRY RUN] Would send to: {email}")
-            sent += 1
-        else:
-            if send_email_via_node(email, metrics):
+    # Send to free subscribers
+    if free_subscribers and not pro_only:
+        logger.info(f"\n[STEP 3a] Sending FREE reports to {len(free_subscribers)} recipients...")
+
+        for email in free_subscribers:
+            if dry_run:
+                logger.info(f"  [DRY RUN] Would send free report to: {email}")
                 sent += 1
             else:
+                if send_email_via_node(email, base_metrics, "weekly-report"):
+                    sent += 1
+                else:
+                    failed += 1
+
+    # Send to Pro subscribers
+    if pro_subscribers:
+        logger.info(f"\n[STEP 3b] Sending PRO reports to {len(pro_subscribers)} recipients...")
+
+        for subscriber in pro_subscribers:
+            email = subscriber["email"]
+            watchlist = subscriber.get("watchlist", [])
+
+            try:
+                # Fetch Pro-specific metrics for this user
+                pro_metrics = fetch_pro_metrics(email, watchlist)
+                pro_metrics["firstName"] = ""  # Could extract from email or store in DB
+                pro_metrics["watchedCompaniesCount"] = subscriber["watchedCompaniesCount"]
+                pro_metrics["watchedBrandsCount"] = subscriber["watchedBrandsCount"]
+
+                if dry_run:
+                    logger.info(f"  [DRY RUN] Would send Pro report to: {email}")
+                    logger.info(f"    - Watchlist matches: {len(pro_metrics.get('watchlistMatches', []))}")
+                    logger.info(f"    - Filing spikes: {len(pro_metrics.get('filingSpikes', []))}")
+                    sent += 1
+                else:
+                    if send_email_via_node(email, pro_metrics, "pro-weekly-report"):
+                        sent += 1
+                    else:
+                        failed += 1
+            except Exception as e:
+                logger.error(f"  Error preparing Pro report for {email}: {e}")
                 failed += 1
 
     # Summary
@@ -517,6 +854,8 @@ def main():
                         help='Test without sending emails')
     parser.add_argument('--email', type=str,
                         help='Send to a single email address (for testing)')
+    parser.add_argument('--pro-only', action='store_true',
+                        help='Only send Pro reports (skip free subscribers)')
 
     args = parser.parse_args()
 
@@ -526,7 +865,7 @@ def main():
         if not args.dry_run:
             return
 
-    run_send_report(dry_run=args.dry_run, single_email=args.email)
+    run_send_report(dry_run=args.dry_run, single_email=args.email, pro_only=args.pro_only)
 
 
 if __name__ == '__main__':
