@@ -1988,7 +1988,7 @@ async function handleBrandPage(path, env, corsHeaders) {
                 <tbody>
                     ${products.map(p => `
                         <tr>
-                            <td>${escapeHtml(p.fanciful_name || '(Standard)')}</td>
+                            <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
                             <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                             <td>${escapeHtml(p.approval_date)}</td>
                             <td>${p.signal ? `<span class="signal-badge signal-${p.signal}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
