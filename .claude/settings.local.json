@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(time curl:*)",
+      "Bash(npx tsx:*)"
+    ]
+  }
+}

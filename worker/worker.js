@@ -2205,15 +2205,19 @@ async function handleCategoryPage(path, env, corsHeaders) {
     });
 }
 
-// Sitemap Handler
+// Sitemap Handler - uses brand_slugs table for fast lookups
 async function handleSitemap(path, env) {
+    // Cache headers for all sitemaps (24h edge, 1h browser)
+    const cacheHeaders = {
+        'Content-Type': 'application/xml',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
+    };
+
     // Sitemap index - lists all child sitemaps
     if (path === '/sitemap.xml') {
-        // Count brands to determine how many brand sitemaps we need
+        // Count brands from brand_slugs table (fast - indexed)
         const brandCountResult = await env.DB.prepare(`
-            SELECT COUNT(*) as cnt FROM (
-                SELECT brand_name FROM colas GROUP BY brand_name HAVING COUNT(*) >= 2
-            )
+            SELECT COUNT(*) as cnt FROM brand_slugs
         `).first();
         const brandCount = brandCountResult?.cnt || 0;
         const brandSitemapCount = Math.ceil(brandCount / 45000); // Use 45k to stay safely under 50k
@@ -2233,9 +2237,7 @@ ${sitemaps.map(s => `  <sitemap>
   </sitemap>`).join('\n')}
 </sitemapindex>`;
 
-        return new Response(xml, {
-            headers: { 'Content-Type': 'application/xml' }
-        });
+        return new Response(xml, { headers: cacheHeaders });
     }
 
     // Static pages + categories sitemap
@@ -2252,12 +2254,10 @@ ${sitemaps.map(s => `  <sitemap>
             }
         }
 
-        return new Response(generateUrlsetXml(urls), {
-            headers: { 'Content-Type': 'application/xml' }
-        });
+        return new Response(generateUrlsetXml(urls), { headers: cacheHeaders });
     }
 
-    // Companies sitemap
+    // Companies sitemap - uses companies table with slug column
     if (path === '/sitemap-companies.xml') {
         const companiesResult = await env.DB.prepare(`
             SELECT slug FROM companies WHERE total_filings >= 3 ORDER BY total_filings DESC
@@ -2268,35 +2268,29 @@ ${sitemaps.map(s => `  <sitemap>
             priority: '0.7'
         }));
 
-        return new Response(generateUrlsetXml(urls), {
-            headers: { 'Content-Type': 'application/xml' }
-        });
+        return new Response(generateUrlsetXml(urls), { headers: cacheHeaders });
     }
 
-    // Brand sitemaps (paginated)
+    // Brand sitemaps (paginated) - uses brand_slugs table for fast lookup
     const brandMatch = path.match(/^\/sitemap-brands-(\d+)\.xml$/);
     if (brandMatch) {
         const page = parseInt(brandMatch[1], 10);
         const pageSize = 45000;
         const offset = (page - 1) * pageSize;
 
+        // Use brand_slugs table - O(1) indexed lookup, no GROUP BY needed
         const brandsResult = await env.DB.prepare(`
-            SELECT brand_name FROM (
-                SELECT brand_name, COUNT(*) as cnt FROM colas
-                GROUP BY brand_name HAVING cnt >= 1
-                ORDER BY cnt DESC
-            )
+            SELECT slug FROM brand_slugs
+            ORDER BY filing_count DESC
             LIMIT ? OFFSET ?
         `).bind(pageSize, offset).all();
 
         const urls = (brandsResult.results || []).map(b => ({
-            loc: `${BASE_URL}/brand/${makeSlug(b.brand_name)}`,
+            loc: `${BASE_URL}/brand/${b.slug}`,
             priority: '0.6'
         }));
 
-        return new Response(generateUrlsetXml(urls), {
-            headers: { 'Content-Type': 'application/xml' }
-        });
+        return new Response(generateUrlsetXml(urls), { headers: cacheHeaders });
     }
 
     // 404 for unknown sitemap paths
