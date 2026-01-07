@@ -1718,16 +1718,25 @@ async function handleCompanyPage(path, env, corsHeaders) {
         pct: Math.round((c.cnt / totalCatFilings) * 100)
     }));
 
-    // Build HTML
-    const title = company.display_name;
-    const description = `${company.display_name} has filed ${formatNumber(company.total_filings)} TTB COLA applications. View their brands, filing history, and product categories.`;
+    // Build brand-focused HTML
+    const topBrandNames = brands.slice(0, 5).map(b => b.brand_name);
+    const brandListText = topBrandNames.length > 0
+        ? topBrandNames.slice(0, -1).join(', ') + (topBrandNames.length > 1 ? ' and ' : '') + topBrandNames[topBrandNames.length - 1]
+        : '';
+
+    const title = `${company.display_name} Brands & Portfolio`;
+    const description = `Explore ${company.display_name}'s beverage portfolio including ${brandListText}. ${formatNumber(company.total_filings)} TTB COLA filings across ${formatNumber(brands.length)}+ brands.`;
 
     const jsonLd = {
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": company.canonical_name,
         "description": description,
-        "url": `${BASE_URL}/company/${slug}`
+        "url": `${BASE_URL}/company/${slug}`,
+        "brand": brands.slice(0, 10).map(b => ({
+            "@type": "Brand",
+            "name": b.brand_name
+        }))
     };
 
     const content = `
@@ -1735,9 +1744,17 @@ async function handleCompanyPage(path, env, corsHeaders) {
             <a href="/">Home</a> / <a href="/database.html">Database</a> / Company
         </div>
         <header class="seo-header">
-            <h1>${escapeHtml(company.display_name)}</h1>
-            <p class="meta">${formatNumber(company.total_filings)} Total Filings · ${company.variant_count} Name Variations · First Filing: ${escapeHtml(company.first_filing || 'N/A')}</p>
+            <h1>${escapeHtml(company.display_name)} Brands & Portfolio</h1>
+            <p class="meta">${formatNumber(brands.length)}+ Brands · ${formatNumber(company.total_filings)} Total Filings · Since ${escapeHtml(company.first_filing || 'N/A')}</p>
         </header>
+
+        <section class="seo-card" style="margin-bottom: 32px;">
+            <p style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
+                ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
+                ${brands.length > 0 ? `Their portfolio includes popular brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and <strong>${escapeHtml(brands[4].brand_name)}</strong>` : ''}.` : ''}
+                ${categoryBars.length > 0 ? `The company primarily operates in the ${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join(' and ')} ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
+            </p>
+        </section>
 
         <div class="seo-grid">
             <div class="seo-card">
@@ -1810,7 +1827,11 @@ async function handleCompanyPage(path, env, corsHeaders) {
     `;
 
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/company/${slug}`), {
-        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+        headers: {
+            'Content-Type': 'text/html',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            ...corsHeaders
+        }
     });
 }
 
@@ -1822,21 +1843,33 @@ async function handleBrandPage(path, env, corsHeaders) {
         return new Response('Not Found', { status: 404 });
     }
 
-    // Find brand by slug (need to query colas directly since we don't have a brands slug table)
-    const brandResult = await env.DB.prepare(`
+    // Convert slug back to brand name (e.g., "crown-royal" -> "CROWN ROYAL")
+    const approxBrandName = slug.replace(/-/g, ' ').toUpperCase();
+
+    // Try exact match first (fastest path - uses index)
+    let brandResult = await env.DB.prepare(`
         SELECT brand_name, COUNT(*) as cnt
         FROM colas
+        WHERE brand_name = ?
         GROUP BY brand_name
-        HAVING cnt >= 2
-        ORDER BY cnt DESC
-    `).all();
+    `).bind(approxBrandName).first();
 
-    const allBrands = brandResult.results || [];
-    const brand = allBrands.find(b => makeSlug(b.brand_name) === slug);
+    // If no exact match, try case-insensitive
+    if (!brandResult) {
+        brandResult = await env.DB.prepare(`
+            SELECT brand_name, COUNT(*) as cnt
+            FROM colas
+            WHERE UPPER(brand_name) = ?
+            GROUP BY brand_name
+            LIMIT 1
+        `).bind(approxBrandName).first();
+    }
 
-    if (!brand) {
+    if (!brandResult || brandResult.cnt < 2) {
         return new Response('Brand not found', { status: 404 });
     }
+
+    const brand = brandResult;
 
     // Get company for this brand
     const companyResult = await env.DB.prepare(`
@@ -1880,13 +1913,12 @@ async function handleBrandPage(path, env, corsHeaders) {
     `).bind(brand.brand_name).all();
     const products = productsResult.results || [];
 
-    // Get related brands (same category)
+    // Get related brands (same category, recent filings only for performance)
     const relatedResult = await env.DB.prepare(`
         SELECT brand_name, COUNT(*) as cnt
         FROM colas
-        WHERE class_type_code LIKE ? AND brand_name != ?
+        WHERE class_type_code LIKE ? AND brand_name != ? AND year >= 2024
         GROUP BY brand_name
-        HAVING cnt >= 5
         ORDER BY cnt DESC
         LIMIT 6
     `).bind(`%${primaryCategory.toUpperCase().slice(0,4)}%`, brand.brand_name).all();
@@ -1981,7 +2013,11 @@ async function handleBrandPage(path, env, corsHeaders) {
     `;
 
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`), {
-        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+        headers: {
+            'Content-Type': 'text/html',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            ...corsHeaders
+        }
     });
 }
 
@@ -2168,7 +2204,11 @@ async function handleCategoryPage(path, env, corsHeaders) {
     `;
 
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/category/${categorySlug}/${year}`), {
-        headers: { 'Content-Type': 'text/html', ...corsHeaders }
+        headers: {
+            'Content-Type': 'text/html',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            ...corsHeaders
+        }
     });
 }
 
