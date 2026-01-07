@@ -240,7 +240,7 @@ GROUP BY c.id
 ORDER BY filings DESC;
 ```
 
-## Current State (Last Updated: 2026-01-06)
+## Current State (Last Updated: 2026-01-07)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
@@ -260,6 +260,9 @@ ORDER BY filings DESC;
 - [x] Google Search Console sitemap submitted
 - [x] Database modal links to brand/company SEO pages (open in new tab)
 - [x] Brand slugs auto-updated by weekly_update.py (new brands get SEO pages automatically)
+- [x] Pro email respects user category preferences (filters filings by subscribed categories)
+- [x] Database URL filtering (?signal=NEW_BRAND,NEW_SKU&date_from=... populates filters on load)
+- [x] Company SEO pages show "Filing Entity" column (actual TTB company_name vs normalized)
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
@@ -322,6 +325,59 @@ Sitemaps are dynamically generated and auto-expand as new brands are added.
 
 **Technical Note:**
 Netlify `_redirects` requires explicit rules for each sitemap file (wildcards like `sitemap-*.xml` don't work). If more brand sitemaps are needed in the future, add rules to `web/_redirects`.
+
+### Pro Email Category Filtering (COMPLETED 2026-01-07)
+
+Pro users can set category preferences in their account. The Pro weekly report now respects these:
+
+**How it works:**
+1. User saves preferences in `/account.html` → stored as JSON array in `user_preferences.categories`
+2. `send_weekly_report.py` reads categories for each Pro user
+3. `fetch_pro_metrics()` applies SQL filter to `notable_brands` and `new_filings` queries
+4. Only filings matching subscribed categories are included in email
+
+**SQL filtering:**
+```python
+# In send_weekly_report.py
+if subscribed_categories:
+    category_conditions = [get_category_sql_filter(cat) for cat in subscribed_categories]
+    category_filter_sql = f"AND ({' OR '.join(category_conditions)})"
+```
+
+### Database URL Filtering (COMPLETED 2026-01-07)
+
+The database page now supports URL parameters to pre-populate filters:
+
+**Supported parameters:**
+- `q` - Search query
+- `category` - Category filter
+- `origin` - Origin filter
+- `status` - Status filter
+- `date_from`, `date_to` - Date range
+- `signal` - Signal filter (NEW_BRAND, NEW_SKU, NEW_COMPANY, REFILE - comma-separated)
+
+**Example URLs:**
+- `/database?signal=NEW_BRAND,NEW_SKU` - Show only new brands and SKUs
+- `/database?date_from=2025-12-30&date_to=2026-01-05&signal=NEW_BRAND,NEW_SKU` - New filings from specific week
+- `/database?q=whiskey&category=Whiskey` - Search with category filter
+
+**Implementation:**
+- `database.js` has `applyUrlFilters()` function that runs on page load
+- `worker.js` `/api/search` endpoint accepts `signal` parameter
+- Pro email "View new filings in database" button generates URL with date range + signal filter
+
+### Company Page Filing Entity Column (COMPLETED 2026-01-07)
+
+Company SEO pages now show a "Filing Entity" column instead of just the brand name. This clarifies which legal entity actually filed each COLA, since the same brand can be filed by different companies.
+
+**Why this matters:**
+- Diageo page shows brands like "Balcones" filed by "Balcones Distilling LLC" (subsidiary)
+- Makes it clear when a brand is licensed vs owned vs acquired
+- Avoids confusion like "Diageo and Balcones are the same company"
+
+**Implementation:**
+- Query joins `colas` with `company_aliases` to get `co.company_name as filing_entity`
+- Added "Filing Entity" column to recent filings table on company pages
 
 ### Company Name Normalization (COMPLETED 2026-01-06)
 
@@ -386,6 +442,8 @@ The `signal` column is stored in D1 `colas` table, returned in search API, displ
 - Brand name (modal title) → `/brand/[slug]` SEO page
 - Company name → `/company/[slug]` SEO page
 Uses `makeSlug()` function in database.js to generate URL slugs.
+
+**Company SEO Pages**: Show "Filing Entity" column in recent filings table. This displays the actual `company_name` from the TTB record (e.g., "Balcones Distilling LLC") rather than just the normalized company name. Helps clarify when subsidiaries, licensees, or acquired brands file under different entities.
 
 ## Email System (React Email + Resend)
 
@@ -457,9 +515,9 @@ The Pro weekly report is a comprehensive data-rich email with:
 - **Category Breakdown** - Bar charts with links to category pages
 - **Top Filers** - Companies with most filings + change vs 4-week average
 - **Filing Spikes** - Companies with unusual activity (M&A signals, orange highlight)
-- **Notable New Brands** - First-time brand filings (purple highlight)
+- **Notable New Brands** - First-time brand filings with Filing Entity column (purple highlight)
 - **All New Brands & SKUs** - Full table (unlocked) with signal badges and TTB links
-- **CSV Export CTA** - Direct link to download data
+- **"View new filings in database"** - Button links to database with date + signal filters pre-applied
 
 All company and brand names are clickable links to their SEO pages:
 - Company names → `/company/[slug]`
@@ -468,10 +526,17 @@ All company and brand names are clickable links to their SEO pages:
 
 Category color badges: Whiskey (amber), Tequila (green), Vodka (blue), Wine (pink), Beer (orange), RTD (indigo), Gin (cyan)
 
+**Column widths:**
+- Notable New Brands: Brand 40%, Company 45%, Category 50px
+- Unusual Filing Activity: narrower numeric columns (55px each)
+- Manage Preferences link goes to account page (unsubscribe button removed)
+
 #### Data Source
 `send_weekly_report.py` queries D1 for all metrics:
 - **Base metrics** (both templates): total filings, new brands/SKUs, top companies, category breakdown
 - **Pro metrics** (Pro only): watchlist matches, filing spikes vs 4-week average, full filings list
+
+**Important:** The `ProWeeklyReport.defaultProps` now uses empty arrays `[]` for all data fields. This ensures no fake sample data appears when real data is missing. The `maxCategoryValue` calculation handles empty arrays gracefully.
 
 ### User Segments (from D1 `user_preferences` table)
 
