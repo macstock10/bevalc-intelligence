@@ -357,19 +357,22 @@ function WatchlistRow({ filing, index, totalRows }) {
     >
       <td
         style={{
-          padding: "12px",
+          padding: "10px 12px",
           fontSize: "13px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
           wordBreak: "break-word",
         }}
       >
-        <BrandLink name={filing.brand} style={{ fontWeight: "600" }} />
-        <br />
-        <CategoryBadge category={filing.category} />
+        <Link
+          href={getDatabaseLink(filing.ttbId)}
+          style={{ color: colors.text, fontWeight: "600", textDecoration: "none" }}
+        >
+          {filing.brand}
+        </Link>
       </td>
       <td
         style={{
-          padding: "12px",
+          padding: "10px 12px",
           fontSize: "13px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
           wordBreak: "break-word",
@@ -379,30 +382,22 @@ function WatchlistRow({ filing, index, totalRows }) {
       </td>
       <td
         style={{
-          padding: "12px",
+          padding: "8px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
+          width: "60px",
         }}
       >
         <SignalBadge signal={filing.signal} />
       </td>
       <td
         style={{
-          padding: "12px",
+          padding: "8px",
           borderBottom: isLast ? "none" : `1px solid ${colors.border}`,
           textAlign: "center",
+          width: "40px",
         }}
       >
-        <Link
-          href={getDatabaseLink(filing.ttbId)}
-          style={{
-            color: colors.primary,
-            fontSize: "12px",
-            fontWeight: "500",
-            textDecoration: "none",
-          }}
-        >
-          View
-        </Link>
+        <CategoryBadge category={filing.category} />
       </td>
     </tr>
   );
@@ -455,12 +450,17 @@ const categoryIcons = {
 };
 
 // Category Report Section Component
-function CategoryReportSection({ category, data }) {
+function CategoryReportSection({ category, data, weekStartDate, weekEndDate }) {
   const colorScheme = categoryColors[category] || categoryColors.default;
   const icon = categoryIcons[category] || "📦";
   const hasNewBrands = data.newBrands && data.newBrands.length > 0;
   const hasNewSkus = data.newSkus && data.newSkus.length > 0;
   const hasTopCompanies = data.topCompanies && data.topCompanies.length > 0;
+
+  // Build database filter URL for this category
+  const databaseFilterUrl = weekStartDate && weekEndDate
+    ? `https://bevalcintel.com/database?category=${encodeURIComponent(category)}&date_from=${weekStartDate}&date_to=${weekEndDate}`
+    : `https://bevalcintel.com/database?category=${encodeURIComponent(category)}`;
 
   return (
     <>
@@ -519,18 +519,14 @@ function CategoryReportSection({ category, data }) {
               <tr style={{ backgroundColor: colorScheme.bg }}>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand</td>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
-                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colorScheme.text, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}></td>
               </tr>
               {data.newBrands.slice(0, 5).map((item, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
                   <td style={{ padding: "10px 12px", fontSize: "13px", borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
-                    <BrandLink name={item.brand} style={{ fontWeight: "500" }} />
+                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colors.text, fontWeight: "500", textDecoration: "none" }}>{item.brand}</Link>
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: "13px", color: colors.textSecondary, borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
                     <CompanyLink name={item.company} />
-                  </td>
-                  <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newBrands.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
-                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colorScheme.text, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
                   </td>
                 </tr>
               ))}
@@ -570,21 +566,17 @@ function CategoryReportSection({ category, data }) {
               <tr style={{ backgroundColor: colors.bgTertiary }}>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Brand / Product</td>
                 <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}` }}>Company</td>
-                <td style={{ padding: "8px 12px", fontSize: "11px", fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", borderBottom: `1px solid ${colors.border}`, width: "50px", textAlign: "center" }}></td>
               </tr>
               {data.newSkus.slice(0, 5).map((item, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? colors.bg : colors.bgSecondary }}>
                   <td style={{ padding: "10px 12px", fontSize: "13px", borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
-                    <BrandLink name={item.brand} style={{ fontWeight: "500" }} />
+                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colors.text, fontWeight: "500", textDecoration: "none" }}>{item.brand}</Link>
                     {item.fancifulName && item.fancifulName !== item.brand && (
                       <Text style={{ fontSize: "11px", color: colors.textTertiary, margin: "2px 0 0 0", wordBreak: "break-word" }}>{item.fancifulName}</Text>
                     )}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: "13px", color: colors.textSecondary, borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", wordBreak: "break-word" }}>
                     <CompanyLink name={item.company} />
-                  </td>
-                  <td style={{ padding: "10px 12px", borderBottom: i < Math.min(data.newSkus.length, 5) - 1 ? `1px solid ${colors.border}` : "none", textAlign: "center" }}>
-                    <Link href={getDatabaseLink(item.ttbId)} style={{ color: colors.primary, fontSize: "12px", fontWeight: "500", textDecoration: "none" }}>View</Link>
                   </td>
                 </tr>
               ))}
@@ -637,14 +629,27 @@ function CategoryReportSection({ category, data }) {
       )}
 
       {/* Link to category page */}
-      <Text style={{ fontSize: "12px", color: colors.textTertiary, margin: "8px 0 0 0" }}>
+      {/* View all in database link */}
+      <Section
+        style={{
+          backgroundColor: colorScheme.bg,
+          borderRadius: "6px",
+          padding: "12px 16px",
+          marginTop: "12px",
+        }}
+      >
         <Link
-          href={`https://bevalcintel.com/category/${makeSlug(category)}/${new Date().getFullYear()}`}
-          style={{ color: colorScheme.text, textDecoration: "none" }}
+          href={databaseFilterUrl}
+          style={{
+            color: colorScheme.text,
+            fontSize: "13px",
+            fontWeight: "600",
+            textDecoration: "none",
+          }}
         >
-          View all {category} filings →
+          View all {category} filings in database →
         </Link>
-      </Text>
+      </Section>
     </>
   );
 }
@@ -1113,32 +1118,31 @@ export function ProWeeklyReport({
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
+                          padding: "10px 8px",
                           fontSize: "11px",
                           fontWeight: "600",
                           color: colors.primaryDark,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           borderBottom: `1px solid ${colors.border}`,
-                          width: "80px",
+                          width: "60px",
                         }}
                       >
                         Signal
                       </td>
                       <td
                         style={{
-                          padding: "10px 12px",
+                          padding: "10px 8px",
                           fontSize: "11px",
                           fontWeight: "600",
                           color: colors.primaryDark,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           borderBottom: `1px solid ${colors.border}`,
-                          width: "50px",
+                          width: "40px",
                           textAlign: "center",
                         }}
                       >
-                        TTB
                       </td>
                     </tr>
                     {/* Data Rows */}
@@ -1543,32 +1547,17 @@ export function ProWeeklyReport({
                   </td>
                   <td
                     style={{
-                      padding: "10px 12px",
+                      padding: "10px 8px",
                       fontSize: "11px",
                       fontWeight: "600",
                       color: colors.purple,
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
-                      width: "80px",
+                      width: "60px",
                     }}
                   >
                     Category
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 12px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      color: colors.purple,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      borderBottom: `1px solid ${colors.border}`,
-                      width: "50px",
-                      textAlign: "center",
-                    }}
-                  >
-                    View
                   </td>
                 </tr>
                 {/* Data Rows */}
@@ -1581,62 +1570,49 @@ export function ProWeeklyReport({
                   >
                     <td
                       style={{
-                        padding: "12px",
+                        padding: "10px 12px",
                         fontSize: "13px",
                         fontWeight: "500",
                         borderBottom:
                           i < notableNewBrands.length - 1
                             ? `1px solid ${colors.border}`
                             : "none",
+                        wordBreak: "break-word",
                       }}
                     >
-                      <BrandLink name={row.brand} />
+                      <Link
+                        href={getDatabaseLink(row.ttbId)}
+                        style={{ color: colors.text, fontWeight: "500", textDecoration: "none" }}
+                      >
+                        {row.brand}
+                      </Link>
                     </td>
                     <td
                       style={{
-                        padding: "12px",
+                        padding: "10px 12px",
                         fontSize: "13px",
                         color: colors.textSecondary,
                         borderBottom:
                           i < notableNewBrands.length - 1
                             ? `1px solid ${colors.border}`
                             : "none",
+                        wordBreak: "break-word",
                       }}
                     >
                       <CompanyLink name={row.company} />
                     </td>
                     <td
                       style={{
-                        padding: "12px",
+                        padding: "8px",
                         borderBottom:
                           i < notableNewBrands.length - 1
                             ? `1px solid ${colors.border}`
                             : "none",
-                      }}
-                    >
-                      <CategoryBadge category={row.category} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "12px",
-                        borderBottom:
-                          i < notableNewBrands.length - 1
-                            ? `1px solid ${colors.border}`
-                            : "none",
+                        width: "60px",
                         textAlign: "center",
                       }}
                     >
-                      <Link
-                        href={getDatabaseLink(row.ttbId)}
-                        style={{
-                          color: colors.purple,
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          textDecoration: "none",
-                        }}
-                      >
-                        View
-                      </Link>
+                      <CategoryBadge category={row.category} />
                     </td>
                   </tr>
                 ))}
@@ -1645,7 +1621,7 @@ export function ProWeeklyReport({
 
             {/* Category-Specific Reports (based on user's subscribed categories) */}
             {hasCategoryReports && categoryReports.map((report, idx) => (
-              <CategoryReportSection key={idx} category={report.category} data={report} />
+              <CategoryReportSection key={idx} category={report.category} data={report} weekStartDate={weekStartDate} weekEndDate={weekEndDate} />
             ))}
 
             <Hr style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0" }} />
@@ -1707,6 +1683,7 @@ export function ProWeeklyReport({
                                     ? `1px solid ${colors.border}`
                                     : "none",
                                 wordBreak: "break-word",
+                                width: "45%",
                               }}
                             >
                               <Link
@@ -1729,18 +1706,20 @@ export function ProWeeklyReport({
                                     ? `1px solid ${colors.border}`
                                     : "none",
                                 wordBreak: "break-word",
+                                width: "40%",
                               }}
                             >
                               <CompanyLink name={row.company} />
                             </td>
                             <td
                               style={{
-                                padding: "10px 12px",
+                                padding: "6px 8px",
                                 borderBottom:
                                   i < filings.length - 1
                                     ? `1px solid ${colors.border}`
                                     : "none",
-                                width: "80px",
+                                width: "15%",
+                                textAlign: "center",
                               }}
                             >
                               <SignalBadge signal={row.signal} />
@@ -1754,57 +1733,26 @@ export function ProWeeklyReport({
               });
             })()}
 
-            <Text
-              style={{
-                fontSize: "12px",
-                color: colors.textTertiary,
-                textAlign: "center",
-                margin: "0 0 24px 0",
-              }}
-            >
-              Showing first {newFilingsList.length} of {parseInt(newBrands) + parseInt(newSkus)} new filings.{" "}
-              <Link
-                href={`${databaseUrl}?signal=NEW_BRAND,NEW_SKU`}
-                style={{ color: colors.primary, textDecoration: "none" }}
-              >
-                View all in database
-              </Link>
-            </Text>
-
-            {/* Download CSV CTA */}
+            {/* View all this week's filings CTA */}
             <Section
               style={{
-                backgroundColor: colors.bgTertiary,
+                backgroundColor: colors.primaryLight,
                 borderRadius: "8px",
                 padding: "16px",
                 textAlign: "center",
-                marginBottom: "16px",
+                marginTop: "16px",
               }}
             >
-              <Text
-                style={{
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  color: colors.text,
-                  margin: "0 0 8px 0",
-                }}
-              >
-                Need this week's data in a spreadsheet?
-              </Text>
               <Link
                 href={csvExportUrl}
                 style={{
-                  display: "inline-block",
-                  backgroundColor: colors.primary,
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  padding: "10px 20px",
-                  borderRadius: "6px",
+                  color: colors.primaryDark,
+                  fontSize: "14px",
+                  fontWeight: "600",
                   textDecoration: "none",
                 }}
               >
-                Export This Week to CSV
+                View all {parseInt(newBrands) + parseInt(newSkus)} new filings in database →
               </Link>
             </Section>
           </Section>
