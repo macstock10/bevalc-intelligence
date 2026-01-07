@@ -220,7 +220,7 @@ All secrets in GitHub Secrets (Actions) and local `.env`:
 **`brand_slugs`** table: Fast slug-to-brand lookup for SEO pages (240K entries)
 - `slug` (PK), `brand_name`, `filing_count`
 - Used by brand SEO pages for O(1) lookup instead of GROUP BY
-- **TODO**: `weekly_update.py` should add new brands to this table when they appear
+- Auto-updated by `weekly_update.py` when new brands are synced to D1
 
 **`user_preferences`** table: Pro user category subscriptions
 - `email` (PK), `stripe_customer_id`, `is_pro`, `preferences_token`, `categories` (JSON array), `receive_free_report`
@@ -285,7 +285,7 @@ ORDER BY filings DESC;
 - `/sitemap.xml` - Sitemap index pointing to child sitemaps
 - `/sitemap-static.xml` - Static pages + category pages (~62 URLs)
 - `/sitemap-companies.xml` - All company pages (~21k URLs)
-- `/sitemap-brands-1.xml` through `/sitemap-brands-6.xml` - All brands (~240k URLs, 45k per file)
+- `/sitemap-brands-1.xml` through `/sitemap-brands-8.xml` - All brands (~240k URLs, ~30k per file)
 
 Sitemaps are dynamically generated and auto-expand as new brands are added.
 

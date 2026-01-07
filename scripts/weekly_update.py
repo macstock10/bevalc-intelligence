@@ -234,6 +234,74 @@ def d1_insert_batch(records: List[Dict]) -> Dict:
         return {"success": False, "inserted": 0, "errors": [result.get("error", "Unknown error")]}
 
 
+def make_slug(text: str) -> str:
+    """Convert brand name to URL slug."""
+    if not text:
+        return ''
+    import re
+    text = text.lower()
+    text = re.sub(r"[''']", '', text)
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    text = text.strip('-')
+    return text
+
+
+def update_brand_slugs(new_records: List[Dict], dry_run: bool = False) -> Dict:
+    """
+    Add new brand names to brand_slugs table for fast SEO page lookups.
+    Called after syncing new records to D1.
+    """
+    if not new_records:
+        return {"success": True, "inserted": 0}
+
+    # Extract unique brand names from new records
+    brand_names = set()
+    for record in new_records:
+        brand_name = record.get('brand_name')
+        if brand_name:
+            brand_names.add(brand_name)
+
+    if not brand_names:
+        return {"success": True, "inserted": 0}
+
+    logger.info(f"Updating brand_slugs with {len(brand_names)} unique brands from new records...")
+
+    if dry_run:
+        logger.info("[DRY RUN] Would insert brand slugs")
+        return {"success": True, "dry_run": True, "brands": len(brand_names)}
+
+    # Build INSERT OR IGNORE statement
+    def escape_sql(value):
+        if value is None:
+            return "NULL"
+        return "'" + str(value).replace("'", "''") + "'"
+
+    values = []
+    for brand_name in brand_names:
+        slug = make_slug(brand_name)
+        if slug:
+            values.append(f"({escape_sql(slug)}, {escape_sql(brand_name)}, 1)")
+
+    if not values:
+        return {"success": True, "inserted": 0}
+
+    # Insert in batches of 500
+    batch_size = 500
+    total_inserted = 0
+
+    for i in range(0, len(values), batch_size):
+        batch = values[i:i + batch_size]
+        sql = f"INSERT OR IGNORE INTO brand_slugs (slug, brand_name, filing_count) VALUES {','.join(batch)}"
+        result = d1_execute(sql)
+        if result.get("success"):
+            # Count actual inserts from meta
+            for res in result.get("result", []):
+                total_inserted += res.get("meta", {}).get("changes", 0)
+
+    logger.info(f"Added {total_inserted} new brands to brand_slugs")
+    return {"success": True, "inserted": total_inserted}
+
+
 def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[Dict] = None) -> Dict:
     """
     Sync records to Cloudflare D1.
@@ -272,7 +340,10 @@ def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[
                 all_errors.extend(result["errors"])
         
         logger.info(f"Sync complete: {total_inserted:,} records inserted")
-        
+
+        # Update brand_slugs table with new brands for SEO pages
+        update_brand_slugs(records_to_sync, dry_run)
+
         return {
             "success": True,
             "inserted": total_inserted,
@@ -347,13 +418,17 @@ def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[
                 all_errors.extend(result["errors"])
         
         logger.info(f"Sync complete: {total_inserted:,} records inserted")
-        
+
+        # Update brand_slugs table with new brands for SEO pages
+        synced_records = records[:total_inserted] if total_inserted > 0 else []
+        update_brand_slugs(synced_records, dry_run)
+
         return {
             "success": True,
             "inserted": total_inserted,
             "attempted": len(records),
             "errors": all_errors[:5] if all_errors else [],
-            "new_records": records[:total_inserted] if total_inserted > 0 else []
+            "new_records": synced_records
         }
         
     except Exception as e:
