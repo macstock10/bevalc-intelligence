@@ -298,6 +298,9 @@ Sitemaps are dynamically generated and auto-expand as new brands are added.
 - Site verified and sitemap submitted (2026-01-06)
 - Sitemap URL: `https://bevalcintel.com/sitemap.xml`
 
+**Technical Note:**
+Netlify `_redirects` requires explicit rules for each sitemap file (wildcards like `sitemap-*.xml` don't work). If more brand sitemaps are needed in the future, add rules to `web/_redirects`.
+
 ### Company Name Normalization (COMPLETED 2026-01-06)
 
 **Solution implemented:**
