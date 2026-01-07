@@ -1,0 +1,19 @@
+{
+  "name": "bevalc-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for BevAlc Intelligence",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:links": "playwright test links.spec.js",
+    "test:pages": "playwright test pages.spec.js",
+    "test:seo": "playwright test seo-pages.spec.js",
+    "test:mobile": "playwright test mobile.spec.js",
+    "test:api": "playwright test api.spec.js",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

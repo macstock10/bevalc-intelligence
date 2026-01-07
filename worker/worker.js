@@ -1599,6 +1599,14 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     <link rel="stylesheet" href="/style.css">
     ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
     <style>
+        /* Navigation styles */
+        .nav { background: white; border-bottom: 1px solid var(--color-border); position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+        .nav-container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+        .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--color-text); text-decoration: none; }
+        .nav-links { display: flex; gap: 24px; }
+        .nav-links a { color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; }
+        .nav-links a:hover { color: var(--color-primary); }
+
         .seo-page { padding-top: 100px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
         .seo-header { margin-bottom: 32px; }
         .seo-header h1 { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
@@ -1633,6 +1641,66 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .breadcrumb { margin-bottom: 16px; font-size: 0.875rem; color: var(--color-text-secondary); }
         .breadcrumb a { color: var(--color-text-secondary); }
         .breadcrumb a:hover { color: var(--color-primary); }
+
+        /* Pro blur styles */
+        .blur-content { filter: blur(5px); user-select: none; pointer-events: none; }
+        .pro-locked { position: relative; }
+        .pro-locked .blur-content { filter: blur(5px); }
+        .pro-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 24px 32px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; }
+        .pro-overlay h3 { margin: 0 0 8px 0; font-size: 1.1rem; }
+        .pro-overlay p { margin: 0 0 16px 0; color: var(--color-text-secondary); font-size: 0.9rem; }
+        .pro-overlay .btn { background: var(--color-primary); color: white; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
+        .pro-overlay .btn:hover { background: var(--color-primary-dark, #0a7c72); }
+
+        /* Mobile responsive tables */
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* Mobile menu styles */
+        .mobile-menu-btn {
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+            width: 24px;
+            height: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+        .hamburger-line {
+            width: 100%;
+            height: 2px;
+            background-color: var(--color-text);
+            transition: all 0.3s ease;
+        }
+        .mobile-menu {
+            display: none;
+            flex-direction: column;
+            background: white;
+            border-top: 1px solid var(--color-border);
+            padding: 16px 24px;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu-link {
+            padding: 12px 0;
+            color: var(--color-text);
+            text-decoration: none;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .mobile-menu-link:last-child { border-bottom: none; }
+        .mobile-menu-link:hover { color: var(--color-primary); }
+
+        @media (max-width: 768px) {
+            .seo-header h1 { font-size: 1.75rem; }
+            .seo-grid { grid-template-columns: 1fr; }
+            .brand-grid { grid-template-columns: 1fr 1fr; }
+            .filings-table { min-width: 600px; }
+            .filings-table th, .filings-table td { padding: 8px 6px; font-size: 0.8rem; }
+            .bar-label { width: 80px; font-size: 0.75rem; }
+            .bar-value { width: 45px; font-size: 0.75rem; }
+            .nav-links { display: none; }
+            .mobile-menu-btn { display: flex; }
+        }
     </style>
 </head>
 <body>
@@ -1642,7 +1710,19 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             <div class="nav-links">
                 <a href="/database.html">Database</a>
                 <a href="/#pricing">Pricing</a>
+                <a href="/account.html">Account</a>
             </div>
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </div>
+        <div class="mobile-menu" id="mobile-menu">
+            <a class="mobile-menu-link" href="/">Home</a>
+            <a class="mobile-menu-link" href="/database.html">Database</a>
+            <a class="mobile-menu-link" href="/#pricing">Pricing</a>
+            <a class="mobile-menu-link" href="/account.html">Account</a>
         </div>
     </nav>
     <main class="seo-page">
@@ -1652,6 +1732,67 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         <p>&copy; ${new Date().getFullYear()} BevAlc Intelligence. TTB COLA data updated weekly.</p>
         <p style="margin-top: 8px;"><a href="/database.html">Search Database</a> · <a href="/#pricing">Pricing</a></p>
     </footer>
+    <script>
+        // Mobile menu toggle
+        (function() {
+            const menuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (menuBtn && mobileMenu) {
+                menuBtn.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('active');
+                });
+            }
+        })();
+
+        // Check Pro status and unlock content
+        (function() {
+            function unlockContent() {
+                document.querySelectorAll('.blur-content').forEach(el => el.classList.remove('blur-content'));
+                document.querySelectorAll('.pro-overlay').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.pro-locked').forEach(el => el.classList.remove('pro-locked'));
+            }
+
+            try {
+                // Check URL parameter first (allows ?access=granted for testing)
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('access') === 'granted') {
+                    document.cookie = 'bevalc_access=granted; path=/; max-age=31536000; SameSite=Lax';
+                    unlockContent();
+                    return;
+                }
+
+                // Check access cookie
+                if (document.cookie.includes('bevalc_access=granted')) {
+                    unlockContent();
+                    return;
+                }
+
+                const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+
+                // Immediate check from localStorage
+                if (user.isPro || user.is_pro) {
+                    unlockContent();
+                    return;
+                }
+
+                // If user has email but no Pro flag, verify with API
+                if (user.email) {
+                    fetch('https://bevalc-api.mac-rowan.workers.dev/api/stripe/customer-status?email=' + encodeURIComponent(user.email))
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success && data.status === 'pro') {
+                                // Update localStorage and set cookie
+                                user.isPro = true;
+                                localStorage.setItem('bevalc_user', JSON.stringify(user));
+                                document.cookie = 'bevalc_access=granted; path=/; max-age=31536000; SameSite=Lax';
+                                unlockContent();
+                            }
+                        })
+                        .catch(() => {});
+                }
+            } catch(e) { console.error('Pro check error:', e); }
+        })();
+    </script>
 </body>
 </html>`;
 }
@@ -1778,12 +1919,17 @@ async function handleCompanyPage(path, env, corsHeaders) {
             <p class="meta">${formatNumber(brands.length)}+ Brands · ${formatNumber(company.total_filings)} Total Filings · Since ${escapeHtml(company.first_filing || 'N/A')}</p>
         </header>
 
-        <section class="seo-card" style="margin-bottom: 32px;">
-            <p style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
+        <section class="seo-card pro-locked" style="margin-bottom: 32px;">
+            <p class="blur-content" style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
                 ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
                 ${brands.length > 0 ? `Their portfolio includes popular brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and <strong>${escapeHtml(brands[4].brand_name)}</strong>` : ''}.` : ''}
                 ${categoryBars.length > 0 ? `The company primarily operates in the ${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join(' and ')} ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
             </p>
+            <div class="pro-overlay">
+                <h3>Unlock Company Insights</h3>
+                <p>See brand portfolio and detailed analytics</p>
+                <a href="/#pricing" class="btn">Upgrade to Pro</a>
+            </div>
         </section>
 
         <div class="seo-grid">
@@ -1811,9 +1957,9 @@ async function handleCompanyPage(path, env, corsHeaders) {
             </div>
         </div>
 
-        <div class="seo-card" style="margin-bottom: 32px;">
+        <div class="seo-card pro-locked" style="margin-bottom: 32px;">
             <h2>Brands (${brands.length}${brands.length === 20 ? '+' : ''})</h2>
-            <div class="brand-grid">
+            <div class="brand-grid blur-content">
                 ${brands.map(b => `
                     <div class="brand-chip">
                         <a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>
@@ -1821,35 +1967,47 @@ async function handleCompanyPage(path, env, corsHeaders) {
                     </div>
                 `).join('')}
             </div>
+            <div class="pro-overlay">
+                <h3>Unlock Full Brand Data</h3>
+                <p>See all brands, filings, and detailed analytics</p>
+                <a href="/#pricing" class="btn">Upgrade to Pro</a>
+            </div>
         </div>
 
-        <div class="seo-card">
+        <div class="seo-card pro-locked">
             <h2>Recent Filings</h2>
-            <table class="filings-table">
-                <thead>
-                    <tr>
-                        <th>Brand</th>
-                        <th>Product</th>
-                        <th>Filing Entity</th>
-                        <th>Date</th>
-                        <th>Signal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${recentFilings.map(f => {
-                        // Show the actual filing entity (company_name on the record)
-                        const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
-                        return `
+            <div class="table-wrapper blur-content">
+                <table class="filings-table">
+                    <thead>
                         <tr>
-                            <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
-                            <td>${escapeHtml(f.fanciful_name || '-')}</td>
-                            <td style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(filingEntity)}</td>
-                            <td>${escapeHtml(f.approval_date)}</td>
-                            <td>${f.signal ? `<span class="signal-badge signal-${f.signal}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
+                            <th>Brand</th>
+                            <th>Product</th>
+                            <th>Filing Entity</th>
+                            <th>Date</th>
+                            <th>Signal</th>
                         </tr>
-                    `}).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${recentFilings.map(f => {
+                            // Show the actual filing entity (company_name on the record)
+                            const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
+                            return `
+                            <tr>
+                                <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
+                                <td>${escapeHtml(f.fanciful_name || '-')}</td>
+                                <td style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(filingEntity)}</td>
+                                <td>${escapeHtml(f.approval_date)}</td>
+                                <td>${f.signal ? `<span class="signal-badge signal-${f.signal}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
+                            </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="pro-overlay">
+                <h3>Unlock Filing Details</h3>
+                <p>Access complete filing history and data</p>
+                <a href="/#pricing" class="btn">Upgrade to Pro</a>
+            </div>
             <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
         </div>
 
@@ -1989,28 +2147,35 @@ async function handleBrandPage(path, env, corsHeaders) {
             </div>
         </div>
 
-        <div class="seo-card">
+        <div class="seo-card pro-locked">
             <h2>Products (${products.length}${products.length === 15 ? '+' : ''})</h2>
-            <table class="filings-table">
-                <thead>
-                    <tr>
-                        <th>Product Name</th>
-                        <th>Type</th>
-                        <th>Date</th>
-                        <th>Signal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${products.map(p => `
+            <div class="table-wrapper blur-content">
+                <table class="filings-table">
+                    <thead>
                         <tr>
-                            <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
-                            <td>${escapeHtml(getCategory(p.class_type_code))}</td>
-                            <td>${escapeHtml(p.approval_date)}</td>
-                            <td>${p.signal ? `<span class="signal-badge signal-${p.signal}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
+                            <th>Product Name</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Signal</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${products.map(p => `
+                            <tr>
+                                <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
+                                <td>${escapeHtml(getCategory(p.class_type_code))}</td>
+                                <td>${escapeHtml(p.approval_date)}</td>
+                                <td>${p.signal ? `<span class="signal-badge signal-${p.signal}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="pro-overlay">
+                <h3>Unlock Product Details</h3>
+                <p>Access complete product history and data</p>
+                <a href="/#pricing" class="btn">Upgrade to Pro</a>
+            </div>
             <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a></p>
         </div>
 
@@ -2245,10 +2410,12 @@ async function handleSitemap(path, env) {
             sitemaps.push(`${BASE_URL}/sitemap-brands-${i}.xml`);
         }
 
+        const today = new Date().toISOString().split('T')[0];
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${sitemaps.map(s => `  <sitemap>
     <loc>${s}</loc>
+    <lastmod>${today}</lastmod>
   </sitemap>`).join('\n')}
 </sitemapindex>`;
 
@@ -2313,10 +2480,13 @@ ${sitemaps.map(s => `  <sitemap>
 }
 
 function generateUrlsetXml(urls) {
+    // Use current date as lastmod (sitemaps are regenerated daily via edge cache)
+    const today = new Date().toISOString().split('T')[0];
     return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(u => `  <url>
     <loc>${u.loc}</loc>
+    <lastmod>${today}</lastmod>
     <priority>${u.priority}</priority>
   </url>`).join('\n')}
 </urlset>`;
