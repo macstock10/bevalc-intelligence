@@ -1617,10 +1617,10 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .stat-value { font-size: 2rem; font-weight: 700; color: var(--color-text); }
         .stat-label { font-size: 0.875rem; color: var(--color-text-secondary); }
         .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-        .brand-chip { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; transition: border-color var(--transition-fast); }
+        .brand-chip { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; transition: border-color var(--transition-fast); overflow: hidden; }
         .brand-chip:hover { border-color: var(--color-primary); }
-        .brand-chip a { color: var(--color-text); font-weight: 500; }
-        .brand-chip .count { color: var(--color-text-tertiary); font-size: 0.875rem; }
+        .brand-chip a { color: var(--color-text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+        .brand-chip .count { color: var(--color-text-tertiary); font-size: 0.875rem; flex-shrink: 0; margin-left: 8px; }
         .filings-table { width: 100%; border-collapse: collapse; }
         .filings-table th, .filings-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--color-border); }
         .filings-table th { background: var(--color-bg-secondary); font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1693,6 +1693,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         @media (max-width: 768px) {
             .seo-header h1 { font-size: 1.75rem; }
             .seo-grid { grid-template-columns: 1fr; }
+            .seo-card { overflow: hidden; }
             .brand-grid { grid-template-columns: 1fr 1fr; }
             .filings-table { min-width: 600px; }
             .filings-table th, .filings-table td { padding: 8px 6px; font-size: 0.8rem; }
@@ -1700,6 +1701,10 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             .bar-value { width: 45px; font-size: 0.75rem; }
             .nav-links { display: none; }
             .mobile-menu-btn { display: flex; }
+        }
+        @media (max-width: 400px) {
+            .brand-grid { grid-template-columns: 1fr; }
+            .brand-chip { padding: 10px 12px; }
         }
     </style>
 </head>
