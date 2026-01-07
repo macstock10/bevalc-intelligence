@@ -163,7 +163,32 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     await loadFilters();
     await performSearch();
+
+    // Check for ttb URL parameter to open modal directly
+    await checkUrlModal();
 });
+
+// Check for ttb parameter in URL and open modal if found
+async function checkUrlModal() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ttbId = urlParams.get('ttb');
+
+    if (ttbId) {
+        try {
+            // Fetch the specific record by TTB ID
+            const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(ttbId)}&limit=1`);
+            const data = await response.json();
+
+            if (data.success && data.data && data.data.length > 0) {
+                // Find exact match by ttb_id
+                const record = data.data.find(r => r.ttb_id === ttbId) || data.data[0];
+                openModal(record);
+            }
+        } catch (e) {
+            console.error('Error loading modal from URL:', e);
+        }
+    }
+}
 
 function cacheElements() {
     elements.searchInput = document.getElementById('search-input');

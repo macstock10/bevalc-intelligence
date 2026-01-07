@@ -71,9 +71,9 @@ function makeSlug(name) {
     .replace(/^-+|-+$/g, "");
 }
 
-// Helper to generate database modal link
+// Helper to generate database modal link (opens modal directly)
 function getDatabaseLink(ttbId) {
-  return `https://bevalcintel.com/database?q=${ttbId}`;
+  return `https://bevalcintel.com/database?ttb=${ttbId}`;
 }
 
 // Helper to group and sort filings by category
@@ -1568,6 +1568,7 @@ export function ProWeeklyReport({
                       textAlign: "center",
                     }}
                   >
+                    View
                   </td>
                 </tr>
                 {/* Data Rows */}
