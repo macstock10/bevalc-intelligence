@@ -57,6 +57,8 @@ bevalc-intelligence/
 │   ├── normalize_companies.py # Company name normalization
 │   ├── generate_sitemaps.py   # Generate static sitemaps, upload to R2
 │   ├── batch_classify.py      # Batch classify historical records
+│   ├── cola_worker.py         # Historical TTB scraper (by month)
+│   ├── scrape_2014_*.bat      # 12 batch files for 2014 monthly scraping
 │   └── src/
 │       └── email_sender.py    # Python wrapper for email system
 ├── web/                       # Frontend (Netlify)
@@ -188,6 +190,7 @@ node emails/send.js welcome --to you@example.com --firstName "John"
 | `scripts/send_weekly_report.py` | Query D1 + send weekly email via Resend |
 | `scripts/normalize_companies.py` | Company name normalization (fuzzy matching) |
 | `scripts/batch_classify.py` | Batch classify historical records with signals + refile counts |
+| `scripts/cola_worker.py` | Historical TTB scraper - scrapes by month, resume-safe, parallel-capable |
 | `scripts/generate_sitemaps.py` | Generate static sitemaps and upload to R2 |
 | `emails/send.js` | Resend email sender (CLI + API) |
 | `emails/templates/*.jsx` | React Email templates (WeeklyReport, Welcome) |

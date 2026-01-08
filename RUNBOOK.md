@@ -72,6 +72,62 @@ SELECT COUNT(*) FROM colas WHERE approval_date > date('now', '-7 days');
 - Cloudflare dashboard ? R2 ? bevalc-reports bucket
 - Look for `weekly/{date}/` folders
 
+## Historical Data Scraping
+
+### Using cola_worker.py
+The `cola_worker.py` script scrapes historical COLA data from TTB by month. It's resume-safe and can run multiple instances in parallel.
+
+```bash
+cd scripts
+
+# Single month
+python cola_worker.py --name worker_1 --months 2014-01
+
+# Multiple months
+python cola_worker.py --name worker_1 --months 2014-01 2014-02 2014-03
+
+# Full year
+python cola_worker.py --name worker_1 --year 2014
+
+# Check status
+python cola_worker.py --name worker_1 --status
+```
+
+### Pre-built 2014 Scrapers
+12 batch files for scraping each month of 2014:
+```
+scripts/scrape_2014_01.bat through scrape_2014_12.bat
+```
+
+Run in parallel (4 terminals recommended):
+- Terminal 1: Jan, Feb, Mar
+- Terminal 2: Apr, May, Jun
+- Terminal 3: Jul, Aug, Sep
+- Terminal 4: Oct, Nov, Dec
+
+Each creates its own database in `data/2014_XX.db`.
+
+## Reclassifying Historical Records
+
+### When to Reclassify
+- After changing classification logic (e.g., switching to normalized company_id)
+- After fixing company normalization data
+- After importing historical data
+
+### Running Batch Classification
+```bash
+cd scripts
+python batch_classify.py --analyze    # Check current state
+python batch_classify.py --dry-run    # Preview changes
+python batch_classify.py              # Run full classification (takes ~15 min)
+```
+
+The script:
+1. Fetches all 1.6M records from D1
+2. Processes chronologically to identify first-time filings
+3. Updates signal and refile_count for all records
+4. Uses normalized company_id via company_aliases table
+
 ## Common Issues
 
 ### "CAPTCHA detected" in scraper logs

@@ -1071,6 +1071,106 @@ class ColaWorker:
         self._print_summary(results)
         return results
     
+    def process_date_range(self, start_date: datetime, end_date: datetime,
+                           links_only: bool = False,
+                           details_only: bool = False) -> dict:
+        """
+        Process a custom date range (can be single day or span months).
+        Returns summary dict with collected/scraped counts.
+        """
+        self._ensure_driver()
+
+        date_str = start_date.strftime('%Y-%m-%d')
+        if start_date != end_date:
+            date_str = f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+
+        self.logger.info(f"")
+        self.logger.info(f"{'#'*60}")
+        self.logger.info(f"WORKER: {self.name}")
+        self.logger.info(f"Date range: {date_str}")
+        self.logger.info(f"{'#'*60}")
+
+        # Use the start date's year/month for storage
+        year = start_date.year
+        month = start_date.month
+
+        result = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'expected_links': 0,
+            'collected_links': 0,
+            'scraped_details': 0,
+            'links_verified': False,
+            'details_verified': False,
+            'error': None
+        }
+
+        try:
+            # Phase 1: Collect links
+            if not details_only:
+                self.logger.info(f"")
+                self.logger.info(f"{'='*60}")
+                self.logger.info(f"PHASE 1: Collecting links for {date_str}")
+                self.logger.info(f"{'='*60}")
+
+                expected, collected = self._collect_date_range(start_date, end_date, year, month)
+
+                # Get actual count from DB
+                actual = self.conn.execute(
+                    "SELECT COUNT(*) FROM collected_links WHERE year = ? AND month = ?",
+                    (year, month)
+                ).fetchone()[0]
+
+                result['expected_links'] = expected
+                result['collected_links'] = actual
+
+                if actual >= expected * VERIFICATION_TOLERANCE:
+                    result['links_verified'] = True
+                    self.logger.info(f"✅ LINKS VERIFIED: {actual:,} / {expected:,}")
+                else:
+                    result['error'] = f"Links mismatch: {actual} vs {expected}"
+                    self.logger.error(f"❌ LINKS MISMATCH: {actual:,} / {expected:,}")
+
+            # Phase 2: Scrape details
+            if not links_only:
+                if details_only or result.get('links_verified', False) or result['expected_links'] == 0:
+                    detail_result = self.scrape_details(year, month)
+                    result['scraped_details'] = detail_result.scraped_details
+                    result['details_verified'] = detail_result.details_verified
+                    if detail_result.error:
+                        result['error'] = detail_result.error
+
+        except Exception as e:
+            result['error'] = str(e)
+            self.logger.error(f"Error processing date range: {e}")
+
+        # Print summary
+        self._print_date_summary(result)
+
+        return result
+
+    def _print_date_summary(self, result: dict):
+        """Print date range processing summary."""
+        print(f"\n{'='*60}")
+        print(f"SUMMARY - {self.name}")
+        print(f"{'='*60}")
+
+        start = result['start_date'].strftime('%Y-%m-%d')
+        end = result['end_date'].strftime('%Y-%m-%d')
+        date_str = start if start == end else f"{start} to {end}"
+
+        links_icon = "✅" if result['links_verified'] else "❌"
+        details_icon = "✅" if result['details_verified'] else "❌"
+
+        print(f"  Date: {date_str}")
+        print(f"  Links:   {links_icon} {result['collected_links']:,} / {result['expected_links']:,}")
+        print(f"  Details: {details_icon} {result['scraped_details']:,}")
+
+        if result['error']:
+            print(f"  Error: {result['error']}")
+
+        print(f"{'='*60}\n")
+
     def _print_summary(self, results: List[MonthResult]):
         """Print processing summary."""
         print(f"\n{'='*60}")
@@ -1139,6 +1239,22 @@ def parse_month(s: str) -> Tuple[int, int]:
     if len(parts) != 2:
         raise ValueError(f"Invalid month format: {s}. Use YYYY-MM")
     return int(parts[0]), int(parts[1])
+
+
+def parse_date(s: str) -> datetime:
+    """Parse date string in various formats."""
+    # Try different formats
+    formats = [
+        '%Y-%m-%d',   # 2026-01-05
+        '%m/%d/%Y',   # 01/05/2026
+        '%m-%d-%Y',   # 01-05-2026
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Invalid date format: {s}. Use YYYY-MM-DD or MM/DD/YYYY")
 
 
 def generate_month_range(start: str, end: str) -> List[Tuple[int, int]]:
@@ -1222,7 +1338,11 @@ Parallel Example (4 terminals):
                         help='Range of months (e.g., --range 2025-01 2025-06)')
     parser.add_argument('--year', type=int,
                         help='Process entire year')
-    parser.add_argument('--db', 
+    parser.add_argument('--date', metavar='DATE',
+                        help='Single date (e.g., 2026-01-05 or 01/05/2026)')
+    parser.add_argument('--dates', nargs=2, metavar=('START', 'END'),
+                        help='Date range (e.g., --dates 2026-01-01 2026-01-07)')
+    parser.add_argument('--db',
                         help='Database path (default: data/{name}.db)')
     parser.add_argument('--links-only', action='store_true',
                         help='Only collect links (Phase 1)')

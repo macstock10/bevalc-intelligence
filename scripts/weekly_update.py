@@ -954,6 +954,49 @@ class DateRangeScraper:
         }
 
 
+def scrape_date_range(start_date: datetime, end_date: datetime) -> Dict:
+    """
+    Scrape COLAs for a specific date range.
+    Returns stats dict.
+    """
+    if not SELENIUM_AVAILABLE:
+        return {'success': False, 'error': 'Selenium not available'}
+
+    logger.info(f"Scraping date range: {start_date.date()} to {end_date.date()}")
+
+    # Create a temporary database
+    temp_db = os.path.join(os.path.dirname(DB_PATH), "weekly_temp.db")
+
+    # Remove old temp db if exists
+    if os.path.exists(temp_db):
+        os.remove(temp_db)
+
+    try:
+        scraper = DateRangeScraper(db_path=temp_db, headless=True)
+
+        result = scraper.scrape_date_range(start_date, end_date)
+
+        scraper.close()
+
+        return {
+            'success': True,
+            'temp_db': temp_db,
+            'links': result['collected_links'],
+            'colas': result['total_colas'],
+            'start_date': start_date.date().isoformat(),
+            'end_date': end_date.date().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Scraping failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
 def scrape_recent_days(days: int = 14) -> Dict:
     """
     Scrape the last N days of COLAs using exact date range (not full months).
@@ -961,13 +1004,13 @@ def scrape_recent_days(days: int = 14) -> Dict:
     """
     if not SELENIUM_AVAILABLE:
         return {'success': False, 'error': 'Selenium not available'}
-    
+
     logger.info(f"Scraping last {days} days from TTB...")
-    
+
     # Calculate exact date range
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
-    
+
     logger.info(f"Date range: {start_date.date()} to {end_date.date()}")
     
     # Create a temporary database
@@ -1252,13 +1295,21 @@ def get_records_from_temp_db(temp_db: str) -> List[Dict]:
     return records
 
 
-def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, sync_only: bool = False):
+def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, sync_only: bool = False,
+                      start_date: datetime = None, end_date: datetime = None):
     """
     Run the full weekly update pipeline.
 
     Handles two scenarios:
     - Local machine (Windows): consolidated_colas.db exists, merge new data into it
     - GitHub Actions: No local DB, sync scraped records directly to D1
+
+    Args:
+        days: Lookback period (used if start_date/end_date not provided)
+        dry_run: If True, skip D1 push
+        sync_only: If True, skip scraping
+        start_date: Explicit start date (optional)
+        end_date: Explicit end date (optional)
     """
     logger.info("=" * 60)
     logger.info("WEEKLY COLA UPDATE")
@@ -1278,7 +1329,10 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     if not sync_only:
         # Step 1: Scrape
         logger.info("\n[STEP 1/4] Scraping TTB...")
-        scrape_result = scrape_recent_days(days)
+        if start_date and end_date:
+            scrape_result = scrape_date_range(start_date, end_date)
+        else:
+            scrape_result = scrape_recent_days(days)
         results['scrape'] = scrape_result
 
         if not scrape_result.get('success'):
@@ -1379,21 +1433,76 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     return results
 
 
+def parse_date(s: str) -> datetime:
+    """Parse date string in various formats."""
+    formats = [
+        '%Y-%m-%d',   # 2026-01-05
+        '%m/%d/%Y',   # 01/05/2026
+        '%m-%d-%Y',   # 01-05-2026
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Invalid date format: {s}. Use YYYY-MM-DD or MM/DD/YYYY")
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Weekly COLA update with D1 sync')
+    parser = argparse.ArgumentParser(
+        description='Weekly COLA update with D1 sync',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default: last 14 days
+  python weekly_update.py
+
+  # Custom lookback
+  python weekly_update.py --days 7
+
+  # Specific single date
+  python weekly_update.py --date 2026-01-05
+  python weekly_update.py --date 01/05/2026
+
+  # Date range
+  python weekly_update.py --dates 2026-01-01 2026-01-07
+
+  # Dry run (no D1 push)
+  python weekly_update.py --date 2026-01-05 --dry-run
+        """
+    )
     parser.add_argument('--days', type=int, default=DEFAULT_LOOKBACK_DAYS,
                         help=f'Days to look back (default: {DEFAULT_LOOKBACK_DAYS})')
+    parser.add_argument('--date', metavar='DATE',
+                        help='Single date to scrape (e.g., 2026-01-05 or 01/05/2026)')
+    parser.add_argument('--dates', nargs=2, metavar=('START', 'END'),
+                        help='Date range to scrape (e.g., --dates 2026-01-01 2026-01-07)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Run without pushing to D1')
     parser.add_argument('--sync-only', action='store_true',
                         help='Skip scraping, only sync existing local data to D1')
-    
+
     args = parser.parse_args()
-    
+
     # Validate configuration before running
     validate_config()
-    
-    run_weekly_update(days=args.days, dry_run=args.dry_run, sync_only=args.sync_only)
+
+    # Determine date range
+    if args.date:
+        # Single date
+        start_date = parse_date(args.date)
+        end_date = start_date
+        logger.info(f"Scraping single date: {start_date.date()}")
+        run_weekly_update(start_date=start_date, end_date=end_date, dry_run=args.dry_run, sync_only=args.sync_only)
+    elif args.dates:
+        # Date range
+        start_date = parse_date(args.dates[0])
+        end_date = parse_date(args.dates[1])
+        logger.info(f"Scraping date range: {start_date.date()} to {end_date.date()}")
+        run_weekly_update(start_date=start_date, end_date=end_date, dry_run=args.dry_run, sync_only=args.sync_only)
+    else:
+        # Default: use --days lookback
+        run_weekly_update(days=args.days, dry_run=args.dry_run, sync_only=args.sync_only)
 
 
 if __name__ == '__main__':
