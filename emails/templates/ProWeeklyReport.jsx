@@ -663,7 +663,7 @@ export function ProWeeklyReport({
 
   // Week info
   weekEnding = "January 5, 2026",
-  summary = "Tequila filings up 23% as brands prep for spring launches",
+  summaryBullets = [],
 
   // Stat tiles
   totalFilings = "2,847",
@@ -800,16 +800,21 @@ export function ProWeeklyReport({
             >
               {greeting} weekly intel
             </Heading>
-            <Text
-              style={{
-                fontSize: "15px",
-                color: colors.textSecondary,
-                margin: "0 0 8px 0",
-                lineHeight: "1.5",
-              }}
-            >
-              {summary}
-            </Text>
+            {/* Summary Bullets */}
+            {summaryBullets && summaryBullets.length > 0 && (
+              <table cellPadding="0" cellSpacing="0" style={{ marginBottom: "8px" }}>
+                <tbody>
+                  {summaryBullets.map((bullet, i) => (
+                    <tr key={i}>
+                      <td style={{ paddingRight: "8px", verticalAlign: "top", color: colors.primary }}>•</td>
+                      <td style={{ fontSize: "14px", color: colors.textSecondary, lineHeight: "1.5", paddingBottom: "4px" }}>
+                        {bullet}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <Text
               style={{
                 fontSize: "12px",
@@ -863,7 +868,7 @@ export function ProWeeklyReport({
                 <tr>
                   <StatTile label="New Companies" value={newCompanies} />
                   <StatTile
-                    label="Categories"
+                    label="Your Categories"
                     value={categoryData.length}
                     subtext="active"
                   />
@@ -1015,7 +1020,7 @@ export function ProWeeklyReport({
             {/* Category Breakdown */}
             <SectionHeader
               title="Filings by Category"
-              subtitle="Unique filings across all categories this week"
+              subtitle="Filings in your selected categories this week"
             />
             <table
               width="100%"
@@ -1061,7 +1066,7 @@ export function ProWeeklyReport({
             {/* Top Filing Companies (Velocity Signals) */}
             <SectionHeader
               title="Top Filers This Week"
-              subtitle="Companies with the most filing activity"
+              subtitle="Top filers in your selected categories"
             />
             <table
               width="100%"
@@ -1186,7 +1191,7 @@ export function ProWeeklyReport({
               <>
                 <SectionHeader
                   title="Unusual Filing Activity"
-                  subtitle="Companies with significant spikes vs. their 4-week average"
+                  subtitle="Filing spikes in your selected categories vs. 4-week average"
                   color={colors.orange}
                 />
                 <table
@@ -1342,7 +1347,7 @@ export function ProWeeklyReport({
             {/* Notable New Brands */}
             <SectionHeader
               title="Notable New Brands"
-              subtitle="First-time brand filings worth watching"
+              subtitle="First-time brand filings in your selected categories"
               color={colors.purple}
             />
             <table
@@ -1474,7 +1479,7 @@ export function ProWeeklyReport({
             {/* Full New Filings List (UNLOCKED for Pro) - Grouped by Category */}
             <SectionHeader
               title="New Brands & SKUs Sample"
-              subtitle={`${newBrands} new brands and ${newSkus} new SKUs filed this week — showing up to 7 per category`}
+              subtitle={`${newBrands} new brands and ${newSkus} new SKUs in your selected categories — showing up to 7 per category`}
               color={colors.blue}
             />
             {(() => {

@@ -297,7 +297,7 @@ function CompanyLink({ name, style = {} }) {
 
 export function WeeklyReport({
   weekEnding = "January 5, 2026",
-  summary = "Tequila filings up 23% as brands prep for spring launches",
+  summaryBullets = [],
 
   // Stat tiles
   totalFilings = "847",
@@ -353,7 +353,7 @@ export function WeeklyReport({
   return (
     <Html>
       <Head />
-      <Preview>BevAlc Weekly: {totalFilings} filings, {newBrands} new brands - {summary}</Preview>
+      <Preview>BevAlc Weekly: {totalFilings} filings, {newBrands} new brands this week</Preview>
       <Body
         style={{
           backgroundColor: colors.bgSecondary,
@@ -425,16 +425,21 @@ export function WeeklyReport({
             >
               This week in beverage alcohol
             </Heading>
-            <Text
-              style={{
-                fontSize: "15px",
-                color: colors.textSecondary,
-                margin: "0 0 20px 0",
-                lineHeight: "1.5",
-              }}
-            >
-              {summary}
-            </Text>
+            {/* Summary Bullets */}
+            {summaryBullets && summaryBullets.length > 0 && (
+              <table cellPadding="0" cellSpacing="0" style={{ marginBottom: "20px" }}>
+                <tbody>
+                  {summaryBullets.map((bullet, i) => (
+                    <tr key={i}>
+                      <td style={{ paddingRight: "8px", verticalAlign: "top", color: colors.primary }}>•</td>
+                      <td style={{ fontSize: "14px", color: colors.textSecondary, lineHeight: "1.5", paddingBottom: "4px" }}>
+                        {bullet}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
             {/* Stat Tiles - Row 1 */}
             <table width="100%" cellPadding="0" cellSpacing="8" style={{ marginBottom: "8px" }}>
@@ -549,6 +554,7 @@ export function WeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
+                      width: "40%",
                     }}
                   >
                     Company
@@ -663,6 +669,7 @@ export function WeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
+                      width: "40%",
                     }}
                   >
                     Brand
@@ -788,6 +795,7 @@ export function WeeklyReport({
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       borderBottom: `1px solid ${colors.border}`,
+                      width: "40%",
                     }}
                   >
                     Brand
@@ -1051,12 +1059,8 @@ export function WeeklyReport({
                 bevalcintel.com
               </Link>
               {" | "}
-              <Link href="https://bevalcintel.com/preferences.html" style={{ color: colors.textTertiary }}>
+              <Link href="https://bevalcintel.com/account.html" style={{ color: colors.textTertiary }}>
                 Manage preferences
-              </Link>
-              {" | "}
-              <Link href="{{unsubscribeUrl}}" style={{ color: colors.textTertiary }}>
-                Unsubscribe
               </Link>
             </Text>
             <Text

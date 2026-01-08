@@ -35,41 +35,217 @@ EMAILS_DIR = BASE_DIR / "emails"
 LOG_FILE = str(BASE_DIR / "logs" / "send_report.log")
 ENV_FILE = str(BASE_DIR / ".env")
 
-# TTB code to category mapping - order matters! Check specific patterns first
-TTB_CODE_PATTERNS = [
-    # Whiskey variants
-    ('WHISKY', 'Whiskey'), ('WHISKEY', 'Whiskey'), ('BOURBON', 'Whiskey'), ('SCOTCH', 'Whiskey'),
-    ('RYE', 'Whiskey'), ('MALT', 'Whiskey'), ('TENNESSEE', 'Whiskey'),
-    # Vodka
+# Comprehensive TTB code to category lookup - all 420+ codes explicitly mapped
+TTB_CODE_TO_CATEGORY = {
+    # Whiskey (70 codes)
+    "STRAIGHT BOURBON WHISKY": "Whiskey", "BOURBON WHISKY": "Whiskey", "BOURBON WHISKY BIB": "Whiskey",
+    "STRAIGHT BOURBON WHISKY BLENDS": "Whiskey", "BLENDED BOURBON WHISKY": "Whiskey",
+    "STRAIGHT RYE WHISKY": "Whiskey", "RYE WHISKY": "Whiskey", "RYE WHISKY BIB": "Whiskey",
+    "STRAIGHT RYE WHISKY BLENDS": "Whiskey", "BLENDED RYE WHISKY": "Whiskey",
+    "AMERICAN SINGLE MALT WHISKEY": "Whiskey", "AMERICAN SINGLE MALT WHISKEY - BIB": "Whiskey",
+    "STRAIGHT AMERICAN SINGLE MALT": "Whiskey", "SCOTCH WHISKY": "Whiskey", "SCOTCH WHISKY FB": "Whiskey",
+    "SCOTCH WHISKY USB": "Whiskey", "SINGLE MALT SCOTCH WHISKY": "Whiskey", "UNBLENDED SCOTCH WHISKY USB": "Whiskey",
+    "DILUTED SCOTCH WHISKY FB": "Whiskey", "DILUTED SCOTCH WHISKY USB": "Whiskey",
+    "IRISH WHISKY": "Whiskey", "IRISH WHISKY FB": "Whiskey", "IRISH WHISKY USB": "Whiskey",
+    "DILUTED IRISH WHISKY FB": "Whiskey", "DILUTED IRISH WHISKY USB": "Whiskey",
+    "CANADIAN WHISKY": "Whiskey", "CANADIAN WHISKY FB": "Whiskey", "CANADIAN WHISKY USB": "Whiskey",
+    "DILUTED CANADIAN WHISKY FB": "Whiskey", "DILUTED CANADIAN WHISKY USB": "Whiskey",
+    "STRAIGHT CORN WHISKY": "Whiskey", "CORN WHISKY": "Whiskey", "CORN WHISKY BIB": "Whiskey",
+    "STRAIGHT CORN WHISKY BLENDS": "Whiskey", "BLENDED CORN WHISKY": "Whiskey",
+    "STRAIGHT MALT WHISKY": "Whiskey", "MALT WHISKY": "Whiskey",
+    "STRAIGHT WHISKY": "Whiskey", "STRAIGHT WHISKY BLENDS": "Whiskey", "WHISKY BLENDS": "Whiskey",
+    "BLENDED WHISKY": "Whiskey", "BLENDED LIGHT WHISKY": "Whiskey", "LIGHT WHISKY": "Whiskey",
+    "DILUTED BLENDED WHISKY": "Whiskey", "OTHER WHISKY BLENDS": "Whiskey", "OTHER STRAIGHT BLENDED WHISKY": "Whiskey",
+    "WHISKY": "Whiskey", "WHISKY BOTTLED IN BOND (BIB)": "Whiskey", "OTHER WHISKY BIB": "Whiskey",
+    "OTHER STRAIGHT WHISKY": "Whiskey", "OTHER WHISKY (FLAVORED)": "Whiskey",
+    "WHISKY ORANGE FLAVORED": "Whiskey", "WHISKY GRAPE FLAVORED": "Whiskey", "WHISKY LIME FLAVORED": "Whiskey",
+    "WHISKY LEMON FLAVORED": "Whiskey", "WHISKY CHERRY FLAVORED": "Whiskey", "WHISKY CHOCOLATE FLAVORED": "Whiskey",
+    "WHISKY MINT FLAVORED": "Whiskey", "WHISKY PEPPERMINT FLAVORED": "Whiskey", "WHISKY OTHER FLAVORED": "Whiskey",
+    "WHISKY PROPRIETARY": "Whiskey", "SPIRIT WHISKY": "Whiskey", "DILUTED WHISKY": "Whiskey",
+    "OTHER IMPORTED WHISKY": "Whiskey", "OTHER IMPORTED WHISKY FB": "Whiskey", "OTHER IMPORTED WHISKY USB": "Whiskey",
+    "DILUTED OTHER IMPORTED WHISKY FB": "Whiskey", "DILUTED OTHER IMPORTED WHISKY USB": "Whiskey",
+    "WHISKY SPECIALTIES": "Whiskey", "LIQUEURS (WHISKY)": "Whiskey",
+    # Vodka (26 codes)
+    "VODKA": "Vodka", "VODKA 80-89 PROOF": "Vodka", "VODKA 90-99 PROOF": "Vodka", "VODKA 100 PROOF UP": "Vodka",
+    "VODKA 80-89 PROOF FB": "Vodka", "VODKA 80-89 PROOF USB": "Vodka", "VODKA 90-99 PROOF FB": "Vodka",
+    "VODKA 90-99 PROOF USB": "Vodka", "VODKA 100 PROOF UP FB": "Vodka", "VODKA 100 PROOF UP USB": "Vodka",
+    "OTHER VODKA": "Vodka", "DILUTED VODKA": "Vodka", "DILUTED VODKA FB": "Vodka", "DILUTED VODKA USB": "Vodka",
+    "VODKA - FLAVORED": "Vodka", "VODKA - ORANGE FLAVORED": "Vodka", "VODKA - GRAPE FLAVORED": "Vodka",
+    "VODKA - LIME FLAVORED": "Vodka", "VODKA - LEMON FLAVORED": "Vodka", "VODKA - CHERRY FLAVORED": "Vodka",
+    "VODKA - CHOCOLATE FLAVORED": "Vodka", "VODKA - MINT FLAVORED": "Vodka", "VODKA - PEPPERMINT FLAVORED": "Vodka",
+    "VODKA - OTHER FLAVORED": "Vodka", "VODKA SPECIALTIES": "Vodka", "LIQUEURS (VODKA)": "Vodka",
+    # Tequila (12 codes)
+    "TEQUILA FB": "Tequila", "TEQUILA USB": "Tequila", "DILUTED TEQUILA FB": "Tequila", "DILUTED TEQUILA USB": "Tequila",
+    "MEZCAL": "Tequila", "MEZCAL FB": "Tequila", "MEZCAL US": "Tequila", "DILUTED MEZCAL": "Tequila",
+    "FLAVORED MEZCAL": "Tequila", "AGAVE SPIRITS": "Tequila", "FLAVORED AGAVE SPIRIT": "Tequila", "FLAVORED TEQUILA": "Tequila",
+    # Gin (30 codes)
+    "LONDON DRY GIN": "Gin", "LONDON DRY DISTILLED GIN": "Gin", "LONDON DRY DISTILLED GIN FB": "Gin",
+    "LONDON DRY DISTILLED GIN USB": "Gin", "LONDON DRY GIN FB": "Gin", "LONDON DRY GIN USB": "Gin",
+    "DISTILLED GIN": "Gin", "OTHER DISTILLED GIN": "Gin", "OTHER DISTILLED GIN FB": "Gin", "OTHER DISTILLED GIN USB": "Gin",
+    "GIN - FLAVORED": "Gin", "GIN - MINT FLAVORED": "Gin", "GIN - ORANGE FLAVORED": "Gin", "GIN - LEMON FLAVORED": "Gin",
+    "GIN - CHERRY FLAVORED": "Gin", "GIN - APPLE FLAVORED": "Gin", "GIN - BLACKBERRY FLAVORED": "Gin",
+    "GIN - PEACH FLAVORED": "Gin", "GIN - GRAPE FLAVORED": "Gin", "OTHER GIN - FLAVORED": "Gin",
+    "GIN": "Gin", "OTHER GIN": "Gin", "OTHER GIN FB": "Gin", "OTHER GIN USB": "Gin",
+    "DILUTED GIN": "Gin", "DILUTED GIN FB": "Gin", "DILUTED GIN USB": "Gin",
+    "GIN SPECIALTIES": "Gin", "LIQUEURS (GIN)": "Gin", "SLOE GIN": "Gin",
+    # Rum (60 codes)
+    "U.S. RUM (WHITE)": "Rum", "UR.S. RUM (WHITE)": "Rum", "PUERTO RICAN RUM (WHITE)": "Rum",
+    "VIRGIN ISLANDS RUM (WHITE)": "Rum", "HAWAIIAN RUM (WHITE)": "Rum", "FLORIDA RUM (WHITE)": "Rum",
+    "OTHER RUM (WHITE)": "Rum", "OTHER WHITE RUM": "Rum", "CUBAN RUM WHITE FB": "Rum",
+    "JAMAICAN RUM WHITE FB": "Rum", "JAMAICAN RUM WHITE USB": "Rum", "GUIANAN RUM WHITE FB": "Rum",
+    "GUIANAN RUM WHITE USB": "Rum", "MARTINICAN RUM WHITE FB": "Rum", "MARTINICAN RUM WHITE USB": "Rum",
+    "OTHER RUM WHITE FB": "Rum", "OTHER RUM WHITE USB": "Rum", "DILUTED RUM (WHITE)": "Rum",
+    "DILUTED RUM WHITE FB": "Rum", "DILUTED RUM WHITE USB": "Rum", "U.S. RUM (GOLD)": "Rum",
+    "PUERTO RICAN RUM (GOLD)": "Rum", "VIRGIN ISLANDS RUM (GOLD)": "Rum", "VIRGIN ISLANDS RUM": "Rum",
+    "HAWAIIAN RUM (GOLD)": "Rum", "FLORIDA RUM (GOLD)": "Rum", "OTHER RUM (GOLD)": "Rum",
+    "CUBAN RUM GOLD FB": "Rum", "JAMAICAN RUM GOLD FB": "Rum", "JAMICAN RUM GOLD USB": "Rum",
+    "DUTCH GUIANAN RUM GOLD FB": "Rum", "DUTCH GUIANAN RUM GOLD USB": "Rum", "MARTINICAN RUM GOLD FB": "Rum",
+    "MARTINICAN RUM GOLD USB": "Rum", "OTHER RUM GOLD FB": "Rum", "OTHER RUM GOLD USB": "Rum",
+    "DILUTED RUM (GOLD)": "Rum", "DILUTED RUM GOLD FB": "Rum", "DILUTED RUM GOLD USB": "Rum",
+    "RUM FLAVORED (BOLD)": "Rum", "FLAVORED RUM (BOLD)": "Rum", "RUM ORANGE GLAVORED": "Rum",
+    "RUM ORANGE FLAVORED": "Rum", "RUM GRAPE FLAVORED": "Rum", "RUM LIME FLAVORED": "Rum",
+    "RUM LEMON FLAVORED": "Rum", "RUM CHERRY FLAVORED": "Rum", "RUM CHOCOLATE FLAVORED": "Rum",
+    "RUM MINT FLAVORED": "Rum", "RUM PEPPERMINT FLAVORED": "Rum", "RUM OTHER FLAVORED": "Rum",
+    "DOMESTIC FLAVORED RUM": "Rum", "IMPORTED FLAVORED RUM": "Rum", "FOREIGN RUM": "Rum",
+    "OTHER FOREIGN RUM": "Rum", "OTHER FORIEGN RUM": "Rum", "FRENCH GUIANAN RUM FB": "Rum",
+    "RUM SPECIALTIES": "Rum", "LIQUEURS (RUM)": "Rum", "CACHACA": "Rum",
+    # Brandy (70 codes)
+    "COGNAC (BRANDY) FB": "Brandy", "COGNAC (BRANDY) USB": "Brandy", "ARMAGNAC (BRANDY) FB": "Brandy",
+    "ARMAGNAC (BRANDY) USB": "Brandy", "BRANDY": "Brandy", "CALIFORNIA BRANDY": "Brandy",
+    "CALIFORNIA GRAPE BRANDY": "Brandy", "CALIFORNIA DRIED BRANDY": "Brandy", "CALIFORNIA LEES BRANDY": "Brandy",
+    "CALIFORNIA POMACE OR MARC BRANDY": "Brandy", "CALIFORNIA RESIDUE BRANDY": "Brandy",
+    "CALIFORNIA NEUTRAL BRANDY": "Brandy", "OTHER CALIFORNIA BRANDY": "Brandy", "NEW YORK BRANDY": "Brandy",
+    "NEW YORK GRAPE BRANDY": "Brandy", "NEW YORK DRIED BRANDY": "Brandy", "NEW YORK LEES BRANDY": "Brandy",
+    "NEW YORK POMACE OR MARC BRANDY": "Brandy", "NEW YORK RESIDUE BRANDY": "Brandy",
+    "NEW YORK NEUTRAL BRANDY": "Brandy", "OTHER NEW YORK BRANDY": "Brandy", "OTHER DOMESTIC GRAPE BRANDY": "Brandy",
+    "DRIED BRANDY": "Brandy", "LEES BRANDY": "Brandy", "POMACE OR MARC BRANDY": "Brandy",
+    "RESIDUE BRANDY": "Brandy", "NEUTRAL BRANDY": "Brandy", "IMMATURE BRANDY": "Brandy", "OTHER BRANDY": "Brandy",
+    "FRUIT BRANDY": "Brandy", "APPLE BRANDY": "Brandy", "APPLE BRANDY (CALVADOS)": "Brandy",
+    "CHERRY BRANDY": "Brandy", "PLUM BRANDY": "Brandy", "PLUM BRANDY (SLIVOVITZ)": "Brandy",
+    "BLACKBERRY BRANDY": "Brandy", "BLENDED APPLE JACK BRANDY": "Brandy", "PEAR BRANDY": "Brandy",
+    "APRICOT BRANDY": "Brandy", "OTHER FRUIT BRANDY": "Brandy", "FOREIGN FRUIT BRANDY": "Brandy",
+    "OTHER GRAPE BRANDY (PISCO, GRAPPA) FB": "Brandy", "OTHER GRAPE BRANDY (GRAPPA) USB": "Brandy",
+    "BRANDY - FLAVORED": "Brandy", "BRANDY - APRICOT FLAVORED": "Brandy", "BRANDY - BLACKBERRY FLAVORED": "Brandy",
+    "BRANDY - PEACH FLAVORED": "Brandy", "BRANDY - CHERRY FLAVORED": "Brandy", "BRANDY - GINGER FLAVORED": "Brandy",
+    "BRANDY - COFFEE FLAVORED": "Brandy", "BRANDY APPLE FLAVORED": "Brandy", "BRANDY APRICOT FLAVORED": "Brandy",
+    "BRANDY BLACKBERRY FLAVORED": "Brandy", "BRANDY CHERRY FLAVORED": "Brandy", "BRANDY COFFEE FLAVORED": "Brandy",
+    "BRANDY GINGER FLAVORED": "Brandy", "BRANDY PEACH FLAVORED": "Brandy", "OTHER BRANDY - FLAVORED": "Brandy",
+    "OTHER FLAVORED BRANDY": "Brandy", "BLACKBERRY FLAVORED BRANDY": "Brandy", "CHERRY FLAVORED BRANDY": "Brandy",
+    "APRICOT FLAVORED BRANDY": "Brandy", "PEACH FLAVORED BRANDY": "Brandy", "GINGER FLAVORED BRANDY": "Brandy",
+    "FRENCH BRANDY": "Brandy", "OTHER FRENCH BRANDY FB": "Brandy", "OTHER FRENCH BRANDY USB": "Brandy",
+    "ITALIAN GRAPE BRANDY FB": "Brandy", "ITALIAN GRAPE BRANDY USB": "Brandy", "SPANISH GRAPE BRANDY FB": "Brandy",
+    "SPANISH GRAPE BRANDY USB": "Brandy", "PORTUGUESE GRAPE BRANDY FB": "Brandy", "PORTUGUESE GRAPE BRANDY USB": "Brandy",
+    "GREEK GRAPE BRANDY FB": "Brandy", "GREEK GRAPE BRANDY USB": "Brandy", "GERMAN GRAPE BRANDY FB": "Brandy",
+    "GERMAN GRAPE BRANDY USB": "Brandy", "AUSTRALIAN GRAPE BRANDY FB": "Brandy", "AUSTRALIAN GRAPE BRANDY USB": "Brandy",
+    "SOUTH AFRICAN GRAPE BRANDY FB": "Brandy", "SOUTH AFRICAN GRAPE BRANDY USB": "Brandy",
+    "OTHER FOREIGN BRANDY": "Brandy", "OTHER FOREIGN BRANDY (CONT.)": "Brandy",
+    "DILUTED BRANDY FB": "Brandy", "DILUTED BRANDY USB": "Brandy", "LIQUEUR & BRANDY": "Brandy",
+    # Wine (28 codes)
+    "TABLE RED WINE": "Wine", "TABLE WHITE WINE": "Wine", "ROSE WINE": "Wine",
+    "SPARKLING WINE/CHAMPAGNE": "Wine", "SPARKLING WINE/ CIDER": "Wine", "SPARKLING WINE/MEAD": "Wine",
+    "CARBONATED WINE": "Wine", "CARBONATED WINE/CIDER": "Wine", "CARBONATED WINE/MEAD": "Wine",
+    "DESSERT /PORT/SHERRY/(COOKING) WINE": "Wine", "DESSERT FLAVORED WINE": "Wine", "DESSERT FRUIT WINE": "Wine",
+    "HONEY BASED DESSERT WINE": "Wine", "APPLE BASED DESSERT FLAVORED WINE": "Wine", "APPLE DESSERT WINE/CIDER": "Wine",
+    "TABLE FLAVORED WINE": "Wine", "APPLE BASED FLAVORED WINE": "Wine", "HONEY BASED TABLE WINE": "Wine",
+    "TABLE FRUIT WINE": "Wine", "APPLE TABLE WINE/CIDER": "Wine", "VERMOUTH/MIXED TYPES": "Wine",
+    "SAKE": "Wine", "SAKE - IMPORTED": "Wine", "SAKE - DOMESTIC FLAVORED": "Wine", "SAKE - IMPORTED FLAVORED": "Wine",
+    # Beer (14 codes)
+    "BEER": "Beer", "IRC BEER": "Beer", "IRC BEER-IMPORTED": "Beer",
+    "OTHER MALT BEVERAGES (BEER)": "Beer", "OTHER MALT BEVERAGES": "Beer", "ALE": "Beer", "STOUT": "Beer",
+    "PORTER": "Beer", "MALT LIQUOR": "Beer", "MALT BEVERAGES": "Beer",
+    "MALT BEVERAGES SPECIALITIES - FLAVORED": "Beer", "MALT BEVERAGES SPECIALITIES": "Beer",
+    "CEREAL BEVERAGES - NEAR BEER (NON ALCOHOLIC)": "Beer",
+    # Liqueur (35 codes)
+    "CORDIALS (FRUIT & PEELS)": "Liqueur", "FRUIT FLAVORED LIQUEURS": "Liqueur", "CURACAO": "Liqueur",
+    "TRIPLE SEC": "Liqueur", "OTHER FRUITS & PEELS LIQUEURS": "Liqueur", "OTHER FRUIT & PEELS LIQUEURS": "Liqueur",
+    "FRUITS & PEELS SCHNAPPS LIQUEUR": "Liqueur", "CORDIALS (CREMES OR CREAMS)": "Liqueur",
+    "CREME DE CACAO WHITE": "Liqueur", "CREME DE CACAO BROWN": "Liqueur", "CREME DE MENTHE WHITE": "Liqueur",
+    "CREME DE MENTHE GREEN": "Liqueur", "CREME DE ALMOND (NOYAUX)": "Liqueur", "DAIRY CREAM LIQUEUR/CORDIAL": "Liqueur",
+    "NON DAIRY CREME LIQUEUR/CORDIAL": "Liqueur", "OTHER LIQUEUR (CREME OR CREAMS)": "Liqueur",
+    "OTHER LIQUEUR (CREMES OR CREAMS)": "Liqueur", "CORDIALS (HERBS & SEEDS)": "Liqueur",
+    "ANISETTE, OUZO, OJEN": "Liqueur", "KUMMEL": "Liqueur", "ARACK/RAKI": "Liqueur", "SAMBUCA": "Liqueur",
+    "OTHER (HERBS & SEEDS)": "Liqueur", "OTHER HERB & SEED CORDIALS/LIQUEURS": "Liqueur",
+    "HERBS AND SEEDS SCHNAPPS LIQUEUR": "Liqueur", "HERBS & SEEDS SCHNAPPS LIQUEUR": "Liqueur",
+    "COFFEE (CAFE) LIQUEUR": "Liqueur", "AMARETTO": "Liqueur", "PEPPERMINT SCHNAPPS": "Liqueur",
+    "ROCK & RYE, RUM & BRANDY (ETC.)": "Liqueur", "SPECIALTIES & PROPRIETARIES": "Liqueur",
+    "SPECIALITIES & PROPRIETARIES": "Liqueur", "OTHER SPECIALTIES & PROPRIETARIES": "Liqueur",
+    "BITTERS - BEVERAGE": "Liqueur", "BITTERS - BEVERAGE*": "Liqueur",
+    # RTD/Cocktails (45 codes)
+    "WHISKY MANHATTAN (48 PROOF UP)": "RTD", "WHISKY MANHATTAN (UNDER 48 PROOF)": "RTD",
+    "WHISKY MANHATTAN UNDER 48 PROOF": "RTD", "WHISKY OLD FASHIONED (48 PROOF UP)": "RTD",
+    "WHISKY OLD FASHIONED (UNDER 48 PROOF)": "RTD", "WHISKY OLD FASHIONED UNDER 48 PROOF": "RTD",
+    "WHISKY SOUR (48 PROOF UP )": "RTD", "WHISKY SOUR (UNDER 48 PROOF)": "RTD", "WHISKY SOUR UNDER 48 PROOF": "RTD",
+    "VODKA MARTINI (48 PROOF UP)": "RTD", "VODKA MARTINI (UNDER 48 PROOF)": "RTD",
+    "VODKA MARTINI  UNDER 48 PROOF": "RTD", "VODKA MARTINI 48 PROOF UP": "RTD",
+    "SCREW DRIVER": "RTD", "BLOODY MARY": "RTD",
+    "GIN MARTINI (48 PROOF UP)": "RTD", "GIN MARTINI (UNDER 48 PROOF)": "RTD",
+    "GIN MARTINI 48 PROOF UP": "RTD", "GIN MARTINI UNDER 48 PROOF": "RTD",
+    "GIN SOUR (UNDER 48 PROOF)": "RTD", "GIN SOUR UNDER 48 PROOF": "RTD", "COLLINS": "RTD",
+    "DAIQUIRI (48 PROOF UP)": "RTD", "DAIQUIRI (UNDER 48 PROOF)": "RTD",
+    "DAIQUIRI 48 PROOF UP": "RTD", "DAIQUIRI UNDER 48 PROOF": "RTD",
+    "COLADA (48PROOF UP)": "RTD", "COLADA (48 PROOF UP )": "RTD",
+    "COLADA (UNDER 48 PROOF)": "RTD", "COLADA (UNDER 48 PROOF )": "RTD",
+    "MARGARITA (48 PROOF UP)": "RTD", "MARGARITA (UNDER 48 PROOF)": "RTD",
+    "MARGARITA 48 PROOF UP": "RTD", "MARGARITA UNDER 48 PROOF": "RTD",
+    "OTHER TEQUILA-BASED COCKTAILS (UNDER 48 PROOF)": "RTD",
+    "BRANDY STINGER (48 PROOF UP)": "RTD", "BRANDY STINGER (UNDER 48 PROOF)": "RTD",
+    "BRANDY STINGER UNDER 48 PROOF": "RTD", "BRANDY SIDE CAR (48 PROOF UP)": "RTD",
+    "BRANDY SIDE CAR (UNDER 48 PROOF)": "RTD", "BRANDY SIDE CAR UNDER 48 PROOF": "RTD",
+    "COCKTAILS 48 PROOF UP": "RTD", "COCKTAILS 48 PROOF UP (CONT)": "RTD",
+    "COCKTAILS UNDER 48 PROOF": "RTD", "COCKTAILS UNDER 48 PROOF (CONT)": "RTD",
+    "COCKTAILS UNDER 48 PR(CONT)": "RTD", "MIXED DRINKS-HI BALLS COCKTAILS": "RTD",
+    "OTHER COCKTAILS (48 PROOF UP)": "RTD", "OTHER COCTAILS (48PROOF UP)": "RTD",
+    "OTHER COCKTAILS (UNDER 48 PROOF)": "RTD", "OTHER MIXED DRINKS HI-BALLS COCKTAILS": "RTD", "EGG NOG": "RTD",
+    # Other (10 codes)
+    "NEUTRAL SPIRITS - GRAIN": "Other", "NEUTRAL SPIRITS - FRUIT": "Other", "NEUTRAL SPIRITS - CANE": "Other",
+    "NEUTRAL SPIRITS - VEGETABLE": "Other", "NEUTRAL SPIRITS - PETROLEUM": "Other",
+    "GRAIN SPIRITS": "Other", "OTHER SPIRITS": "Other",
+    "NON ALCOHOLIC MIXES": "Other", "NON ALCOHOL MIXES": "Other", "ADMINISTRATIVE WITHDRAWAL": "Other",
+}
+
+# Fallback patterns for unknown codes (used only when exact match fails)
+FALLBACK_PATTERNS = [
+    # Beer first to catch MALT BEVERAGE before MALT WHISKY
+    ('MALT BEVER', 'Beer'), ('MALT LIQ', 'Beer'), ('BEER', 'Beer'), ('ALE', 'Beer'),
+    ('STOUT', 'Beer'), ('LAGER', 'Beer'), ('PORTER', 'Beer'),
+    # Whiskey - WHISK catches both WHISKY and WHISKEY
+    ('WHISK', 'Whiskey'), ('BOURBON', 'Whiskey'), ('SCOTCH', 'Whiskey'), ('TENNESSEE', 'Whiskey'),
     ('VODKA', 'Vodka'),
-    # Tequila/Agave
     ('TEQUILA', 'Tequila'), ('MEZCAL', 'Tequila'), ('AGAVE', 'Tequila'),
-    # Gin
     ('GIN', 'Gin'),
-    # Wine - check for WINE anywhere in the string
-    ('WINE', 'Wine'), ('CHAMPAGNE', 'Wine'), ('SPARKLING', 'Wine'), ('PORT', 'Wine'), ('SHERRY', 'Wine'),
-    # Beer
-    ('BEER', 'Beer'), ('ALE', 'Beer'), ('MALT BEVERAGE', 'Beer'), ('STOUT', 'Beer'), ('LAGER', 'Beer'),
-    # RTD
-    ('COCKTAIL', 'RTD'), ('MARGARITA', 'RTD'), ('SELTZER', 'RTD'), ('COOLER', 'RTD'),
-    # Rum
-    ('RUM', 'Rum'),
-    # Brandy
-    ('BRANDY', 'Brandy'), ('COGNAC', 'Brandy'),
-    # Liqueur
-    ('CORDIAL', 'Liqueur'), ('AMARETTO', 'Liqueur'), ('TRIPLE SEC', 'Liqueur'), ('LIQUEUR', 'Liqueur'),
+    ('RUM', 'Rum'), ('CACHACA', 'Rum'),
+    ('BRANDY', 'Brandy'), ('COGNAC', 'Brandy'), ('ARMAGNAC', 'Brandy'), ('GRAPPA', 'Brandy'), ('PISCO', 'Brandy'),
+    ('WINE', 'Wine'), ('CHAMPAGNE', 'Wine'), ('SHERRY', 'Wine'), ('VERMOUTH', 'Wine'), ('SAKE', 'Wine'),
+    ('LIQUEUR', 'Liqueur'), ('CORDIAL', 'Liqueur'), ('SCHNAPPS', 'Liqueur'), ('AMARETTO', 'Liqueur'),
+    ('COCKTAIL', 'RTD'), ('MARGARITA', 'RTD'), ('DAIQUIRI', 'RTD'), ('MARTINI', 'RTD'), ('COLADA', 'RTD'),
 ]
 
+
 def get_category(class_type_code: str) -> str:
-    """Map TTB class/type code to category using pattern matching."""
+    """Map TTB class/type code to category using exact lookup first, then fallback patterns."""
     if not class_type_code:
         return 'Other'
     code = class_type_code.strip().upper()
-    # Check each pattern - first match wins
-    for pattern, category in TTB_CODE_PATTERNS:
+
+    # Try exact lookup first
+    if code in TTB_CODE_TO_CATEGORY:
+        return TTB_CODE_TO_CATEGORY[code]
+
+    # Fallback: pattern matching for unknown codes
+    for pattern, category in FALLBACK_PATTERNS:
         if pattern in code:
             return category
+
     return 'Other'
+
+
+def get_codes_for_category(category: str) -> List[str]:
+    """Get all TTB codes that belong to a category."""
+    codes = []
+    for code, cat in TTB_CODE_TO_CATEGORY.items():
+        if cat == category:
+            codes.append(code)
+    return codes
 
 def make_slug(name: str) -> str:
     """Convert name to URL slug."""
@@ -339,12 +515,28 @@ def fetch_email_metrics() -> Dict:
                 biggest_pct = pct_change
                 biggest_change = cat
 
-    # Generate summary
+    # Calculate week-over-week change for total filings
+    total_last = d1_query(f"""
+        SELECT COUNT(*) as count FROM colas
+        WHERE {last_week_sql} AND status = 'APPROVED'
+    """)
+    last_week_count = total_last[0]["count"] if total_last else 0
+    wow_change = int(((total_filings - last_week_count) / last_week_count) * 100) if last_week_count > 0 else 0
+
+    # Build summary bullets array
+    summary_bullets = [
+        f"{total_filings:,} total filings ({'+' if wow_change >= 0 else ''}{wow_change}% vs last week)",
+        f"{new_brands} new brands, {new_skus} new SKUs",
+    ]
+
+    # Add biggest category mover if significant
     if biggest_change and abs(biggest_pct) > 10:
         direction = "up" if biggest_pct > 0 else "down"
-        summary = f"{biggest_change} filings {direction} {abs(int(biggest_pct))}% week-over-week"
-    else:
-        summary = f"{total_filings} label approvals processed this week"
+        summary_bullets.append(f"{biggest_change} {direction} {abs(int(biggest_pct))}% week-over-week")
+
+    # Add top filer
+    if top_companies_list:
+        summary_bullets.append(f"Top filer: {top_filer} ({top_filer_count} filings)")
 
     # 10. Pro preview - get one NEW_BRAND filing
     pro_preview = d1_query(f"""
@@ -378,7 +570,7 @@ def fetch_email_metrics() -> Dict:
 
     return {
         "weekEnding": week_ending,
-        "summary": summary,
+        "summaryBullets": summary_bullets,
         "totalFilings": str(total_filings),
         "newBrands": str(new_brands),
         "newSkus": str(new_skus),
@@ -397,25 +589,15 @@ def fetch_email_metrics() -> Dict:
 # PRO USER METRICS
 # ============================================================================
 
-# TTB codes that map to each category (for SQL filtering)
-CATEGORY_TTB_CODES = {
-    'Whiskey': ['WHISKY', 'WHISKEY', 'BOURBON', 'SCOTCH', 'RYE', 'MALT'],
-    'Vodka': ['VODKA'],
-    'Tequila': ['TEQUILA', 'MEZCAL', 'AGAVE'],
-    'Gin': ['GIN'],
-    'Wine': ['WINE', 'CHAMPAGNE', 'SPARKLING'],
-    'Beer': ['BEER', 'ALE', 'MALT BEVERAGES', 'STOUT', 'LAGER'],
-    'RTD': ['COCKTAIL', 'MARGARITA', 'SELTZER', 'COOLER'],
-    'Rum': ['RUM'],
-    'Brandy': ['BRANDY', 'COGNAC'],
-    'Liqueur': ['CORDIAL', 'AMARETTO', 'TRIPLE SEC', 'LIQUEUR'],
-}
-
 def get_category_sql_filter(category: str) -> str:
-    """Generate SQL filter to match a category based on TTB codes."""
-    codes = CATEGORY_TTB_CODES.get(category, [category])
-    conditions = [f"class_type_code LIKE '%{code}%'" for code in codes]
-    return f"({' OR '.join(conditions)})"
+    """Generate SQL filter to match a category using exact TTB codes."""
+    codes = get_codes_for_category(category)
+    if not codes:
+        # Fallback to pattern matching if no exact codes found
+        return f"(class_type_code LIKE '%{category}%')"
+    # Use IN clause with exact matches for better performance
+    escaped_codes = [f"'{code.replace(chr(39), chr(39)+chr(39))}'" for code in codes]
+    return f"(class_type_code IN ({', '.join(escaped_codes)}))"
 
 
 def fetch_category_report(category: str, this_week_sql: str, last_week_sql: str) -> Dict:
@@ -527,6 +709,13 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     # Get base metrics first
     base_metrics = fetch_email_metrics()
 
+    # Build category filter SQL early so it can be used in all queries
+    category_filter_sql = ""
+    if subscribed_categories:
+        category_conditions = [get_category_sql_filter(cat) for cat in subscribed_categories]
+        category_filter_sql = f"AND ({' OR '.join(category_conditions)})"
+        logger.info(f"Filtering by categories: {', '.join(subscribed_categories)}")
+
     # Fetch category-specific reports for user's subscribed categories
     category_reports = []
     if subscribed_categories:
@@ -613,36 +802,50 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     else:
         week_over_week_change = "+0%"
 
-    # 3. Top companies with vs avg comparison
+    # 3. Top companies with vs avg comparison (filtered by user's categories)
     # First get 4-week averages per company
     avg_per_company = d1_query(f"""
         SELECT company_name, ROUND(COUNT(*) / 4.0) as avg_filings
         FROM colas
         WHERE {four_week_sql}
         AND status = 'APPROVED'
+        {category_filter_sql}
         GROUP BY company_name
         HAVING COUNT(*) >= 4
     """)
     avg_lookup = {r["company_name"]: r["avg_filings"] for r in avg_per_company}
 
-    # Top companies this week with change vs avg
+    # Top companies this week (filtered by user's categories)
+    top_companies_filtered = d1_query(f"""
+        SELECT company_name, COUNT(*) as filings
+        FROM colas
+        WHERE {this_week_sql}
+        AND status = 'APPROVED'
+        {category_filter_sql}
+        GROUP BY company_name
+        ORDER BY filings DESC
+        LIMIT 5
+    """)
+
+    # Build top companies with change vs avg
     top_companies_with_change = []
-    for comp in base_metrics.get("topCompaniesList", []):
-        avg = avg_lookup.get(comp["company"], 0)
+    for comp in top_companies_filtered:
+        avg = avg_lookup.get(comp["company_name"], 0)
         change = comp["filings"] - avg if avg > 0 else comp["filings"]
         top_companies_with_change.append({
-            "company": comp["company"],
+            "company": comp["company_name"],
             "filings": comp["filings"],
-            "change": f"+{change}" if change >= 0 else str(change)
+            "change": f"+{int(change)}" if change >= 0 else str(int(change))
         })
 
-    # 4. Filing spikes (M&A signals) - companies with unusual activity
+    # 4. Filing spikes (M&A signals) - companies with unusual activity (filtered by categories)
     filing_spikes = []
     this_week_by_company = d1_query(f"""
         SELECT company_name, COUNT(*) as filings
         FROM colas
         WHERE {this_week_sql}
         AND status = 'APPROVED'
+        {category_filter_sql}
         GROUP BY company_name
         HAVING COUNT(*) >= 10
         ORDER BY filings DESC
@@ -666,13 +869,7 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     # Sort by percent increase and take top 3
     filing_spikes = sorted(filing_spikes, key=lambda x: x["percentIncrease"], reverse=True)[:3]
 
-    # 5. Notable new brands (NEW_BRAND filings from this week)
-    # Filter by subscribed categories if user has preferences set
-    category_filter_sql = ""
-    if subscribed_categories:
-        category_conditions = [get_category_sql_filter(cat) for cat in subscribed_categories]
-        category_filter_sql = f"AND ({' OR '.join(category_conditions)})"
-
+    # 5. Notable new brands (NEW_BRAND filings from this week, filtered by categories)
     notable_brands = d1_query(f"""
         SELECT ttb_id, brand_name, company_name, class_type_code
         FROM colas
@@ -747,36 +944,47 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
                 })
                 count += 1
 
-    # 7. Category data with change indicators
-    category_data_with_change = []
-    for cat in base_metrics.get("categoryData", []):
-        # Get last week's count for this category
-        last_week_cat = d1_query(f"""
-            SELECT COUNT(*) as count
-            FROM colas
-            WHERE {last_week_sql}
-            AND status = 'APPROVED'
-        """)
-        # For simplicity, calculate change from the stored last_week_totals if available
-        # This is already calculated in fetch_email_metrics, but we need to pass it
-        category_data_with_change.append({
-            "label": cat["label"],
-            "value": cat["value"],
-            "change": ""  # We'll calculate this properly
-        })
+    # 7. Filter category data to only show user's subscribed categories
+    filtered_category_data = base_metrics.get("categoryData", [])
+    if subscribed_categories:
+        filtered_category_data = [
+            cat for cat in filtered_category_data
+            if cat["label"] in subscribed_categories
+        ]
+
+    # 8. Get filtered top filer from category-filtered results
+    filtered_top_filer = base_metrics["topFiler"]
+    filtered_top_filer_count = base_metrics["topFilerCount"]
+    if top_companies_with_change:
+        filtered_top_filer = top_companies_with_change[0]["company"]
+        filtered_top_filer_count = str(top_companies_with_change[0]["filings"])
+
+    # 9. Rebuild summary bullets with filtered top filer
+    filtered_summary_bullets = [
+        base_metrics["summaryBullets"][0],  # Total filings + WoW change
+        base_metrics["summaryBullets"][1],  # New brands and SKUs
+    ]
+    # Add biggest category mover if present and in user's categories
+    if len(base_metrics["summaryBullets"]) > 2:
+        original_third_bullet = base_metrics["summaryBullets"][2]
+        if not subscribed_categories or any(cat in original_third_bullet for cat in subscribed_categories):
+            filtered_summary_bullets.append(original_third_bullet)
+    # Add filtered top filer
+    if top_companies_with_change:
+        filtered_summary_bullets.append(f"Top filer: {filtered_top_filer} ({filtered_top_filer_count} filings)")
 
     return {
         "weekEnding": base_metrics["weekEnding"],
-        "summary": base_metrics["summary"],
+        "summaryBullets": filtered_summary_bullets,
         "totalFilings": base_metrics["totalFilings"],
         "newBrands": base_metrics["newBrands"],
         "newSkus": base_metrics["newSkus"],
         "newCompanies": base_metrics["newCompanies"],
-        "topFiler": base_metrics["topFiler"],
-        "topFilerCount": base_metrics["topFilerCount"],
+        "topFiler": filtered_top_filer,
+        "topFilerCount": filtered_top_filer_count,
         "weekOverWeekChange": week_over_week_change,
         "watchlistMatches": watchlist_matches,
-        "categoryData": base_metrics["categoryData"],
+        "categoryData": filtered_category_data,
         "topCompaniesList": top_companies_with_change,
         "notableNewBrands": notable_new_brands,
         "filingSpikes": filing_spikes,
@@ -933,7 +1141,7 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
         logger.info(f"Total filings: {base_metrics['totalFilings']}")
         logger.info(f"New brands: {base_metrics['newBrands']}")
         logger.info(f"New SKUs: {base_metrics['newSkus']}")
-        logger.info(f"Summary: {base_metrics['summary']}")
+        logger.info(f"Summary bullets: {base_metrics['summaryBullets']}")
     except Exception as e:
         logger.error(f"Failed to fetch metrics: {e}")
         return

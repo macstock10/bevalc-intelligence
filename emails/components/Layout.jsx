@@ -34,8 +34,9 @@ export const styles = {
   },
   container: {
     margin: "0 auto",
-    padding: "40px 20px",
+    padding: "24px 8px",
     maxWidth: "600px",
+    width: "100%",
   },
   card: {
     backgroundColor: colors.bg,
@@ -136,12 +137,8 @@ export function Layout({ preview, children }) {
             <Text style={styles.footerText}>
               You're receiving this because you signed up at bevalcintel.com.
               <br />
-              <Link href="https://bevalcintel.com/preferences.html" style={styles.footerLink}>
+              <Link href="https://bevalcintel.com/account.html" style={styles.footerLink}>
                 Manage preferences
-              </Link>
-              {" | "}
-              <Link href="{{unsubscribeUrl}}" style={styles.footerLink}>
-                Unsubscribe
               </Link>
             </Text>
             <Text style={{ ...styles.footerText, marginTop: "16px" }}>

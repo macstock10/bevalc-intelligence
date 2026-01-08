@@ -301,16 +301,20 @@ const TTB_CATEGORIES = {
   }
 };
 
-// Fallback patterns for unknown codes
+// Fallback patterns for unknown codes - ORDER MATTERS for ambiguous patterns
+// Check more specific patterns first (longer strings) to avoid false matches
 const FALLBACK_PATTERNS = {
-  "Whiskey": ["WHISK", "BOURBON", "SCOTCH", "RYE WHISK"],
+  // Beer patterns first to catch MALT BEVERAGE before MALT WHISKY
+  "Beer": ["MALT BEVER", "MALT LIQ", "BEER", "ALE", "STOUT", "PORTER", "LAGER"],
+  // Whiskey - WHISK catches both WHISKY and WHISKEY, including MALT WHISKY
+  "Whiskey": ["WHISK", "BOURBON", "SCOTCH", "TENNESSEE"],
   "Vodka": ["VODKA"],
   "Tequila": ["TEQUILA", "MEZCAL", "AGAVE"],
   "Gin": ["GIN"],
   "Rum": ["RUM", "CACHACA"],
   "Brandy": ["BRANDY", "COGNAC", "ARMAGNAC", "GRAPPA", "PISCO"],
-  "Wine": ["WINE", "CHAMPAGNE", "PORT", "SHERRY", "VERMOUTH", "SAKE", "CIDER", "MEAD"],
-  "Beer": ["BEER", "ALE", "MALT", "STOUT", "PORTER", "LAGER"],
+  // Wine - removed PORT (matches IMPORTED), use /PORT/ in actual code
+  "Wine": ["WINE", "CHAMPAGNE", "SHERRY", "VERMOUTH", "SAKE", "CIDER", "MEAD"],
   "Liqueur": ["LIQUEUR", "CORDIAL", "SCHNAPPS", "AMARETTO", "CREME DE", "BITTERS"],
   "RTD/Cocktails": ["COCKTAIL", "MARTINI", "DAIQUIRI", "MARGARITA", "COLADA", "MANHATTAN", "SOUR"]
 };
