@@ -338,10 +338,15 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - [x] Robust company page slug matching (handles possessives, DBA compounds, all filings >= 1)
 - [x] SEO page paywall (free users see blurred content with upgrade modal)
 - [x] Mobile modal overflow fix (track pills don't bleed outside box)
+- [x] Welcome email sent via Resend API on new user signup
+- [x] Category filter uses exact TTB code matching (fixes Beer/Whiskey overlap)
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
-1. Welcome email not wired up - worker.js needs to call Resend after user signup
+1. ~~Welcome email not wired up~~ **FIXED** (2026-01-08):
+   - Added `sendWelcomeEmail()` function in worker.js
+   - Calls Resend API directly with inline HTML template
+   - Triggered automatically after new user signup
 
 2. ~~SEO pages slow on first load~~ **FIXED** - now 0.1-0.3s:
    - Created `brand_slugs` table for fast brand lookups
@@ -350,6 +355,11 @@ See `CLAUDE-CONTENT.md` for full documentation.
 
 3. Scraping vulnerability - all data accessible via SEO pages + sitemap
    - Consider: rate limiting SEO pages, limiting data shown, honeypot entries
+
+4. ~~Category filter bug~~ **FIXED** (2026-01-08):
+   - Search/export API was using pattern-based filtering (`%MALT%`)
+   - Incorrectly matched Scotch Whisky when filtering for Beer
+   - Now uses exact code matching from `TTB_CODE_TO_CATEGORY`
 
 ### Programmatic SEO Pages (COMPLETED 2026-01-06)
 
@@ -523,7 +533,7 @@ Brand and company SEO pages now require Pro subscription to view full content. F
 
 **Important:** The CSS class is `seo-blur` (NOT `blur-content`) to avoid conflicts with `style.css` which has a different `.blur-content` class.
 
-**Cache Headers:** Temporarily set to `no-store, no-cache, must-revalidate` to ensure paywall changes propagate. Should be restored to `public, max-age=3600, s-maxage=86400` after verification.
+**Cache Headers:** Set to `public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400` for optimal performance (1hr browser, 24hr edge cache).
 
 ### Cascading Category/Subcategory Filters (COMPLETED 2026-01-07)
 

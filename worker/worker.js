@@ -988,6 +988,86 @@ async function handleCheckUserExists(url, env) {
     }
 }
 
+// Send welcome email via Resend API
+async function sendWelcomeEmail(toEmail, env) {
+    const resendApiKey = env.RESEND_API_KEY;
+    if (!resendApiKey) {
+        console.log('RESEND_API_KEY not configured, skipping welcome email');
+        return { success: false, error: 'Email not configured' };
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <div style="background: #0d9488; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">BevAlc Intelligence</h1>
+        </div>
+        <div style="padding: 32px;">
+            <h2 style="color: #1e293b; font-size: 24px; margin: 0 0 16px 0;">Welcome to BevAlc Intelligence!</h2>
+            <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Thanks for signing up. You'll now receive our free weekly snapshot of TTB COLA filings, straight to your inbox every Saturday.
+            </p>
+            <div style="background: #f1f5f9; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <p style="color: #1e293b; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px 0;">What you'll get</p>
+                <p style="color: #475569; font-size: 15px; margin: 8px 0;"><span style="color: #0d9488; margin-right: 8px;">&#10003;</span> Weekly PDF report with new TTB approvals</p>
+                <p style="color: #475569; font-size: 15px; margin: 8px 0;"><span style="color: #0d9488; margin-right: 8px;">&#10003;</span> New brand and SKU launches across all categories</p>
+                <p style="color: #475569; font-size: 15px; margin: 8px 0;"><span style="color: #0d9488; margin-right: 8px;">&#10003;</span> Market trends and filing activity insights</p>
+            </div>
+            <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                While you wait for your first report, explore our database of over 1 million COLA records:
+            </p>
+            <div style="text-align: center; margin-bottom: 32px;">
+                <a href="https://bevalcintel.com/database" style="display: inline-block; background: #0d9488; color: white; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 16px;">Search the Database</a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <div style="background: #f0fdfa; border-radius: 8px; padding: 20px; text-align: center;">
+                <p style="color: #0d9488; font-weight: 600; font-size: 14px; margin: 0 0 8px 0;">Need more?</p>
+                <p style="color: #475569; font-size: 14px; margin: 0 0 12px 0;">Pro members get category-specific reports, watchlist alerts, and unlimited CSV exports.</p>
+                <a href="https://bevalcintel.com/#pricing" style="color: #0d9488; font-size: 14px; font-weight: 500;">Learn about Pro &rarr;</a>
+            </div>
+        </div>
+        <div style="background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">&copy; 2026 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    try {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${resendApiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: 'BevAlc Intelligence <hello@bevalcintel.com>',
+                to: toEmail,
+                subject: 'Welcome to BevAlc Intelligence',
+                html: html,
+            }),
+        });
+
+        if (response.ok) {
+            console.log(`Welcome email sent to ${toEmail}`);
+            return { success: true };
+        } else {
+            const error = await response.text();
+            console.error(`Failed to send welcome email: ${error}`);
+            return { success: false, error };
+        }
+    } catch (e) {
+        console.error('Welcome email error:', e.message);
+        return { success: false, error: e.message };
+    }
+}
+
 // Sign up a free user
 async function handleSignupFree(request, env) {
     try {
@@ -1014,7 +1094,10 @@ async function handleSignupFree(request, env) {
             VALUES (?, 0, ?, '[]', 1, datetime('now'))
         `).bind(email, newToken).run();
 
-        return { success: true, message: 'User created', existing: false };
+        // Send welcome email (non-blocking, don't fail signup if email fails)
+        sendWelcomeEmail(email, env).catch(e => console.error('Welcome email failed:', e));
+
+        return { success: true, message: 'User created', existing: false, emailSent: true };
     } catch (e) {
         console.error('Signup free error:', e);
         return { success: false, error: e.message };
@@ -1478,6 +1561,18 @@ function getCategory(classTypeCode) {
     return 'Other';
 }
 
+// Get all TTB codes that belong to a specific category
+// Used for exact-match category filtering in search/export
+function getCodesForCategory(category) {
+    const codes = [];
+    for (const [code, cat] of Object.entries(TTB_CODE_TO_CATEGORY)) {
+        if (cat === category) {
+            codes.push(code);
+        }
+    }
+    return codes;
+}
+
 async function handleSearch(url, env) {
     const params = url.searchParams;
     const page = Math.max(1, parseInt(params.get('page')) || 1);
@@ -1554,24 +1649,12 @@ async function handleSearch(url, env) {
     }
 
     if (category && category !== 'Other') {
-        const categoryPatterns = {
-            'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
-            'Vodka': ['%VODKA%'],
-            'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
-            'Rum': ['%RUM%', '%CACHACA%'],
-            'Gin': ['%GIN%'],
-            'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-            'Wine': ['%WINE%', '%CHAMPAGNE%', '%/PORT/%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', 'PORTER'],
-            'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%', '%CURACAO%', '%TRIPLE SEC%', '%SAMBUCA%'],
-            'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%', '%COLADA%', '%BLOODY MARY%', '%SCREW DRIVER%'],
-            'Other Spirits': ['%BITTERS%', '%NEUTRAL SPIRIT%']
-        };
-        const patterns = categoryPatterns[category];
-        if (patterns && patterns.length > 0) {
-            const categoryConditions = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
-            whereClause += ` AND (${categoryConditions})`;
-            patterns.forEach(p => queryParams.push(p));
+        // Use exact code matching from TTB_CODE_TO_CATEGORY lookup
+        const categoryCodes = getCodesForCategory(category);
+        if (categoryCodes.length > 0) {
+            const placeholders = categoryCodes.map(() => '?').join(',');
+            whereClause += ` AND class_type_code IN (${placeholders})`;
+            categoryCodes.forEach(code => queryParams.push(code));
         }
     }
 
@@ -1747,24 +1830,12 @@ async function handleExport(url, env) {
     }
 
     if (category && category !== 'Other') {
-        const categoryPatterns = {
-            'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
-            'Vodka': ['%VODKA%'],
-            'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
-            'Rum': ['%RUM%', '%CACHACA%'],
-            'Gin': ['%GIN%'],
-            'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-            'Wine': ['%WINE%', '%CHAMPAGNE%', '%/PORT/%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', 'PORTER'],
-            'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%', '%CURACAO%', '%TRIPLE SEC%', '%SAMBUCA%'],
-            'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%', '%COLADA%', '%BLOODY MARY%', '%SCREW DRIVER%'],
-            'Other Spirits': ['%BITTERS%', '%NEUTRAL SPIRIT%']
-        };
-        const patterns = categoryPatterns[category];
-        if (patterns && patterns.length > 0) {
-            const categoryConditions = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
-            whereClause += ` AND (${categoryConditions})`;
-            patterns.forEach(p => queryParams.push(p));
+        // Use exact code matching from TTB_CODE_TO_CATEGORY lookup
+        const categoryCodes = getCodesForCategory(category);
+        if (categoryCodes.length > 0) {
+            const placeholders = categoryCodes.map(() => '?').join(',');
+            whereClause += ` AND class_type_code IN (${placeholders})`;
+            categoryCodes.forEach(code => queryParams.push(code));
         }
     }
 
@@ -2522,7 +2593,7 @@ async function handleCompanyPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/company/${slug}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
             ...corsHeaders
         }
     });
@@ -2696,7 +2767,7 @@ async function handleBrandPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
             ...corsHeaders
         }
     });
@@ -2887,7 +2958,7 @@ async function handleCategoryPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/category/${categorySlug}/${year}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
             ...corsHeaders
         }
     });
@@ -2900,7 +2971,7 @@ async function handleSitemap(path, env) {
     // Cache headers for all sitemaps (24h edge, 1h browser)
     const cacheHeaders = {
         'Content-Type': 'application/xml',
-        'Cache-Control': 'no-store, no-cache, must-revalidate'
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
     };
 
     // Map path to R2 file

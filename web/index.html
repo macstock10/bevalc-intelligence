@@ -932,25 +932,12 @@
                     return;
                 }
 
-                // 2. Send to Loops (for their UI, analytics, unsubscribe handling)
-                const loopsPromise = fetch('https://app.loops.so/api/newsletter-form/cmjua76k706b10iziksn06077', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        email: email,
-                        subscribedFreeReport: 'true'
-                    })
-                }).catch(e => console.log('Loops error:', e));
-
-                // 3. Send to D1 (for weekly report script to query)
-                const d1Promise = fetch(`${API_BASE}/api/user/signup-free`, {
+                // 2. Create user in D1 (triggers welcome email via Resend)
+                await fetch(`${API_BASE}/api/user/signup-free`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
-                }).catch(e => console.log('D1 error:', e));
-
-                // Wait for both (but don't fail if one fails)
-                await Promise.allSettled([loopsPromise, d1Promise]);
+                }).catch(e => console.log('Signup error:', e));
 
                 localStorage.setItem('bevalc_user', JSON.stringify({
                     email: email,
