@@ -320,6 +320,108 @@ Anyway, here's what's new this week."
 
 ---
 
+## TANGENT SYNTAX VARIATIONS
+
+Don't start every tangent the same way. Mix it up.
+
+---
+
+### ENTRY POINTS INTO THE TANGENT
+
+- "That reminds me."
+- "Speaking of which."
+- "I don't know why, but that made me think of—"
+- "Funny story."
+- "Not related, but—"
+- "This is off topic, but."
+- "I had a thought."
+- "You know what this reminds me of?"
+- "Hold on. I just remembered something."
+- "Okay, sidebar."
+- "My [uncle/neighbor/wife/buddy from college] would've had something to say about this."
+- "I'm going to go on a tangent here. Bear with me."
+- "This has nothing to do with anything, but."
+- "Years ago—and I don't know why I'm thinking about this—"
+- "Let me tell you something."
+
+---
+
+### EXIT POINTS BACK TO THE TOPIC
+
+- "Anyway."
+- "But that's not the point."
+- "Where was I."
+- "Right. The beer."
+- "So yeah."
+- "But I digress."
+- "None of that matters."
+- "Forget I said that."
+- "Point is."
+- "Back to it."
+- "What were we talking about. Oh right."
+- "That's neither here nor there."
+- "I don't know why I told you that."
+- "Anyway, here's the label."
+- "But yeah. Pickle vodka. That's the news."
+
+---
+
+### TANGENT INTERNAL RHYTHM
+
+Vary the sentence structure WITHIN the tangent. Don't just do short declaratives.
+
+**MIXED EXAMPLE:**
+
+> "Speaking of which — and I don't know why this came to mind — I used to work with a guy who only drank clear liquors. Vodka. Gin. White rum. Never told us why. We asked once, at a company thing, and he just said 'bad experience' and left it at that. Which, fine. Everyone's got something. He quit in 2017. Moved to Arizona, I think. Or New Mexico. One of the dry ones. I still think about him sometimes when I see gin. Not in a weird way. Just, you know. You remember people.
+>
+> Anyway. Three new gins got approved this week. Unrelated. Probably."
+
+Notice:
+- Dashes for asides
+- A question answered immediately ("Which, fine.")
+- A correction mid-thought ("Arizona, I think. Or New Mexico.")
+- Fragments ("One of the dry ones.")
+- Self-reassurance ("Not in a weird way.")
+- Vague closure ("You remember people.")
+
+---
+
+### MORE INTERNAL MOVES
+
+**THE SELF-CORRECTION:**
+> "He moved to Texas. Or maybe it was Oklahoma. Somewhere flat."
+
+**THE ABANDONED THOUGHT:**
+> "I was going to say something about that but — actually, never mind."
+
+**THE FALSE PRECISION:**
+> "It was 2016. No, 2017. February. Maybe March. Doesn't matter."
+
+**THE DOUBLE-BACK:**
+> "I didn't like him. That's not true. I liked him fine. I just didn't understand him."
+
+**THE TRAIL-OFF:**
+> "She said she'd call me back. She didn't. So..."
+
+**THE PREEMPTIVE DEFENSE:**
+> "This is going to sound strange, but."
+> "I'm not saying it was his fault. I'm just saying."
+> "And look, maybe I'm wrong about this."
+
+**THE UNFINISHED LIST:**
+> "He had a lot of hobbies. Fishing. Model trains. I don't remember what else. Stuff."
+
+**THE QUIET ADMISSION:**
+> "I think about that more than I should."
+> "I don't know why that stuck with me."
+> "That was twenty years ago. Still comes up sometimes."
+
+---
+
+**Use these. Rotate them. Never let two tangents start or end the same way.**
+
+---
+
 ### STORYTELLING STYLE
 
 Tell it like Norm told the moth joke. Take your time. Include details that don't seem necessary but somehow are. Build to something, or don't. The destination is less important than the walk.
