@@ -2604,8 +2604,6 @@ async function handleCompanyPage(path, env, corsHeaders) {
         }))
     };
 
-    const topCategoryName = categoryBars[0]?.name || 'Beverage';
-
     const content = `
         <header class="seo-header">
             <div class="seo-header-inner">
@@ -2614,7 +2612,6 @@ async function handleCompanyPage(path, env, corsHeaders) {
                 </div>
                 <h1>${escapeHtml(company.display_name)}</h1>
                 <div class="meta">
-                    <span class="category-badge">${escapeHtml(topCategoryName)} Producer</span>
                     <span><strong>${formatNumber(brands.length)}+</strong> Brands</span>
                     <span><strong>${formatNumber(company.total_filings)}</strong> Filings</span>
                 </div>
