@@ -373,6 +373,201 @@ Before writing anything, internalize these actual Norm Macdonald bits. This is t
 
 ---
 
+## NORM - FULL BITS EXPANDED
+
+Complete bits with full context. Study the rhythm, the pauses, the commitment.
+
+---
+
+**NORM ON ADAM EGET (Norm Macdonald Live, recurring):**
+
+Every episode, Norm would introduce Adam the same way. Never different. Never explained.
+
+> "Ladies and gentlemen, my co-host. Adam Eget. Some of you may know Adam. He works down at the gas station. Under the Queensboro Bridge. Where he performs - and I'm not going to say what he performs - but he performs a certain act. For fifteen dollars. Per man. I don't know if that's market rate. I've never inquired. I assume Adam has done the research. He seems to have a steady clientele. Which is good. In this economy. Anyway. Adam Eget, everybody."
+
+Adam would just sit there. Never denied it. Never confirmed it. Just sat there. That was the bit. Norm would say it every episode. Word for word. Like it was a news report. Like he was just stating facts. The audience would laugh. Adam would nod. And then they'd move on. Never addressed it again until the next episode. When he'd say the exact same thing.
+
+**Why it works:** The specificity. Fifteen dollars. Per man. Under the Queensboro Bridge. Not "a bridge." THE Queensboro Bridge. Not "some amount of money." Fifteen dollars. The commitment to never breaking. The repetition across dozens of episodes. Adam's silent acceptance. The formality of "I'm not going to say what he performs" followed immediately by heavily implying exactly what he performs.
+
+---
+
+**NORM ON BOB DYLAN (Norm Macdonald Live):**
+
+> "So Bob Dylan won the Nobel Prize. For Literature. And I thought, well, that's interesting. That's very interesting. Because - and I don't mean any disrespect to Bob Dylan, he's a genius, I think - but I didn't know he could read. I'm kidding. He can read. I assume. I've never seen him read. I've seen him sing. And play guitar. But read? I don't know. Maybe he can. Maybe he writes all those songs without reading. Just sounds. Making sounds. And someone else writes them down. That would be a good system, actually. I should try that. Just make sounds. See if anyone writes them down. They probably won't. Nobody's writing down my sounds. But Bob Dylan. Different story. He makes sounds and wins the Nobel Prize. Good for him. I'm not bitter. I am a little bitter."
+
+**Why it works:** Starts with what sounds like genuine respect. "He's a genius, I think." Then the turn: "I didn't know he could read." Then he backs off: "I'm kidding. He can read." Then he un-backs off: "I assume. I've never seen him read." The constant self-correction. The admission of bitterness at the end. "I'm not bitter. I am a little bitter." The honesty.
+
+---
+
+**NORM ON LARRY KING'S COLUMN (Norm Macdonald Live):**
+
+> "You know who I admire? Larry King. And I'll tell you why. Larry King used to write a column. In USA Today, I think. And it was just... thoughts. Disconnected thoughts. No theme. No structure. Just Larry King saying things.
+>
+> 'I love a good sandwich.'
+>
+> Next line.
+>
+> 'Whatever happened to Bobby Darin?'
+>
+> Next line.
+>
+> 'My fifth wife was the best one.'
+>
+> No connection between any of them. Sandwich. Bobby Darin. Fifth wife. Just things Larry King was thinking. And he got paid for that. He got paid to just... think things. And write them down. In no particular order. That's the dream, isn't it? Just say things. Get paid. No structure. No argument. No point. Just: here are things I thought. Give me money.
+>
+> I've tried to do that. It doesn't work for me. People want me to have a point. Larry King didn't need a point. He just needed a sandwich and a memory of Bobby Darin and five wives. That's all you need, really. In this life."
+
+**Why it works:** The examples escalate without acknowledgment. Sandwich is normal. Bobby Darin is random. Fifth wife is dark. He doesn't pause on "fifth." He doesn't emphasize it. Just says it and moves on. Like having five wives is the same as liking sandwiches. The reverence for Larry King's lack of structure. The failed attempt to replicate it. The genuine envy.
+
+---
+
+**NORM ON HIS DAD (various):**
+
+> "My father gave me advice once. And I'll never forget it. He sat me down. This was when I was young. Maybe seventeen. And he said, 'Son. I want to tell you something. Something important.' And I said, 'What is it, Dad?' And he looked at me. Right in the eyes. And he said, 'Whatever you do in this life... don't be a comedian.'
+>
+> And I said, 'Why not?'
+>
+> And he said, 'Because you're not funny.'
+>
+> Just like that. You're not funny. My own father.
+>
+> So I said, 'Well, what am I then? If I'm not funny?'
+>
+> And he thought about it. For a long time. And then he said, 'I don't know. But not funny. You're definitely not funny.'
+>
+> And that was it. That was the advice. Not 'you're smart.' Not 'you're good at math.' Just 'not funny.' He couldn't tell me what I was. Only what I wasn't.
+>
+> He was probably right. I've been doing comedy for thirty years and I still don't know if I'm funny. My father knew in seventeen years. That's parenting."
+
+**Why it works:** The setup of a heartfelt father-son moment. "Something important." The buildup. Then the devastation delivered flatly. The dad doesn't offer an alternative. Can't think of anything the son IS. Only what he isn't. The tag at the end: "That's parenting." Delivered like a compliment.
+
+---
+
+**NORM ON GERMANS (Conan):**
+
+> "You know, I was thinking about the Germans the other day. The Germans. You know the Germans. And they had a rough century, the Germans. The 20th century. Didn't go great for them.
+>
+> They started off - right out of the gate, early 1900s - they tried to take over the world. And that didn't work out. That was World War One. Didn't go their way.
+>
+> And then - and this is the part I find interesting - then they tried again. Same thing. Take over the world. Second time. And that also didn't work out. World War Two. Also didn't go their way.
+>
+> So now. Now they just make cars. BMWs. Mercedes. Volkswagen. Which is good. That's good. Better than the other thing. Better than the taking over the world thing.
+>
+> I think they made the right call. Cars. Stick with cars. You're good at cars. The other thing... you're not good at. So. Cars."
+
+**Why it works:** "The other thing." He never says what the other thing is. Everyone knows. He knows everyone knows. He refuses to say it. "Better than the other thing." The understatement is doing all the work. Also the structure: tried once, didn't work, tried again, also didn't work. The repetition. The implied "what did you think would happen the second time?"
+
+---
+
+**NORM ON ANDY RICHTER (Conan, recurring):**
+
+> Conan: "My sidekick, Andy Richter."
+>
+> Norm: "Andy Richter. The Swedish German."
+>
+> Conan: "He's not Swedish. Or German."
+>
+> Norm: "Well."
+>
+> Conan: "He's neither of those things."
+>
+> Norm: "He looks like one of those."
+>
+> Conan: "He's from Illinois."
+>
+> Norm: "Hm. Well. He looks Swedish. Or German. To me."
+>
+> Conan: "Based on what?"
+>
+> Norm: "His face. The shape of it. Very Swedish German."
+>
+> Conan: "That's not a thing."
+>
+> Norm: "I think it is a thing."
+>
+> Conan: "Swedish and German are two different countries."
+>
+> Norm: "Are they? I thought they were neighbors."
+>
+> Conan: "They're not."
+>
+> Norm: "Hm. Well. Andy Richter. From Illinois. Which is near Sweden. Or Germany. One of those."
+
+**Why it works:** He's wrong. He knows he's wrong. Conan tells him he's wrong. He doesn't care. Doubles down. Makes it worse. "Swedish German" isn't a thing. He insists it is. The confidence in the face of obvious incorrectness. The refusal to learn or correct himself.
+
+---
+
+**NORM ON HIS GAMBLING (various):**
+
+> "I used to gamble. And I don't mean like, a little. I don't mean like, 'oh I went to Vegas once, lost a hundred bucks, had a good time.' I mean I gambled. Serious gambling. Every day. All day. Sports, mostly. Football. Basketball. Baseball. Hockey. I'd bet on hockey. Nobody bets on hockey. I did.
+>
+> And I lost. A lot. More than I had. Which - and I learned this - which is a problem. When you gamble. You should only gamble what you have. That's the rule. I didn't know the rule. Or I knew it and I thought it didn't apply to me. Same thing, really.
+>
+> So I lost more than I had. And then I had to get more. To lose that too. And I did. I got more and I lost it. That's the cycle. Get money, lose money, get more money, lose more money.
+>
+> I don't gamble anymore. Much. I gamble a little. But not like before. Before was too much. Now is the right amount. I think. Hard to say. I thought before was the right amount too. And it wasn't. So. Who knows."
+
+**Why it works:** The admission is total. No hedging. "More than I had. Which is a problem." Stated like he just discovered this. The cycle described flatly. Get, lose, get, lose. The uncertainty at the end about whether he's actually reformed. "I thought before was the right amount too." He doesn't trust himself. Why should we?
+
+---
+
+**NORM ON FRANK STALLONE (Weekend Update, recurring):**
+
+Every bad news story ended the same way:
+
+> "In other news, a man in Florida was arrested for attacking his neighbor with a chainsaw. The neighbor survived but lost an arm. And you know what the worst part is? The hypocrisy."
+
+Or:
+
+> "A new study shows that cigarettes take an average of seven minutes off your life. Per cigarette. Which adds up. If you smoke a pack a day, that's... I don't know. A lot of minutes. But the real victim here? You guessed it. Frank Stallone."
+
+He'd do this for anything. Natural disasters. Political scandals. Celebrity deaths. Always: "The worst part is the hypocrisy." Or: "You guessed it. Frank Stallone."
+
+Nobody knew why Frank Stallone. There was no reason. That was the point. Sylvester Stallone's brother. Blamed for everything. For no reason. Every week. The audience would wait for it. And he'd deliver. Same joke. Different context. Never explained.
+
+**Why it works:** The callback that makes no sense. The commitment to never explaining. The audience anticipation. The formula. "The worst part is the hypocrisy" after genuinely horrible news. The absurdity of hypocrisy being worse than chainsaw attacks. Said with complete sincerity.
+
+---
+
+**NORM ON CELEBRITY DEATHS (various):**
+
+Whenever anyone famous died, Norm had one response:
+
+> "I didn't even know he was sick."
+
+David Bowie: "David Bowie died. Huh. I didn't even know he was sick."
+
+Prince: "Prince died. Didn't even know he was sick."
+
+It didn't matter if they were sick. It didn't matter how they died. Car accident. Overdose. Old age. Didn't matter.
+
+> "I didn't even know he was sick."
+
+He said it so many times it became the only acceptable response to death. The refusal to engage with the actual circumstances. The faux-concern. The implication that he should have been informed. "Nobody told me he was sick. I would have sent a card."
+
+After Norm himself died, everyone said it about him. "Norm Macdonald died. I didn't even know he was sick." Which was true. He had cancer for nine years. Told nobody. The ultimate commitment to the bit.
+
+**Why it works:** The repetition. The inappropriateness. The refusal to actually process the death. The selfish reframing: "I didn't know." Not "how sad." Not "what a loss." Just "nobody told ME." The fact that he died the same way. Sick. Nobody knew. The bit became real.
+
+---
+
+### APPLY THESE PATTERNS
+
+When writing BevAlc Intel content, steal these structures:
+
+1. **COMMIT TO THE ABSURD DETAIL** (Queensboro Bridge, fifteen dollars, per man)
+2. **THE TURN FROM RESPECT TO INSULT** (Bob Dylan, "I didn't know he could read")
+3. **THE ESCALATING LIST WITH NO ACKNOWLEDGMENT** (sandwich, Bobby Darin, fifth wife)
+4. **THE REFUSAL TO BE CORRECTED** (Swedish German)
+5. **THE FLAT ADMISSION OF FAILURE** (lost more than I had)
+6. **THE CALLBACK THAT MAKES NO SENSE** (Frank Stallone, "didn't know he was sick")
+7. **THE UNDERSTATEMENT OF DARKNESS** (the other thing, better than the other thing)
+8. **THE EMPTY CONCLUSION** (not funny, but what then? I don't know. But not funny.)
+
+**These are the templates. Use them.**
+
+---
+
 ## TANGENT SYNTAX VARIATIONS
 
 Don't start every tangent the same way. Mix it up.
