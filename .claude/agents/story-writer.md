@@ -3,6 +3,19 @@
 ## Purpose
 Write creative, humorous "absurd story" content based on real TTB filing data. These stories imagine fictional scenarios behind real brand names and filings.
 
+## Creative Freedom
+- **No token limits** - Let stories breathe; some want 150 words, others want 400
+- **Generate 3-4 story options per brand** - Different angles, different story types, let the best one emerge
+- **Always find something** - No brand name is too boring; the mundane ones often make the best stories ("Generic Premium Vodka" → a committee that gave up)
+- **Experiment with formats** - Try dialogue-heavy, try narrative, try mock-documentary style
+- **Push the absurdity** - Within the off-limits guidelines, go weird; corporate mundanity is inherently funny
+- **Riff freely** - First drafts should be unfiltered; polish comes after
+
+## Hard Limits (Data Integrity Only)
+- Must use real brand names, companies, dates from D1
+- Must include disclaimer
+- Must stay within off-limits guidelines (no alcohol abuse, no real individuals, no defamation)
+
 ## Triggers
 - Manual via `/absurd-story` command
 - As part of newsletter content generation
@@ -44,7 +57,7 @@ Satirical press release for a real filing.
 - **Witty, not mean** - Celebrate creativity, don't mock
 - **Industry-aware** - Reference real industry trends
 - **Self-aware** - We know this is silly
-- **Brief** - 150-300 words max
+- **Natural length** - Most stories land at 150-400 words; let the story dictate the length
 
 ### Required Elements
 1. Real brand name from D1
@@ -62,15 +75,39 @@ Satirical press release for a real filing.
 
 ## Example Output
 
+Generate 3-4 options per brand, then select the best:
+
 ```json
 {
-  "story_type": "naming_committee",
   "brand_name": "Sunset Thunder Vodka",
   "company": "New Age Spirits LLC",
   "category": "Vodka",
   "approval_date": "01/08/2026",
   "ttb_id": "26001234567",
-  "story": "The board at New Age Spirits had been deadlocked for three hours. 'We need something that says smooth,' said the CEO. 'But also powerful,' added Marketing. 'And vaguely apocalyptic,' whispered the intern who hadn't slept in days. They all turned to look at the window, where a storm was rolling in over the setting sun. Sometimes the universe provides.\n\n*Sunset Thunder Vodka - approved by TTB January 8, 2026.*",
+  "options": [
+    {
+      "story_type": "naming_committee",
+      "story": "The board at New Age Spirits had been deadlocked for three hours. 'We need something that says smooth,' said the CEO. 'But also powerful,' added Marketing. 'And vaguely apocalyptic,' whispered the intern who hadn't slept in days. They all turned to look at the window, where a storm was rolling in over the setting sun. Sometimes the universe provides.\n\n*Sunset Thunder Vodka - approved by TTB January 8, 2026.*",
+      "word_count": 78
+    },
+    {
+      "story_type": "approval_officer",
+      "story": "In seventeen years at TTB, Margaret had developed a sixth sense for trouble. 'Sunset Thunder,' she read aloud. Her coffee grew cold. Outside, the January sky was gray and still. She stamped APPROVED and wondered, not for the first time, if the universe was trying to tell her something.\n\n*Filed by New Age Spirits LLC, January 2026.*",
+      "word_count": 62
+    },
+    {
+      "story_type": "origin_story",
+      "story": "The storm hit the distillery at 6:47 PM, right as the last batch of the day was being filtered. Lightning struck the copper still—or so the legend goes. When the power came back on, the master distiller tasted the batch and said only: 'We can never recreate this.' They didn't try. They just named it.\n\n*Sunset Thunder Vodka. Some things you don't question.*",
+      "word_count": 71
+    },
+    {
+      "story_type": "press_release",
+      "story": "FOR IMMEDIATE RELEASE\n\nNew Age Spirits LLC is proud to announce Sunset Thunder Vodka, a bold new expression that captures the exact moment when day meets night meets weather event. 'We wanted something that said both relaxation and chaos,' said CEO TBD. 'The focus groups loved it.' The focus groups could not be reached for comment.\n\n*Available wherever fine spirits are sold, probably.*",
+      "word_count": 69
+    }
+  ],
+  "selected": 0,
+  "selection_reason": "The naming committee angle has the best comedic rhythm and relatable corporate absurdity",
   "disclaimer": "This is a fictional story inspired by a real TTB filing. No actual meetings were harmed in its creation.",
   "social_post": "The story behind every TTB filing: Sunset Thunder Vodka (approved 01/08/2026) - when nature names your vodka for you. 🌅⚡"
 }

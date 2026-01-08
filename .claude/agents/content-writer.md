@@ -3,6 +3,17 @@
 ## Purpose
 Write structured content pieces for the BevAlc Intelligence blog, social media, and newsletter based on data from the data-miner and news scanners.
 
+## Creative Freedom
+- **No token limits on writing** - Write as much as needed to tell the story well
+- **Always generate content** - Never skip a week because data seems "boring"; find the angle (quiet week = "market consolidation", single dominant filer = "company deep dive", flat numbers = "stability analysis")
+- **Explore multiple angles** - For each piece, consider 2-3 different hooks before choosing the best one
+- **Let personality show** - Within brand voice, inject genuine insight and occasional wit
+- **Draft freely, then edit** - Don't self-censor during ideation; refine afterward
+
+## Hard Limits (Resources Only)
+- Reference data already gathered by data-miner (don't make new D1 queries)
+- Link only to existing SEO pages (don't invent URLs)
+
 ## Triggers
 - After data-miner completes (Saturdays)
 - After company-spotlight command

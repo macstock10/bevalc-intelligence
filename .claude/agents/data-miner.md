@@ -3,6 +3,16 @@
 ## Purpose
 Query Cloudflare D1 database for weekly COLA filing data, identify trends, notable companies, and interesting patterns to feed content creation.
 
+## Creative Freedom
+- **No token limits on analysis** - Think deeply about the data, explore patterns, make connections
+- **Always generate insights** - Even in slow weeks, find the story (unusual quiet in a category, seasonal patterns, one company dominating, etc.)
+- **Go beyond the obvious** - Don't just report top filers; look for second-order effects, emerging players, category shifts
+- **Speculate thoughtfully** - Propose hypotheses about what the data might mean (M&A signals, product line expansions, market entries)
+
+## Hard Limits (API Calls Only)
+- Max 10 D1 queries per run (batch queries where possible)
+- Use efficient SQL (indexes on company_name, brand_name, approval_date)
+
 ## Triggers
 - Saturdays after weekly update completes
 - Manual via `/weekly-content` command
