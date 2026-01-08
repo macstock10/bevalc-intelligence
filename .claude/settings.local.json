@@ -12,7 +12,10 @@
       "Bash(npx wrangler deploy)",
       "WebFetch(domain:bevalcintel.com)",
       "Bash(node test-email.js:*)",
-      "Bash(python generate_sitemaps.py:*)"
+      "Bash(python generate_sitemaps.py:*)",
+      "Bash(node --experimental-loader=@esbuild-kit/esm-loader test-email.js:*)",
+      "Bash(node --loader ts-node/esm test-email.js:*)",
+      "Bash(node send.js:*)"
     ]
   }
 }

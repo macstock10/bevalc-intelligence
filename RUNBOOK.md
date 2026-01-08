@@ -26,9 +26,9 @@
 - **Note**: Worker code in `worker/worker.js` - do NOT edit in Cloudflare dashboard
 
 ### GitHub Actions (Scheduled)
-- **Weekly COLA Update**: Mondays 6am UTC (1am EST)
-- **Weekly Report**: Mondays 8am UTC (3am EST)
-- **Manual trigger**: Actions tab ? select workflow ? Run workflow
+- **Weekly COLA Update**: Fridays 9pm ET (Saturday 2am UTC)
+- **Weekly Report**: Saturdays 9am ET (2pm UTC)
+- **Manual trigger**: Actions tab → select workflow → Run workflow
 
 ## Rollback Procedures
 

@@ -112,12 +112,12 @@ bevalc-intelligence/
 
 ### Data Flow
 
-1. **Weekly Update** (Mondays 6am UTC):
+1. **Weekly Update** (Fridays 9pm ET / Saturday 2am UTC):
    - `weekly_update.py` scrapes last 14 days from TTB
    - New COLAs synced to Cloudflare D1
    - Records classified as NEW_BRAND / NEW_SKU / REFILE
 
-2. **Weekly Report** (Mondays 8am UTC):
+2. **Weekly Report** (Saturdays 9am ET / 2pm UTC):
    - `weekly_report.py` queries D1 for historical data
    - Generates PDF with charts and tables
    - `send_weekly_report.py` uploads to R2 and sends via Resend
@@ -658,9 +658,9 @@ The email system uses React Email for templates and Resend for delivery. This re
 │  │ 2. FREE WEEKLY REPORT EMAIL │                                            │
 │  └────────┬────────────────────┘                                            │
 │           │                                                                  │
-│   TRIGGER: GitHub Action cron (Mondays 8am UTC)                             │
+│   TRIGGER: GitHub Action cron (Saturdays 2pm UTC / 9am ET)                  │
 │   WHO GETS IT: Free users where subscribed_free_report = 1                  │
-│   WHEN: Every Monday morning                                                │
+│   WHEN: Every Saturday morning                                              │
 │   SENT BY: scripts/send_weekly_report.py                                    │
 │   STATUS: COMPLETE                                                          │
 │                                                                              │
@@ -668,9 +668,9 @@ The email system uses React Email for templates and Resend for delivery. This re
 │  │ 3. PRO WEEKLY REPORT EMAIL │                                             │
 │  └────────┬───────────────────┘                                             │
 │           │                                                                  │
-│   TRIGGER: GitHub Action cron (Mondays 8am UTC)                             │
+│   TRIGGER: GitHub Action cron (Saturdays 2pm UTC / 9am ET)                  │
 │   WHO GETS IT: Pro users where is_pro = 1                                   │
-│   WHEN: Every Monday morning                                                │
+│   WHEN: Every Saturday morning                                              │
 │   SENT BY: scripts/send_weekly_report.py                                    │
 │   STATUS: COMPLETE - includes watchlist matches, filing spikes, etc.        │
 │                                                                              │
@@ -682,8 +682,8 @@ The email system uses React Email for templates and Resend for delivery. This re
 | Template | File | Trigger | Recipients |
 |----------|------|---------|------------|
 | Welcome | `emails/templates/Welcome.jsx` | User signup | Single new subscriber |
-| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Monday cron job | Free subscribers |
-| ProWeeklyReport | `emails/templates/ProWeeklyReport.jsx` | Monday cron job | Pro subscribers |
+| WeeklyReport | `emails/templates/WeeklyReport.jsx` | Saturday cron job | Free subscribers |
+| ProWeeklyReport | `emails/templates/ProWeeklyReport.jsx` | Saturday cron job | Pro subscribers |
 
 #### WeeklyReport Template (Free Users)
 The free weekly report is an embedded HTML email with:
