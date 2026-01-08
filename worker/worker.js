@@ -1783,6 +1783,9 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .seo-header { margin-bottom: 32px; }
         .seo-header h1 { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
         .seo-header .meta { color: var(--color-text-secondary); font-size: 1.1rem; }
+        .meta-stats { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .meta-line { margin: 0; color: var(--color-text-secondary); font-size: 1rem; }
+        .meta-line strong { color: var(--color-text); }
         .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 32px; }
         .seo-card { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 24px; }
         .seo-card h2 { font-size: 1rem; color: var(--color-text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1816,9 +1819,8 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .breadcrumb a:hover { color: var(--color-primary); }
 
         /* Pro blur styles */
-        .blur-content { filter: blur(5px); user-select: none; pointer-events: none; }
+        .seo-blur { filter: blur(8px) !important; user-select: none !important; pointer-events: none !important; }
         .pro-locked { position: relative; }
-        .pro-locked .blur-content { filter: blur(5px); }
         .pro-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 24px 32px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; }
         .pro-overlay h3 { margin: 0 0 8px 0; font-size: 1.1rem; }
         .pro-overlay p { margin: 0 0 16px 0; color: var(--color-text-secondary); font-size: 0.9rem; }
@@ -1826,8 +1828,18 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .pro-overlay .btn:hover { background: var(--color-primary-dark, #0a7c72); }
 
         /* Full page paywall */
-        .page-paywall { min-height: 400px; }
-        .page-paywall .blur-content { filter: blur(8px); }
+        .page-paywall { min-height: 400px; position: relative; }
+        .page-paywall .seo-blur { filter: blur(12px) !important; pointer-events: none !important; user-select: none !important; }
+        .page-paywall::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 99;
+        }
         .page-paywall .page-overlay {
             position: fixed;
             top: 50%;
@@ -1836,7 +1848,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             background: white;
             padding: 40px 48px;
             border-radius: 16px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.3);
             max-width: 420px;
             width: 90%;
             z-index: 100;
@@ -1945,23 +1957,32 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         // Check Pro status and unlock content
         (function() {
             function unlockContent() {
-                document.querySelectorAll('.blur-content').forEach(el => el.classList.remove('blur-content'));
+                document.querySelectorAll('.seo-blur').forEach(el => el.classList.remove('seo-blur'));
                 document.querySelectorAll('.pro-overlay').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.pro-locked').forEach(el => el.classList.remove('pro-locked'));
                 document.querySelectorAll('.page-paywall').forEach(el => el.classList.remove('page-paywall'));
             }
 
             try {
-                // Check URL parameter first (allows ?access=granted for testing)
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('access') === 'granted') {
-                    document.cookie = 'bevalc_access=granted; path=/; max-age=31536000; SameSite=Lax';
+
+                // Allow granting/revoking Pro access for testing
+                if (urlParams.get('pro') === 'grant') {
+                    document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
                     unlockContent();
                     return;
                 }
+                if (urlParams.get('pro') === 'revoke') {
+                    document.cookie = 'bevalc_pro=; path=/; max-age=0';
+                    const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                    delete user.isPro;
+                    delete user.is_pro;
+                    localStorage.setItem('bevalc_user', JSON.stringify(user));
+                    return;
+                }
 
-                // Check access cookie
-                if (document.cookie.includes('bevalc_access=granted')) {
+                // Check Pro cookie (only set for verified Pro users)
+                if (document.cookie.includes('bevalc_pro=1')) {
                     unlockContent();
                     return;
                 }
@@ -1980,10 +2001,10 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                         .then(r => r.json())
                         .then(data => {
                             if (data.success && data.status === 'pro') {
-                                // Update localStorage and set cookie
+                                // Update localStorage and set Pro cookie
                                 user.isPro = true;
                                 localStorage.setItem('bevalc_user', JSON.stringify(user));
-                                document.cookie = 'bevalc_access=granted; path=/; max-age=31536000; SameSite=Lax';
+                                document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
                                 unlockContent();
                             }
                         })
@@ -2233,12 +2254,17 @@ async function handleCompanyPage(path, env, corsHeaders) {
         </div>
         <header class="seo-header">
             <h1>${escapeHtml(company.display_name)} Brands & Portfolio</h1>
-            <p class="meta">${formatNumber(brands.length)}+ Brands · ${formatNumber(company.total_filings)} Total Filings · Since ${escapeHtml(company.first_filing || 'N/A')}${primaryLocation ? ` · 📍 ${escapeHtml(primaryLocation)}` : ''}</p>
-            ${dbaNames.length > 0 ? `<p class="meta" style="margin-top: 4px; font-size: 0.9rem;">Also operates as: ${dbaNames.map(n => escapeHtml(n)).join(', ')}</p>` : ''}
+            <div class="meta-stats">
+                <p class="meta-line"><strong>${formatNumber(brands.length)}+</strong> Brands</p>
+                <p class="meta-line"><strong>${formatNumber(company.total_filings)}</strong> Total Filings</p>
+                <p class="meta-line">Since <strong>${escapeHtml(company.first_filing || 'N/A')}</strong></p>
+                ${primaryLocation ? `<p class="meta-line">📍 ${escapeHtml(primaryLocation)}</p>` : ''}
+            </div>
+            ${dbaNames.length > 0 ? `<p class="meta" style="margin-top: 8px; font-size: 0.9rem;">Also operates as: ${dbaNames.map(n => escapeHtml(n)).join(', ')}</p>` : ''}
         </header>
 
         <div class="page-paywall pro-locked">
-            <div class="blur-content">
+            <div class="seo-blur">
                 <section class="seo-card" style="margin-bottom: 32px;">
                     <p style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
                         ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
@@ -2333,7 +2359,7 @@ async function handleCompanyPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/company/${slug}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
             ...corsHeaders
         }
     });
@@ -2437,7 +2463,7 @@ async function handleBrandPage(path, env, corsHeaders) {
         </header>
 
         <div class="page-paywall pro-locked">
-            <div class="blur-content">
+            <div class="seo-blur">
                 <div class="seo-grid">
                     <div class="seo-card">
                         <h2>Total Filings</h2>
@@ -2507,7 +2533,7 @@ async function handleBrandPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
             ...corsHeaders
         }
     });
@@ -2698,7 +2724,7 @@ async function handleCategoryPage(path, env, corsHeaders) {
     return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/category/${categorySlug}/${year}`), {
         headers: {
             'Content-Type': 'text/html',
-            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
             ...corsHeaders
         }
     });
@@ -2711,7 +2737,7 @@ async function handleSitemap(path, env) {
     // Cache headers for all sitemaps (24h edge, 1h browser)
     const cacheHeaders = {
         'Content-Type': 'application/xml',
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
     };
 
     // Map path to R2 file

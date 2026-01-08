@@ -248,7 +248,7 @@ GROUP BY c.id
 ORDER BY filings DESC;
 ```
 
-## Current State (Last Updated: 2026-01-07)
+## Current State (Last Updated: 2026-01-08)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
@@ -279,6 +279,8 @@ ORDER BY filings DESC;
 - [x] Database page renamed to "BevAlc Intel Database"
 - [x] Signal badge displayed in modal header next to brand name
 - [x] Robust company page slug matching (handles possessives, DBA compounds, all filings >= 1)
+- [x] SEO page paywall (free users see blurred content with upgrade modal)
+- [x] Mobile modal overflow fix (track pills don't bleed outside box)
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
@@ -443,6 +445,29 @@ LIMIT 10
 - Stadium Beverage Company LLC → "Also operates as: WOLVERINE DISTILLING COMPANY"
 - Diageo Americas Supply, Inc. → "Also operates as: Aviation American Gin, CASCADE HOLLOW DISTILLING CO., DON JULIO TEQUILA COMPANY, GEORGE A. DICKEL & CO., Guinness Taproom, THE JEREMIAH WEED CO."
 
+### SEO Page Paywall (COMPLETED 2026-01-08)
+
+Brand and company SEO pages now require Pro subscription to view full content. Free users see:
+- Header with brand/company name visible
+- Rest of page blurred (12px blur) with upgrade modal overlay
+- "Unlock Full Access" button linking to pricing
+
+**Access Control:**
+- Uses `bevalc_pro=1` cookie (NOT `bevalc_access` which is set for ALL signups)
+- Cookie only set when API confirms `status === 'pro'`
+- Testing params: `?pro=grant` to unlock, `?pro=revoke` to lock
+
+**CSS Implementation:**
+```css
+.seo-blur { filter: blur(8px) !important; user-select: none !important; pointer-events: none !important; }
+.page-paywall .seo-blur { filter: blur(12px) !important; }
+.page-paywall::before { /* Dark overlay */ }
+```
+
+**Important:** The CSS class is `seo-blur` (NOT `blur-content`) to avoid conflicts with `style.css` which has a different `.blur-content` class.
+
+**Cache Headers:** Temporarily set to `no-store, no-cache, must-revalidate` to ensure paywall changes propagate. Should be restored to `public, max-age=3600, s-maxage=86400` after verification.
+
 ### Cascading Category/Subcategory Filters (COMPLETED 2026-01-07)
 
 The database page now has a 3-tier filtering hierarchy: Category > Subcategory > TTB Code.
@@ -568,6 +593,8 @@ ORDER BY COALESCE(year, 9999) ASC, COALESCE(month, 99) ASC,
 ```
 Do NOT sort by `approval_date` string directly - it's MM/DD/YYYY format and sorts lexicographically wrong.
 
+**Subcategory SQL Pattern Matching**: When using LIKE patterns for subcategory filtering, be careful with short strings. Example issue: `%PORT%` was matching "imPORTed" in whisky codes. Fixed by using `%/PORT/%` or exact matches to avoid false positives.
+
 ## UI Notes
 
 **Database Table Columns**: TTB ID column was removed. Table now starts with Brand Name, followed by Fanciful Name, Class/Type, Origin, Approval Date, Status, Company, State.
@@ -582,6 +609,22 @@ Do NOT sort by `approval_date` string directly - it's MM/DD/YYYY format and sort
 Uses `makeSlug()` function in database.js to generate URL slugs.
 
 **Company SEO Pages**: Show "Filing Entity" column in recent filings table. This displays the actual `company_name` from the TTB record (e.g., "Balcones Distilling LLC") rather than just the normalized company name. Helps clarify when subsidiaries, licensees, or acquired brands file under different entities.
+
+**Company SEO Page Stats Layout**: Stats are displayed on separate lines (not all in one line):
+```
+20+ Brands
+69 Total Filings
+Since 04/04/2017
+📍 NAPA, CA 94558
+Also operates as: ...
+```
+
+**Homepage Feature Text**:
+- "New brands" feature does NOT say "(first-seen in your category)"
+- "Top active companies/filers" does NOT say "this week"
+- Pro feature says "CSV exports" (lowercase "exports", not "Full CSV export")
+
+**Mobile Modal Fixes**: Track pills in database modals use `flex-direction: column` on mobile to prevent bleeding outside the modal box. Negative margins compensate for modal padding.
 
 ## Email System (React Email + Resend)
 

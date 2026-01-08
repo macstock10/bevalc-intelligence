@@ -1582,9 +1582,18 @@ a:hover { color: var(--color-primary-hover); }
     .database-title-row { flex-direction: column; align-items: flex-start; }
     .glossary-header h1 { font-size: 2rem; }
     .toc-links { flex-direction: column; gap: var(--space-sm); }
-    .track-pills { flex-direction: column; }
-    .track-pill { justify-content: flex-start; }
-    .track-pill-value { max-width: 200px; }
+    /* Modal mobile fixes */
+    .modal-body { padding: var(--space-md); }
+    .modal-section { margin-bottom: var(--space-md); padding-bottom: var(--space-md); }
+    .track-section {
+        margin-left: calc(-1 * var(--space-md));
+        margin-right: calc(-1 * var(--space-md));
+        padding-left: var(--space-md);
+        padding-right: var(--space-md);
+    }
+    .track-pills { flex-direction: column; gap: var(--space-xs); }
+    .track-pill { justify-content: flex-start; width: 100%; box-sizing: border-box; }
+    .track-pill-value { max-width: calc(100% - 40px); }
 
     /* Search bar mobile - stack button below */
     .search-bar {
