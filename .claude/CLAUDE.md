@@ -63,6 +63,7 @@ bevalc-intelligence/
 │   ├── index.html
 │   ├── database.html
 │   ├── database.js
+│   ├── ttb-categories.js      # Shared category/subcategory mapping
 │   ├── account.html
 │   ├── auth.js
 │   ├── style.css
@@ -71,7 +72,8 @@ bevalc-intelligence/
 ├── worker/                    # Cloudflare Worker source
 │   ├── worker.js
 │   └── wrangler.toml          # Worker deployment config
-├── data/                      # Local only (gitignored)
+├── data/                      # Reference data
+│   └── ttb-categories.json    # Master TTB code hierarchy (420 codes → 67 subcategories → 11 categories)
 ├── reports/                   # Generated reports (gitignored)
 ├── logs/                      # Script logs (gitignored)
 ├── .env                       # Secrets (gitignored)
@@ -173,12 +175,14 @@ node emails/send.js welcome --to you@example.com --firstName "John"
 
 | File | Purpose |
 |------|---------|
-| `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs, watchlist |
+| `worker/worker.js` | All API endpoints - search, export, Stripe, user prefs, watchlist, SEO pages |
 | `worker/wrangler.toml` | Worker deployment config with D1 database binding |
 | `web/database.html` | Main database UI - search, filters, results table |
 | `web/database.js` | Frontend search/filter logic, category mapping, watchlist toggle |
+| `web/ttb-categories.js` | Shared TTB category/subcategory mapping (420 codes → 67 subcategories → 11 categories) |
 | `web/account.html` | Pro user account page - preferences, watchlist management |
 | `web/auth.js` | Stripe checkout, Pro user detection |
+| `data/ttb-categories.json` | Master reference JSON for TTB code hierarchy |
 | `scripts/weekly_update.py` | TTB scraper + D1 sync (main automation) |
 | `scripts/weekly_report.py` | PDF report generator |
 | `scripts/send_weekly_report.py` | Query D1 + send weekly email via Resend |
@@ -270,6 +274,11 @@ ORDER BY filings DESC;
 - [x] Signal classification for all historical records (NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE)
 - [x] Refile count tracking - shows "(current)" or "(X refiles)" under signal badge
 - [x] Company SEO pages show DBA names ("Also operates as: X, Y, Z")
+- [x] Cascading Category/Subcategory filters (3-tier hierarchy: 11 categories, 67 subcategories, 420 TTB codes)
+- [x] Company pages show filer location (city, state, zip from `state` column)
+- [x] Database page renamed to "BevAlc Intel Database"
+- [x] Signal badge displayed in modal header next to brand name
+- [x] Robust company page slug matching (handles possessives, DBA compounds, all filings >= 1)
 - [ ] Scraping protection (rate limiting, bot detection)
 
 ### Known Issues
@@ -286,7 +295,7 @@ ORDER BY filings DESC;
 ### Programmatic SEO Pages (COMPLETED 2026-01-06)
 
 **URL Structure:**
-- `/company/[slug]` - Company pages (21,509 pages with 3+ filings)
+- `/company/[slug]` - Company pages (all companies with 1+ filings, ~25K)
 - `/brand/[slug]` - Brand pages (240,605 pages with 1+ filings)
 - `/category/[category]/[year]` - Category trend pages (~70 pages)
 
@@ -433,6 +442,52 @@ LIMIT 10
 **Examples:**
 - Stadium Beverage Company LLC → "Also operates as: WOLVERINE DISTILLING COMPANY"
 - Diageo Americas Supply, Inc. → "Also operates as: Aviation American Gin, CASCADE HOLLOW DISTILLING CO., DON JULIO TEQUILA COMPANY, GEORGE A. DICKEL & CO., Guinness Taproom, THE JEREMIAH WEED CO."
+
+### Cascading Category/Subcategory Filters (COMPLETED 2026-01-07)
+
+The database page now has a 3-tier filtering hierarchy: Category > Subcategory > TTB Code.
+
+**Structure:**
+- 11 Categories: Whiskey, Vodka, Tequila, Gin, Rum, Brandy, Wine, Beer, Liqueur, RTD/Cocktails, Other
+- 67 Subcategories: e.g., Bourbon, Rye, Scotch, Irish Whiskey under Whiskey
+- 420 TTB Codes: The raw TTB class_type_code values
+
+**Files:**
+- `data/ttb-categories.json` - Master reference JSON with all mappings
+- `web/ttb-categories.js` - Shared JS module for frontend
+- `worker/worker.js` - TTB_SUBCATEGORIES mapping for API filtering
+
+**How It Works:**
+1. User selects Category (e.g., "Whiskey") → Subcategory dropdown populates
+2. User selects Subcategory (e.g., "Bourbon") → Frontend sends `?subcategory=Bourbon`
+3. Worker converts subcategory to TTB codes via `getSubcategoryCodes()`
+4. SQL: `WHERE class_type_code IN ('STRAIGHT BOURBON WHISKY', 'BOURBON WHISKY', ...)`
+
+**API Parameter:**
+```
+GET /api/search?subcategory=Bourbon
+GET /api/export?subcategory=Irish%20Whiskey
+```
+
+### Company Page Location Display (COMPLETED 2026-01-07)
+
+Company SEO pages now show the filer location (city, state, zip) from the `state` column.
+
+Format: `20+ Brands · 69 Total Filings · Since 04/04/2017 · 📍 NAPA, CA 94558`
+
+The location is the most common filing address for the company based on their COLA records.
+
+### Robust Company Page Slug Matching (COMPLETED 2026-01-07)
+
+Company pages now work for ALL companies (>= 1 filing, not >= 3) with improved slug matching:
+
+1. **Exact slug match** - Try `companies.slug = ?`
+2. **Alias pattern match** - Search `company_aliases.raw_name` with LIKE pattern
+3. **Direct colas search** - Search `colas.company_name` directly (fallback for non-normalized companies)
+
+**Possessive handling:** Strips trailing 's' from slug terms to handle apostrophe-s names:
+- Slug "kvasirs-mead-habanbilan" → Try pattern `%kvasir%mead%habanbilan%`
+- Matches "Kvasir's Mead, HabanBilan Farm and Forest LLC"
 
 ### Company Name Normalization (COMPLETED 2026-01-06)
 
