@@ -28,12 +28,21 @@ BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage a
 **Live Site**: https://bevalcintel.com
 **GitHub**: https://github.com/macstock10/bevalc-intelligence
 
+## Related Documentation
+
+- **CLAUDE.md** (this file) - Project architecture, database schema, deployment
+- **CLAUDE-CONTENT.md** - Content automation infrastructure (agents, commands, skills)
+- **RUNBOOK.md** - Operational procedures, deployment, rollback
+
 ## Folder Structure
 
 ```
 bevalc-intelligence/
 ├── .claude/
-│   └── CLAUDE.md              # This file - Claude context
+│   ├── CLAUDE.md              # This file - Claude context
+│   ├── CLAUDE-CONTENT.md      # Content automation docs
+│   ├── agents/                # 7 content automation subagents
+│   └── commands/              # 5 custom slash commands
 ├── .github/
 │   └── workflows/
 │       ├── weekly-update.yml  # Scrapes TTB, updates D1
@@ -59,8 +68,27 @@ bevalc-intelligence/
 │   ├── batch_classify.py      # Batch classify historical records
 │   ├── cola_worker.py         # Historical TTB scraper (by month)
 │   ├── scrape_2014_*.bat      # 12 batch files for 2014 monthly scraping
+│   ├── content-automation/    # PowerShell content automation
+│   │   ├── query-weekly-data.ps1
+│   │   ├── generate-content-queue.ps1
+│   │   ├── zoho-email-config.ps1
+│   │   └── schedule-task.ps1
+│   ├── content-queue/         # Generated content output (gitignored)
 │   └── src/
 │       └── email_sender.py    # Python wrapper for email system
+├── skills/                    # Claude skill definitions
+│   ├── bevalc-business-context/
+│   ├── bevalc-brand-voice/
+│   └── content-workflow/
+├── templates/                 # Content templates
+│   ├── company-spotlight.md
+│   ├── weekly-roundup.md
+│   ├── trend-report.md
+│   └── absurd-story.md
+├── reference/                 # Reference documentation
+│   ├── newsletter-sources.md
+│   ├── sites-to-monitor.md
+│   └── seo-best-practices.md
 ├── web/                       # Frontend (Netlify)
 │   ├── index.html
 │   ├── database.html
@@ -251,7 +279,33 @@ GROUP BY c.id
 ORDER BY filings DESC;
 ```
 
-## Current State (Last Updated: 2026-01-08)
+## Content Automation (Added 2026-01-07)
+
+A complete content automation infrastructure for generating weekly content, company spotlights, trend reports, and creative "absurd stories" from real filing data.
+
+**Quick commands:**
+- `/weekly-content` - Run full content pipeline
+- `/company-spotlight <company>` - Generate company content
+- `/trend-report <category>` - Analyze category trends
+- `/absurd-story` - Generate creative story from filing data
+- `/scan-news` - Scan industry news sources
+
+**Key files:**
+- `.claude/agents/` - 7 specialized agents (data-miner, email-scanner, content-writer, etc.)
+- `.claude/commands/` - 5 slash commands
+- `skills/` - Business context, brand voice, workflow documentation
+- `scripts/content-automation/` - PowerShell automation scripts
+- `templates/` - Content templates (company spotlight, trend report, etc.)
+
+**Weekly workflow:**
+1. Friday 9pm ET: Weekly Update runs (GitHub Action)
+2. Saturday 9am ET: Weekly Report emails sent
+3. Saturday 10am ET: `/weekly-content` pipeline runs
+4. Saturday 12pm ET: Content review and editing
+
+See `CLAUDE-CONTENT.md` for full documentation.
+
+## Current State (Last Updated: 2026-01-07)
 
 ### What's Working
 - [x] Frontend deployed on Netlify
