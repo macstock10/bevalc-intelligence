@@ -2013,44 +2013,154 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .nav-links a { color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; }
         .nav-links a:hover { color: var(--color-primary); }
 
-        .seo-page { padding-top: 100px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
-        .seo-header { margin-bottom: 32px; }
-        .seo-header h1 { font-family: var(--font-display); font-size: 2.5rem; margin-bottom: 8px; }
-        .seo-header .meta { color: var(--color-text-secondary); font-size: 1.1rem; }
-        .meta-stats { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-        .meta-line { margin: 0; color: var(--color-text-secondary); font-size: 1rem; }
-        .meta-line strong { color: var(--color-text); }
-        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 32px; }
-        .seo-card { background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 24px; }
-        .seo-card h2 { font-size: 1rem; color: var(--color-text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .stat-value { font-size: 2rem; font-weight: 700; color: var(--color-text); }
-        .stat-label { font-size: 0.875rem; color: var(--color-text-secondary); }
-        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-        .brand-chip { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; transition: border-color var(--transition-fast); overflow: hidden; }
-        .brand-chip:hover { border-color: var(--color-primary); }
-        .brand-chip a { color: var(--color-text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-        .brand-chip .count { color: var(--color-text-tertiary); font-size: 0.875rem; flex-shrink: 0; margin-left: 8px; }
-        .filings-table { width: 100%; border-collapse: collapse; }
-        .filings-table th, .filings-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--color-border); }
-        .filings-table th { background: var(--color-bg-secondary); font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .filings-table tr:hover { background: var(--color-bg-secondary); }
-        .signal-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .seo-page { padding-top: 80px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-bottom: 48px; }
+
+        /* Improved header with hero styling */
+        .seo-header {
+            background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 50%, #f0f9ff 100%);
+            margin: 0 -24px 40px -24px;
+            padding: 48px 24px 40px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .seo-header-inner { max-width: 1200px; margin: 0 auto; }
+        .seo-header h1 {
+            font-family: var(--font-display);
+            font-size: 2.25rem;
+            margin-bottom: 16px;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+        .seo-header .meta {
+            color: #64748b;
+            font-size: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            align-items: center;
+        }
+        .seo-header .meta a { color: #0d9488; font-weight: 500; }
+        .seo-header .meta a:hover { text-decoration: underline; }
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #334155;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .category-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #0d9488; }
+        .meta-stats { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+        .meta-line { margin: 0; color: #64748b; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+        .meta-line strong { color: #1e293b; font-weight: 600; }
+        .meta-icon { font-size: 1rem; opacity: 0.7; }
+
+        /* Improved cards */
+        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 32px; }
+        .seo-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        .seo-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #cbd5e1; }
+        .seo-card h2 {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+        }
+        .stat-value { font-size: 2.25rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
+        .stat-label { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
+        .stat-label a { color: #0d9488; font-weight: 500; }
+
+        /* Brand chips */
+        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        .brand-chip {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.15s ease;
+            text-decoration: none;
+        }
+        .brand-chip:hover { border-color: #0d9488; background: #f0fdfa; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(13,148,136,0.1); }
+        .brand-chip a { color: #1e293b; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; text-decoration: none; }
+        .brand-chip .count { color: #94a3b8; font-size: 0.8rem; flex-shrink: 0; margin-left: 8px; font-weight: 500; }
+
+        /* Tables */
+        .filings-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .filings-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .filings-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            font-size: 0.9rem;
+        }
+        .filings-table tbody tr { transition: background 0.15s; }
+        .filings-table tbody tr:hover { background: #f8fafc; }
+        .filings-table tbody tr:nth-child(even) { background: #fafbfc; }
+        .filings-table tbody tr:nth-child(even):hover { background: #f1f5f9; }
+        .filings-table a { color: #0d9488; font-weight: 500; text-decoration: none; }
+        .filings-table a:hover { text-decoration: underline; }
+
+        /* Signal badges */
+        .signal-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; }
         .signal-new-company { background: #f3e8ff; color: #7c3aed; }
-        .signal-new-brand { background: #dcfce7; color: #166534; }
-        .signal-new-sku { background: #dbeafe; color: #1e40af; }
-        .signal-refile { background: #f3f4f6; color: #6b7280; }
+        .signal-new-brand { background: #dcfce7; color: #15803d; }
+        .signal-new-sku { background: #dbeafe; color: #1d4ed8; }
+        .signal-refile { background: #f1f5f9; color: #64748b; }
+
+        /* Bar charts */
         .bar-chart { margin: 8px 0; }
-        .bar-row { display: flex; align-items: center; margin-bottom: 8px; }
-        .bar-label { width: 120px; font-size: 0.875rem; color: var(--color-text-secondary); }
-        .bar-container { flex: 1; height: 24px; background: var(--color-bg-tertiary); border-radius: 4px; overflow: hidden; }
-        .bar-fill { height: 100%; background: var(--color-primary); border-radius: 4px; }
-        .bar-value { width: 60px; text-align: right; font-size: 0.875rem; font-weight: 500; }
-        .related-links { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--color-border); }
-        .related-links h3 { margin-bottom: 16px; }
-        .related-links a { display: inline-block; margin-right: 16px; margin-bottom: 8px; color: var(--color-primary); }
-        .breadcrumb { margin-bottom: 16px; font-size: 0.875rem; color: var(--color-text-secondary); }
-        .breadcrumb a { color: var(--color-text-secondary); }
-        .breadcrumb a:hover { color: var(--color-primary); }
+        .bar-row { display: flex; align-items: center; margin-bottom: 10px; }
+        .bar-label { width: 60px; font-size: 0.875rem; color: #64748b; font-weight: 500; }
+        .bar-container { flex: 1; height: 28px; background: #f1f5f9; border-radius: 6px; overflow: hidden; margin: 0 12px; }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, #0d9488, #14b8a6); border-radius: 6px; min-width: 4px; transition: width 0.4s ease; }
+        .bar-value { width: 50px; text-align: right; font-size: 0.875rem; font-weight: 600; color: #1e293b; }
+
+        /* Related links */
+        .related-links { margin-top: 48px; padding-top: 32px; border-top: 1px solid #e2e8f0; }
+        .related-links h3 { margin-bottom: 16px; font-size: 1.1rem; color: #1e293b; }
+        .related-links a {
+            display: inline-block;
+            margin-right: 12px;
+            margin-bottom: 10px;
+            color: #0d9488;
+            background: #f0fdfa;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+        .related-links a:hover { background: #ccfbf1; text-decoration: none; }
+
+        /* Breadcrumb */
+        .breadcrumb { margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
+        .breadcrumb a { color: #64748b; text-decoration: none; }
+        .breadcrumb a:hover { color: #0d9488; }
 
         /* Pro blur styles */
         .seo-blur { filter: blur(8px) !important; user-select: none !important; pointer-events: none !important; }
@@ -2130,20 +2240,32 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .mobile-menu-link:hover { color: var(--color-primary); }
 
         @media (max-width: 768px) {
-            .seo-header h1 { font-size: 1.75rem; }
-            .seo-grid { grid-template-columns: 1fr; }
-            .seo-card { overflow: hidden; }
-            .brand-grid { grid-template-columns: 1fr 1fr; }
-            .filings-table { min-width: 600px; }
-            .filings-table th, .filings-table td { padding: 8px 6px; font-size: 0.8rem; }
-            .bar-label { width: 80px; font-size: 0.75rem; }
-            .bar-value { width: 45px; font-size: 0.75rem; }
+            .seo-page { padding-left: 16px; padding-right: 16px; }
+            .seo-header { margin: 0 -16px 32px -16px; padding: 32px 16px 28px; }
+            .seo-header h1 { font-size: 1.5rem; }
+            .seo-header .meta { font-size: 0.9rem; gap: 6px 12px; }
+            .category-badge { padding: 5px 12px; font-size: 0.8rem; }
+            .seo-grid { grid-template-columns: 1fr; gap: 16px; }
+            .seo-card { padding: 20px; overflow: hidden; }
+            .stat-value { font-size: 1.75rem; }
+            .brand-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .brand-chip { padding: 10px 12px; }
+            .filings-table { min-width: 550px; }
+            .filings-table th, .filings-table td { padding: 10px 12px; font-size: 0.8rem; }
+            .bar-label { width: 50px; font-size: 0.8rem; }
+            .bar-container { height: 24px; margin: 0 8px; }
+            .bar-value { width: 40px; font-size: 0.8rem; }
+            .related-links { margin-top: 32px; padding-top: 24px; }
+            .related-links a { padding: 5px 12px; font-size: 0.8rem; margin-right: 8px; }
             .nav-links { display: none; }
             .mobile-menu-btn { display: flex; }
         }
-        @media (max-width: 400px) {
+        @media (max-width: 480px) {
+            .seo-header h1 { font-size: 1.35rem; }
             .brand-grid { grid-template-columns: 1fr; }
             .brand-chip { padding: 10px 12px; }
+            .meta-stats { gap: 4px; }
+            .meta-line { font-size: 0.85rem; }
         }
     </style>
 </head>
@@ -2482,58 +2604,65 @@ async function handleCompanyPage(path, env, corsHeaders) {
         }))
     };
 
+    const topCategoryName = categoryBars[0]?.name || 'Beverage';
+
     const content = `
-        <div class="breadcrumb">
-            <a href="/">Home</a> / <a href="/database.html">Database</a> / Company
-        </div>
         <header class="seo-header">
-            <h1>${escapeHtml(company.display_name)} Brands & Portfolio</h1>
-            <div class="meta-stats">
-                <p class="meta-line"><strong>${formatNumber(brands.length)}+</strong> Brands</p>
-                <p class="meta-line"><strong>${formatNumber(company.total_filings)}</strong> Total Filings</p>
-                <p class="meta-line">Since <strong>${escapeHtml(company.first_filing || 'N/A')}</strong></p>
-                ${primaryLocation ? `<p class="meta-line">📍 ${escapeHtml(primaryLocation)}</p>` : ''}
+            <div class="seo-header-inner">
+                <div class="breadcrumb">
+                    <a href="/">Home</a> / <a href="/database.html">Database</a> / Company
+                </div>
+                <h1>${escapeHtml(company.display_name)}</h1>
+                <div class="meta">
+                    <span class="category-badge">${escapeHtml(topCategoryName)} Producer</span>
+                    <span><strong>${formatNumber(brands.length)}+</strong> Brands</span>
+                    <span><strong>${formatNumber(company.total_filings)}</strong> Filings</span>
+                </div>
+                <div class="meta-stats">
+                    <p class="meta-line"><span class="meta-icon">📅</span> Filing since <strong>${escapeHtml(company.first_filing || 'N/A')}</strong></p>
+                    ${primaryLocation ? `<p class="meta-line"><span class="meta-icon">📍</span> ${escapeHtml(primaryLocation)}</p>` : ''}
+                    ${dbaNames.length > 0 ? `<p class="meta-line"><span class="meta-icon">🏢</span> Also operates as: ${dbaNames.slice(0, 3).map(n => escapeHtml(n)).join(', ')}${dbaNames.length > 3 ? '...' : ''}</p>` : ''}
+                </div>
             </div>
-            ${dbaNames.length > 0 ? `<p class="meta" style="margin-top: 8px; font-size: 0.9rem;">Also operates as: ${dbaNames.map(n => escapeHtml(n)).join(', ')}</p>` : ''}
         </header>
 
         <div class="page-paywall pro-locked">
             <div class="seo-blur">
-                <section class="seo-card" style="margin-bottom: 32px;">
-                    <p style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
-                        ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
-                        ${brands.length > 0 ? `Their portfolio includes popular brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and <strong>${escapeHtml(brands[4].brand_name)}</strong>` : ''}.` : ''}
-                        ${categoryBars.length > 0 ? `The company primarily operates in the ${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join(' and ')} ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
+                <section class="seo-card" style="margin-bottom: 32px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+                    <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                        ${escapeHtml(company.display_name)} is a beverage alcohol company with <strong>${formatNumber(company.total_filings)}</strong> TTB COLA filings.
+                        ${brands.length > 0 ? `Their portfolio includes brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and more` : ''}.` : ''}
+                        ${categoryBars.length > 0 ? `The company primarily operates in the <strong>${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join('</strong> and <strong>')}</strong> ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
                     </p>
                 </section>
 
                 <div class="seo-grid">
                     <div class="seo-card">
-                        <h2>Filing Stats</h2>
+                        <h2>Total Filings</h2>
                         <div class="stat-value">${formatNumber(company.total_filings)}</div>
-                        <div class="stat-label">Total COLA Filings</div>
+                        <div class="stat-label">TTB COLA applications</div>
                     </div>
                     <div class="seo-card">
-                        <h2>Brands</h2>
+                        <h2>Brand Portfolio</h2>
                         <div class="stat-value">${formatNumber(brands.length)}${brands.length === 20 ? '+' : ''}</div>
-                        <div class="stat-label">Distinct Brands Filed</div>
+                        <div class="stat-label">Distinct brands filed</div>
                     </div>
                     <div class="seo-card">
-                        <h2>Categories</h2>
+                        <h2>Category Mix</h2>
                         <div class="bar-chart">
-                            ${categoryBars.map(c => `
+                            ${categoryBars.length > 0 ? categoryBars.map(c => `
                                 <div class="bar-row">
                                     <div class="bar-label">${escapeHtml(c.name)}</div>
                                     <div class="bar-container"><div class="bar-fill" style="width: ${c.pct}%"></div></div>
                                     <div class="bar-value">${c.pct}%</div>
                                 </div>
-                            `).join('')}
+                            `).join('') : '<div style="color: #64748b; font-size: 0.9rem;">No category data</div>'}
                         </div>
                     </div>
                 </div>
 
                 <div class="seo-card" style="margin-bottom: 32px;">
-                    <h2>Brands (${brands.length}${brands.length === 20 ? '+' : ''})</h2>
+                    <h2>Brand Portfolio${brands.length === 20 ? ' (Top 20)' : ` (${brands.length})`}</h2>
                     <div class="brand-grid">
                         ${brands.map(b => `
                             <div class="brand-chip">
@@ -2545,7 +2674,7 @@ async function handleCompanyPage(path, env, corsHeaders) {
                 </div>
 
                 <div class="seo-card">
-                    <h2>Recent Filings</h2>
+                    <h2>Recent Filings${recentFilings.length === 10 ? ' (Latest 10)' : ''}</h2>
                     <div class="table-wrapper">
                         <table class="filings-table">
                             <thead>
@@ -2553,21 +2682,20 @@ async function handleCompanyPage(path, env, corsHeaders) {
                                     <th>Brand</th>
                                     <th>Product</th>
                                     <th>Filing Entity</th>
-                                    <th>Date</th>
-                                    <th>Signal</th>
+                                    <th>Approved</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${recentFilings.map(f => {
-                                    // Show the actual filing entity (company_name on the record)
                                     const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
                                     return `
                                     <tr>
-                                        <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
+                                        <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
                                         <td>${escapeHtml(f.fanciful_name || '-')}</td>
-                                        <td style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(filingEntity)}</td>
+                                        <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                         <td>${escapeHtml(f.approval_date)}</td>
-                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace(/_/g, '-')}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
+                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace(/_/g, '-')}">${f.signal.replace('_', ' ')}</span>` : '<span class="signal-badge signal-refile">—</span>'}</td>
                                     </tr>
                                 `}).join('')}
                             </tbody>
@@ -2685,15 +2813,18 @@ async function handleBrandPage(path, env, corsHeaders) {
     };
 
     const content = `
-        <div class="breadcrumb">
-            <a href="/">Home</a> / <a href="/database.html">Database</a> / Brand
-        </div>
         <header class="seo-header">
-            <h1>${escapeHtml(brand.brand_name)}</h1>
-            <p class="meta">
-                ${companyResult?.canonical_name ? `by <a href="/company/${companyResult.slug}">${escapeHtml(companyResult.canonical_name)}</a> · ` : ''}
-                ${escapeHtml(primaryCategory)} · ${formatNumber(brand.cnt)} Filings
-            </p>
+            <div class="seo-header-inner">
+                <div class="breadcrumb">
+                    <a href="/">Home</a> / <a href="/database.html">Database</a> / Brand
+                </div>
+                <h1>${escapeHtml(brand.brand_name)}</h1>
+                <div class="meta">
+                    ${companyResult?.canonical_name ? `<span>by <a href="/company/${companyResult.slug}">${escapeHtml(companyResult.canonical_name)}</a></span>` : ''}
+                    <span class="category-badge">${escapeHtml(primaryCategory)}</span>
+                    <span><strong>${formatNumber(brand.cnt)}</strong> Filings</span>
+                </div>
+            </div>
         </header>
 
         <div class="page-paywall pro-locked">
@@ -2702,46 +2833,46 @@ async function handleBrandPage(path, env, corsHeaders) {
                     <div class="seo-card">
                         <h2>Total Filings</h2>
                         <div class="stat-value">${formatNumber(brand.cnt)}</div>
-                        <div class="stat-label">COLA Applications</div>
+                        <div class="stat-label">TTB COLA applications</div>
                     </div>
                     <div class="seo-card">
-                        <h2>Category</h2>
-                        <div class="stat-value" style="font-size: 1.5rem;">${escapeHtml(primaryCategory)}</div>
-                        <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View category trends →</a></div>
+                        <h2>Primary Category</h2>
+                        <div class="stat-value" style="font-size: 1.75rem;">${escapeHtml(primaryCategory)}</div>
+                        <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View ${primaryCategory.toLowerCase()} trends →</a></div>
                     </div>
                     <div class="seo-card">
-                        <h2>Filing Timeline</h2>
+                        <h2>Filing Activity</h2>
                         <div class="bar-chart">
-                            ${timeline.map(t => `
+                            ${timeline.length > 0 ? timeline.map(t => `
                                 <div class="bar-row">
                                     <div class="bar-label">${t.year}</div>
                                     <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((t.cnt / maxTimeline) * 100)}%"></div></div>
                                     <div class="bar-value">${t.cnt}</div>
                                 </div>
-                            `).join('')}
+                            `).join('') : '<div style="color: #64748b; font-size: 0.9rem;">No recent activity</div>'}
                         </div>
                     </div>
                 </div>
 
                 <div class="seo-card">
-                    <h2>Products (${products.length}${products.length === 15 ? '+' : ''})</h2>
+                    <h2>Recent Products${products.length === 15 ? ' (showing 15)' : ` (${products.length})`}</h2>
                     <div class="table-wrapper">
                         <table class="filings-table">
                             <thead>
                                 <tr>
                                     <th>Product Name</th>
                                     <th>Type</th>
-                                    <th>Date</th>
-                                    <th>Signal</th>
+                                    <th>Approved</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${products.map(p => `
                                     <tr>
-                                        <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
+                                        <td><strong>${escapeHtml(p.fanciful_name || brand.brand_name)}</strong></td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
-                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace(/_/g, '-')}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
+                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace(/_/g, '-')}">${p.signal.replace('_', ' ')}</span>` : '<span class="signal-badge signal-refile">—</span>'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
