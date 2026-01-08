@@ -557,11 +557,15 @@ def escape_sql_value(value):
 
 **GitHub Actions Mode**: `weekly_update.py` detects if local `consolidated_colas.db` exists. On GHA (no local DB), it skips the merge step and reads directly from the temp scrape DB.
 
-**COLA Classification System**: Records are classified in `classify_new_records()` after D1 insertion. Priority order:
-1. **NEW_COMPANY** (purple badge) - `company_name` never seen before
-2. **NEW_BRAND** (green badge) - Company exists, but `(company_name, brand_name)` never seen
-3. **NEW_SKU** (blue badge) - Company+brand exists, but `(company_name, brand_name, fanciful_name)` never seen
+**COLA Classification System**: Records are classified in `classify_new_records()` after D1 insertion. **Uses normalized `company_id`** (via `company_aliases` table) to ensure company name variants are treated as the same company.
+
+Priority order:
+1. **NEW_COMPANY** (purple badge) - normalized `company_id` never seen before
+2. **NEW_BRAND** (green badge) - Company exists, but `(company_id, brand_name)` never seen
+3. **NEW_SKU** (blue badge) - Company+brand exists, but `(company_id, brand_name, fanciful_name)` never seen
 4. **REFILE** (gray badge) - All three exist (re-filing of existing product)
+
+**Why normalized company IDs matter**: The same company often files under variant names (e.g., "Estate Crush LLC" vs "Estate Crush, LLC"). Without normalization, each variant would get its own NEW_COMPANY/NEW_BRAND signals. The `company_aliases` table maps all variants to a single `company_id`, ensuring accurate classification.
 
 The `signal` column is stored in D1 `colas` table, returned in search API, displayed in table, and included in CSV exports.
 
@@ -571,20 +575,20 @@ The `signal` column is stored in D1 `colas` table, returned in search API, displ
 
 This helps users understand if a "new" brand/SKU was later refiled or if it's still current.
 
-**Batch Classification Script** (`scripts/batch_classify.py`): One-time script to classify all historical records that had null signals. Processes records chronologically (oldest first) to correctly identify first-time filings.
+**Batch Classification Script** (`scripts/batch_classify.py`): Script to classify all historical records. Processes records chronologically (oldest first) to correctly identify first-time filings. Uses normalized `company_id` via JOIN with `company_aliases`.
 ```bash
 python batch_classify.py --analyze    # Check current state
 python batch_classify.py --dry-run    # Preview changes
 python batch_classify.py              # Run full classification
 ```
 
-**Historical Classification Results** (Run 2026-01-07):
+**Historical Classification Results** (Reclassified 2026-01-07 with normalized company IDs):
 - Total records: 1,636,391
-- NEW_COMPANY: 32,090 (2.0%)
-- NEW_BRAND: 450,920 (27.6%)
-- NEW_SKU: 511,663 (31.3%)
-- REFILE: 641,718 (39.2%)
-- SKUs with future refilings: 237,549
+- NEW_COMPANY: 25,224 (1.5%)
+- NEW_BRAND: 433,071 (26.5%)
+- NEW_SKU: 501,705 (30.7%)
+- REFILE: 676,391 (41.3%)
+- SKUs with future refilings: 235,263
 
 **Critical: Chronological Date Sorting**: The batch_classify.py script must process records in chronological order to correctly identify "first-time" filings. The ORDER BY clause uses:
 ```sql

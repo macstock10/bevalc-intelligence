@@ -1088,23 +1088,41 @@ def merge_new_data(temp_db: str) -> Dict:
         return {'success': False, 'error': str(e)}
 
 # ============================================================================
-# SIMPLE CLASSIFICATION
+# SIMPLE CLASSIFICATION (using normalized company IDs)
 # ============================================================================
+
+def get_company_id(company_name: str) -> int:
+    """Look up normalized company_id from company_aliases table."""
+    if not company_name:
+        return None
+    result = d1_execute(
+        "SELECT company_id FROM company_aliases WHERE raw_name = ?",
+        [company_name]
+    )
+    if result.get("success") and result.get("result"):
+        rows = result["result"][0].get("results", [])
+        if rows:
+            return rows[0].get("company_id")
+    return None
+
 
 def classify_new_records(new_records: List[Dict]) -> Dict:
     """
-    Classify new records and UPDATE their signal in D1.
+    Classify new records using NORMALIZED company IDs and UPDATE their signal in D1.
+
+    Uses company_aliases to map raw company_name to normalized company_id.
+    This ensures "ABC Inc" and "ABC Inc." are treated as the same company.
 
     Priority order (highest to lowest):
-    1. NEW_COMPANY = first time seeing company_name
-    2. NEW_BRAND = company exists, but first time seeing company_name + brand_name
-    3. NEW_SKU = company+brand exists, but first time seeing company + brand + fanciful_name
-    4. REFILE = we've seen company + brand + fanciful_name before
+    1. NEW_COMPANY = first time seeing this normalized company
+    2. NEW_BRAND = company exists, but first time seeing company_id + brand_name
+    3. NEW_SKU = company+brand exists, but first time seeing company_id + brand + fanciful_name
+    4. REFILE = we've seen company_id + brand + fanciful_name before
     """
     if not new_records:
         return {'total': 0, 'new_companies': 0, 'new_brands': 0, 'new_skus': 0, 'refiles': 0}
 
-    logger.info(f"Classifying {len(new_records):,} new records...")
+    logger.info(f"Classifying {len(new_records):,} new records using normalized company IDs...")
 
     stats = {
         'total': len(new_records),
@@ -1129,10 +1147,23 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
             stats['refiles'] += 1
             continue
 
-        # Check 1: Is this a new company?
+        # Look up normalized company_id
+        company_id = get_company_id(company_name)
+
+        if company_id is None:
+            # Company not in aliases table = truly new company
+            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_COMPANY', ttb_id])
+            stats['new_companies'] += 1
+            if len(stats['new_company_list']) < 20:
+                stats['new_company_list'].append(company_name[:40])
+            continue
+
+        # Check 1: Has this normalized company filed before? (using JOIN through company_aliases)
         company_result = d1_execute(
-            "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND ttb_id != ?",
-            [company_name, ttb_id]
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ? AND c.ttb_id != ?""",
+            [company_id, ttb_id]
         )
         company_existed = False
         if company_result.get("success") and company_result.get("result"):
@@ -1140,17 +1171,19 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
             company_existed = cnt > 0
 
         if not company_existed:
-            # NEW_COMPANY
+            # NEW_COMPANY (first filing for this normalized company)
             d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_COMPANY', ttb_id])
             stats['new_companies'] += 1
             if len(stats['new_company_list']) < 20:
                 stats['new_company_list'].append(company_name[:40])
             continue
 
-        # Check 2: Has this company+brand filed before?
+        # Check 2: Has this normalized company + brand filed before?
         brand_result = d1_execute(
-            "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND ttb_id != ?",
-            [company_name, brand_name, ttb_id]
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ? AND c.brand_name = ? AND c.ttb_id != ?""",
+            [company_id, brand_name, ttb_id]
         )
         brand_existed = False
         if brand_result.get("success") and brand_result.get("result"):
@@ -1165,10 +1198,12 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
                 stats['new_brand_list'].append(f"{brand_name} ({company_name[:25]})")
             continue
 
-        # Check 3: Has this company+brand+fanciful filed before?
+        # Check 3: Has this normalized company + brand + fanciful filed before?
         sku_result = d1_execute(
-            "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND fanciful_name = ? AND ttb_id != ?",
-            [company_name, brand_name, fanciful_name, ttb_id]
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ? AND c.brand_name = ? AND c.fanciful_name = ? AND c.ttb_id != ?""",
+            [company_id, brand_name, fanciful_name, ttb_id]
         )
         sku_existed = False
         if sku_result.get("success") and sku_result.get("result"):
