@@ -1,4 +1,5 @@
 # Redirect extensionless URLs to .html (for email links, etc.)
+# Cache buster: 2026-01-08
 /database   /database.html   301
 /glossary   /glossary.html   301
 /account    /account.html    301
