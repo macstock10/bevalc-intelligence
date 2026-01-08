@@ -1537,8 +1537,8 @@ To set up Windows Task Scheduler to run this script every Sunday at 2am:
    - Click "New"
    - Action: "Start a program"
    - Program/script: C:\\Users\\MacRo\\Anaconda3\\python.exe
-   - Add arguments: "C:\\Users\\MacRo\\OneDrive\\Documents\\Bevalc Marketing\\bevalc-intelligence\\weekly_update.py"
-   - Start in: C:\\Users\\MacRo\\OneDrive\\Documents\\Bevalc Marketing\\bevalc-intelligence
+   - Add arguments: "C:\\Projects\\bevalc-intelligence\\scripts\\weekly_update.py"
+   - Start in: C:\\Projects\\bevalc-intelligence\\scripts
 
 6. Conditions tab:
    - Check "Wake the computer to run this task"
@@ -1554,7 +1554,7 @@ To set up Windows Task Scheduler to run this script every Sunday at 2am:
 
 To test:
    - Right-click the task and select "Run"
-   - Check the log file at: C:\\Users\\MacRo\\OneDrive\\Documents\\Bevalc Marketing\\bevalc-intelligence\\logs\\weekly_update.log
+   - Check the log file at: C:\\Projects\\bevalc-intelligence\\logs\\weekly_update.log
    
 MANUAL TESTING:
    # Test D1 sync without scraping (uses existing local data)

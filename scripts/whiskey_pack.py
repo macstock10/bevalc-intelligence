@@ -47,7 +47,7 @@ from reportlab.lib.utils import ImageReader
 # CONFIG
 # =============================================================================
 
-BASE_DIR = r"C:\Users\MacRo\OneDrive\Documents\Bevalc Marketing\bevalc-intelligence"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Parent of scripts/
 ENV_FILE = os.path.join(BASE_DIR, ".env")
 OUTPUT_DIR = os.path.join(BASE_DIR, "reports", "whiskey_pack")
 LOG_FILE = os.path.join(BASE_DIR, "logs", "whiskey_pack.log")
