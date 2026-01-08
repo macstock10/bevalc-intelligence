@@ -657,7 +657,6 @@ function CategoryReportSection({ category, data, weekStartDate, weekEndDate }) {
 // Main Pro Weekly Report Component
 export function ProWeeklyReport({
   // Personalization
-  firstName = "",
   email = "subscriber@example.com",
   watchedCompaniesCount = 5,
   watchedBrandsCount = 12,
@@ -713,7 +712,7 @@ export function ProWeeklyReport({
   const newFilingsUrl = weekStartDate && weekEndDate
     ? `${databaseUrl}?date_from=${weekStartDate}&date_to=${weekEndDate}&signal=NEW_BRAND,NEW_SKU`
     : `${databaseUrl}?signal=NEW_BRAND,NEW_SKU`;
-  const greeting = firstName ? `${firstName}, here's your` : "Your";
+  const greeting = "Your";
   const hasWatchlistMatches = watchlistMatches && watchlistMatches.length > 0;
   const hasFilingSpikes = filingSpikes && filingSpikes.length > 0;
   const hasCategoryReports = categoryReports && categoryReports.length > 0;

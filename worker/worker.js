@@ -47,7 +47,6 @@ const TTB_SUBCATEGORIES = {
   "Bourbon": ["STRAIGHT BOURBON WHISKY", "BOURBON WHISKY", "BOURBON WHISKY BIB", "STRAIGHT BOURBON WHISKY BLENDS", "BLENDED BOURBON WHISKY"],
   "Rye": ["STRAIGHT RYE WHISKY", "RYE WHISKY", "RYE WHISKY BIB", "STRAIGHT RYE WHISKY BLENDS", "BLENDED RYE WHISKY"],
   "American Single Malt": ["AMERICAN SINGLE MALT WHISKEY", "AMERICAN SINGLE MALT WHISKEY - BIB", "STRAIGHT AMERICAN SINGLE MALT"],
-  "Tennessee Whiskey": ["TENNESSEE WHISKY"],
   "Scotch": ["SCOTCH WHISKY", "SCOTCH WHISKY FB", "SCOTCH WHISKY USB", "SINGLE MALT SCOTCH WHISKY", "UNBLENDED SCOTCH WHISKY USB", "DILUTED SCOTCH WHISKY FB", "DILUTED SCOTCH WHISKY USB"],
   "Irish Whiskey": ["IRISH WHISKY", "IRISH WHISKY FB", "IRISH WHISKY USB", "DILUTED IRISH WHISKY FB", "DILUTED IRISH WHISKY USB"],
   "Canadian Whisky": ["CANADIAN WHISKY", "CANADIAN WHISKY FB", "CANADIAN WHISKY USB", "DILUTED CANADIAN WHISKY FB", "DILUTED CANADIAN WHISKY USB"],
@@ -62,9 +61,8 @@ const TTB_SUBCATEGORIES = {
   "Other Vodka": ["VODKA SPECIALTIES", "LIQUEURS (VODKA)"],
   // Tequila
   "Tequila": ["TEQUILA FB", "TEQUILA USB", "DILUTED TEQUILA FB", "DILUTED TEQUILA USB"],
-  "Flavored Tequila": ["FLAVORED TEQUILA"],
   "Mezcal": ["MEZCAL", "MEZCAL FB", "MEZCAL US", "DILUTED MEZCAL", "FLAVORED MEZCAL"],
-  "Other Tequila": ["AGAVE SPIRITS", "FLAVORED AGAVE SPIRIT"],
+  "Other Tequila": ["AGAVE SPIRITS", "FLAVORED AGAVE SPIRIT", "FLAVORED TEQUILA"],
   // Gin
   "London Dry Gin": ["LONDON DRY GIN", "LONDON DRY DISTILLED GIN", "LONDON DRY DISTILLED GIN FB", "LONDON DRY DISTILLED GIN USB", "LONDON DRY GIN FB", "LONDON DRY GIN USB"],
   "Distilled Gin": ["DISTILLED GIN", "OTHER DISTILLED GIN", "OTHER DISTILLED GIN FB", "OTHER DISTILLED GIN USB"],
@@ -128,6 +126,31 @@ const TTB_SUBCATEGORIES = {
 // Get TTB codes for a subcategory name
 function getSubcategoryCodes(subcategory) {
     return TTB_SUBCATEGORIES[subcategory] || [];
+}
+
+// Get all TTB codes mapped to specific subcategories for a parent category
+// Used by "Other X" filters to exclude specifically mapped codes
+function getAllMappedCodesForCategory(parentCategory) {
+    const categorySubcategories = {
+        'Whiskey': ['Bourbon', 'Rye', 'American Single Malt', 'Scotch', 'Irish Whiskey', 'Canadian Whisky', 'Corn Whiskey', 'Malt Whisky', 'Blended Whiskey', 'Flavored Whiskey'],
+        'Vodka': ['Unflavored Vodka', 'Flavored Vodka'],
+        'Tequila': ['Tequila', 'Mezcal'],
+        'Rum': ['Light Rum', 'Dark Rum', 'Spiced Rum', 'Flavored Rum', 'Cachaça'],
+        'Gin': ['London Dry Gin', 'Flavored Gin'],
+        'Brandy': ['Grape Brandy', 'Cognac', 'Armagnac', 'Fruit Brandy', 'Grappa', 'Pisco'],
+        'Wine': ['Red Wine', 'White Wine', 'Rosé Wine', 'Sparkling Wine', 'Dessert Wine', 'Fruit Wine', 'Fortified Wine', 'Sake'],
+        'Beer': ['Lager\\Beer', 'Ale', 'Stout/Porter', 'Hard Seltzer', 'Flavored Malt Beverages'],
+        'Liqueur': ['Cream Liqueur', 'Fruit Liqueur', 'Herbal Liqueur', 'Nut Liqueur', 'Coffee Liqueur', 'Chocolate Liqueur', 'Schnapps', 'Triple Sec'],
+        'Cocktails': ['RTD Cocktails', 'Gin Cocktails', 'Whiskey Cocktails', 'Rum Cocktails', 'Vodka Cocktails', 'Tequila Cocktails', 'Brandy Cocktails']
+    };
+
+    const subcategories = categorySubcategories[parentCategory] || [];
+    const allCodes = [];
+    for (const subcat of subcategories) {
+        const codes = TTB_SUBCATEGORIES[subcat] || [];
+        allCodes.push(...codes);
+    }
+    return allCodes;
 }
 
 export default {
@@ -1351,9 +1374,19 @@ async function handleSearch(url, env) {
     if (subcategory) {
         const subcategoryCodes = getSubcategoryCodes(subcategory);
         if (subcategoryCodes.length > 0) {
+            // Specific subcategory with mapped codes - use IN clause
             const placeholders = subcategoryCodes.map(() => '?').join(',');
             whereClause += ` AND class_type_code IN (${placeholders})`;
             subcategoryCodes.forEach(code => queryParams.push(code));
+        } else if (subcategory.startsWith('Other ')) {
+            // "Other X" subcategory - exclude all mapped codes for parent category
+            const parentCategory = subcategory.replace('Other ', '');
+            const allMappedCodes = getAllMappedCodesForCategory(parentCategory);
+            if (allMappedCodes.length > 0) {
+                const placeholders = allMappedCodes.map(() => '?').join(',');
+                whereClause += ` AND class_type_code NOT IN (${placeholders})`;
+                allMappedCodes.forEach(code => queryParams.push(code));
+            }
         }
     }
 
@@ -1365,8 +1398,8 @@ async function handleSearch(url, env) {
             'Rum': ['%RUM%', '%CACHACA%'],
             'Gin': ['%GIN%'],
             'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-            'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', '%PORTER%'],
+            'Wine': ['%WINE%', '%CHAMPAGNE%', '%/PORT/%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
+            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', 'PORTER'],
             'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%', '%CURACAO%', '%TRIPLE SEC%', '%SAMBUCA%'],
             'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%', '%COLADA%', '%BLOODY MARY%', '%SCREW DRIVER%'],
             'Other Spirits': ['%BITTERS%', '%NEUTRAL SPIRIT%']
@@ -1534,9 +1567,19 @@ async function handleExport(url, env) {
     if (subcategory) {
         const subcategoryCodes = getSubcategoryCodes(subcategory);
         if (subcategoryCodes.length > 0) {
+            // Specific subcategory with mapped codes - use IN clause
             const placeholders = subcategoryCodes.map(() => '?').join(',');
             whereClause += ` AND class_type_code IN (${placeholders})`;
             subcategoryCodes.forEach(code => queryParams.push(code));
+        } else if (subcategory.startsWith('Other ')) {
+            // "Other X" subcategory - exclude all mapped codes for parent category
+            const parentCategory = subcategory.replace('Other ', '');
+            const allMappedCodes = getAllMappedCodesForCategory(parentCategory);
+            if (allMappedCodes.length > 0) {
+                const placeholders = allMappedCodes.map(() => '?').join(',');
+                whereClause += ` AND class_type_code NOT IN (${placeholders})`;
+                allMappedCodes.forEach(code => queryParams.push(code));
+            }
         }
     }
 
@@ -1548,8 +1591,8 @@ async function handleExport(url, env) {
             'Rum': ['%RUM%', '%CACHACA%'],
             'Gin': ['%GIN%'],
             'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-            'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', '%PORTER%'],
+            'Wine': ['%WINE%', '%CHAMPAGNE%', '%/PORT/%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
+            'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', 'PORTER'],
             'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%', '%CURACAO%', '%TRIPLE SEC%', '%SAMBUCA%'],
             'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%', '%COLADA%', '%BLOODY MARY%', '%SCREW DRIVER%'],
             'Other Spirits': ['%BITTERS%', '%NEUTRAL SPIRIT%']
@@ -1755,9 +1798,10 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .filings-table th { background: var(--color-bg-secondary); font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .filings-table tr:hover { background: var(--color-bg-secondary); }
         .signal-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-        .signal-NEW_BRAND { background: #dcfce7; color: #166534; }
-        .signal-NEW_SKU { background: #dbeafe; color: #1e40af; }
-        .signal-REFILE { background: #f3f4f6; color: #6b7280; }
+        .signal-new-company { background: #f3e8ff; color: #7c3aed; }
+        .signal-new-brand { background: #dcfce7; color: #166534; }
+        .signal-new-sku { background: #dbeafe; color: #1e40af; }
+        .signal-refile { background: #f3f4f6; color: #6b7280; }
         .bar-chart { margin: 8px 0; }
         .bar-row { display: flex; align-items: center; margin-bottom: 8px; }
         .bar-label { width: 120px; font-size: 0.875rem; color: var(--color-text-secondary); }
@@ -1780,6 +1824,26 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .pro-overlay p { margin: 0 0 16px 0; color: var(--color-text-secondary); font-size: 0.9rem; }
         .pro-overlay .btn { background: var(--color-primary); color: white; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
         .pro-overlay .btn:hover { background: var(--color-primary-dark, #0a7c72); }
+
+        /* Full page paywall */
+        .page-paywall { min-height: 400px; }
+        .page-paywall .blur-content { filter: blur(8px); }
+        .page-paywall .page-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+            max-width: 420px;
+            width: 90%;
+            z-index: 100;
+        }
+        .page-paywall .page-overlay h3 { font-size: 1.4rem; margin: 0 0 12px 0; }
+        .page-paywall .page-overlay p { font-size: 1rem; line-height: 1.5; }
+        .page-paywall .page-overlay .btn { padding: 14px 32px; font-size: 1rem; }
 
         /* Mobile responsive tables */
         .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1884,6 +1948,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                 document.querySelectorAll('.blur-content').forEach(el => el.classList.remove('blur-content'));
                 document.querySelectorAll('.pro-overlay').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.pro-locked').forEach(el => el.classList.remove('pro-locked'));
+                document.querySelectorAll('.page-paywall').forEach(el => el.classList.remove('page-paywall'));
             }
 
             try {
@@ -2172,101 +2237,96 @@ async function handleCompanyPage(path, env, corsHeaders) {
             ${dbaNames.length > 0 ? `<p class="meta" style="margin-top: 4px; font-size: 0.9rem;">Also operates as: ${dbaNames.map(n => escapeHtml(n)).join(', ')}</p>` : ''}
         </header>
 
-        <section class="seo-card pro-locked" style="margin-bottom: 32px;">
-            <p class="blur-content" style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
-                ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
-                ${brands.length > 0 ? `Their portfolio includes popular brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and <strong>${escapeHtml(brands[4].brand_name)}</strong>` : ''}.` : ''}
-                ${categoryBars.length > 0 ? `The company primarily operates in the ${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join(' and ')} ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
-            </p>
-            <div class="pro-overlay">
-                <h3>Unlock Company Insights</h3>
-                <p>See brand portfolio and detailed analytics</p>
-                <a href="/#pricing" class="btn">Upgrade to Pro</a>
-            </div>
-        </section>
+        <div class="page-paywall pro-locked">
+            <div class="blur-content">
+                <section class="seo-card" style="margin-bottom: 32px;">
+                    <p style="font-size: 1.1rem; line-height: 1.7; color: var(--color-text-secondary);">
+                        ${escapeHtml(company.display_name)} is a beverage alcohol company with ${formatNumber(company.total_filings)} TTB COLA filings.
+                        ${brands.length > 0 ? `Their portfolio includes popular brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and <strong>${escapeHtml(brands[4].brand_name)}</strong>` : ''}.` : ''}
+                        ${categoryBars.length > 0 ? `The company primarily operates in the ${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join(' and ')} ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
+                    </p>
+                </section>
 
-        <div class="seo-grid">
-            <div class="seo-card">
-                <h2>Filing Stats</h2>
-                <div class="stat-value">${formatNumber(company.total_filings)}</div>
-                <div class="stat-label">Total COLA Filings</div>
-            </div>
-            <div class="seo-card">
-                <h2>Brands</h2>
-                <div class="stat-value">${formatNumber(brands.length)}${brands.length === 20 ? '+' : ''}</div>
-                <div class="stat-label">Distinct Brands Filed</div>
-            </div>
-            <div class="seo-card">
-                <h2>Categories</h2>
-                <div class="bar-chart">
-                    ${categoryBars.map(c => `
-                        <div class="bar-row">
-                            <div class="bar-label">${escapeHtml(c.name)}</div>
-                            <div class="bar-container"><div class="bar-fill" style="width: ${c.pct}%"></div></div>
-                            <div class="bar-value">${c.pct}%</div>
+                <div class="seo-grid">
+                    <div class="seo-card">
+                        <h2>Filing Stats</h2>
+                        <div class="stat-value">${formatNumber(company.total_filings)}</div>
+                        <div class="stat-label">Total COLA Filings</div>
+                    </div>
+                    <div class="seo-card">
+                        <h2>Brands</h2>
+                        <div class="stat-value">${formatNumber(brands.length)}${brands.length === 20 ? '+' : ''}</div>
+                        <div class="stat-label">Distinct Brands Filed</div>
+                    </div>
+                    <div class="seo-card">
+                        <h2>Categories</h2>
+                        <div class="bar-chart">
+                            ${categoryBars.map(c => `
+                                <div class="bar-row">
+                                    <div class="bar-label">${escapeHtml(c.name)}</div>
+                                    <div class="bar-container"><div class="bar-fill" style="width: ${c.pct}%"></div></div>
+                                    <div class="bar-value">${c.pct}%</div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
+                    </div>
+                </div>
+
+                <div class="seo-card" style="margin-bottom: 32px;">
+                    <h2>Brands (${brands.length}${brands.length === 20 ? '+' : ''})</h2>
+                    <div class="brand-grid">
+                        ${brands.map(b => `
+                            <div class="brand-chip">
+                                <a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>
+                                <span class="count">${formatNumber(b.cnt)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="seo-card">
+                    <h2>Recent Filings</h2>
+                    <div class="table-wrapper">
+                        <table class="filings-table">
+                            <thead>
+                                <tr>
+                                    <th>Brand</th>
+                                    <th>Product</th>
+                                    <th>Filing Entity</th>
+                                    <th>Date</th>
+                                    <th>Signal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${recentFilings.map(f => {
+                                    // Show the actual filing entity (company_name on the record)
+                                    const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
+                                    return `
+                                    <tr>
+                                        <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
+                                        <td>${escapeHtml(f.fanciful_name || '-')}</td>
+                                        <td style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(filingEntity)}</td>
+                                        <td>${escapeHtml(f.approval_date)}</td>
+                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace(/_/g, '-')}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
+                                    </tr>
+                                `}).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
+                </div>
+
+                <div class="related-links">
+                    <h3>Related Companies</h3>
+                    ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
                 </div>
             </div>
-        </div>
-
-        <div class="seo-card pro-locked" style="margin-bottom: 32px;">
-            <h2>Brands (${brands.length}${brands.length === 20 ? '+' : ''})</h2>
-            <div class="brand-grid blur-content">
-                ${brands.map(b => `
-                    <div class="brand-chip">
-                        <a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>
-                        <span class="count">${formatNumber(b.cnt)}</span>
-                    </div>
-                `).join('')}
-            </div>
-            <div class="pro-overlay">
-                <h3>Unlock Full Brand Data</h3>
-                <p>See all brands, filings, and detailed analytics</p>
+            <div class="pro-overlay page-overlay">
+                <h3>Unlock Company Insights</h3>
+                <p>Get full access to ${escapeHtml(company.display_name)}'s brand portfolio, filing history, and detailed analytics.</p>
                 <a href="/#pricing" class="btn">Upgrade to Pro</a>
+                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $29/month</p>
             </div>
-        </div>
-
-        <div class="seo-card pro-locked">
-            <h2>Recent Filings</h2>
-            <div class="table-wrapper blur-content">
-                <table class="filings-table">
-                    <thead>
-                        <tr>
-                            <th>Brand</th>
-                            <th>Product</th>
-                            <th>Filing Entity</th>
-                            <th>Date</th>
-                            <th>Signal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${recentFilings.map(f => {
-                            // Show the actual filing entity (company_name on the record)
-                            const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
-                            return `
-                            <tr>
-                                <td><a href="/brand/${makeSlug(f.brand_name)}">${escapeHtml(f.brand_name)}</a></td>
-                                <td>${escapeHtml(f.fanciful_name || '-')}</td>
-                                <td style="font-size: 0.85rem; color: var(--color-text-secondary);">${escapeHtml(filingEntity)}</td>
-                                <td>${escapeHtml(f.approval_date)}</td>
-                                <td>${f.signal ? `<span class="signal-badge signal-${f.signal}">${f.signal.replace('_', ' ')}</span>` : ''}</td>
-                            </tr>
-                        `}).join('')}
-                    </tbody>
-                </table>
-            </div>
-            <div class="pro-overlay">
-                <h3>Unlock Filing Details</h3>
-                <p>Access complete filing history and data</p>
-                <a href="/#pricing" class="btn">Upgrade to Pro</a>
-            </div>
-            <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
-        </div>
-
-        <div class="related-links">
-            <h3>Related Companies</h3>
-            ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
         </div>
     `;
 
@@ -2376,66 +2436,71 @@ async function handleBrandPage(path, env, corsHeaders) {
             </p>
         </header>
 
-        <div class="seo-grid">
-            <div class="seo-card">
-                <h2>Total Filings</h2>
-                <div class="stat-value">${formatNumber(brand.cnt)}</div>
-                <div class="stat-label">COLA Applications</div>
-            </div>
-            <div class="seo-card">
-                <h2>Category</h2>
-                <div class="stat-value" style="font-size: 1.5rem;">${escapeHtml(primaryCategory)}</div>
-                <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View category trends →</a></div>
-            </div>
-            <div class="seo-card">
-                <h2>Filing Timeline</h2>
-                <div class="bar-chart">
-                    ${timeline.map(t => `
-                        <div class="bar-row">
-                            <div class="bar-label">${t.year}</div>
-                            <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((t.cnt / maxTimeline) * 100)}%"></div></div>
-                            <div class="bar-value">${t.cnt}</div>
+        <div class="page-paywall pro-locked">
+            <div class="blur-content">
+                <div class="seo-grid">
+                    <div class="seo-card">
+                        <h2>Total Filings</h2>
+                        <div class="stat-value">${formatNumber(brand.cnt)}</div>
+                        <div class="stat-label">COLA Applications</div>
+                    </div>
+                    <div class="seo-card">
+                        <h2>Category</h2>
+                        <div class="stat-value" style="font-size: 1.5rem;">${escapeHtml(primaryCategory)}</div>
+                        <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View category trends →</a></div>
+                    </div>
+                    <div class="seo-card">
+                        <h2>Filing Timeline</h2>
+                        <div class="bar-chart">
+                            ${timeline.map(t => `
+                                <div class="bar-row">
+                                    <div class="bar-label">${t.year}</div>
+                                    <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((t.cnt / maxTimeline) * 100)}%"></div></div>
+                                    <div class="bar-value">${t.cnt}</div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
+                    </div>
+                </div>
+
+                <div class="seo-card">
+                    <h2>Products (${products.length}${products.length === 15 ? '+' : ''})</h2>
+                    <div class="table-wrapper">
+                        <table class="filings-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                    <th>Signal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${products.map(p => `
+                                    <tr>
+                                        <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
+                                        <td>${escapeHtml(getCategory(p.class_type_code))}</td>
+                                        <td>${escapeHtml(p.approval_date)}</td>
+                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace(/_/g, '-')}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a></p>
+                </div>
+
+                <div class="related-links">
+                    <h3>More ${primaryCategory} Brands</h3>
+                    ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
                 </div>
             </div>
-        </div>
-
-        <div class="seo-card pro-locked">
-            <h2>Products (${products.length}${products.length === 15 ? '+' : ''})</h2>
-            <div class="table-wrapper blur-content">
-                <table class="filings-table">
-                    <thead>
-                        <tr>
-                            <th>Product Name</th>
-                            <th>Type</th>
-                            <th>Date</th>
-                            <th>Signal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${products.map(p => `
-                            <tr>
-                                <td>${escapeHtml(p.fanciful_name || brand.brand_name)}</td>
-                                <td>${escapeHtml(getCategory(p.class_type_code))}</td>
-                                <td>${escapeHtml(p.approval_date)}</td>
-                                <td>${p.signal ? `<span class="signal-badge signal-${p.signal}">${p.signal.replace('_', ' ')}</span>` : ''}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-            <div class="pro-overlay">
-                <h3>Unlock Product Details</h3>
-                <p>Access complete product history and data</p>
+            <div class="pro-overlay page-overlay">
+                <h3>Unlock Brand Insights</h3>
+                <p>Get full access to ${escapeHtml(brand.brand_name)}'s product catalog, filing history, and detailed analytics.</p>
                 <a href="/#pricing" class="btn">Upgrade to Pro</a>
+                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $29/month</p>
             </div>
-            <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a></p>
-        </div>
-
-        <div class="related-links">
-            <h3>More ${primaryCategory} Brands</h3>
-            ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
         </div>
     `;
 

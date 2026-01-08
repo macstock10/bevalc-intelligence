@@ -10,10 +10,9 @@ import {
 import { Layout, styles, colors } from "../components/Layout.jsx";
 
 export function Welcome({
-  firstName = "",
   email = "subscriber@example.com",
 }) {
-  const greeting = firstName ? `Welcome, ${firstName}!` : "Welcome to BevAlc Intelligence!";
+  const greeting = "Welcome to BevAlc Intelligence!";
 
   return (
     <Layout preview="You're all set to receive weekly TTB COLA insights">

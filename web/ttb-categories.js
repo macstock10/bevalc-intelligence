@@ -19,7 +19,6 @@ const TTB_CATEGORIES = {
       "AMERICAN SINGLE MALT WHISKEY", "AMERICAN SINGLE MALT WHISKEY - BIB",
       "STRAIGHT AMERICAN SINGLE MALT"
     ],
-    "Tennessee Whiskey": ["TENNESSEE WHISKY"],
     "Scotch": [
       "SCOTCH WHISKY", "SCOTCH WHISKY FB", "SCOTCH WHISKY USB",
       "SINGLE MALT SCOTCH WHISKY", "UNBLENDED SCOTCH WHISKY USB",
@@ -78,11 +77,10 @@ const TTB_CATEGORIES = {
     "Tequila": [
       "TEQUILA FB", "TEQUILA USB", "DILUTED TEQUILA FB", "DILUTED TEQUILA USB"
     ],
-    "Flavored Tequila": ["FLAVORED TEQUILA"],
     "Mezcal": [
       "MEZCAL", "MEZCAL FB", "MEZCAL US", "DILUTED MEZCAL", "FLAVORED MEZCAL"
     ],
-    "Other Tequila": ["AGAVE SPIRITS", "FLAVORED AGAVE SPIRIT"]
+    "Other Tequila": ["AGAVE SPIRITS", "FLAVORED AGAVE SPIRIT", "FLAVORED TEQUILA"]
   },
   "Gin": {
     "London Dry Gin": [
