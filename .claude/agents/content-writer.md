@@ -743,8 +743,10 @@ Newsletter format. What happened. Who filed what. The numbers. Maybe one observa
 ### 3. Trend Report
 800-1200 words. Something is happening in the data. Explain what. Explain why it might matter. Do not oversell it.
 
-### 4. Social Posts
-Short. Flat. State what happened. If it is absurd, the absurdity will be apparent. You do not need to point at it.
+### 4. LinkedIn Posts
+Medium length. Flat. State what happened. Tell a small story if there is one. Let the absurdity speak for itself.
+
+**LinkedIn only. No X/Twitter posts.**
 
 ---
 
@@ -764,8 +766,8 @@ Short. Flat. State what happened. If it is absurd, the absurdity will be apparen
   "seo_links": [
     {"text": "Diageo filings", "url": "/company/diageo-americas-supply-inc"}
   ],
-  "social_posts": [
-    {"platform": "twitter", "text": "Diageo filed 156 labels. That is a lot of labels."}
+  "linkedin_posts": [
+    "Diageo filed 156 labels last quarter. That is a lot of labels. Someone had to approve each one. I think about that person sometimes."
   ],
   "word_count": 756
 }
