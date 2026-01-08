@@ -32,21 +32,30 @@ const D1_API_URL = CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_D1_DATABASE_ID
   ? `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${CLOUDFLARE_D1_DATABASE_ID}/query`
   : null;
 
-// TTB code to category mapping
-const TTB_CODE_CATEGORIES = {
-  'STRAIGHT WHISKY': 'Whiskey', 'STRAIGHT BOURBON WHISKY': 'Whiskey', 'BOURBON WHISKY': 'Whiskey',
-  'WHISKY': 'Whiskey', 'SCOTCH WHISKY': 'Whiskey', 'CANADIAN WHISKY': 'Whiskey', 'IRISH WHISKY': 'Whiskey',
-  'TENNESSEE WHISKY': 'Whiskey', 'RYE WHISKY': 'Whiskey', 'MALT WHISKY': 'Whiskey',
-  'VODKA': 'Vodka', 'VODKA - FLAVORED': 'Vodka', 'VODKA 80-89 PROOF': 'Vodka',
-  'TEQUILA': 'Tequila', 'TEQUILA FB': 'Tequila', 'MEZCAL': 'Tequila', 'AGAVE SPIRITS': 'Tequila',
-  'DISTILLED GIN': 'Gin', 'GIN': 'Gin', 'LONDON DRY GIN': 'Gin',
-  'TABLE RED WINE': 'Wine', 'TABLE WHITE WINE': 'Wine', 'SPARKLING WINE': 'Wine', 'CHAMPAGNE': 'Wine',
-  'BEER': 'Beer', 'ALE': 'Beer', 'MALT BEVERAGES': 'Beer', 'STOUT': 'Beer',
-  'COCKTAILS UNDER 48 PROOF': 'RTD', 'COCKTAILS 48 PROOF UP': 'RTD', 'MARGARITA': 'RTD',
-  'U.S. RUM (WHITE)': 'Rum', 'FOREIGN RUM': 'Rum', 'PUERTO RICAN RUM': 'Rum',
-  'BRANDY': 'Brandy', 'COGNAC (BRANDY) FB': 'Brandy', 'CALIFORNIA BRANDY': 'Brandy',
-  'CORDIALS (FRUIT & PEELS)': 'Liqueur', 'AMARETTO': 'Liqueur', 'TRIPLE SEC': 'Liqueur',
-};
+// TTB code to category mapping - order matters! Check specific patterns first
+const TTB_CODE_CATEGORIES = [
+  // Whiskey variants
+  ['WHISKY', 'Whiskey'], ['WHISKEY', 'Whiskey'], ['BOURBON', 'Whiskey'], ['SCOTCH', 'Whiskey'],
+  ['RYE', 'Whiskey'], ['MALT', 'Whiskey'], ['TENNESSEE', 'Whiskey'],
+  // Vodka
+  ['VODKA', 'Vodka'],
+  // Tequila/Agave
+  ['TEQUILA', 'Tequila'], ['MEZCAL', 'Tequila'], ['AGAVE', 'Tequila'],
+  // Gin
+  ['GIN', 'Gin'],
+  // Wine - check for WINE anywhere in the string
+  ['WINE', 'Wine'], ['CHAMPAGNE', 'Wine'], ['SPARKLING', 'Wine'], ['PORT', 'Wine'], ['SHERRY', 'Wine'],
+  // Beer
+  ['BEER', 'Beer'], ['ALE', 'Beer'], ['MALT BEVERAGE', 'Beer'], ['STOUT', 'Beer'], ['LAGER', 'Beer'],
+  // RTD
+  ['COCKTAIL', 'RTD'], ['MARGARITA', 'RTD'], ['SELTZER', 'RTD'], ['COOLER', 'RTD'],
+  // Rum
+  ['RUM', 'Rum'],
+  // Brandy
+  ['BRANDY', 'Brandy'], ['COGNAC', 'Brandy'],
+  // Liqueur
+  ['CORDIAL', 'Liqueur'], ['AMARETTO', 'Liqueur'], ['TRIPLE SEC', 'Liqueur'], ['LIQUEUR', 'Liqueur'],
+];
 
 // ============================================================================
 // HELPERS
@@ -55,8 +64,10 @@ const TTB_CODE_CATEGORIES = {
 function getCategory(classTypeCode) {
   if (!classTypeCode) return 'Other';
   const code = classTypeCode.trim().toUpperCase();
-  for (const [ttbCode, category] of Object.entries(TTB_CODE_CATEGORIES)) {
-    if (ttbCode.includes(code) || code.includes(ttbCode)) {
+
+  // Check each pattern - first match wins
+  for (const [pattern, category] of TTB_CODE_CATEGORIES) {
+    if (code.includes(pattern)) {
       return category;
     }
   }
@@ -408,24 +419,63 @@ async function fetchProMetrics() {
     ttbLink: `https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${row.ttb_id}`,
   }));
 
-  // Full new filings list
-  const newFilings = await d1Query(`
+  // Full new filings list - fetch more, then limit to 7 per category with mixed signals
+  const newFilingsRaw = await d1Query(`
     SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
     FROM colas
     WHERE ${thisWeekSql} AND signal IN ('NEW_BRAND', 'NEW_SKU')
-    ORDER BY CASE signal WHEN 'NEW_BRAND' THEN 1 ELSE 2 END, approval_date DESC
-    LIMIT 50
+    ORDER BY approval_date DESC
+    LIMIT 500
   `);
 
-  const newFilingsList = newFilings.map(row => ({
-    brand: row.brand_name,
-    fancifulName: row.fanciful_name || row.brand_name,
-    company: row.company_name,
-    signal: row.signal,
-    category: getCategory(row.class_type_code || ''),
-    ttbId: row.ttb_id,
-    ttbLink: `https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${row.ttb_id}`,
-  }));
+  // Group by category and limit to 7 per category (mix of brands and SKUs)
+  const categoryFilings = {};
+  for (const row of newFilingsRaw) {
+    const category = getCategory(row.class_type_code || '');
+    if (!categoryFilings[category]) {
+      categoryFilings[category] = { NEW_BRAND: [], NEW_SKU: [] };
+    }
+    if (categoryFilings[category][row.signal].length < 4) {
+      categoryFilings[category][row.signal].push(row);
+    }
+  }
+
+  // Build final list: up to 7 per category (alternating brands and SKUs)
+  const newFilingsList = [];
+  for (const [category, signals] of Object.entries(categoryFilings)) {
+    const brands = signals.NEW_BRAND || [];
+    const skus = signals.NEW_SKU || [];
+    let count = 0;
+    let bi = 0, si = 0;
+    // Alternate between brands and SKUs
+    while (count < 7 && (bi < brands.length || si < skus.length)) {
+      if (bi < brands.length && (count % 2 === 0 || si >= skus.length)) {
+        const row = brands[bi++];
+        newFilingsList.push({
+          brand: row.brand_name,
+          fancifulName: row.fanciful_name || row.brand_name,
+          company: row.company_name,
+          signal: row.signal,
+          category,
+          ttbId: row.ttb_id,
+          ttbLink: `https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${row.ttb_id}`,
+        });
+        count++;
+      } else if (si < skus.length) {
+        const row = skus[si++];
+        newFilingsList.push({
+          brand: row.brand_name,
+          fancifulName: row.fanciful_name || row.brand_name,
+          company: row.company_name,
+          signal: row.signal,
+          category,
+          ttbId: row.ttb_id,
+          ttbLink: `https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${row.ttb_id}`,
+        });
+        count++;
+      }
+    }
+  }
 
   // Format dates for database link
   const weekStartDate = thisWeekStart.toISOString().split('T')[0];

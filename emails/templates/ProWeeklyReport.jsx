@@ -1473,8 +1473,8 @@ export function ProWeeklyReport({
 
             {/* Full New Filings List (UNLOCKED for Pro) - Grouped by Category */}
             <SectionHeader
-              title="All New Brands & SKUs"
-              subtitle={`Complete list of ${newBrands} new brands and ${newSkus} new SKUs filed this week, grouped by category`}
+              title="New Brands & SKUs Sample"
+              subtitle={`${newBrands} new brands and ${newSkus} new SKUs filed this week — showing up to 7 per category`}
               color={colors.blue}
             />
             {(() => {

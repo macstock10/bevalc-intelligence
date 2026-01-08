@@ -35,30 +35,39 @@ EMAILS_DIR = BASE_DIR / "emails"
 LOG_FILE = str(BASE_DIR / "logs" / "send_report.log")
 ENV_FILE = str(BASE_DIR / ".env")
 
-# TTB code to category mapping (subset for display)
-TTB_CODE_CATEGORIES = {
-    'STRAIGHT WHISKY': 'Whiskey', 'STRAIGHT BOURBON WHISKY': 'Whiskey', 'BOURBON WHISKY': 'Whiskey',
-    'WHISKY': 'Whiskey', 'SCOTCH WHISKY': 'Whiskey', 'CANADIAN WHISKY': 'Whiskey', 'IRISH WHISKY': 'Whiskey',
-    'TENNESSEE WHISKY': 'Whiskey', 'RYE WHISKY': 'Whiskey', 'MALT WHISKY': 'Whiskey',
-    'VODKA': 'Vodka', 'VODKA - FLAVORED': 'Vodka', 'VODKA 80-89 PROOF': 'Vodka',
-    'TEQUILA': 'Tequila', 'TEQUILA FB': 'Tequila', 'MEZCAL': 'Tequila', 'AGAVE SPIRITS': 'Tequila',
-    'DISTILLED GIN': 'Gin', 'GIN': 'Gin', 'LONDON DRY GIN': 'Gin',
-    'TABLE RED WINE': 'Wine', 'TABLE WHITE WINE': 'Wine', 'SPARKLING WINE': 'Wine', 'CHAMPAGNE': 'Wine',
-    'BEER': 'Beer', 'ALE': 'Beer', 'MALT BEVERAGES': 'Beer', 'STOUT': 'Beer',
-    'COCKTAILS UNDER 48 PROOF': 'RTD', 'COCKTAILS 48 PROOF UP': 'RTD', 'MARGARITA': 'RTD',
-    'U.S. RUM (WHITE)': 'Rum', 'FOREIGN RUM': 'Rum', 'PUERTO RICAN RUM': 'Rum',
-    'BRANDY': 'Brandy', 'COGNAC (BRANDY) FB': 'Brandy', 'CALIFORNIA BRANDY': 'Brandy',
-    'CORDIALS (FRUIT & PEELS)': 'Liqueur', 'AMARETTO': 'Liqueur', 'TRIPLE SEC': 'Liqueur',
-}
+# TTB code to category mapping - order matters! Check specific patterns first
+TTB_CODE_PATTERNS = [
+    # Whiskey variants
+    ('WHISKY', 'Whiskey'), ('WHISKEY', 'Whiskey'), ('BOURBON', 'Whiskey'), ('SCOTCH', 'Whiskey'),
+    ('RYE', 'Whiskey'), ('MALT', 'Whiskey'), ('TENNESSEE', 'Whiskey'),
+    # Vodka
+    ('VODKA', 'Vodka'),
+    # Tequila/Agave
+    ('TEQUILA', 'Tequila'), ('MEZCAL', 'Tequila'), ('AGAVE', 'Tequila'),
+    # Gin
+    ('GIN', 'Gin'),
+    # Wine - check for WINE anywhere in the string
+    ('WINE', 'Wine'), ('CHAMPAGNE', 'Wine'), ('SPARKLING', 'Wine'), ('PORT', 'Wine'), ('SHERRY', 'Wine'),
+    # Beer
+    ('BEER', 'Beer'), ('ALE', 'Beer'), ('MALT BEVERAGE', 'Beer'), ('STOUT', 'Beer'), ('LAGER', 'Beer'),
+    # RTD
+    ('COCKTAIL', 'RTD'), ('MARGARITA', 'RTD'), ('SELTZER', 'RTD'), ('COOLER', 'RTD'),
+    # Rum
+    ('RUM', 'Rum'),
+    # Brandy
+    ('BRANDY', 'Brandy'), ('COGNAC', 'Brandy'),
+    # Liqueur
+    ('CORDIAL', 'Liqueur'), ('AMARETTO', 'Liqueur'), ('TRIPLE SEC', 'Liqueur'), ('LIQUEUR', 'Liqueur'),
+]
 
 def get_category(class_type_code: str) -> str:
-    """Map TTB class/type code to category."""
+    """Map TTB class/type code to category using pattern matching."""
     if not class_type_code:
         return 'Other'
     code = class_type_code.strip().upper()
-    # Check for partial matches
-    for ttb_code, category in TTB_CODE_CATEGORIES.items():
-        if ttb_code in code or code in ttb_code:
+    # Check each pattern - first match wins
+    for pattern, category in TTB_CODE_PATTERNS:
+        if pattern in code:
             return category
     return 'Other'
 
@@ -684,31 +693,59 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
             "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
         })
 
-    # 6. Full new filings list (first 20 NEW_BRAND + NEW_SKU)
-    # Also filtered by subscribed categories if user has preferences
-    new_filings = d1_query(f"""
+    # 6. Full new filings list - fetch more, then limit to 7 per category with mixed signals
+    new_filings_raw = d1_query(f"""
         SELECT ttb_id, brand_name, fanciful_name, company_name, class_type_code, signal
         FROM colas
-        WHERE {this_week_sql}
-        AND signal IN ('NEW_BRAND', 'NEW_SKU')
-        {category_filter_sql}
-        ORDER BY
-            CASE signal WHEN 'NEW_BRAND' THEN 1 ELSE 2 END,
-            approval_date DESC
-        LIMIT 50
+        WHERE {this_week_sql} AND signal IN ('NEW_BRAND', 'NEW_SKU') {category_filter_sql}
+        ORDER BY approval_date DESC
+        LIMIT 500
     """)
 
+    # Group by category and limit to 7 per category (mix of brands and SKUs)
+    category_filings = {}
+    for row in new_filings_raw:
+        category = get_category(row.get("class_type_code", ""))
+        if category not in category_filings:
+            category_filings[category] = {"NEW_BRAND": [], "NEW_SKU": []}
+        if len(category_filings[category][row["signal"]]) < 4:
+            category_filings[category][row["signal"]].append(row)
+
+    # Build final list: up to 7 per category (alternating brands and SKUs)
     new_filings_list = []
-    for row in new_filings:
-        new_filings_list.append({
-            "brand": row["brand_name"],
-            "fancifulName": row.get("fanciful_name") or row["brand_name"],
-            "company": row["company_name"],
-            "signal": row["signal"],
-            "category": get_category(row.get("class_type_code", "")),
-            "ttbId": row["ttb_id"],
-            "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
-        })
+    for category, signals in category_filings.items():
+        brands = signals.get("NEW_BRAND", [])
+        skus = signals.get("NEW_SKU", [])
+        count = 0
+        bi, si = 0, 0
+        # Alternate between brands and SKUs
+        while count < 7 and (bi < len(brands) or si < len(skus)):
+            if bi < len(brands) and (count % 2 == 0 or si >= len(skus)):
+                row = brands[bi]
+                bi += 1
+                new_filings_list.append({
+                    "brand": row["brand_name"],
+                    "fancifulName": row.get("fanciful_name") or row["brand_name"],
+                    "company": row["company_name"],
+                    "signal": row["signal"],
+                    "category": category,
+                    "ttbId": row["ttb_id"],
+                    "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+                })
+                count += 1
+            elif si < len(skus):
+                row = skus[si]
+                si += 1
+                new_filings_list.append({
+                    "brand": row["brand_name"],
+                    "fancifulName": row.get("fanciful_name") or row["brand_name"],
+                    "company": row["company_name"],
+                    "signal": row["signal"],
+                    "category": category,
+                    "ttbId": row["ttb_id"],
+                    "ttbLink": f"https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid={row['ttb_id']}"
+                })
+                count += 1
 
     # 7. Category data with change indicators
     category_data_with_change = []
