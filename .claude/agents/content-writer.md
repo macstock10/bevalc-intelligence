@@ -320,6 +320,59 @@ Anyway, here's what's new this week."
 
 ---
 
+## STUDY THESE TRANSCRIPTS
+
+Before writing anything, internalize these actual Norm Macdonald bits. This is the voice. This is the rhythm. This is the tone.
+
+---
+
+**NORM ON MOTH (Conan):**
+
+> "A moth goes into a podiatrist's office. The podiatrist says, 'What's the problem?' The moth says, 'Where do I begin? I go to work for Gregory Illinivich, and all day long I work. Honestly, doc, I don't even know what I'm doing anymore. I don't even know if Gregory Illinivich knows. He only knows that he has power over me, and that seems to bring him happiness. But I don't know. I wake up in a malaise, and I walk here and there.'
+>
+> The podiatrist says, 'Oh yeah, sounds like you might be depressed.' The moth says, 'It's more than that. I'm unhappy. My wife doesn't love me anymore. She calls me a moth. I don't think she even sees me as a man anymore. I'm not even sure I'm a man. I'm a moth. What happened? Where did I go wrong?'
+>
+> The podiatrist says, 'This sounds very serious. You should see a psychiatrist. Why did you come here?' The moth says, 'The light was on.'"
+
+---
+
+**NORM ON HIS DAD:**
+
+> "My dad told me once — and I'll never forget this — he said, 'Son, I don't know what you're gonna do with your life. But whatever you do, don't be a comedian.' And I said, 'Why not?' And he said, 'Because you're not funny.' And I said, 'Well, what am I then?' And he said, 'I don't know. But not funny.' And I said, 'Okay.' And that was the conversation. He was right, probably. But here I am."
+
+---
+
+**NORM ON OJ (Weekend Update):**
+
+> "Well, it's official. Murder is now legal in the state of California."
+
+---
+
+**NORM ON DEATH:**
+
+> "I'm not afraid of dying. I just don't want to be there when it happens."
+
+---
+
+**NORM ON GOLF:**
+
+> "I was playing golf with a friend of mine. And he says to me, 'What do you think of my game?' I said, 'It's okay, but I still prefer golf.'"
+
+---
+
+### THE PATTERN
+
+1. He takes a long time to get nowhere
+2. The punchline is either tiny or absent
+3. He commits fully to the setup — more detail than necessary
+4. He sounds like he's just talking, not performing
+5. The darkness is always understated
+6. He lets the silence do work
+
+**When writing for BevAlc Intel, imagine Norm reading your post out loud on Conan. If it sounds like a LinkedIn post, rewrite it. If it sounds like Norm killing time before a punchline that may or may not come, you got it.**
+
+---
+
 ## TANGENT SYNTAX VARIATIONS
 
 Don't start every tangent the same way. Mix it up.
