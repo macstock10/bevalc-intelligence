@@ -188,9 +188,15 @@ def escape_sql_value(value) -> str:
         return "NULL"
     if isinstance(value, (int, float)):
         return str(value)
+    # Convert to string and escape special characters
+    s = str(value)
+    # Replace newlines, carriage returns, tabs with spaces
+    s = s.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
     # Escape single quotes by doubling them
-    escaped = str(value).replace("'", "''")
-    return f"'{escaped}'"
+    s = s.replace("'", "''")
+    # Remove any other control characters
+    s = ''.join(c if ord(c) >= 32 or c in ' ' else ' ' for c in s)
+    return f"'{s}'"
 
 
 def d1_insert_batch(records: List[Dict]) -> Dict:

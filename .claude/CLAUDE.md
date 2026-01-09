@@ -42,19 +42,21 @@ bevalc-intelligence/
 │   ├── CLAUDE.md, CLAUDE-CONTENT.md
 │   ├── agents/                # 7 content automation subagents
 │   └── commands/              # 5 custom slash commands
-├── .github/workflows/         # weekly-update.yml, weekly-report.yml
+├── .github/workflows/         # daily-sync.yml, weekly-update.yml, weekly-report.yml
 ├── emails/                    # React Email + Resend system
 │   ├── send.js, test-email.js, index.js
 │   ├── components/Layout.jsx
 │   └── templates/             # WeeklyReport, ProWeeklyReport, Welcome
 ├── scripts/
-│   ├── weekly_update.py       # TTB scraper + D1 sync
+│   ├── daily_sync.py          # Daily TTB scraper + D1 sync + classification
+│   ├── cola_worker.py         # Core scraping logic (used by daily_sync.py)
+│   ├── export_and_upload.py   # D1 upload utilities
+│   ├── weekly_update.py       # TTB scraper + D1 sync (weekly)
 │   ├── weekly_report.py       # PDF report generator
 │   ├── send_weekly_report.py  # Query D1 + send weekly email
 │   ├── normalize_companies.py # Company name normalization
 │   ├── generate_sitemaps.py   # Static sitemaps → R2
 │   ├── batch_classify.py      # Batch classify historical records
-│   ├── cola_worker.py         # Historical TTB scraper (by month)
 │   ├── content-automation/    # PowerShell automation
 │   └── src/email_sender.py    # Python wrapper for email
 ├── skills/                    # Claude skill definitions
@@ -84,15 +86,18 @@ bevalc-intelligence/
                         │    Stripe API    │
                         └──────────────────┘
 
-GitHub Actions (Weekly): weekly_update.py → weekly_report.py → send_weekly_report.py
+GitHub Actions:
+  - Daily (7pm ET):  daily_sync.py → scrape → D1 → classify
+  - Weekly (Fri 9pm): weekly_update.py → weekly_report.py → send_weekly_report.py
 ```
 
 ### Data Flow
 
-1. **Weekly Update** (Fridays 9pm ET): Scrape TTB → sync to D1 → classify records
-2. **Weekly Report** (Saturdays 9am ET): Query D1 → generate PDF → send via Resend
-3. **API Layer** (`worker.js`): Search, filters, CSV export, Stripe, user prefs, watchlist, SEO pages
-4. **Frontend** (`web/`): Static HTML/JS → API calls to Worker
+1. **Daily Sync** (7pm ET daily): Scrape today's TTB filings → sync to D1 → classify records
+2. **Weekly Update** (Fridays 9pm ET): Full week scrape → sync to D1 → classify records
+3. **Weekly Report** (Saturdays 9am ET): Query D1 → generate PDF → send via Resend
+4. **API Layer** (`worker.js`): Search, filters, CSV export, Stripe, user prefs, watchlist, SEO pages
+5. **Frontend** (`web/`): Static HTML/JS → API calls to Worker
 
 ### Key Integration Points
 
@@ -111,6 +116,14 @@ cd worker && npx wrangler dev
 
 # Python scripts (use venv)
 cd scripts && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
+
+# Daily sync (runs via GitHub Actions at 7pm ET)
+python daily_sync.py                 # Scrape today
+python daily_sync.py --days 3        # Catch up last 3 days
+python daily_sync.py --date 2026-01-07  # Specific date
+python daily_sync.py --dry-run       # Preview without D1 sync
+
+# Weekly scripts
 python weekly_update.py              # Full run
 python weekly_update.py --dry-run    # Preview
 python weekly_report.py
@@ -174,7 +187,7 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - `/absurd-story` - Creative story from data
 - `/scan-news` - Industry news scan
 
-## Current State (Last Updated: 2026-01-08)
+## Current State (Last Updated: 2026-01-09)
 
 ### Working Features
 - Frontend on Netlify, D1 with 1M+ records
@@ -186,10 +199,14 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - Signal classification (NEW_COMPANY/NEW_BRAND/NEW_SKU/REFILE) + refile counts
 - SEO page paywall (blur + upgrade modal for free users)
 - Database URL filtering (?signal=, ?date_from=, etc.)
+- Daily sync script (`daily_sync.py`) using cola_worker.py logic
 
 ### Known Issues
 1. Scraping vulnerability - data accessible via SEO pages + sitemap
    - Consider: rate limiting, limiting data shown, honeypot entries
+
+### TODO
+1. **Add `completed_date` field to colas table** - Currently we only store `approval_date` (from TTB record). Need to also scrape/store the "Date Completed" which is when an action was taken (approval, surrender, etc.). This is different from `approval_date` which is the original approval date of the COLA.
 
 ## Programmatic SEO Pages
 
@@ -210,6 +227,14 @@ See `CLAUDE-CONTENT.md` for full documentation.
 ## Technical Notes
 
 **D1 Batch Insert Limit**: Use inline SQL values, not parameterized queries (SQLite ~999 param limit)
+
+**TTB Date Fields**:
+- `approval_date` - The original approval date of the COLA (stored in each TTB record)
+- "Date Completed" (TTB search field) - When an action was completed (approval, surrender, amendment, etc.)
+- These are DIFFERENT dates. A label approved in 2018 might be surrendered in 2026 - the `approval_date` stays 2018, but "Date Completed" for the surrender action is 2026.
+- Currently we only store `approval_date`. TODO: Add `completed_date` field.
+
+**TTB IDs are unique**: Each filing gets a unique TTB ID. A surrender of an old label is a new filing with its own unique TTB ID.
 
 **COLA Classification**: Uses normalized `company_id` via `company_aliases` table:
 1. NEW_COMPANY - `company_id` never seen

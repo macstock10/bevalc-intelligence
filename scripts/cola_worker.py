@@ -307,7 +307,7 @@ class ColaWorker:
             return True
         
         print(f"\n{'='*60}")
-        print(f"[{self.name}] 🛑 CAPTCHA DETECTED!")
+        print(f"[{self.name}] CAPTCHA DETECTED!")
         print(f"{'='*60}")
         print(f"Solve the CAPTCHA in the browser window.")
         print(f"Then press ENTER to continue (or 'quit' to stop)...")
@@ -321,7 +321,7 @@ class ColaWorker:
                 print(f"[{self.name}] CAPTCHA still present. Try again...")
                 return self._handle_captcha()
             
-            print(f"[{self.name}] ✅ CAPTCHA solved!")
+            print(f"[{self.name}] [OK] CAPTCHA solved!")
             time.sleep(2)
             return True
         except EOFError:
@@ -569,7 +569,7 @@ class ColaWorker:
                     return total_expected, total_collected
                 else:
                     # Already filtered by code range and still >1000 - collect what we can
-                    self.logger.warning(f"    ⚠️ Single day + code range still exceeds 1000 - collecting max available")
+                    self.logger.warning(f"    [WARN] Single day + code range still exceeds 1000 - collecting max available")
                     collected = self._collect_all_pages(year, month)
                     return expected, collected
             
@@ -625,7 +625,7 @@ class ColaWorker:
             if total_expected == 0:
                 result.links_verified = True
                 self._save_progress(result)
-                self.logger.info(f"✅ No records for this month")
+                self.logger.info(f"[OK] No records for this month")
                 return result
             
             # Check if we already have enough links
@@ -633,7 +633,7 @@ class ColaWorker:
                 result.collected_links = existing_links
                 result.links_verified = True
                 self._save_progress(result)
-                self.logger.info(f"✅ LINKS ALREADY COMPLETE: {existing_links:,} / {total_expected:,}")
+                self.logger.info(f"[OK] LINKS ALREADY COMPLETE: {existing_links:,} / {total_expected:,}")
                 return result
             
             # Need to collect more - do full collection (INSERT OR IGNORE handles duplicates)
@@ -651,11 +651,11 @@ class ColaWorker:
             # Verify
             if actual >= total_expected * VERIFICATION_TOLERANCE:
                 result.links_verified = True
-                self.logger.info(f"✅ LINKS VERIFIED: {actual:,} / {total_expected:,}")
+                self.logger.info(f"[OK] LINKS VERIFIED: {actual:,} / {total_expected:,}")
             else:
                 missing = total_expected - actual
                 result.error = f"Links mismatch: {actual} vs {total_expected} (missing {missing})"
-                self.logger.error(f"❌ LINKS MISMATCH: {actual:,} / {total_expected:,} (missing {missing:,})")
+                self.logger.error(f"[FAIL] LINKS MISMATCH: {actual:,} / {total_expected:,} (missing {missing:,})")
             
             self._save_progress(result)
             
@@ -875,7 +875,7 @@ class ColaWorker:
                 
                 if scraped >= result.expected_details * VERIFICATION_TOLERANCE:
                     result.details_verified = True
-                    self.logger.info(f"✅ Already complete: {scraped:,} details")
+                    self.logger.info(f"[OK] Already complete: {scraped:,} details")
                 
                 self._save_progress(result)
                 return result
@@ -949,11 +949,11 @@ class ColaWorker:
             # Verify
             if total_scraped >= result.expected_details * VERIFICATION_TOLERANCE:
                 result.details_verified = True
-                self.logger.info(f"✅ DETAILS VERIFIED: {total_scraped:,} / {result.expected_details:,}")
+                self.logger.info(f"[OK] DETAILS VERIFIED: {total_scraped:,} / {result.expected_details:,}")
             else:
                 missing = result.expected_details - total_scraped
                 result.error = f"Details mismatch: {total_scraped} vs {result.expected_details}"
-                self.logger.error(f"❌ DETAILS MISMATCH: {total_scraped:,} / {result.expected_details:,} (missing {missing:,})")
+                self.logger.error(f"[FAIL] DETAILS MISMATCH: {total_scraped:,} / {result.expected_details:,} (missing {missing:,})")
             
             self._save_progress(result)
             
@@ -1126,10 +1126,10 @@ class ColaWorker:
 
                 if actual >= expected * VERIFICATION_TOLERANCE:
                     result['links_verified'] = True
-                    self.logger.info(f"✅ LINKS VERIFIED: {actual:,} / {expected:,}")
+                    self.logger.info(f"[OK] LINKS VERIFIED: {actual:,} / {expected:,}")
                 else:
                     result['error'] = f"Links mismatch: {actual} vs {expected}"
-                    self.logger.error(f"❌ LINKS MISMATCH: {actual:,} / {expected:,}")
+                    self.logger.error(f"[FAIL] LINKS MISMATCH: {actual:,} / {expected:,}")
 
             # Phase 2: Scrape details
             if not links_only:
@@ -1159,8 +1159,8 @@ class ColaWorker:
         end = result['end_date'].strftime('%Y-%m-%d')
         date_str = start if start == end else f"{start} to {end}"
 
-        links_icon = "✅" if result['links_verified'] else "❌"
-        details_icon = "✅" if result['details_verified'] else "❌"
+        links_icon = "[OK]" if result['links_verified'] else "[FAIL]"
+        details_icon = "[OK]" if result['details_verified'] else "[FAIL]"
 
         print(f"  Date: {date_str}")
         print(f"  Links:   {links_icon} {result['collected_links']:,} / {result['expected_links']:,}")
@@ -1182,8 +1182,8 @@ class ColaWorker:
         total_scraped = 0
         
         for r in results:
-            links_icon = "✅" if r.links_verified else "❌"
-            details_icon = "✅" if r.details_verified else "❌"
+            links_icon = "[OK]" if r.links_verified else "[FAIL]"
+            details_icon = "[OK]" if r.details_verified else "[FAIL]"
             
             print(f"  {r.month_str}: Links {links_icon} {r.collected_links:,}/{r.expected_links:,} | Details {details_icon} {r.scraped_details:,}")
             
@@ -1212,8 +1212,8 @@ class ColaWorker:
         if rows:
             print(f"\nMonth Progress:")
             for row in rows:
-                links_icon = "✅" if row['links_verified'] else "❌"
-                details_icon = "✅" if row['details_verified'] else "❌"
+                links_icon = "[OK]" if row['links_verified'] else "[FAIL]"
+                details_icon = "[OK]" if row['details_verified'] else "[FAIL]"
                 err = f" ERR: {row['error'][:30]}..." if row['error'] else ""
                 print(f"  {row['year']}-{row['month']:02d}: Links {links_icon} {row['collected_links']:,}/{row['expected_links']:,} | Details {details_icon} {row['scraped_details']:,}{err}")
         else:
