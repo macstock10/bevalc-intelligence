@@ -1,0 +1,55 @@
+{
+  "week_ending": "January 11, 2026",
+  "generated_at": "2026-01-08T15:00:00Z",
+  "scanned_sources": 12,
+
+  "news_items": [
+    {
+      "headline": "Johnson Brothers Expands Proximo Spirits Distribution Partnership",
+      "category": "Distribution / M&A",
+      "date": "January 8, 2026",
+      "summary": "Johnson Brothers announced a major expansion of its distribution partnership with Proximo Spirits, extending across 8 additional markets effective February 1, 2026. This brings their partnership to 17 markets nationwide.",
+      "relevance": "Monitor for TTB filing activity from Proximo-affiliated brands like Jose Cuervo and 1800 Tequila in the new distribution markets.",
+      "source_url": "https://wineindustryadvisor.com/2026/01/08/johnson-brothers-expands-partnership-with-proximo-spirits-across-key-us-markets/"
+    },
+    {
+      "headline": "Craft Beer Industry Facing 'Great Reset' - Lagers to Dominate 2026",
+      "category": "Craft Beer Trends",
+      "date": "January 2026",
+      "summary": "The craft beer industry is experiencing significant restructuring as closures continue to outpace openings (434 closures vs. 268 openings in 2025). Lagers expected to dominate taplines in 2026. Non-alcoholic beer continues its surge with 25.1% year-over-year dollar sales growth.",
+      "relevance": "Track TTB filings showing the shift toward lager styles and NA beer entries from craft producers.",
+      "source_url": "https://vinepair.com/articles/hop-take-beer-stories-to-shape-2026/"
+    },
+    {
+      "headline": "RTD Cocktails Overtaking Hard Seltzers - Market to Double by 2033",
+      "category": "RTD / Spirits",
+      "date": "January 2026",
+      "summary": "RTD cocktail category projected to grow from $5.4 billion in 2026 to $11.1 billion by 2033. Spirit-based cocktails are now overtaking hard seltzers in volume, representing 12% of U.S. alcohol sales volume.",
+      "relevance": "Track RTD-related TTB filings and new brand entries in the spirits-based cocktail space. This week showed 1,568 RTD/Cocktails filings.",
+      "source_url": "https://www.beveragedaily.com/Article/2025/11/19/new-launches-in-rtd-alcohol-and-canned-cocktails/"
+    },
+    {
+      "headline": "Wine & Spirits Tariff Battle Heads to Supreme Court",
+      "category": "Regulatory / Trade Policy",
+      "date": "Ongoing into 2026",
+      "summary": "Wine continues to carry a 15% U.S. import tariff. A coalition of wine importers has challenged the tariffs in court, with the case expected to reach the Supreme Court in 2026. Beverage alcohol sales were down 5% in both volume and value terms in late December 2025.",
+      "relevance": "Monitor import filings and any shifts in origin patterns that may indicate tariff-driven sourcing changes.",
+      "source_url": "https://robbreport.com/food-drink/wine/lists/wine-world-2026-predictions-1237463511/"
+    },
+    {
+      "headline": "TTB Finalizes CBMA Tax Benefit Assignment Rules",
+      "category": "TTB Regulatory Update",
+      "date": "September 2025 (Effective Now)",
+      "summary": "TTB made permanent the Craft Beverage Modernization Act (CBMA) provisions for reduced excise tax rates. Foreign producers now have an additional calendar quarter (until March 31 instead of December 31) to submit tax benefit assignments.",
+      "relevance": "Reminder to subscribers about the extended CBMA assignment deadline for 2025 tax year filings.",
+      "source_url": "https://www.ttb.gov/laws-regulations-and-public-guidance"
+    }
+  ],
+
+  "newsletter_integration": {
+    "lead_story": "Johnson Brothers/Proximo expansion signals continued consolidation in distribution tier",
+    "industry_context": "Craft beer closures outpace openings, but lagers and NA beer show growth",
+    "market_trend": "RTD cocktails overtaking hard seltzers - relevant to our 1,568 RTD filings this week",
+    "regulatory_note": "CBMA deadline extension - practical info for pro subscribers"
+  }
+}
