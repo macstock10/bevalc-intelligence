@@ -498,6 +498,19 @@ def run_daily_sync(
             all_records = [dict(row) for row in conn.execute("SELECT * FROM colas")]
             conn.close()
 
+            # Fix year/month based on approval_date (not scrape date)
+            # approval_date format is MM/DD/YYYY
+            for record in all_records:
+                approval_date = record.get('approval_date', '')
+                if approval_date and '/' in approval_date:
+                    parts = approval_date.split('/')
+                    if len(parts) == 3:
+                        try:
+                            record['month'] = int(parts[0])
+                            record['year'] = int(parts[2])
+                        except ValueError:
+                            pass
+
     except Exception as e:
         logger.error(f"Scraping failed: {e}")
         import traceback
