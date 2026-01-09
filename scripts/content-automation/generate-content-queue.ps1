@@ -66,7 +66,7 @@ try {
         $outputFile = Join-Path $queueDir "weekly-data-$WeekEnding.json"
         if (Test-Path $outputFile) {
             Add-StepResult -Step "Data Mining" -Status "success" -Output $outputFile
-            Write-Host "  ✓ Weekly data saved to $outputFile"
+            Write-Host "  [OK] Weekly data saved to $outputFile"
         } else {
             Add-StepResult -Step "Data Mining" -Status "warning" -Output "File not created (dry-run?)"
         }
@@ -75,7 +75,7 @@ try {
     }
 } catch {
     Add-StepResult -Step "Data Mining" -Status "error" -Error $_.Exception.Message
-    Write-Host "  ✗ Error: $($_.Exception.Message)"
+    Write-Host "  [ERR] Error: $($_.Exception.Message)"
     $results.errors += "Data Mining failed: $($_.Exception.Message)"
 }
 
@@ -122,10 +122,10 @@ if (-not $SkipNews) {
     if (-not $DryRun) {
         $newsFile = Join-Path $queueDir "news-digest-$WeekEnding.json"
         $newsDigest | ConvertTo-Json -Depth 5 | Out-File -FilePath $newsFile -Encoding utf8
-        Write-Host "  → Placeholder saved to $newsFile"
+        Write-Host "  -> Placeholder saved to $newsFile"
     }
 } else {
-    Write-Host "[2/5] News Aggregation - SKIPPED (--SkipNews flag)"
+    Write-Host "[2/5] News Aggregation - SKIPPED (-SkipNews flag)"
     Add-StepResult -Step "News Aggregation" -Status "skipped" -Output "User skipped"
 }
 
@@ -158,16 +158,16 @@ if (-not $SkipStories) {
         if (-not $DryRun) {
             $storiesFile = Join-Path $queueDir "stories-$WeekEnding.json"
             $stories | ConvertTo-Json -Depth 5 | Out-File -FilePath $storiesFile -Encoding utf8
-            Write-Host "  → Candidates saved to $storiesFile"
+            Write-Host "  -> Candidates saved to $storiesFile"
         }
 
         Add-StepResult -Step "Story Generation" -Status "partial" -Output "Candidates identified"
     } else {
-        Write-Host "  ✗ Weekly data not found - skipping"
+        Write-Host "  [ERR] Weekly data not found - skipping"
         Add-StepResult -Step "Story Generation" -Status "skipped" -Output "No weekly data"
     }
 } else {
-    Write-Host "[3/5] Story Generation - SKIPPED (--SkipStories flag)"
+    Write-Host "[3/5] Story Generation - SKIPPED (-SkipStories flag)"
     Add-StepResult -Step "Story Generation" -Status "skipped" -Output "User skipped"
 }
 
@@ -180,8 +180,8 @@ Write-Host "[4/5] Content Writing - Generating articles..."
 Write-Host "----------------------------------------------"
 
 Write-Host "  Content writing requires Claude - use these commands:"
-Write-Host "    /company-spotlight <company>  - Generate company content"
-Write-Host "    /trend-report <category>      - Generate trend analysis"
+Write-Host "    /company-spotlight [company]  - Generate company content"
+Write-Host "    /trend-report [category]      - Generate trend analysis"
 Write-Host ""
 Write-Host "  Creating articles placeholder..."
 
@@ -195,7 +195,7 @@ $articles = @{
 if (-not $DryRun) {
     $articlesFile = Join-Path $queueDir "articles-$WeekEnding.json"
     $articles | ConvertTo-Json -Depth 5 | Out-File -FilePath $articlesFile -Encoding utf8
-    Write-Host "  → Placeholder saved to $articlesFile"
+    Write-Host "  -> Placeholder saved to $articlesFile"
 }
 
 Add-StepResult -Step "Content Writing" -Status "partial" -Output "Placeholder created"
@@ -238,13 +238,13 @@ if (Test-Path $weeklyDataFile) {
     if (-not $DryRun) {
         $newsletterFile = Join-Path $queueDir "newsletter-$WeekEnding.json"
         $newsletter | ConvertTo-Json -Depth 5 | Out-File -FilePath $newsletterFile -Encoding utf8
-        Write-Host "  ✓ Newsletter assembled: $newsletterFile"
+        Write-Host "  [OK] Newsletter assembled: $newsletterFile"
     }
 
     Add-StepResult -Step "Newsletter Assembly" -Status "success" -Output "Newsletter ready"
 
 } else {
-    Write-Host "  ✗ Cannot assemble - weekly data missing"
+    Write-Host "  [ERR] Cannot assemble - weekly data missing"
     Add-StepResult -Step "Newsletter Assembly" -Status "error" -Error "Weekly data missing"
 }
 

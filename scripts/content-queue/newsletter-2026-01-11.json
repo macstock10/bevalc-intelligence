@@ -1,66 +1,53 @@
-{
-  "week_ending": "January 11, 2026",
-  "generated_at": "2026-01-08T14:35:00Z",
+﻿{
+    "week_ending":  "2026-01-11",
+    "preview_text":  " new brands,  new companies",
+    "generated_at":  "2026-01-08T20:09:34.7668378-05:00",
+    "status":  "ready_for_review",
+    "sections":  {
+                     "story_hooks":  null,
+                     "top_filers":  {
 
-  "email_subject": "21,633 Labels Filed. A Lawyer Whiskey. Some Dragons.",
-
-  "preview_text": "TTB filings for the week ending January 11, 2026. Wine dominated. Breweries are making whiskey and wine now.",
-
-  "sections": {
-    "header": {
-      "headline": "This Week in TTB Filings",
-      "subhead": "January 5-11, 2026"
-    },
-
-    "lead": "The TTB approved 21,633 label applications this week. 5,615 were new brands. 787 were from companies filing for the first time. Someone filed a whiskey called 'Association of Corporate Counsel.' I will get to that.",
-
-    "stats_block": {
-      "total_filings": "21,633",
-      "new_brands": "5,615",
-      "new_companies": "787",
-      "top_category": "Wine (63%)"
-    },
-
-    "main_story": {
-      "headline": "The Corporate Counsel Whiskey",
-      "body": "AlphaBeta Brewery filed a whiskey called 'Association of Corporate Counsel' on January 8th. The TTB approved it.\n\nA brewery. Making whiskey. Named after what appears to be a legal trade organization.\n\nI do not know if actual lawyers are involved. I am not going to investigate further. The filing exists. That is enough."
-    },
-
-    "quick_hits": [
-      "Tree House Brewing filed 178 labels. They do this a lot.",
-      "Burial Beer Co. filed a red wine called 'Conjured in Shadows.' A brewery. Making wine.",
-      "Vicious Fishes Brewery filed two dragon IPAs in one week. The company makes fish-themed beer about dragons.",
-      "Four Loko filed 'STORM.' They are still innovating. The brand persists."
-    ],
-
-    "notable_names": [
-      "GHOST IN THE LABORATORY (Equilibrium Brewery)",
-      "MANDATORY FUN BEER WORKS - WILD AND CRAZY (Arcanum Ventures)",
-      "BLACK MARKET - PRIVATE BARREL (Back Door Brands)",
-      "TEMPLETON - MIDNIGHT RYE (Templeton Rye Spirits)"
-    ],
-
-    "closing": "These are the things that happened in the TTB database this week. I read them so you do not have to. Or maybe you want to. The database is there.",
-
-    "cta": {
-      "text": "Search the Database",
-      "url": "https://bevalcintel.com/database"
-    }
-  },
-
-  "linkedin_ready": [
-    "21,633 alcohol labels were filed with the TTB last week. 5,615 were new brands. 787 were from companies filing for the first time ever.\n\nSomeone at a company called AlphaBeta Brewery filed a whiskey called \"Association of Corporate Counsel.\" It was approved on January 8th. I do not know why a brewery is making whiskey. I do not know why they named it after what appears to be a legal trade organization.\n\nThese are the things that happen in the TTB database. We track them.",
-
-    "Tree House Brewing Company filed 178 labels in one week. That is more than one per hour if you assume eight-hour days.\n\nThey make hazy IPAs. People drive to Massachusetts to buy them. The company does not distribute widely. You have to go there or know someone who went there.\n\nSomehow this business model supports filing 178 labels in seven days. I do not fully understand craft beer economics.",
-
-    "A brewery in Asheville called Burial Beer Co. filed a red wine this week. The wine is called \"VISUALS\" with a fanciful name of \"CONJURED IN SHADOWS.\"\n\nI do not know when breweries started making wine. The TTB approved it. It is in the database now. A beer company making wine. The categories blur.",
-
-    "Four Loko filed a new variant called \"STORM\" this week. This is at least the fourteenth new Four Loko filing in the past six months.\n\nThe brand persists. They are still innovating. Someone is still drinking Four Loko. Multiple someones, presumably, given the ongoing filing activity.\n\nI track these things. I do not judge them."
-  ],
-
-  "blog_version": {
-    "title": "21,633 Labels Were Filed This Week. Here Are Some of Them.",
-    "url_slug": "weekly-roundup-2026-01-11",
-    "content_file": "articles-2026-01-11.json"
-  }
+                                    },
+                     "the_numbers":  [
+                                         {
+                                             "value":  null,
+                                             "label":  "New Brands"
+                                         },
+                                         {
+                                             "value":  null,
+                                             "label":  "New SKUs"
+                                         },
+                                         {
+                                             "value":  null,
+                                             "label":  "New Companies"
+                                         }
+                                     ],
+                     "category_breakdown":  [
+                                                {
+                                                    "category":  "Wine",
+                                                    "count":  13658
+                                                },
+                                                {
+                                                    "category":  "Beer",
+                                                    "count":  4955
+                                                },
+                                                {
+                                                    "category":  "Spirits",
+                                                    "count":  1163
+                                                },
+                                                {
+                                                    "category":  "RTD/Cocktails",
+                                                    "count":  1568
+                                                },
+                                                {
+                                                    "category":  "Other",
+                                                    "count":  289
+                                                }
+                                            ],
+                     "hero_stat":  {
+                                       "number":  null,
+                                       "label":  "Filings This Week"
+                                   }
+                 },
+    "subject_line":  "Wine Leads with  Filings - Week of 2026-01-11"
 }
