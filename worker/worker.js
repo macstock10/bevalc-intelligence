@@ -2390,16 +2390,32 @@ async function handleCompanyPage(path, env, corsHeaders) {
     if (!company) {
         // Convert slug to search terms (e.g., "moonshine-depot-rmrh" -> ["moonshine", "depot", "rmrh"])
         const searchTerms = slug.split('-').filter(t => t.length > 2);
-        // Search for raw_name containing these terms
-        if (searchTerms.length >= 2) {
-            const pattern = `%${searchTerms.slice(0, 3).join('%')}%`;
-            const aliasResult = await env.DB.prepare(`
-                SELECT c.* FROM companies c
-                JOIN company_aliases ca ON c.id = ca.company_id
-                WHERE UPPER(ca.raw_name) LIKE UPPER(?)
-                AND c.total_filings >= 1
-                LIMIT 1
-            `).bind(pattern).first();
+
+        if (searchTerms.length >= 1) {
+            // For single terms (e.g., "diageo"), search for canonical_name starting with that term
+            // For multiple terms, use the pattern matching approach
+            let aliasResult = null;
+
+            if (searchTerms.length === 1) {
+                // Single word lookup - find companies whose canonical name starts with this term
+                aliasResult = await env.DB.prepare(`
+                    SELECT * FROM companies
+                    WHERE UPPER(canonical_name) LIKE UPPER(?)
+                    AND total_filings >= 1
+                    ORDER BY total_filings DESC
+                    LIMIT 1
+                `).bind(`${searchTerms[0]}%`).first();
+            } else {
+                // Multi-word lookup - search for raw_name containing these terms
+                const pattern = `%${searchTerms.slice(0, 3).join('%')}%`;
+                aliasResult = await env.DB.prepare(`
+                    SELECT c.* FROM companies c
+                    JOIN company_aliases ca ON c.id = ca.company_id
+                    WHERE UPPER(ca.raw_name) LIKE UPPER(?)
+                    AND c.total_filings >= 1
+                    LIMIT 1
+                `).bind(pattern).first();
+            }
             company = aliasResult;
         }
     }
@@ -2407,17 +2423,16 @@ async function handleCompanyPage(path, env, corsHeaders) {
     // Last resort: search directly in colas table for company_name matching the slug pattern
     if (!company) {
         const searchTerms = slug.split('-').filter(t => t.length > 2);
-        if (searchTerms.length >= 2) {
+        if (searchTerms.length >= 1) {
             // Try multiple patterns to handle possessives (e.g., "kvasirs" from "Kvasir's")
             // Strip trailing 's' from terms as a fallback
             const termsToUse = searchTerms.slice(0, 4);
             const strippedTerms = termsToUse.map(t => t.endsWith('s') && t.length > 3 ? t.slice(0, -1) : t);
 
-            // Try original pattern first, then stripped pattern
-            const patterns = [
-                `%${termsToUse.join('%')}%`,
-                `%${strippedTerms.join('%')}%`
-            ];
+            // Build patterns - for single terms, also try prefix match
+            const patterns = searchTerms.length === 1
+                ? [`${termsToUse[0]}%`, `%${termsToUse[0]}%`]
+                : [`%${termsToUse.join('%')}%`, `%${strippedTerms.join('%')}%`];
 
             let colaResult = null;
             for (const pattern of patterns) {
