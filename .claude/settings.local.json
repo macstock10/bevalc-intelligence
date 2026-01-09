@@ -22,7 +22,8 @@
       "Bash(do echo -n \"sitemap-brands-$i.xml: \")",
       "Bash(done)",
       "Bash(ls:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npx wrangler d1 execute:*)"
     ]
   }
 }

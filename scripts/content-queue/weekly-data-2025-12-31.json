@@ -1,0 +1,82 @@
+{
+  "week_ending": "December 31, 2025",
+  "date_range": "12/25/2025 - 12/31/2025",
+  "data_source": "D1 query verified 2026-01-08",
+  "summary_stats": {
+    "total_filings": 14099,
+    "new_brands": 3411,
+    "new_skus": 4234,
+    "new_companies": 168,
+    "refiles": 6286
+  },
+  "top_10_filing_companies": [
+    {"company_name": "Accolade Brands, ACCOLADE BRANDS, INC.", "filing_count": 173},
+    {"company_name": "WINE CELLARS LTD.", "filing_count": 158},
+    {"company_name": "Twenty-One Wine & Spirits, Aftermath Wine & Spirits LLC", "filing_count": 143},
+    {"company_name": "MHW, LTD.", "filing_count": 132},
+    {"company_name": "PARK STREET IMPORTS LLC", "filing_count": 129},
+    {"company_name": "FRUIT OF THE VINES, INC.", "filing_count": 107},
+    {"company_name": "The Finer Things Company", "filing_count": 105},
+    {"company_name": "FREE RUN LLC", "filing_count": 92},
+    {"company_name": "ELENTENY IMPORTS, T. ELENTENY HOLDINGS, LLC", "filing_count": 86},
+    {"company_name": "Master the world, Master The World, Inc", "filing_count": 71}
+  ],
+  "story_worthy_brands": [
+    {
+      "brand_name": "ROBNIK STRATEGIES",
+      "company_name": "Sideshow Spirits, Kinkaider Brewing Co., LLC",
+      "class_type_code": "STRAIGHT BOURBON WHISKY",
+      "approval_date": "12/30/2025",
+      "hook": "Sounds like a consulting firm, is actually bourbon"
+    },
+    {
+      "brand_name": "WONKY EAR",
+      "company_name": "Sideshow Spirits, Kinkaider Brewing Co., LLC",
+      "class_type_code": "AMERICAN SINGLE MALT WHISKEY",
+      "approval_date": "12/30/2025",
+      "hook": "Same distillery filed two odd names in one day"
+    },
+    {
+      "brand_name": "BEARDED HOBO",
+      "company_name": "The Bearded Hobo, Sixsons LLC",
+      "class_type_code": "ALE",
+      "approval_date": "12/30/2025",
+      "hook": "Company named after the beer, or beer named after the company"
+    },
+    {
+      "brand_name": "2ND AMENDMENT",
+      "company_name": "Tridentine Brewing, Tridentine Brewing LLC",
+      "class_type_code": "ALE",
+      "approval_date": "12/30/2025",
+      "hook": "Constitutional beer from Tridentine (Latin Mass) Brewing"
+    },
+    {
+      "brand_name": "JABBERWOCKY DOUBLE INDIA PALE ALE",
+      "company_name": "Aldus Brewing Co.",
+      "class_type_code": "ALE",
+      "approval_date": "12/31/2025",
+      "hook": "Lewis Carroll reference, last business day of 2025"
+    },
+    {
+      "brand_name": "100 VECES / 100 VECESS",
+      "company_name": "CRAFT SPIRITS TOP INC",
+      "class_type_code": "TEQUILA FB",
+      "approval_date": "12/31/2025",
+      "hook": "Filed twice - once with a typo"
+    },
+    {
+      "brand_name": "THE 12TH SPICE",
+      "company_name": "Jacob Rieger & Company, Jacob Rieger & Company, LLC",
+      "class_type_code": "BOURBON WHISKY",
+      "approval_date": "12/30/2025",
+      "hook": "What are the other 11 spices"
+    },
+    {
+      "brand_name": "LOST IN SPACE",
+      "company_name": "Rocket Dog Beer Company LLC",
+      "class_type_code": "ALE",
+      "approval_date": "12/23/2025",
+      "hook": "Space-themed beer from Rocket Dog"
+    }
+  ]
+}
