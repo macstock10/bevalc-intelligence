@@ -2725,7 +2725,7 @@ async function handleCompanyPage(path, env, corsHeaders) {
                 <h3>Unlock Company Insights</h3>
                 <p>Get full access to ${escapeHtml(company.display_name)}'s brand portfolio, filing history, and detailed analytics.</p>
                 <a href="/#pricing" class="btn">Upgrade to Pro</a>
-                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $29/month</p>
+                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $49/month</p>
             </div>
         </div>
     `;
@@ -2902,7 +2902,7 @@ async function handleBrandPage(path, env, corsHeaders) {
                 <h3>Unlock Brand Insights</h3>
                 <p>Get full access to ${escapeHtml(brand.brand_name)}'s product catalog, filing history, and detailed analytics.</p>
                 <a href="/#pricing" class="btn">Upgrade to Pro</a>
-                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $29/month</p>
+                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $49/month</p>
             </div>
         </div>
     `;

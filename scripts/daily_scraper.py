@@ -477,7 +477,9 @@ class DailyScraper:
             return 0
 
         if total > MAX_RESULTS_PER_QUERY:
-            logger.warning(f"  Warning: {total} results exceeds {MAX_RESULTS_PER_QUERY} limit - some may be missed")
+            logger.error(f"  ERROR: {total} results exceeds {MAX_RESULTS_PER_QUERY} limit!")
+            logger.error(f"  Use weekly_update.py with --date {target_date.strftime('%Y-%m-%d')} for proper handling")
+            raise Exception(f"Too many results ({total}) for single-day scraper. Use weekly_update.py instead.")
 
         # Collect links from all pages
         collected = 0
