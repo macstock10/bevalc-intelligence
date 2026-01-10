@@ -758,11 +758,11 @@ function openModal(record) {
                                             </div>
                                         `;
                                     } else {
-                                        // No website - show N/A
+                                        // No website yet - show backfill in progress message
                                         return `
                                             <div class="detail-item">
                                                 <span class="detail-label detail-label-pro">${f.label}</span>
-                                                <span class="detail-value">N/A</span>
+                                                <span class="detail-value" style="color: #94a3b8; font-style: italic;">Data enrichment in progress</span>
                                             </div>
                                         `;
                                     }
