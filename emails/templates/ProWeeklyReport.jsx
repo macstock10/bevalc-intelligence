@@ -985,6 +985,7 @@ export function ProWeeklyReport({
                           textAlign: "center",
                         }}
                       >
+                        Category
                       </td>
                     </tr>
                     {/* Data Rows */}
