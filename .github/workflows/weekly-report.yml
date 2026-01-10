@@ -2,8 +2,8 @@ name: Weekly Report - Generate and Send
 
 on:
   schedule:
-    # Runs every Saturday at 2 PM UTC (9 AM ET) - after COLA update finishes
-    - cron: '0 14 * * 6'
+    # Runs every Friday at 7 PM UTC (2 PM ET) - deadline for enrichment
+    - cron: '0 19 * * 5'
   workflow_dispatch:  # Manual trigger button in GitHub UI
 
 jobs:

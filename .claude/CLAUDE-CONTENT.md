@@ -32,7 +32,8 @@ bevalc-intelligence/
 │       ├── trend-report.md         # Category trend analysis
 │       ├── scan-news.md            # Run news scanners
 │       ├── absurd-story.md         # Generate creative story
-│       └── brand-enricher.md       # Find brand websites
+│       ├── brand-enricher.md       # Find single brand website
+│       └── enrich-brands.md        # Batch enrich from weekly sync
 ├── skills/                          # Skill definitions
 │   ├── bevalc-business-context/    # Industry knowledge
 │   ├── bevalc-brand-voice/         # Writing style guide

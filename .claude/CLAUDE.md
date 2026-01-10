@@ -211,12 +211,17 @@ See `CLAUDE-CONTENT.md` for full documentation.
 **Lookup Priority:** Brand first, company fallback
 
 **Weekly Workflow:**
-1. Weekly sync runs → classifies NEW_COMPANY/NEW_BRAND
-2. Outputs `logs/needs_enrichment.json` with brands needing websites
-3. Run Claude session to enrich (uses brand-enricher skill)
-4. Modal shows website with "Wrong link?" feedback option
+1. **Thursday 10pm ET** - Weekly sync runs → classifies NEW_COMPANY/NEW_BRAND → outputs `logs/needs_enrichment.json`
+2. **Friday morning** - Open Claude Code, run `/enrich-brands` → auto-searches and saves websites
+3. **Friday 2pm ET** - Weekly email report sends automatically (deadline - enrichment should be done by then)
+
+**Commands:**
+- `/enrich-brands` - Batch process all brands in needs_enrichment.json
+- Brand enricher skill - Find single brand website on demand
 
 **Multi-Company Brands:** When same brand filed by multiple companies (e.g., WYATT EARP), use company_websites so each company's filing shows their own site.
+
+**Modal Footer:** "Report a data issue" link for user error reporting.
 
 ### Known Issues
 1. Scraping vulnerability - data accessible via SEO pages + sitemap
