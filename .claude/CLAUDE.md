@@ -200,6 +200,23 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - SEO page paywall (blur + upgrade modal for free users)
 - Database URL filtering (?signal=, ?date_from=, etc.)
 - Daily sync script (`daily_sync.py`) using cola_worker.py logic
+- Brand website enrichment with "Wrong link?" feedback option
+
+### Brand Website Enrichment
+
+**Tables:**
+- `brand_websites` - Brand-level websites (brand_name PK)
+- `company_websites` - Company-level websites (company_id PK)
+
+**Lookup Priority:** Brand first, company fallback
+
+**Weekly Workflow:**
+1. Weekly sync runs → classifies NEW_COMPANY/NEW_BRAND
+2. Outputs `logs/needs_enrichment.json` with brands needing websites
+3. Run Claude session to enrich (uses brand-enricher skill)
+4. Modal shows website with "Wrong link?" feedback option
+
+**Multi-Company Brands:** When same brand filed by multiple companies (e.g., WYATT EARP), use company_websites so each company's filing shows their own site.
 
 ### Known Issues
 1. Scraping vulnerability - data accessible via SEO pages + sitemap

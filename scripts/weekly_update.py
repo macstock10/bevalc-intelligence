@@ -1342,6 +1342,72 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
     return stats
 
 # ============================================================================
+# WEBSITE ENRICHMENT OUTPUT
+# ============================================================================
+
+def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
+    """
+    Output a list of new brands/companies that need website enrichment.
+    Creates a file that can be used for manual enrichment with Claude.
+    """
+    if not new_records:
+        return
+
+    # Get existing brand websites
+    existing_brands = set()
+    result = d1_execute("SELECT brand_name FROM brand_websites")
+    if result.get("success") and result.get("result"):
+        for row in result["result"][0].get("results", []):
+            existing_brands.add(row.get("brand_name", "").upper())
+
+    # Find records that need enrichment (NEW_COMPANY or NEW_BRAND, not in brand_websites)
+    needs_enrichment = []
+    for record in new_records:
+        brand = record.get('brand_name', '')
+        company = record.get('company_name', '')
+        category = record.get('class_type_code', '')
+
+        # Skip if already have website
+        if brand.upper() in existing_brands:
+            continue
+
+        # Only include NEW_COMPANY and NEW_BRAND signals
+        # (We'll look up the signal from D1 since it was just set)
+        needs_enrichment.append({
+            'brand_name': brand,
+            'company_name': company,
+            'class_type_code': category
+        })
+
+    if not needs_enrichment:
+        logger.info("No new brands need website enrichment")
+        return
+
+    # Remove duplicates (same brand+company)
+    seen = set()
+    unique_enrichment = []
+    for item in needs_enrichment:
+        key = (item['brand_name'], item['company_name'])
+        if key not in seen:
+            seen.add(key)
+            unique_enrichment.append(item)
+
+    # Output to file
+    enrichment_file = os.path.join(LOGS_DIR, "needs_enrichment.json")
+    with open(enrichment_file, 'w') as f:
+        json.dump(unique_enrichment, f, indent=2)
+
+    logger.info(f"Brands needing website enrichment: {len(unique_enrichment)}")
+    logger.info(f"Enrichment list saved to: {enrichment_file}")
+
+    # Also log first 10 for visibility
+    if unique_enrichment:
+        logger.info("First 10 brands needing enrichment:")
+        for item in unique_enrichment[:10]:
+            logger.info(f"  - {item['brand_name']} ({item['company_name'][:30]})")
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1462,6 +1528,9 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     if not dry_run and new_records:
         classify_result = classify_new_records(new_records)
         results['classify'] = classify_result
+
+        # Output brands needing website enrichment
+        output_enrichment_list(new_records, classify_result)
     else:
         logger.info("No new records to classify")
         results['classify'] = {'total': 0, 'new_companies': 0, 'new_brands': 0, 'refiles': 0}

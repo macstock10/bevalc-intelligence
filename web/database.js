@@ -758,15 +758,11 @@ function openModal(record) {
                                             </div>
                                         `;
                                     } else {
-                                        // No website - show N/A with submit link
-                                        const mailtoSubject = encodeURIComponent('Website submission for ' + (f.brandName || 'brand'));
-                                        const mailtoBody = encodeURIComponent('Brand: ' + (f.brandName || '') + '\nWebsite URL: ');
+                                        // No website - show N/A
                                         return `
                                             <div class="detail-item">
                                                 <span class="detail-label detail-label-pro">${f.label}</span>
-                                                <span class="detail-value">
-                                                    N/A · <a href="mailto:hello@bevalcintel.com?subject=${mailtoSubject}&body=${mailtoBody}" style="color: var(--color-primary); font-size: 0.85em;">Know this website? Submit it</a>
-                                                </span>
+                                                <span class="detail-value">N/A</span>
                                             </div>
                                         `;
                                     }
@@ -816,7 +812,18 @@ function openModal(record) {
             </div>
         `;
     });
-    
+
+    // Add footer with contact link
+    const mailtoSubject = encodeURIComponent('Data correction: ' + (record.ttb_id || ''));
+    const mailtoBody = encodeURIComponent('TTB ID: ' + (record.ttb_id || '') + '\nBrand: ' + (record.brand_name || '') + '\n\nCorrection:\n');
+    html += `
+        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
+            <a href="mailto:hello@bevalcintel.com?subject=${mailtoSubject}&body=${mailtoBody}" style="color: #94a3b8; font-size: 0.75em; text-decoration: none;">
+                Report a data issue
+            </a>
+        </div>
+    `;
+
     elements.modalBody.innerHTML = html;
     elements.modalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
