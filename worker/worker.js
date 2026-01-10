@@ -2590,13 +2590,21 @@ async function handleCompanyPage(path, env, corsHeaders) {
         relatedCompanies = relatedResult.results || [];
     }
 
-    // Calculate category percentages
+    // Calculate category percentages (deduplicated by category name)
     const totalCatFilings = categories.reduce((sum, c) => sum + c.cnt, 0);
-    const categoryBars = categories.slice(0, 6).map(c => ({
-        name: getCategory(c.class_type_code),
-        count: c.cnt,
-        pct: Math.round((c.cnt / totalCatFilings) * 100)
-    }));
+    const categoryMap = new Map();
+    for (const c of categories) {
+        const name = getCategory(c.class_type_code);
+        if (categoryMap.has(name)) {
+            categoryMap.get(name).count += c.cnt;
+        } else {
+            categoryMap.set(name, { name, count: c.cnt });
+        }
+    }
+    const categoryBars = Array.from(categoryMap.values())
+        .map(c => ({ ...c, pct: Math.round((c.count / totalCatFilings) * 100) }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 6);
 
     // Build brand-focused HTML
     const topBrandNames = brands.slice(0, 5).map(b => b.brand_name);
