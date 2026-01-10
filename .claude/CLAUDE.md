@@ -1,109 +1,245 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
-## Session Management
+---
 
-**At the END of every working session, Claude MUST:**
-1. Update this CLAUDE.md with any new files, features, or architecture changes
-2. Update RUNBOOK.md if new operational procedures were added
-3. Commit changes with message "Update context docs after [brief description]"
+## How Everything Runs (Execution Flow)
 
-**After EVERY code change, Claude MUST offer to run the full git commit and push:**
-- Ask the user if they want Claude to commit and push the changes
-- If yes, run: `git add -A && git commit -m "Description of change" && git push`
-- Always commit from the repo root directory
+This is the most important section. Read this first to understand how the system works.
 
-**At the START of every session, Claude SHOULD:**
-1. Read this file and RUNBOOK.md
-2. Ask what the user wants to accomplish
-3. Reference these docs to understand current state
+### Scheduled Data Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         WEEKLY CYCLE                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  FRIDAY 9pm ET (GitHub Actions: weekly-update.yml)                      │
+│  └─► weekly_update.py                                                   │
+│       ├─► 1. Scrape last 14 days from TTB website                       │
+│       ├─► 2. Insert records to D1 (colas table)                         │
+│       ├─► 3. Add new brands to brand_slugs (for SEO pages)              │
+│       ├─► 4. Add new companies to companies/company_aliases             │
+│       └─► 5. Classify: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE       │
+│                                                                         │
+│  SATURDAY 9am ET (GitHub Actions: weekly-report.yml)                    │
+│  └─► send_weekly_report.py                                              │
+│       ├─► 1. Query D1 for week's stats                                  │
+│       ├─► 2. Build email data (top filers, new brands, etc.)            │
+│       └─► 3. Send emails via Resend (free + pro users)                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Live System Architecture
+
+```
+USER REQUEST
+     │
+     ▼
+┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│  Netlify    │───▶│ Cloudflare Worker│───▶│  Cloudflare D1  │
+│  (web/)     │    │  (worker.js)     │    │  (1.9M+ COLAs)  │
+└─────────────┘    └────────┬─────────┘    └─────────────────┘
+                           │
+                           ▼
+                   ┌──────────────────┐
+                   │    Stripe API    │
+                   └──────────────────┘
+
+REQUESTS HANDLED BY WORKER:
+- /api/search → Query colas table, return results
+- /api/checkout → Create Stripe checkout session
+- /company/[slug] → SSR company page from D1
+- /brand/[slug] → SSR brand page from D1
+- /sitemap-*.xml → Proxy to R2 bucket
+```
+
+### Classification Logic
+
+When records are synced, they get a `signal` classification:
+
+```
+FOR EACH NEW RECORD:
+  │
+  ├─► Company NOT in company_aliases?
+  │   └─► signal = NEW_COMPANY
+  │
+  ├─► Company exists, but (company_id, brand_name) not seen?
+  │   └─► signal = NEW_BRAND
+  │
+  ├─► Company+Brand exists, but (company_id, brand_name, fanciful_name) not seen?
+  │   └─► signal = NEW_SKU
+  │
+  └─► All three exist?
+      └─► signal = REFILE
+```
 
 ---
 
 ## Project Overview
 
-BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1M+ records with weekly email reports for subscribers.
+BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1.9M+ records with weekly email reports for subscribers.
 
 **Live Site**: https://bevalcintel.com
-**GitHub**: https://github.com/macstock10/bevalc-intelligence
+**Price**: $49/month (Pro subscription via Stripe)
 
-## Related Documentation
-
-- **CLAUDE.md** (this file) - Project architecture, database schema, deployment
-- **CLAUDE-CONTENT.md** - Content automation infrastructure (agents, commands, skills)
-- **RUNBOOK.md** - Operational procedures, deployment, rollback
+---
 
 ## Folder Structure
 
 ```
 bevalc-intelligence/
 ├── .claude/
-│   ├── CLAUDE.md, CLAUDE-CONTENT.md
-│   ├── agents/                # 7 content automation subagents
-│   └── commands/              # 5 custom slash commands
-├── .github/workflows/         # daily-sync.yml, weekly-update.yml, weekly-report.yml
-├── emails/                    # React Email + Resend system
-│   ├── send.js, test-email.js, index.js
-│   ├── components/Layout.jsx
-│   └── templates/             # WeeklyReport, ProWeeklyReport, Welcome
+│   ├── CLAUDE.md              # THIS FILE - project architecture
+│   ├── CLAUDE-CONTENT.md      # Content automation (LinkedIn posts)
+│   ├── agents/                # Content subagents
+│   └── commands/              # Custom slash commands
+├── .github/workflows/
+│   ├── weekly-update.yml      # Friday 9pm: scrape + sync + classify
+│   └── weekly-report.yml      # Saturday 9am: send emails
+├── emails/
+│   ├── send.js                # Send email via Resend
+│   ├── test-email.js          # Test email tool
+│   ├── components/Layout.jsx  # Shared email layout
+│   └── templates/
+│       ├── Welcome.jsx        # Signup confirmation
+│       ├── WeeklyReport.jsx   # Free users
+│       └── ProWeeklyReport.jsx # Pro users
 ├── scripts/
-│   ├── daily_sync.py          # Daily TTB scraper + D1 sync + classification
-│   ├── cola_worker.py         # Core scraping logic (used by daily_sync.py)
-│   ├── export_and_upload.py   # D1 upload utilities
-│   ├── weekly_update.py       # TTB scraper + D1 sync (weekly)
-│   ├── weekly_report.py       # PDF report generator
-│   ├── send_weekly_report.py  # Query D1 + send weekly email
-│   ├── normalize_companies.py # Company name normalization
-│   ├── generate_sitemaps.py   # Static sitemaps → R2
-│   ├── batch_classify.py      # Batch classify historical records
-│   ├── content-automation/    # PowerShell automation
-│   └── src/email_sender.py    # Python wrapper for email
+│   ├── lib/
+│   │   ├── __init__.py
+│   │   └── d1_utils.py        # SHARED: D1 operations (d1_execute, insert, etc.)
+│   ├── weekly_update.py       # Main weekly scraper + D1 sync
+│   ├── send_weekly_report.py  # Query D1 + send emails
+│   ├── cola_worker.py         # Core scraping logic (Selenium)
+│   ├── batch_classify.py      # Reclassify historical records
+│   ├── normalize_companies.py # One-time: fuzzy match company names
+│   └── generate_sitemaps.py   # Generate sitemaps → upload to R2
 ├── skills/                    # Claude skill definitions
-├── templates/                 # Content templates
-├── reference/                 # Reference documentation
-├── web/                       # Frontend (Netlify)
-│   ├── index.html, database.html, account.html
-│   ├── database.js, ttb-categories.js, auth.js, style.css
-│   └── _redirects, robots.txt
-├── worker/                    # Cloudflare Worker
-│   ├── worker.js
-│   └── wrangler.toml
-├── data/ttb-categories.json   # Master TTB code hierarchy
-└── RUNBOOK.md
+├── templates/                 # LinkedIn post templates
+├── web/
+│   ├── index.html             # Landing page
+│   ├── database.html          # Search page
+│   ├── account.html           # User account/settings
+│   ├── database.js            # Search UI logic
+│   ├── auth.js                # Authentication
+│   ├── ttb-categories.js      # Category dropdown data
+│   └── style.css
+├── worker/
+│   ├── worker.js              # Cloudflare Worker (API + SSR pages)
+│   └── wrangler.toml          # Worker configuration
+├── data/
+│   └── ttb-categories.json    # Master TTB code hierarchy
+└── RUNBOOK.md                 # Operational procedures
 ```
 
-## Architecture
+---
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Static Site    │────▶│ Cloudflare Worker│────▶│  Cloudflare D1  │
-│  (Netlify)      │     │  (API Gateway)   │     │  (1M+ COLAs)    │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                                │
-                                ▼
-                        ┌──────────────────┐
-                        │    Stripe API    │
-                        └──────────────────┘
+## Key Scripts Explained
 
-GitHub Actions:
-  - Daily (7pm ET):  daily_sync.py → scrape → D1 → classify
-  - Weekly (Fri 9pm): weekly_update.py → weekly_report.py → send_weekly_report.py
-```
+### `scripts/lib/d1_utils.py` (SHARED MODULE)
+Common D1 operations used by both weekly_update.py and daily_sync.py:
+- `d1_execute(sql, params)` - Execute SQL against D1 API
+- `escape_sql_value(value)` - Escape values for inline SQL
+- `d1_insert_batch(records)` - Batch insert COLA records
+- `make_slug(text)` - Convert text to URL slug
+- `update_brand_slugs(records)` - Add brands to brand_slugs table
+- `add_new_companies(records)` - Add to companies/company_aliases tables
+- `get_company_id(company_name)` - Lookup normalized company_id
 
-### Data Flow
+### `scripts/weekly_update.py`
+Main weekly pipeline. Run: `python weekly_update.py`
+- Uses Selenium to scrape TTB website (last 14 days by default)
+- Inserts records to D1 with INSERT OR IGNORE (handles duplicates)
+- Classifies records (NEW_COMPANY/NEW_BRAND/NEW_SKU/REFILE)
+- Outputs `logs/needs_enrichment.json` (brands needing websites)
 
-1. **Daily Sync** (7pm ET daily): Scrape today's TTB filings → sync to D1 → classify records
-2. **Weekly Update** (Fridays 9pm ET): Full week scrape → sync to D1 → classify records
-3. **Weekly Report** (Saturdays 9am ET): Query D1 → generate PDF → send via Resend
-4. **API Layer** (`worker.js`): Search, filters, CSV export, Stripe, user prefs, watchlist, SEO pages
-5. **Frontend** (`web/`): Static HTML/JS → API calls to Worker
+### `scripts/send_weekly_report.py`
+Sends weekly emails. Run: `python send_weekly_report.py`
+- Queries D1 for week's statistics
+- Renders React Email templates
+- Sends via Resend API to free and pro users
 
-### Key Integration Points
+### `scripts/cola_worker.py`
+Core scraping class used by weekly_update.py:
+- `ColaWorker` - Handles browser, CAPTCHA, pagination
+- `process_date_range(start, end)` - Scrape a date range
 
-- **Stripe Webhooks**: `checkout.session.completed` → creates `user_preferences` in D1
-- **Category Mapping**: `TTB_CODE_CATEGORIES` shared between worker.js and database.js
-- **Email System**: React Email templates sent via Resend API
+---
+
+## Database Schema (Cloudflare D1)
+
+### `colas` - 1.9M+ COLA records
+| Column | Type | Notes |
+|--------|------|-------|
+| ttb_id | TEXT | Primary key (unique TTB ID) |
+| brand_name | TEXT | e.g., "JACK DANIELS" |
+| fanciful_name | TEXT | e.g., "OLD NO. 7" |
+| class_type_code | TEXT | TTB code like "BWN" |
+| origin_code | TEXT | "D" domestic, "I" import |
+| approval_date | TEXT | MM/DD/YYYY format |
+| status | TEXT | "APPROVED", "SURRENDERED", etc. |
+| company_name | TEXT | Raw name from TTB |
+| state | TEXT | Company state |
+| year | INT | From approval_date |
+| month | INT | From approval_date |
+| signal | TEXT | NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE |
+| refile_count | INT | Number of refiles for this SKU |
+
+### `companies` - Normalized company entities (~25K)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INT | Primary key |
+| canonical_name | TEXT | Normalized name |
+| display_name | TEXT | Display name |
+| slug | TEXT | URL slug |
+| match_key | TEXT | Uppercase for matching |
+| total_filings | INT | Count of filings |
+
+### `company_aliases` - Maps raw names to normalized companies
+| Column | Type | Notes |
+|--------|------|-------|
+| raw_name | TEXT | Exact name from TTB (unique) |
+| company_id | INT | FK to companies.id |
+
+### `brand_slugs` - Fast lookup for SEO pages (~240K)
+| Column | Type | Notes |
+|--------|------|-------|
+| slug | TEXT | Primary key |
+| brand_name | TEXT | Original brand name |
+| filing_count | INT | (Note: may be stale) |
+
+### `user_preferences` - Pro user settings
+| Column | Type | Notes |
+|--------|------|-------|
+| email | TEXT | Primary key |
+| stripe_customer_id | TEXT | Stripe customer ID |
+| is_pro | INT | 1 if active subscription |
+| categories | TEXT | JSON array of preferred categories |
+
+### `watchlist` - Pro user tracked items
+| Column | Type | Notes |
+|--------|------|-------|
+| email | TEXT | User email |
+| type | TEXT | "brand" or "company" |
+| value | TEXT | The tracked name |
+
+---
+
+## Environment Variables
+
+| Variable | Used By |
+|----------|---------|
+| `CLOUDFLARE_ACCOUNT_ID` | All scripts, Worker |
+| `CLOUDFLARE_D1_DATABASE_ID` | All scripts |
+| `CLOUDFLARE_API_TOKEN` | Scripts (D1 API access) |
+| `RESEND_API_KEY` | send_weekly_report.py, worker.js |
+| `STRIPE_SECRET_KEY` | Worker (checkout, webhooks) |
+| `STRIPE_PRICE_ID` | Worker (Pro subscription) |
+
+---
 
 ## Common Commands
 
@@ -114,203 +250,79 @@ cd worker && npx wrangler deploy
 # Test Worker locally
 cd worker && npx wrangler dev
 
-# Python scripts (use venv)
-cd scripts && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
+# Run weekly update manually
+cd scripts
+python weekly_update.py              # Full run (14 days)
+python weekly_update.py --dry-run    # Preview only
+python weekly_update.py --days 7     # Custom lookback
 
-# Daily sync (runs via GitHub Actions at 7pm ET)
-python daily_sync.py                 # Scrape today
-python daily_sync.py --days 3        # Catch up last 3 days
-python daily_sync.py --date 2026-01-07  # Specific date
-python daily_sync.py --dry-run       # Preview without D1 sync
+# Send weekly report manually
+python send_weekly_report.py
 
-# Weekly scripts
-python weekly_update.py              # Full run
-python weekly_update.py --dry-run    # Preview
-python weekly_report.py
+# Email preview
+cd emails && npm run dev             # Preview at localhost:3001
 
-# Email System
-cd emails && npm install && npm run dev    # Preview at localhost:3001
-node emails/test-email.js                  # Interactive test tool
+# Reclassify historical records (if needed)
+python batch_classify.py
 ```
 
-## Environment Variables
-
-| Variable | Used By |
-|----------|---------|
-| `CLOUDFLARE_ACCOUNT_ID` | All scripts, Worker |
-| `CLOUDFLARE_D1_DATABASE_ID` | All scripts |
-| `CLOUDFLARE_API_TOKEN` | Scripts (D1 API) |
-| `CLOUDFLARE_R2_*` | send_weekly_report.py (bucket access) |
-| `RESEND_API_KEY` | emails/send.js, email_sender.py |
-| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID` | Worker |
-
-## Database Schema (D1)
-
-**`colas`** - 1M+ COLA records
-- `ttb_id` (PK), `brand_name`, `fanciful_name`, `class_type_code`, `origin_code`, `approval_date`, `status`, `company_name`, `state`, `year`, `month`, `signal`, `refile_count`
-
-**`companies`** - Normalized entities (25K from 34K raw names)
-- `id`, `canonical_name`, `display_name`, `match_key`, `total_filings`, `variant_count`, `first_filing`, `last_filing`
-
-**`company_aliases`** - Maps raw `company_name` → `company_id`
-- `raw_name` (UNIQUE), `company_id` (FK → companies)
-
-**`brands`** - Brand entities (257K)
-- `brand_key`, `company_key`, `brand_name`, `first_seen_date`, `filing_count`
-
-**`brand_slugs`** - Fast slug lookup for SEO (240K)
-- `slug` (PK), `brand_name`, `filing_count`
-
-**`user_preferences`** - Pro user settings
-- `email` (PK), `stripe_customer_id`, `is_pro`, `categories` (JSON), `receive_free_report`
-
-**`watchlist`** - Pro user tracked items
-- `email`, `type` (brand/company), `value`
-
-```sql
--- Query filings by normalized company
-SELECT c.canonical_name, COUNT(*) as filings
-FROM colas co
-JOIN company_aliases ca ON co.company_name = ca.raw_name
-JOIN companies c ON ca.company_id = c.id
-GROUP BY c.id ORDER BY filings DESC;
-```
+---
 
 ## Content Automation
 
 See `CLAUDE-CONTENT.md` for full documentation.
 
-**LinkedIn Content (Primary Distribution):**
-- `/weekly-content` - Generate all 4 LinkedIn posts for the week
+**Main Command:** `/weekly-content` - Generates 4 LinkedIn posts from D1 data
 
-**Content Types:**
-1. **Weekly Intelligence Brief** (Monday) - Filing stats, top filers, analysis
-2. **Intent Signals** (Thu if notable) - Companies with unusual filing velocity
-3. **Category Analysis** (Friday) - Deep dive on rotating category
-4. **Market Movers** (Wednesday) - New market entrants, significant activity
+**LinkedIn Content Types:**
+1. **Weekly Intelligence Brief** (Monday 9am) - Filing stats, top filers
+2. **Market Movers** (Wednesday 10am) - New market entrants
+3. **Intent Signals** (Thursday 10am) - Filing velocity anomalies
+4. **Category Analysis** (Friday 10am) - Category deep dive
 
-**Templates:** `templates/linkedin-*.md`
+**Output:** `scripts/content-queue/linkedin-drafts-YYYY-MM-DD.md`
 
-**Tone:** Professional, data-forward, no emojis, no casual language
+**Tone:** Professional, data-forward, no emojis
 
-**Other commands:**
-- `/company-spotlight <company>` - Long-form company profile
-- `/trend-report <category>` - Detailed trend analysis
+---
 
-## Current State (Last Updated: 2026-01-10)
+## Programmatic SEO
 
-### Working Features
-- Frontend on Netlify, D1 with 1M+ records
-- Search/filter with category/subcategory cascading (11→67→420 codes)
-- Pro features: CSV export, watchlist, category preferences
-- React Email + Resend (WeeklyReport, ProWeeklyReport, Welcome)
-- Company normalization (26% reduction via fuzzy matching)
-- Programmatic SEO (~262K pages: companies, brands, categories)
-- Signal classification (NEW_COMPANY/NEW_BRAND/NEW_SKU/REFILE) + refile counts
-- SEO page paywall (blur + upgrade modal for free users)
-- Database URL filtering (?signal=, ?date_from=, etc.)
-- Daily sync script (`daily_sync.py`) using cola_worker.py logic
-- Brand website enrichment with "Wrong link?" feedback option
+**URLs:**
+- `/company/[slug]` - Company pages (SSR from D1)
+- `/brand/[slug]` - Brand pages (SSR from D1)
+- `/category/[code]/[year]` - Category pages
 
-### Brand Website Enrichment
+**Sitemaps:** Pre-generated in R2:
+- `/sitemap.xml` - Index
+- `/sitemap-companies.xml` - All companies
+- `/sitemap-brands-1.xml` through `-6.xml` - All brands (split for 50k limit)
 
-**Tables:**
-- `brand_websites` - Brand-level websites (brand_name PK)
-- `company_websites` - Company-level websites (company_id PK)
+**Paywall:** Pro content blurred for free users. Uses `bevalc_pro=1` cookie.
+- Test: `?pro=grant` (enable) / `?pro=revoke` (disable)
 
-**Lookup Priority:** Brand first, company fallback
-
-**Weekly Workflow:**
-1. **Thursday 10pm ET** - Weekly sync runs → classifies signals → outputs `logs/needs_enrichment.json`
-2. **Friday morning (before 2pm)** - Open Claude Code, say "enrich the new brands" → 60-90 min session
-3. **Friday 2pm ET** - Weekly email sends automatically
-
-**What Gets Enriched:**
-- Only NEW_COMPANY (~5-15/week) and NEW_BRAND (~150-200/week) signals
-- NOT NEW_SKU or REFILE (these inherit existing brand websites)
-- Brands without websites show "Data enrichment in progress" until backfilled
-
-**Commands:**
-- `/enrich-brands` - Batch process NEW_COMPANY + NEW_BRAND from needs_enrichment.json
-
-**Multi-Company Brands:** When same brand filed by multiple companies (e.g., WYATT EARP), use company_websites so each company's filing shows their own site.
-
-**Modal Footer:** "Report a data issue" link for user error reporting.
-
-### Known Issues
-1. Scraping vulnerability - data accessible via SEO pages + sitemap
-   - Consider: rate limiting, limiting data shown, honeypot entries
-
-## Programmatic SEO Pages
-
-**URLs:** `/company/[slug]`, `/brand/[slug]`, `/category/[category]/[year]`
-
-**Sitemap:** Pre-generated in R2, split for Google's 50k limit:
-- `/sitemap.xml` → index pointing to child sitemaps
-- `/sitemap-static.xml`, `/sitemap-companies.xml`, `/sitemap-brands-1.xml` through `-6.xml`
-
-**How served:** Netlify `_redirects` proxies to Worker → renders HTML from D1
-
-**Features:** JSON-LD structured data, internal linking, edge caching (1hr browser, 24hr edge)
-
-**Company pages:** Show brands, DBA names ("Also operates as:"), filing entity column, location
-
-**Paywall:** Uses `bevalc_pro=1` cookie. Test with `?pro=grant` / `?pro=revoke`
+---
 
 ## Technical Notes
 
-**D1 Batch Insert Limit**: Use inline SQL values, not parameterized queries (SQLite ~999 param limit)
+**D1 Batch Insert:** Use inline SQL values, not parameterized queries (SQLite ~999 param limit). The `d1_insert_batch()` function handles this.
 
-**TTB Date Fields**:
-- `approval_date` - The original approval date of the COLA (stored in each TTB record)
-- "Date Completed" (TTB search field) - When an action was completed (approval, surrender, amendment, etc.)
-- These are DIFFERENT dates. A label approved in 2018 might be surrendered in 2026 - the `approval_date` stays 2018, but "Date Completed" for the surrender action is 2026.
+**TTB Date Fields:**
+- `approval_date` - Original approval date (stored in record)
+- "Date Completed" - When action was completed (search filter only)
+- These are DIFFERENT. A 2018 label surrendered in 2026 keeps approval_date=2018.
 
-**TTB IDs are unique**: Each filing gets a unique TTB ID. A surrender of an old label is a new filing with its own unique TTB ID.
+**Company Normalization:** Raw company names are mapped to normalized `company_id` via `company_aliases` table. This handles "ABC Inc" vs "ABC Inc." as the same company.
 
-**COLA Classification**: Uses normalized `company_id` via `company_aliases` table:
-1. NEW_COMPANY - `company_id` never seen
-2. NEW_BRAND - company exists, `(company_id, brand_name)` never seen
-3. NEW_SKU - company+brand exists, `(company_id, brand_name, fanciful_name)` never seen
-4. REFILE - all three exist
+---
 
-**Chronological sorting** for batch_classify.py:
-```sql
-ORDER BY COALESCE(year, 9999) ASC, COALESCE(month, 99) ASC,
-         CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ASC, ttb_id ASC
-```
-Do NOT sort by `approval_date` string (MM/DD/YYYY sorts wrong lexicographically).
+## Session Management
 
-**Subcategory filtering**: Use exact TTB code matching via `TTB_CODE_TO_CATEGORY`, not LIKE patterns.
+**At END of session, Claude MUST:**
+1. Update this CLAUDE.md if architecture changed
+2. Update RUNBOOK.md if new procedures added
+3. Offer to commit: `git add -A && git commit -m "..." && git push`
 
-## UI Notes
-
-- Database table: Brand Name, Fanciful Name, Class/Type, Origin, Approval Date, Status, Company, State
-- Modal links: Brand → `/brand/[slug]`, Company → `/company/[slug]`
-- Track pills: Brand and Company only (Subcategory/Keyword removed)
-- Mobile: Track pills use `flex-direction: column` to prevent overflow
-
-## Email System
-
-**Templates** (`emails/templates/`):
-- `Welcome.jsx` - Triggered on signup (sent by worker.js)
-- `WeeklyReport.jsx` - Free users (Saturday cron)
-- `ProWeeklyReport.jsx` - Pro users with watchlist, spikes, full data
-
-**User segments** (from `user_preferences`):
-- Free: `subscribed_free_report = 1 AND is_pro = 0`
-- Pro: `is_pro = 1`
-
-**Testing:**
-```bash
-cd emails && npm run dev           # Preview at localhost:3001
-node test-email.js --email x@x.com --template weekly-report
-```
-
-**Sending:**
-```python
-from scripts.src.email_sender import send_weekly_report, send_welcome
-send_welcome(to="user@example.com", first_name="John")
-```
-
-**Brand colors:** Primary teal `#0d9488`, Text `#1e293b`
+**At START of session, Claude SHOULD:**
+1. Read this file to understand current state
+2. Ask what the user wants to accomplish

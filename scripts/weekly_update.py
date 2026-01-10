@@ -1,29 +1,30 @@
 """
 weekly_update.py - Automated weekly COLA scraper and D1 sync
 
-Runs every Sunday at 2am (via Windows Task Scheduler):
+Runs every Friday at 9pm ET (via GitHub Actions):
 1. Scrapes last 14 days from TTB
 2. Adds new COLAs to local consolidated_colas.db
 3. Syncs new records to Cloudflare D1
-4. Logs results
+4. Classifies records (NEW_COMPANY, NEW_BRAND, etc.)
+5. Logs results
 
 USAGE:
     # Run manually
     python weekly_update.py
-    
+
     # Dry run (no D1 push)
     python weekly_update.py --dry-run
-    
+
     # Custom lookback period
     python weekly_update.py --days 7
-    
+
     # Sync only (skip scraping, just push existing local data to D1)
     python weekly_update.py --sync-only
 
 SETUP:
     1. Ensure cola_worker.py is in the same directory
     2. Configure paths below
-    3. Set up Windows Task Scheduler (see bottom of file)
+    3. See .github/workflows/weekly-update.yml for GitHub Actions setup
 """
 
 import os
@@ -32,18 +33,32 @@ import json
 import sqlite3
 import argparse
 import logging
-import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
+
+# Add scripts dir to path for imports
+SCRIPT_DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Import shared D1 utilities
+from lib.d1_utils import (
+    init_d1_config,
+    d1_execute,
+    escape_sql_value,
+    d1_insert_batch,
+    make_slug,
+    update_brand_slugs,
+    add_new_companies,
+    get_company_id,
+)
 
 # ============================================================================
 # CONFIGURATION - Auto-detect paths (works on Windows and Linux/GitHub Actions)
 # ============================================================================
 
-# Auto-detect base directory from script location
-SCRIPT_DIR = Path(__file__).parent.resolve()
-BASE_DIR = SCRIPT_DIR.parent  # Goes up from /scripts to repo root
+# Base directory (goes up from /scripts to repo root)
+BASE_DIR = SCRIPT_DIR.parent
 
 # Paths relative to repo
 DATA_DIR = BASE_DIR / "data"
@@ -69,14 +84,17 @@ def load_env():
 
 load_env()
 
-# Cloudflare D1 Configuration (from environment variables)
+# Cloudflare D1 Configuration (read from env, passed to lib.d1_utils)
 CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
 CLOUDFLARE_D1_DATABASE_ID = os.environ.get("CLOUDFLARE_D1_DATABASE_ID")
 CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN")
 
+# Batch size for D1 inserts (D1 has limits on query size)
+D1_BATCH_SIZE = 500
+
 # Validate required env vars
 def validate_config():
-    """Check that all required config is present."""
+    """Check that all required config is present and initialize D1."""
     missing = []
     if not CLOUDFLARE_ACCOUNT_ID:
         missing.append("CLOUDFLARE_ACCOUNT_ID")
@@ -84,7 +102,7 @@ def validate_config():
         missing.append("CLOUDFLARE_D1_DATABASE_ID")
     if not CLOUDFLARE_API_TOKEN:
         missing.append("CLOUDFLARE_API_TOKEN")
-    
+
     if missing:
         print(f"ERROR: Missing required environment variables: {', '.join(missing)}")
         print(f"Please create a .env file at: {ENV_FILE}")
@@ -94,11 +112,14 @@ def validate_config():
         print(f"  CLOUDFLARE_API_TOKEN=your_api_token")
         sys.exit(1)
 
-# D1 API endpoint (constructed after loading env)
-D1_API_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/d1/database/{CLOUDFLARE_D1_DATABASE_ID}/query" if CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_D1_DATABASE_ID else None
-
-# Batch size for D1 inserts (D1 has limits on query size)
-D1_BATCH_SIZE = 500
+    # Initialize D1 configuration for shared module
+    init_d1_config(
+        account_id=CLOUDFLARE_ACCOUNT_ID,
+        database_id=CLOUDFLARE_D1_DATABASE_ID,
+        api_token=CLOUDFLARE_API_TOKEN,
+        batch_size=D1_BATCH_SIZE,
+        logger=logger
+    )
 
 # ============================================================================
 # LOGGING SETUP
@@ -123,281 +144,8 @@ def setup_logging():
 logger = setup_logging()
 
 # ============================================================================
-# CLOUDFLARE D1 FUNCTIONS
+# CLOUDFLARE D1 SYNC FUNCTION
 # ============================================================================
-
-def d1_execute(sql: str, params: List[Any] = None) -> Dict:
-    """
-    Execute a SQL query against Cloudflare D1.
-    Returns the API response dict.
-    """
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {"sql": sql}
-    if params:
-        payload["params"] = params
-    
-    response = requests.post(D1_API_URL, headers=headers, json=payload)
-    
-    if response.status_code != 200:
-        logger.error(f"D1 API error: {response.status_code} - {response.text}")
-        return {"success": False, "error": response.text}
-    
-    return response.json()
-
-
-def d1_get_existing_ttb_ids() -> set:
-    """Get all TTB IDs currently in D1 database."""
-    logger.info("Fetching existing TTB IDs from D1...")
-    
-    # D1 has row limits, so we need to paginate
-    all_ids = set()
-    offset = 0
-    batch_size = 10000
-    
-    while True:
-        result = d1_execute(f"SELECT ttb_id FROM colas LIMIT {batch_size} OFFSET {offset}")
-        
-        if not result.get("success") or not result.get("result"):
-            break
-        
-        rows = result["result"][0].get("results", [])
-        if not rows:
-            break
-        
-        for row in rows:
-            all_ids.add(row["ttb_id"])
-        
-        logger.info(f"  Fetched {len(all_ids):,} TTB IDs so far...")
-        
-        if len(rows) < batch_size:
-            break
-        
-        offset += batch_size
-    
-    logger.info(f"Total existing TTB IDs in D1: {len(all_ids):,}")
-    return all_ids
-
-
-def escape_sql_value(value) -> str:
-    """Escape a value for inline SQL."""
-    if value is None:
-        return "NULL"
-    if isinstance(value, (int, float)):
-        return str(value)
-    # Convert to string and escape special characters
-    s = str(value)
-    # Replace newlines, carriage returns, tabs with spaces
-    s = s.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-    # Escape single quotes by doubling them
-    s = s.replace("'", "''")
-    # Remove any other control characters
-    s = ''.join(c if ord(c) >= 32 or c in ' ' else ' ' for c in s)
-    return f"'{s}'"
-
-
-def d1_insert_batch(records: List[Dict]) -> Dict:
-    """
-    Insert a batch of records into D1 using bulk INSERT with inline values.
-    Uses INSERT OR IGNORE to skip duplicates.
-    """
-    if not records:
-        return {"success": True, "inserted": 0}
-
-    columns = [
-        'ttb_id', 'status', 'vendor_code', 'serial_number', 'class_type_code',
-        'origin_code', 'brand_name', 'fanciful_name', 'type_of_application',
-        'for_sale_in', 'total_bottle_capacity', 'formula', 'approval_date',
-        'qualifications', 'grape_varietal', 'wine_vintage', 'appellation',
-        'alcohol_content', 'ph_level', 'plant_registry', 'company_name',
-        'street', 'state', 'contact_person', 'phone_number', 'year', 'month'
-    ]
-
-    columns_str = ', '.join(columns)
-
-    # Build individual INSERT statements with inline values (avoids parameter limit)
-    statements = []
-    for record in records:
-        values = [escape_sql_value(record.get(col)) for col in columns]
-        values_str = ', '.join(values)
-        statements.append(f"INSERT OR IGNORE INTO colas ({columns_str}) VALUES ({values_str});")
-
-    # Join all statements into one SQL block
-    sql = '\n'.join(statements)
-
-    result = d1_execute(sql)
-
-    if result.get("success"):
-        # Sum up changes from all statements
-        total_changes = 0
-        for res in result.get("result", []):
-            total_changes += res.get("meta", {}).get("changes", 0)
-        return {"success": True, "inserted": total_changes}
-    else:
-        return {"success": False, "inserted": 0, "errors": [result.get("error", "Unknown error")]}
-
-
-def make_slug(text: str) -> str:
-    """Convert brand name to URL slug."""
-    if not text:
-        return ''
-    import re
-    text = text.lower()
-    text = re.sub(r"[''']", '', text)
-    text = re.sub(r'[^a-z0-9]+', '-', text)
-    text = text.strip('-')
-    return text
-
-
-def update_brand_slugs(new_records: List[Dict], dry_run: bool = False) -> Dict:
-    """
-    Add new brand names to brand_slugs table for fast SEO page lookups.
-    Called after syncing new records to D1.
-    """
-    if not new_records:
-        return {"success": True, "inserted": 0}
-
-    # Extract unique brand names from new records
-    brand_names = set()
-    for record in new_records:
-        brand_name = record.get('brand_name')
-        if brand_name:
-            brand_names.add(brand_name)
-
-    if not brand_names:
-        return {"success": True, "inserted": 0}
-
-    logger.info(f"Updating brand_slugs with {len(brand_names)} unique brands from new records...")
-
-    if dry_run:
-        logger.info("[DRY RUN] Would insert brand slugs")
-        return {"success": True, "dry_run": True, "brands": len(brand_names)}
-
-    # Build INSERT OR IGNORE statement
-    def escape_sql(value):
-        if value is None:
-            return "NULL"
-        return "'" + str(value).replace("'", "''") + "'"
-
-    values = []
-    for brand_name in brand_names:
-        slug = make_slug(brand_name)
-        if slug:
-            values.append(f"({escape_sql(slug)}, {escape_sql(brand_name)}, 1)")
-
-    if not values:
-        return {"success": True, "inserted": 0}
-
-    # Insert in batches of 500
-    batch_size = 500
-    total_inserted = 0
-
-    for i in range(0, len(values), batch_size):
-        batch = values[i:i + batch_size]
-        sql = f"INSERT OR IGNORE INTO brand_slugs (slug, brand_name, filing_count) VALUES {','.join(batch)}"
-        result = d1_execute(sql)
-        if result.get("success"):
-            # Count actual inserts from meta
-            for res in result.get("result", []):
-                total_inserted += res.get("meta", {}).get("changes", 0)
-
-    logger.info(f"Added {total_inserted} new brands to brand_slugs")
-    return {"success": True, "inserted": total_inserted}
-
-
-def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
-    """
-    Add new companies to companies and company_aliases tables.
-    This ensures new filers have SEO pages and can be normalized in future syncs.
-    """
-    if not records or dry_run:
-        return 0
-
-    # Get unique company names from records
-    company_names = set()
-    for record in records:
-        company_name = record.get('company_name')
-        if company_name and company_name.strip():
-            company_names.add(company_name.strip())
-
-    if not company_names:
-        return 0
-
-    # Check which companies already exist in company_aliases
-    existing = set()
-    for i in range(0, len(company_names), 100):
-        batch = list(company_names)[i:i + 100]
-        placeholders = ','.join([escape_sql_value(n) for n in batch])
-        result = d1_execute(f"SELECT raw_name FROM company_aliases WHERE raw_name IN ({placeholders})")
-        if result.get("success") and result.get("result"):
-            for res in result.get("result", []):
-                for row in res.get("results", []):
-                    existing.add(row.get("raw_name"))
-
-    # Filter to only new companies
-    new_companies = company_names - existing
-    if not new_companies:
-        logger.info("No new companies to add")
-        return 0
-
-    logger.info(f"Adding {len(new_companies)} new companies to database...")
-
-    # Get current max company ID
-    result = d1_execute("SELECT MAX(id) as max_id FROM companies")
-    max_id = 0
-    if result.get("success") and result.get("result"):
-        for res in result.get("result", []):
-            for row in res.get("results", []):
-                max_id = row.get("max_id") or 0
-
-    total_inserted = 0
-    next_id = max_id + 1
-
-    # Insert in batches
-    for i in range(0, len(new_companies), 100):
-        batch = list(new_companies)[i:i + 100]
-
-        # Build companies insert values
-        company_values = []
-        alias_values = []
-
-        for company_name in batch:
-            company_id = next_id
-            next_id += 1
-            slug = make_slug(company_name)
-
-            # Insert into companies table
-            company_values.append(
-                f"({company_id}, {escape_sql_value(company_name)}, {escape_sql_value(company_name)}, "
-                f"{escape_sql_value(slug)}, {escape_sql_value(company_name.upper())}, 1, 1, NULL, NULL)"
-            )
-
-            # Insert into company_aliases table
-            alias_values.append(
-                f"({escape_sql_value(company_name)}, {company_id})"
-            )
-
-        # Execute companies insert
-        if company_values:
-            sql = f"""INSERT OR IGNORE INTO companies
-                      (id, canonical_name, display_name, slug, match_key, total_filings, variant_count, first_filing, last_filing)
-                      VALUES {','.join(company_values)}"""
-            result = d1_execute(sql)
-            if result.get("success"):
-                for res in result.get("result", []):
-                    total_inserted += res.get("meta", {}).get("changes", 0)
-
-        # Execute aliases insert
-        if alias_values:
-            sql = f"INSERT OR IGNORE INTO company_aliases (raw_name, company_id) VALUES {','.join(alias_values)}"
-            d1_execute(sql)
-
-    logger.info(f"Added {total_inserted} new companies")
-    return total_inserted
-
 
 def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[Dict] = None) -> Dict:
     """
@@ -1236,21 +984,6 @@ def merge_new_data(temp_db: str) -> Dict:
 # ============================================================================
 # SIMPLE CLASSIFICATION (using normalized company IDs)
 # ============================================================================
-
-def get_company_id(company_name: str) -> int:
-    """Look up normalized company_id from company_aliases table."""
-    if not company_name:
-        return None
-    result = d1_execute(
-        "SELECT company_id FROM company_aliases WHERE raw_name = ?",
-        [company_name]
-    )
-    if result.get("success") and result.get("result"):
-        rows = result["result"][0].get("results", [])
-        if rows:
-            return rows[0].get("company_id")
-    return None
-
 
 def classify_new_records(new_records: List[Dict]) -> Dict:
     """
