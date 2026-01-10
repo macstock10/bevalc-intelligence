@@ -681,7 +681,7 @@ function openModal(record) {
         {
             title: 'Company Information',
             fields: [
-                { label: 'Company Name', value: record.company_name, isCompanyLink: true },
+                { label: 'Company Name', value: record.company_name, isCompanyLink: true, isPro: true },
                 { label: 'Street', value: record.street, isPro: true },
                 { label: 'State', value: record.state },
                 { label: 'Contact Person', value: record.contact_person, isPro: true },
@@ -726,6 +726,18 @@ function openModal(record) {
                         if (f.isPro) {
                             if (isPro) {
                                 // Pro user: show field with teal label
+                                // Handle company link specially
+                                if (f.isCompanyLink && f.value) {
+                                    const companySlug = makeSlug(f.value);
+                                    return `
+                                        <div class="detail-item">
+                                            <span class="detail-label detail-label-pro">${f.label}</span>
+                                            <span class="detail-value">
+                                                <a href="/company/${companySlug}" target="_blank" rel="noopener" style="color: var(--color-primary);">${escapeHtml(f.value)}</a>
+                                            </span>
+                                        </div>
+                                    `;
+                                }
                                 return `
                                     <div class="detail-item">
                                         <span class="detail-label detail-label-pro">${f.label}</span>
@@ -745,8 +757,8 @@ function openModal(record) {
                                 `;
                             }
                         }
-                        
-                        // Company link field (opens in new tab)
+
+                        // Company link field (opens in new tab) - for non-Pro company links
                         if (f.isCompanyLink && f.value) {
                             const companySlug = makeSlug(f.value);
                             return `
