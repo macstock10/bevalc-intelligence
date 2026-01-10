@@ -307,6 +307,9 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
     2. NEW_BRAND = company exists, but new brand
     3. NEW_SKU = company+brand exists, but new fanciful name
     4. REFILE = seen before
+
+    Fix: Excludes ALL records from current batch when checking D1,
+    and tracks what's seen within the batch to handle duplicates.
     """
     if not records or dry_run:
         return {'total': 0, 'new_companies': 0, 'new_brands': 0, 'new_skus': 0, 'refiles': 0}
@@ -321,6 +324,22 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
         'refiles': 0
     }
 
+    # Get all TTB IDs in this batch to exclude from D1 queries
+    batch_ttb_ids = set(r.get('ttb_id') for r in records if r.get('ttb_id'))
+
+    # Track what we've seen within this batch (for handling duplicates)
+    seen_companies = set()  # company_ids seen in this batch
+    seen_brands = set()     # (company_id, brand_name) tuples
+    seen_skus = set()       # (company_id, brand_name, fanciful_name) tuples
+
+    # Also track unknown companies by name (not in aliases table)
+    seen_unknown_companies = set()
+    seen_unknown_brands = set()
+    seen_unknown_skus = set()
+
+    # Build list of classifications to apply
+    classifications = []
+
     for record in records:
         ttb_id = record.get('ttb_id')
         company_name = record.get('company_name', '') or ''
@@ -328,70 +347,132 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
         fanciful_name = record.get('fanciful_name', '') or ''
 
         if not company_name or not brand_name:
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['REFILE', ttb_id])
+            classifications.append((ttb_id, 'REFILE'))
             stats['refiles'] += 1
             continue
 
         company_id = get_company_id(company_name)
 
         if company_id is None:
-            # Company not in aliases table - mark as NEW_COMPANY
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_COMPANY', ttb_id])
-            stats['new_companies'] += 1
+            # Company not in aliases table - track by company_name
+            if company_name not in seen_unknown_companies:
+                classifications.append((ttb_id, 'NEW_COMPANY'))
+                stats['new_companies'] += 1
+                seen_unknown_companies.add(company_name)
+                seen_unknown_brands.add((company_name, brand_name))
+                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
+            elif (company_name, brand_name) not in seen_unknown_brands:
+                classifications.append((ttb_id, 'NEW_BRAND'))
+                stats['new_brands'] += 1
+                seen_unknown_brands.add((company_name, brand_name))
+                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
+            elif (company_name, brand_name, fanciful_name) not in seen_unknown_skus:
+                classifications.append((ttb_id, 'NEW_SKU'))
+                stats['new_skus'] += 1
+                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
+            else:
+                classifications.append((ttb_id, 'REFILE'))
+                stats['refiles'] += 1
             continue
 
-        # Check if company has filed before
-        company_result = d1_execute(
-            """SELECT COUNT(*) as cnt FROM colas c
-               JOIN company_aliases ca ON c.company_name = ca.raw_name
-               WHERE ca.company_id = ? AND c.ttb_id != ?""",
-            [company_id, ttb_id]
-        )
-        company_existed = False
-        if company_result.get("success") and company_result.get("result"):
-            cnt = company_result["result"][0].get("results", [{}])[0].get("cnt", 0)
-            company_existed = cnt > 0
+        # Check if company existed BEFORE this batch (exclude all batch ttb_ids)
+        company_existed_before = False
+        if company_id not in seen_companies:
+            company_result = d1_execute(
+                """SELECT 1 FROM colas c
+                   JOIN company_aliases ca ON c.company_name = ca.raw_name
+                   WHERE ca.company_id = ? LIMIT 1""",
+                [company_id]
+            )
+            if company_result.get("success") and company_result.get("result"):
+                results = company_result["result"][0].get("results", [])
+                # Check if any result is NOT in our batch
+                for row in results:
+                    company_existed_before = True
+                    break
+                # Actually we need to check if records exist outside our batch
+                # Query count excluding our batch
+                company_result2 = d1_execute(
+                    f"""SELECT COUNT(*) as cnt FROM colas c
+                       JOIN company_aliases ca ON c.company_name = ca.raw_name
+                       WHERE ca.company_id = ?""",
+                    [company_id]
+                )
+                if company_result2.get("success") and company_result2.get("result"):
+                    total_cnt = company_result2["result"][0].get("results", [{}])[0].get("cnt", 0)
+                    # Count how many are in our batch
+                    batch_cnt = sum(1 for r in records if get_company_id(r.get('company_name', '')) == company_id)
+                    company_existed_before = (total_cnt - batch_cnt) > 0
 
-        if not company_existed:
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_COMPANY', ttb_id])
+        if not company_existed_before and company_id not in seen_companies:
+            classifications.append((ttb_id, 'NEW_COMPANY'))
             stats['new_companies'] += 1
+            seen_companies.add(company_id)
+            seen_brands.add((company_id, brand_name))
+            seen_skus.add((company_id, brand_name, fanciful_name))
             continue
 
-        # Check if brand exists for this company
-        brand_result = d1_execute(
-            """SELECT COUNT(*) as cnt FROM colas c
-               JOIN company_aliases ca ON c.company_name = ca.raw_name
-               WHERE ca.company_id = ? AND c.brand_name = ? AND c.ttb_id != ?""",
-            [company_id, brand_name, ttb_id]
-        )
-        brand_existed = False
-        if brand_result.get("success") and brand_result.get("result"):
-            cnt = brand_result["result"][0].get("results", [{}])[0].get("cnt", 0)
-            brand_existed = cnt > 0
+        seen_companies.add(company_id)
 
-        if not brand_existed:
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_BRAND', ttb_id])
+        # Check if brand existed BEFORE this batch
+        brand_key = (company_id, brand_name)
+        brand_existed_before = False
+        if brand_key not in seen_brands:
+            brand_result = d1_execute(
+                f"""SELECT COUNT(*) as cnt FROM colas c
+                   JOIN company_aliases ca ON c.company_name = ca.raw_name
+                   WHERE ca.company_id = ? AND c.brand_name = ?""",
+                [company_id, brand_name]
+            )
+            if brand_result.get("success") and brand_result.get("result"):
+                total_cnt = brand_result["result"][0].get("results", [{}])[0].get("cnt", 0)
+                # Count how many are in our batch with this company+brand
+                batch_cnt = sum(1 for r in records
+                               if get_company_id(r.get('company_name', '')) == company_id
+                               and r.get('brand_name', '') == brand_name)
+                brand_existed_before = (total_cnt - batch_cnt) > 0
+
+        if not brand_existed_before and brand_key not in seen_brands:
+            classifications.append((ttb_id, 'NEW_BRAND'))
             stats['new_brands'] += 1
+            seen_brands.add(brand_key)
+            seen_skus.add((company_id, brand_name, fanciful_name))
             continue
 
-        # Check if SKU exists
-        sku_result = d1_execute(
-            """SELECT COUNT(*) as cnt FROM colas c
-               JOIN company_aliases ca ON c.company_name = ca.raw_name
-               WHERE ca.company_id = ? AND c.brand_name = ? AND c.fanciful_name = ? AND c.ttb_id != ?""",
-            [company_id, brand_name, fanciful_name, ttb_id]
-        )
-        sku_existed = False
-        if sku_result.get("success") and sku_result.get("result"):
-            cnt = sku_result["result"][0].get("results", [{}])[0].get("cnt", 0)
-            sku_existed = cnt > 0
+        seen_brands.add(brand_key)
 
-        if not sku_existed:
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['NEW_SKU', ttb_id])
+        # Check if SKU existed BEFORE this batch
+        sku_key = (company_id, brand_name, fanciful_name)
+        sku_existed_before = False
+        if sku_key not in seen_skus:
+            sku_result = d1_execute(
+                f"""SELECT COUNT(*) as cnt FROM colas c
+                   JOIN company_aliases ca ON c.company_name = ca.raw_name
+                   WHERE ca.company_id = ? AND c.brand_name = ? AND c.fanciful_name = ?""",
+                [company_id, brand_name, fanciful_name]
+            )
+            if sku_result.get("success") and sku_result.get("result"):
+                total_cnt = sku_result["result"][0].get("results", [{}])[0].get("cnt", 0)
+                # Count how many are in our batch with this exact combo
+                batch_cnt = sum(1 for r in records
+                               if get_company_id(r.get('company_name', '')) == company_id
+                               and r.get('brand_name', '') == brand_name
+                               and (r.get('fanciful_name', '') or '') == fanciful_name)
+                sku_existed_before = (total_cnt - batch_cnt) > 0
+
+        if not sku_existed_before and sku_key not in seen_skus:
+            classifications.append((ttb_id, 'NEW_SKU'))
             stats['new_skus'] += 1
+            seen_skus.add(sku_key)
         else:
-            d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", ['REFILE', ttb_id])
+            classifications.append((ttb_id, 'REFILE'))
             stats['refiles'] += 1
+            seen_skus.add(sku_key)
+
+    # Apply all classifications to D1
+    logger.info(f"Applying {len(classifications)} classifications to D1...")
+    for ttb_id, signal in classifications:
+        d1_execute("UPDATE colas SET signal = ? WHERE ttb_id = ?", [signal, ttb_id])
 
     logger.info(f"Classification: {stats['new_companies']} new companies, "
                 f"{stats['new_brands']} new brands, {stats['new_skus']} new SKUs, "
