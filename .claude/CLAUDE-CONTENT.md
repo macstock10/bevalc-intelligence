@@ -31,11 +31,13 @@ bevalc-intelligence/
 │       ├── company-spotlight.md    # Company profile content
 │       ├── trend-report.md         # Category trend analysis
 │       ├── scan-news.md            # Run news scanners
-│       └── absurd-story.md         # Generate creative story
+│       ├── absurd-story.md         # Generate creative story
+│       └── brand-enricher.md       # Find brand websites
 ├── skills/                          # Skill definitions
 │   ├── bevalc-business-context/    # Industry knowledge
 │   ├── bevalc-brand-voice/         # Writing style guide
-│   └── content-workflow/           # Process documentation
+│   ├── content-workflow/           # Process documentation
+│   └── brand-enricher/             # Find brand websites
 ├── scripts/
 │   ├── content-automation/         # PowerShell automation
 │   │   ├── query-weekly-data.ps1   # Query D1
@@ -167,6 +169,22 @@ Generate a creative story from real filing data.
 /absurd-story --random --count 3
 ```
 
+### /brand-enricher
+Find official websites for beverage alcohol brands.
+```
+/brand-enricher "Wonky Ear"
+/brand-enricher "Carroll Noir" --save
+```
+
+**How it works:**
+1. Queries D1 to get company name and category for the brand
+2. Searches web with brand + company + category together
+3. Scores results (prefers official sites, skips retailers)
+4. Verifies top candidate with WebFetch
+5. Reports result with confidence level
+
+**Key insight:** Including company name from D1 dramatically improves accuracy. "Wonky Ear" alone = poor results. "Wonky Ear Sideshow Spirits whiskey" = finds distillery immediately.
+
 ## Skills
 
 ### bevalc-business-context
@@ -190,6 +208,15 @@ Process documentation:
 - Content creation workflows
 - Publishing checklists
 - Quality standards
+
+### brand-enricher
+Find official brand websites:
+- Query D1 for company + category context
+- Web search with all three pieces (brand + company + category)
+- Score and verify results
+- Skip retailers, prefer official sites
+
+**Trigger phrases:** "find the website for", "look up website", "enrich brand"
 
 ## Content Queue
 
