@@ -12,26 +12,29 @@ Data Source: BevAlc Intelligence D1 Database (LIVE QUERIES)
 **Moving Averages (calculated from monthly data):**
 | Benchmark | Weekly Rate | vs This Week |
 |-----------|-------------|--------------|
-| 4-week avg (Dec 2025) | 3,019/week | -62% |
-| 13-week avg (Q4 2025) | 2,661/week | -57% |
-| Same month last year (Jan 2025) | 2,939/week | -61% |
+| 4-week avg (Dec 2025) | 2,951/week | -61% |
+| 13-week avg (Sep+Nov+Dec)* | 2,718/week | -57% |
+| Same month last year (Jan 2025) | 2,893/week | -60% |
+
+*Note: October 2025 excluded due to data gap (141 filings vs expected ~12,000)
 
 **Monthly Velocity (2025):**
-| Month | Filings | Weekly Avg |
-|-------|---------|------------|
-| Jan 2025 | 12,732 | 2,939 |
-| Feb 2025 | 13,419 | 3,355 |
-| Mar 2025 | 14,677 | 3,357 |
-| Apr 2025 | 14,958 | 3,740 |
-| May 2025 | 12,890 | 2,948 |
-| Jun 2025 | 12,728 | 3,182 |
-| Jul 2025 | 13,389 | 3,064 |
-| Aug 2025 | 10,517 | 2,406 |
-| Sep 2025 | 10,727 | 2,682 |
-| Nov 2025 | 11,614 | 2,904 |
-| Dec 2025 | 12,985 | 2,969 |
+| Month | Filings | Days | Weekly Avg |
+|-------|---------|------|------------|
+| Jan 2025 | 12,732 | 31 | 2,874 |
+| Feb 2025 | 13,419 | 28 | 3,355 |
+| Mar 2025 | 14,677 | 31 | 3,314 |
+| Apr 2025 | 14,958 | 30 | 3,490 |
+| May 2025 | 12,890 | 31 | 2,910 |
+| Jun 2025 | 12,728 | 30 | 2,970 |
+| Jul 2025 | 13,389 | 31 | 3,022 |
+| Aug 2025 | 10,517 | 31 | 2,374 |
+| Sep 2025 | 10,727 | 30 | 2,503 |
+| Oct 2025 | 141 | 31 | DATA GAP |
+| Nov 2025 | 11,614 | 30 | 2,710 |
+| Dec 2025 | 12,985 | 31 | 2,931 |
 
-**Note:** First week of January typically runs 60-70% of monthly average due to holiday hangover.
+**Note:** First week of January typically runs 40-50% of monthly weekly average due to holiday hangover. This week's 1,156 is consistent with that pattern (1,156 vs 2,893 Jan 2025 weekly avg = 40%).
 
 ---
 
@@ -88,13 +91,13 @@ Data Source: BevAlc Intelligence D1 Database (LIVE QUERIES)
 
 1,156 alcohol labels filed with TTB last week.
 
-That's 62% below the 4-week average and 57% below the 13-week average.
+That's 61% below the 4-week average and 57% below the 13-week average.
 
 **The Numbers**
 - Total filings: 1,156
-- 4-week avg: 3,019/week
-- 13-week avg: 2,661/week
-- Same week 2025: ~2,939/week
+- 4-week avg (Dec): 2,951/week
+- 13-week avg (Q4): 2,718/week
+- Jan 2025 avg: 2,893/week
 
 **Top Filers**
 1. Connoisseur Wines USA - 34 filings
