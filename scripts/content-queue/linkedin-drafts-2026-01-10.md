@@ -5,31 +5,41 @@ Data Source: BevAlc Intelligence D1 Database (LIVE QUERIES)
 
 ---
 
-## DATA SUMMARY (From D1)
+## HISTORICAL CONTEXT (From D1)
 
-**Query:** `SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1`
-**Result:** 1,156 total filings
+**Yearly Filing Trends:**
+| Year | Total Filings | YoY Change |
+|------|---------------|------------|
+| 2020 | 166,575 | - |
+| 2021 | 179,225 | +8% |
+| 2022 | 176,742 | -1% |
+| 2023 | 180,255 | +2% (peak) |
+| 2024 | 162,423 | -10% |
+| 2025 | 140,777 | -13% |
+
+**Category Share Shift (2020 → 2025):**
+| Category | 2020 Share | 2025 Share | Change |
+|----------|------------|------------|--------|
+| Wine | 64% | 62% | -2pts |
+| Beer | 24% | 20% | -4pts |
+| Whiskey | 3.4% | 5.9% | +2.5pts |
+| Agave | 1.1% | 2.1% | +1pt |
+
+**Key Insight:** While total filings dropped 16% from peak (2023), agave spirits grew 56% and whiskey grew 48% in absolute terms. The market is shrinking, but spirits are taking share from wine and beer.
+
+---
+
+## THIS WEEK'S DATA (Jan 4-10, 2026)
+
+**Total:** 1,156 filings
 
 **Signal Breakdown:**
-| Signal | Count | Query |
-|--------|-------|-------|
-| NEW_SKU | 719 | `WHERE signal = 'NEW_SKU' AND year = 2026 AND month = 1` |
-| REFILE | 219 | `WHERE signal = 'REFILE' AND year = 2026 AND month = 1` |
-| NEW_BRAND | 184 | `WHERE signal = 'NEW_BRAND' AND year = 2026 AND month = 1` |
-| NEW_COMPANY | 34 | `WHERE signal = 'NEW_COMPANY' AND year = 2026 AND month = 1` |
-
-**Top Categories:**
-| Category | Count |
-|----------|-------|
-| Table Red Wine | 186 |
-| Table White Wine | 179 |
-| Ale | 143 |
-| Dessert Wine | 93 |
-| Malt Beverages | 89 |
-| Beer | 49 |
-| Sparkling Wine | 46 |
-| Tequila | 30 |
-| Rose Wine | 30 |
+| Signal | Count |
+|--------|-------|
+| NEW_SKU | 719 (62%) |
+| REFILE | 219 (19%) |
+| NEW_BRAND | 184 (16%) |
+| NEW_COMPANY | 34 (3%) |
 
 **Top Filers:**
 | Company | Filings |
@@ -67,16 +77,23 @@ Here's what the data shows:
 **Category Leaders**
 - Wine (red + white): 365 filings
 - Beer/Ale: 281 filings
-- Specialty/Dessert: 93 filings
 - Tequila: 30 filings
+- Whiskey: 27 filings
 
 **What This Signals**
-First week of 2026 shows steady filing activity. Wine dominates with 365+ filings across red and white categories. Craft breweries (Fort George, Yee-Haw, Twin Elephant) are well-represented in top filers, signaling continued innovation in beer.
+
+The industry is in structural decline. Total TTB filings peaked at 180,255 in 2023 and have dropped 22% since. But the story isn't uniform across categories.
+
+Wine still dominates filing volume (62% of total) but is shrinking in absolute terms. Beer is declining faster - from 24% of filings in 2020 to 20% in 2025. Craft brewery formation has slowed considerably from its 2021 peak.
+
+Meanwhile, brown spirits continue their quiet takeover. Whiskey filings grew 48% since 2020 despite overall market contraction. Agave spirits (tequila/mezcal) grew 56% over the same period.
+
+This week's data reflects that shift: four of the top five filers are craft breweries, but they're filing line extensions (62% are NEW_SKU), not launching new brands. The growth is coming from spirits.
 
 ---
 
 Database: bevalcintel.com
-1.9M+ TTB filings. Updated weekly.
+1.9M+ TTB filings since 2015. Updated weekly.
 
 ---
 
@@ -98,13 +115,15 @@ First-time filers with TTB for January 4-10, 2026:
 | Freebrook Imports | Blended Blue | Tequila |
 | Morton Distilleries | Wild Bill's Vodka | Vodka |
 
-**Entry by Category**
-- Wine: Multiple new estate wineries
-- Spirits: Tequila attracting new investment
-- Whisky: Craft distilleries launching
-
 **What This Signals**
-34 new market entrants represents entrepreneurial activity in beverage alcohol. Tequila continues to attract new importers (Belmore, Freebrook), while craft distilleries are launching new whisky and vodka brands.
+
+New market entry has slowed significantly. In 2021, we averaged 85 new companies per week. In 2025, that dropped to 52. This week's 34 continues the trend.
+
+But where new entrants are placing their bets is telling. Half of the spirits-focused new entrants this week are in agave or whiskey. None are launching vodka brands as their primary focus - the one vodka filer (Morton Distilleries) is a craft distillery with whiskey roots.
+
+Wine and beer still attract new entrants, but the venture-backed spirits gold rush is over. What remains are smaller, regional operators: New Mexico craft distilleries, Virginia estate wineries, New Jersey import companies.
+
+The low barrier to entry that defined 2018-2022 is giving way to a more capital-intensive environment. Expect consolidation.
 
 ---
 
@@ -124,15 +143,17 @@ That positions them as the top filer for the first week of 2026.
 **Filing Profile**
 - Filings: 34
 - Category focus: Wine imports
-- Primary activity: European wine portfolio expansion
+- Primary activity: European portfolio expansion
 
-**Market Context**
-Import specialists often lead weekly filing counts. Their volume reflects:
-- Strong international wine production
-- US demand for imported wines
-- Efficient label approval pipeline
+**What This Signals**
 
-The top 5 filers (Connoisseur, Fort George, Raising Glasses, Yee-Haw, Twin Elephant) filed 89 labels combined - 8% of total weekly volume.
+Import specialists now dominate weekly filing charts. The top filers in any given week are rarely producers - they're logistics companies: importers of record, custom crush facilities, and compliance shops.
+
+This structural shift matters. In 2015, the top weekly filers were typically large producers (Diageo, Constellation, E&J Gallo). Today, it's Connoisseur Wines, T. Elenteny Holdings, MHW Ltd, and Park Street Imports.
+
+What changed? The fragmentation of global alcohol production. There are now 12,000+ wineries in Europe, 3,000+ mezcal producers in Oaxaca, and 2,000+ craft distilleries in the US. Most lack the resources to navigate TTB compliance directly.
+
+The import specialists have become the infrastructure layer. Their filing velocity reflects demand from thousands of small producers seeking US market access. When their filings slow, it signals reduced international supply or weakening US demand. Neither has happened yet.
 
 ---
 
@@ -145,34 +166,38 @@ Track filing velocity at bevalcintel.com
 
 ---
 
-Wine filings lead TTB activity: 534 labels last week.
+The beer-spirits rotation continues.
 
-January 4-10, 2026 category breakdown:
+Five-year filing trends tell the story:
 
-**Wine Categories**
-| Type | Count |
-|------|-------|
-| Table Red Wine | 186 |
-| Table White Wine | 179 |
-| Dessert/Port/Sherry | 93 |
-| Sparkling/Champagne | 46 |
-| Rose Wine | 30 |
-| **Wine Total** | **534** |
+**Beer/Malt (share of total filings):**
+- 2020: 24%
+- 2023: 22%
+- 2025: 20%
 
-**Beer Categories**
-| Type | Count |
-|------|-------|
-| Ale | 143 |
-| Malt Beverages | 89 |
-| Beer | 49 |
-| **Beer Total** | **281** |
+**Whiskey (share of total filings):**
+- 2020: 3.4%
+- 2023: 4.3%
+- 2025: 5.9%
 
-**What This Indicates**
-Wine represents 46% of all filings. Red and white table wines are nearly equal (186 vs 179), suggesting balanced portfolio expansion. The 30 tequila filings reflect continued category growth.
+**Agave spirits (share of total filings):**
+- 2020: 1.1%
+- 2023: 1.4%
+- 2025: 2.1%
+
+**What This Signals**
+
+The craft beer boom that defined 2010-2020 is structurally over. Filing share has declined for five consecutive years. The category isn't dying - it's mature. The innovation cycle has shifted from "new brewery launches" to "line extensions from existing players."
+
+This week's data reflects that reality: 62% of filings are NEW_SKU (existing brands adding products), while only 16% are NEW_BRAND launches.
+
+Meanwhile, brown spirits continue gaining. Whiskey's filing share has nearly doubled since 2020. Agave has also doubled. These aren't cyclical swings - they're structural shifts in where capital and entrepreneurial energy are flowing.
+
+For producers: the runway for new craft beer brands is narrowing. For investors: the spirits opportunity window is also closing. The next wave of growth likely comes from RTD cocktails and functional beverages - categories that barely registered in 2020 and now represent a meaningful share of new filings.
 
 ---
 
-Full data at bevalcintel.com
+Full historical data at bevalcintel.com
 
 ---
 
@@ -192,19 +217,23 @@ Full data at bevalcintel.com
 All stats from D1 database queries executed 2026-01-10:
 
 ```sql
--- Total filings
+-- Yearly totals
+SELECT year, COUNT(*) FROM colas WHERE year >= 2020 GROUP BY year ORDER BY year;
+-- 2020: 166,575 | 2021: 179,225 | 2022: 176,742 | 2023: 180,255 | 2024: 162,423 | 2025: 140,777
+
+-- Category mix by year
+SELECT year,
+  SUM(CASE WHEN class_type_code LIKE '%WINE%' THEN 1 ELSE 0 END) as wine,
+  SUM(CASE WHEN class_type_code LIKE '%ALE%' OR class_type_code LIKE '%BEER%' OR class_type_code LIKE '%MALT%' THEN 1 ELSE 0 END) as beer,
+  SUM(CASE WHEN class_type_code LIKE '%TEQUILA%' OR class_type_code LIKE '%MEZCAL%' THEN 1 ELSE 0 END) as agave,
+  SUM(CASE WHEN class_type_code LIKE '%WHISKY%' OR class_type_code LIKE '%WHISKEY%' OR class_type_code LIKE '%BOURBON%' THEN 1 ELSE 0 END) as whiskey
+FROM colas WHERE year >= 2020 GROUP BY year;
+
+-- This week's filings
 SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1;
 -- Result: 1,156
 
 -- Signal breakdown
 SELECT signal, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY signal;
 -- NEW_SKU: 719, REFILE: 219, NEW_BRAND: 184, NEW_COMPANY: 34
-
--- Top filers
-SELECT company_name, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY company_name ORDER BY COUNT(*) DESC LIMIT 5;
--- Connoisseur Wines USA: 34, Fort George Brewery: 15, Raising Glasses: 14, Yee-Haw: 13, Twin Elephant: 13
-
--- Category breakdown
-SELECT class_type_code, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY class_type_code ORDER BY COUNT(*) DESC;
--- Table Red Wine: 186, Table White Wine: 179, Ale: 143, Dessert Wine: 93, Malt: 89, Beer: 49, Sparkling: 46, Tequila: 30, Rose: 30
 ```

@@ -149,6 +149,26 @@ ORDER BY approval_date DESC
 LIMIT 15
 "@
 
+# Query 7: Historical yearly totals (for trend analysis)
+Write-Host "  Querying yearly trends..."
+$yearlyTotals = Invoke-D1Query -Sql @"
+SELECT year, COUNT(*) as filings FROM colas
+WHERE year >= 2020
+GROUP BY year ORDER BY year
+"@
+
+# Query 8: Category mix by year (for structural analysis)
+Write-Host "  Querying category trends..."
+$categoryTrends = Invoke-D1Query -Sql @"
+SELECT year,
+  SUM(CASE WHEN class_type_code LIKE '%WINE%' THEN 1 ELSE 0 END) as wine,
+  SUM(CASE WHEN class_type_code LIKE '%ALE%' OR class_type_code LIKE '%BEER%' OR class_type_code LIKE '%MALT%' THEN 1 ELSE 0 END) as beer,
+  SUM(CASE WHEN class_type_code LIKE '%TEQUILA%' OR class_type_code LIKE '%MEZCAL%' THEN 1 ELSE 0 END) as agave,
+  SUM(CASE WHEN class_type_code LIKE '%WHISKY%' OR class_type_code LIKE '%WHISKEY%' OR class_type_code LIKE '%BOURBON%' THEN 1 ELSE 0 END) as whiskey
+FROM colas WHERE year >= 2020
+GROUP BY year ORDER BY year
+"@
+
 # Build output object
 $output = @{
     week_ending = $weekEndDate.ToString("yyyy-MM-dd")
@@ -187,6 +207,22 @@ $output = @{
             first_brand = $_.brand_name
             category = $_.class_type_code
             date = $_.approval_date
+        }
+    }
+    # Historical trends for analysis
+    yearly_totals = $yearlyTotals | ForEach-Object {
+        @{
+            year = $_.year
+            filings = $_.filings
+        }
+    }
+    category_trends = $categoryTrends | ForEach-Object {
+        @{
+            year = $_.year
+            wine = $_.wine
+            beer = $_.beer
+            agave = $_.agave
+            whiskey = $_.whiskey
         }
     }
     story_hooks = @()
