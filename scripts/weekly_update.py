@@ -1348,63 +1348,65 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
 def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
     """
     Output a list of new brands/companies that need website enrichment.
+    Only includes NEW_COMPANY and NEW_BRAND signals (not NEW_SKU or REFILE).
     Creates a file that can be used for manual enrichment with Claude.
     """
     if not new_records:
         return
 
-    # Get existing brand websites
-    existing_brands = set()
-    result = d1_execute("SELECT brand_name FROM brand_websites")
-    if result.get("success") and result.get("result"):
-        for row in result["result"][0].get("results", []):
-            existing_brands.add(row.get("brand_name", "").upper())
+    # Query D1 for records with NEW_COMPANY or NEW_BRAND signals that don't have websites yet
+    # This is more accurate than checking new_records since classification just ran
+    query = """
+        SELECT DISTINCT c.brand_name, c.company_name, c.class_type_code, c.signal
+        FROM colas c
+        LEFT JOIN brand_websites bw ON UPPER(c.brand_name) = UPPER(bw.brand_name)
+        WHERE c.signal IN ('NEW_COMPANY', 'NEW_BRAND')
+        AND bw.brand_name IS NULL
+        AND c.brand_name IS NOT NULL
+        AND c.brand_name != ''
+        ORDER BY
+            CASE c.signal WHEN 'NEW_COMPANY' THEN 1 ELSE 2 END,
+            c.brand_name
+    """
 
-    # Find records that need enrichment (NEW_COMPANY or NEW_BRAND, not in brand_websites)
-    needs_enrichment = []
-    for record in new_records:
-        brand = record.get('brand_name', '')
-        company = record.get('company_name', '')
-        category = record.get('class_type_code', '')
+    result = d1_execute(query)
+    if not result.get("success") or not result.get("result"):
+        logger.warning("Failed to query for enrichment candidates")
+        return
 
-        # Skip if already have website
-        if brand.upper() in existing_brands:
-            continue
-
-        # Only include NEW_COMPANY and NEW_BRAND signals
-        # (We'll look up the signal from D1 since it was just set)
-        needs_enrichment.append({
-            'brand_name': brand,
-            'company_name': company,
-            'class_type_code': category
-        })
-
-    if not needs_enrichment:
+    rows = result["result"][0].get("results", [])
+    if not rows:
         logger.info("No new brands need website enrichment")
         return
 
-    # Remove duplicates (same brand+company)
-    seen = set()
-    unique_enrichment = []
-    for item in needs_enrichment:
-        key = (item['brand_name'], item['company_name'])
-        if key not in seen:
-            seen.add(key)
-            unique_enrichment.append(item)
+    # Build enrichment list (already deduplicated by DISTINCT)
+    needs_enrichment = []
+    for row in rows:
+        needs_enrichment.append({
+            'brand_name': row.get('brand_name', ''),
+            'company_name': row.get('company_name', ''),
+            'class_type_code': row.get('class_type_code', ''),
+            'signal': row.get('signal', '')
+        })
 
     # Output to file
     enrichment_file = os.path.join(LOGS_DIR, "needs_enrichment.json")
     with open(enrichment_file, 'w') as f:
-        json.dump(unique_enrichment, f, indent=2)
+        json.dump(needs_enrichment, f, indent=2)
 
-    logger.info(f"Brands needing website enrichment: {len(unique_enrichment)}")
+    # Count by signal type
+    new_companies = sum(1 for x in needs_enrichment if x.get('signal') == 'NEW_COMPANY')
+    new_brands = sum(1 for x in needs_enrichment if x.get('signal') == 'NEW_BRAND')
+
+    logger.info(f"Brands needing website enrichment: {len(needs_enrichment)} ({new_companies} NEW_COMPANY, {new_brands} NEW_BRAND)")
     logger.info(f"Enrichment list saved to: {enrichment_file}")
 
     # Also log first 10 for visibility
-    if unique_enrichment:
+    if needs_enrichment:
         logger.info("First 10 brands needing enrichment:")
-        for item in unique_enrichment[:10]:
-            logger.info(f"  - {item['brand_name']} ({item['company_name'][:30]})")
+        for item in needs_enrichment[:10]:
+            signal = item.get('signal', '')
+            logger.info(f"  [{signal}] {item['brand_name']} ({item['company_name'][:30]})")
 
 
 # ============================================================================

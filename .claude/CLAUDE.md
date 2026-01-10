@@ -187,7 +187,7 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - `/absurd-story` - Creative story from data
 - `/scan-news` - Industry news scan
 
-## Current State (Last Updated: 2026-01-09)
+## Current State (Last Updated: 2026-01-10)
 
 ### Working Features
 - Frontend on Netlify, D1 with 1M+ records
@@ -211,13 +211,17 @@ See `CLAUDE-CONTENT.md` for full documentation.
 **Lookup Priority:** Brand first, company fallback
 
 **Weekly Workflow:**
-1. **Thursday 10pm ET** - Weekly sync runs → classifies NEW_COMPANY/NEW_BRAND → outputs `logs/needs_enrichment.json`
-2. **Friday morning** - Open Claude Code, run `/enrich-brands` → auto-searches and saves websites
-3. **Friday 2pm ET** - Weekly email report sends automatically (deadline - enrichment should be done by then)
+1. **Thursday 10pm ET** - Weekly sync runs → classifies signals → outputs `logs/needs_enrichment.json`
+2. **Friday morning (before 2pm)** - Open Claude Code, say "enrich the new brands" → 60-90 min session
+3. **Friday 2pm ET** - Weekly email sends automatically
+
+**What Gets Enriched:**
+- Only NEW_COMPANY (~5-15/week) and NEW_BRAND (~150-200/week) signals
+- NOT NEW_SKU or REFILE (these inherit existing brand websites)
+- Brands without websites show "Data enrichment in progress" until backfilled
 
 **Commands:**
-- `/enrich-brands` - Batch process all brands in needs_enrichment.json
-- Brand enricher skill - Find single brand website on demand
+- `/enrich-brands` - Batch process NEW_COMPANY + NEW_BRAND from needs_enrichment.json
 
 **Multi-Company Brands:** When same brand filed by multiple companies (e.g., WYATT EARP), use company_websites so each company's filing shows their own site.
 
