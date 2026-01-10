@@ -691,6 +691,7 @@ function openModal(record) {
                 { label: 'State', value: record.state },
                 { label: 'Contact Person', value: record.contact_person, isPro: true },
                 { label: 'Phone Number', value: record.phone_number, isPro: true },
+                { label: 'Website', value: record.website_url, isPro: true, isWebsite: true, brandName: record.brand_name },
             ]
         }
     ];
@@ -742,6 +743,33 @@ function openModal(record) {
                                             </span>
                                         </div>
                                     `;
+                                }
+                                // Handle website field specially
+                                if (f.isWebsite) {
+                                    if (f.value) {
+                                        // Has website - show clickable link
+                                        const displayUrl = f.value.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                                        return `
+                                            <div class="detail-item">
+                                                <span class="detail-label detail-label-pro">${f.label}</span>
+                                                <span class="detail-value">
+                                                    <a href="${escapeHtml(f.value)}" target="_blank" rel="noopener" style="color: var(--color-primary);">🔗 ${escapeHtml(displayUrl)}</a>
+                                                </span>
+                                            </div>
+                                        `;
+                                    } else {
+                                        // No website - show N/A with submit link
+                                        const mailtoSubject = encodeURIComponent('Website submission for ' + (f.brandName || 'brand'));
+                                        const mailtoBody = encodeURIComponent('Brand: ' + (f.brandName || '') + '\nWebsite URL: ');
+                                        return `
+                                            <div class="detail-item">
+                                                <span class="detail-label detail-label-pro">${f.label}</span>
+                                                <span class="detail-value">
+                                                    N/A · <a href="mailto:hello@bevalcintel.com?subject=${mailtoSubject}&body=${mailtoBody}" style="color: var(--color-primary); font-size: 0.85em;">Know this website? Submit it</a>
+                                                </span>
+                                            </div>
+                                        `;
+                                    }
                                 }
                                 return `
                                     <div class="detail-item">

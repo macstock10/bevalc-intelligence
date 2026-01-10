@@ -1939,9 +1939,38 @@ async function handleRecord(url, env) {
         return { success: false, error: 'Record not found' };
     }
 
+    // Look up website: first try brand_websites, then company_websites
+    let websiteUrl = null;
+
+    // Try brand-specific website first
+    if (result.brand_name) {
+        const brandWebsite = await env.DB.prepare(
+            'SELECT website_url FROM brand_websites WHERE brand_name = ?'
+        ).bind(result.brand_name).first();
+        if (brandWebsite?.website_url) {
+            websiteUrl = brandWebsite.website_url;
+        }
+    }
+
+    // Fall back to company website
+    if (!websiteUrl && result.company_name) {
+        const companyWebsite = await env.DB.prepare(`
+            SELECT cw.website_url
+            FROM company_websites cw
+            JOIN company_aliases ca ON ca.company_id = cw.company_id
+            WHERE ca.raw_name = ?
+        `).bind(result.company_name).first();
+        if (companyWebsite?.website_url) {
+            websiteUrl = companyWebsite.website_url;
+        }
+    }
+
     return {
         success: true,
-        data: result
+        data: {
+            ...result,
+            website_url: websiteUrl
+        }
     };
 }
 
