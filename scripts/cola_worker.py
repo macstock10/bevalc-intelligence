@@ -246,24 +246,37 @@ class ColaWorker:
         """)
         self.conn.commit()
     
-    def _init_driver(self):
-        """Initialize Selenium WebDriver."""
+    def _init_driver(self, max_retries: int = 3):
+        """Initialize Selenium WebDriver with retry logic."""
         if self.driver:
             try:
                 self.driver.quit()
             except:
                 pass
-        
+
         options = webdriver.FirefoxOptions()
         if self.headless:
             options.add_argument('--headless')
-        
-        self.logger.info("Starting Firefox browser...")
-        self.driver = webdriver.Firefox(
-            service=FirefoxService(GeckoDriverManager().install()),
-            options=options
-        )
-        self.driver.set_page_load_timeout(self.page_timeout)
+
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"Starting Firefox browser... (attempt {attempt + 1}/{max_retries})")
+                self.driver = webdriver.Firefox(
+                    service=FirefoxService(GeckoDriverManager().install()),
+                    options=options
+                )
+                self.driver.set_page_load_timeout(self.page_timeout)
+                return  # Success
+            except Exception as e:
+                last_error = e
+                self.logger.warning(f"Firefox startup failed: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 5 * (attempt + 1)  # 5, 10, 15 seconds
+                    self.logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+
+        raise last_error or Exception("Failed to start Firefox after retries")
     
     def _ensure_driver(self):
         """Ensure browser is running."""
