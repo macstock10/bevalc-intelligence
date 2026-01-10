@@ -169,6 +169,22 @@ FROM colas WHERE year >= 2020
 GROUP BY year ORDER BY year
 "@
 
+# Query 9: Monthly filing data (for 4-week and 13-week moving averages)
+Write-Host "  Querying monthly data for moving averages..."
+$monthlyData = Invoke-D1Query -Sql @"
+SELECT year, month, COUNT(*) as filings FROM colas
+WHERE year >= $($year - 1)
+GROUP BY year, month ORDER BY year, month
+"@
+
+# Query 10: Monthly signal breakdown (for trend analysis)
+Write-Host "  Querying monthly signal trends..."
+$monthlySignals = Invoke-D1Query -Sql @"
+SELECT year, month, signal, COUNT(*) as count FROM colas
+WHERE year >= $($year - 1)
+GROUP BY year, month, signal ORDER BY year, month, signal
+"@
+
 # Build output object
 $output = @{
     week_ending = $weekEndDate.ToString("yyyy-MM-dd")
@@ -225,7 +241,68 @@ $output = @{
             whiskey = $_.whiskey
         }
     }
+    # Monthly data for moving averages
+    monthly_filings = $monthlyData | ForEach-Object {
+        @{
+            year = $_.year
+            month = $_.month
+            filings = $_.filings
+            weekly_avg = [math]::Round($_.filings / 4.3, 0)
+        }
+    }
+    monthly_signals = $monthlySignals | ForEach-Object {
+        @{
+            year = $_.year
+            month = $_.month
+            signal = $_.signal
+            count = $_.count
+        }
+    }
+    # Analysis rotation metadata
+    analysis_rotation = @{
+        week_of_month = [math]::Ceiling($weekEndDate.Day / 7)
+        is_eom = ($weekEndDate.Day -gt 24)
+        suggested_angles = @(
+            "short_term_velocity",      # Compare to 4-week and 13-week moving averages
+            "category_deep_dive",       # Rotate: whiskey, tequila, wine, beer, RTD
+            "geographic_analysis",      # State-level filing patterns
+            "company_spotlight",        # Top filer profile + historical context
+            "monthly_comparison"        # EOM: MoM and YoY comparisons
+        )
+        current_angle_index = (([int]$weekEndDate.DayOfYear / 7) % 5)
+    }
     story_hooks = @()
+}
+
+# Calculate moving averages
+$lastMonth = $monthlyData | Where-Object { $_.year -eq $year -and $_.month -eq ($month - 1) } | Select-Object -First 1
+$twoMonthsAgo = $monthlyData | Where-Object { $_.year -eq $year -and $_.month -eq ($month - 2) } | Select-Object -First 1
+$threeMonthsAgo = $monthlyData | Where-Object { $_.year -eq $year -and $_.month -eq ($month - 3) } | Select-Object -First 1
+$sameMonthLastYear = $monthlyData | Where-Object { $_.year -eq ($year - 1) -and $_.month -eq $month } | Select-Object -First 1
+
+# Handle year boundary for previous months
+if ($month -eq 1) {
+    $lastMonth = $monthlyData | Where-Object { $_.year -eq ($year - 1) -and $_.month -eq 12 } | Select-Object -First 1
+    $twoMonthsAgo = $monthlyData | Where-Object { $_.year -eq ($year - 1) -and $_.month -eq 11 } | Select-Object -First 1
+    $threeMonthsAgo = $monthlyData | Where-Object { $_.year -eq ($year - 1) -and $_.month -eq 10 } | Select-Object -First 1
+}
+
+$fourWeekAvg = if ($lastMonth) { [math]::Round($lastMonth.filings / 4.3, 0) } else { 0 }
+$thirteenWeekAvg = 0
+if ($lastMonth -and $twoMonthsAgo -and $threeMonthsAgo) {
+    $thirteenWeekAvg = [math]::Round(($lastMonth.filings + $twoMonthsAgo.filings + $threeMonthsAgo.filings) / 13, 0)
+}
+$sameMonthLastYearAvg = if ($sameMonthLastYear) { [math]::Round($sameMonthLastYear.filings / 4.3, 0) } else { 0 }
+
+# Add moving averages to output
+$output.moving_averages = @{
+    four_week_avg = $fourWeekAvg
+    thirteen_week_avg = $thirteenWeekAvg
+    same_month_last_year_avg = $sameMonthLastYearAvg
+    this_week = $output.summary.total_filings
+    vs_four_week = if ($fourWeekAvg -gt 0) { [math]::Round((($output.summary.total_filings - $fourWeekAvg) / $fourWeekAvg) * 100, 1) } else { 0 }
+    vs_thirteen_week = if ($thirteenWeekAvg -gt 0) { [math]::Round((($output.summary.total_filings - $thirteenWeekAvg) / $thirteenWeekAvg) * 100, 1) } else { 0 }
+    vs_same_month_last_year = if ($sameMonthLastYearAvg -gt 0) { [math]::Round((($output.summary.total_filings - $sameMonthLastYearAvg) / $sameMonthLastYearAvg) * 100, 1) } else { 0 }
 }
 
 # Generate story hooks based on data
