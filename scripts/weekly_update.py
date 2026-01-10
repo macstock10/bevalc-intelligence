@@ -308,6 +308,97 @@ def update_brand_slugs(new_records: List[Dict], dry_run: bool = False) -> Dict:
     return {"success": True, "inserted": total_inserted}
 
 
+def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
+    """
+    Add new companies to companies and company_aliases tables.
+    This ensures new filers have SEO pages and can be normalized in future syncs.
+    """
+    if not records or dry_run:
+        return 0
+
+    # Get unique company names from records
+    company_names = set()
+    for record in records:
+        company_name = record.get('company_name')
+        if company_name and company_name.strip():
+            company_names.add(company_name.strip())
+
+    if not company_names:
+        return 0
+
+    # Check which companies already exist in company_aliases
+    existing = set()
+    for i in range(0, len(company_names), 100):
+        batch = list(company_names)[i:i + 100]
+        placeholders = ','.join([escape_sql_value(n) for n in batch])
+        result = d1_execute(f"SELECT raw_name FROM company_aliases WHERE raw_name IN ({placeholders})")
+        if result.get("success") and result.get("result"):
+            for res in result.get("result", []):
+                for row in res.get("results", []):
+                    existing.add(row.get("raw_name"))
+
+    # Filter to only new companies
+    new_companies = company_names - existing
+    if not new_companies:
+        logger.info("No new companies to add")
+        return 0
+
+    logger.info(f"Adding {len(new_companies)} new companies to database...")
+
+    # Get current max company ID
+    result = d1_execute("SELECT MAX(id) as max_id FROM companies")
+    max_id = 0
+    if result.get("success") and result.get("result"):
+        for res in result.get("result", []):
+            for row in res.get("results", []):
+                max_id = row.get("max_id") or 0
+
+    total_inserted = 0
+    next_id = max_id + 1
+
+    # Insert in batches
+    for i in range(0, len(new_companies), 100):
+        batch = list(new_companies)[i:i + 100]
+
+        # Build companies insert values
+        company_values = []
+        alias_values = []
+
+        for company_name in batch:
+            company_id = next_id
+            next_id += 1
+            slug = make_slug(company_name)
+
+            # Insert into companies table
+            company_values.append(
+                f"({company_id}, {escape_sql_value(company_name)}, {escape_sql_value(company_name)}, "
+                f"{escape_sql_value(slug)}, {escape_sql_value(company_name.upper())}, 1, 1, NULL, NULL)"
+            )
+
+            # Insert into company_aliases table
+            alias_values.append(
+                f"({escape_sql_value(company_name)}, {company_id})"
+            )
+
+        # Execute companies insert
+        if company_values:
+            sql = f"""INSERT OR IGNORE INTO companies
+                      (id, canonical_name, display_name, slug, match_key, total_filings, variant_count, first_filing, last_filing)
+                      VALUES {','.join(company_values)}"""
+            result = d1_execute(sql)
+            if result.get("success"):
+                for res in result.get("result", []):
+                    total_inserted += res.get("meta", {}).get("changes", 0)
+
+        # Execute aliases insert
+        if alias_values:
+            sql = f"INSERT OR IGNORE INTO company_aliases (raw_name, company_id) VALUES {','.join(alias_values)}"
+            d1_execute(sql)
+
+    logger.info(f"Added {total_inserted} new companies")
+    return total_inserted
+
+
 def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[Dict] = None) -> Dict:
     """
     Sync records to Cloudflare D1.
@@ -349,6 +440,9 @@ def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[
 
         # Update brand_slugs table with new brands for SEO pages
         update_brand_slugs(records_to_sync, dry_run)
+
+        # Add new companies to companies/company_aliases tables
+        add_new_companies(records_to_sync, dry_run)
 
         return {
             "success": True,
@@ -428,6 +522,9 @@ def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[
         # Update brand_slugs table with new brands for SEO pages
         synced_records = records[:total_inserted] if total_inserted > 0 else []
         update_brand_slugs(synced_records, dry_run)
+
+        # Add new companies to companies/company_aliases tables
+        add_new_companies(synced_records, dry_run)
 
         return {
             "success": True,
