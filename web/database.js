@@ -632,8 +632,6 @@ function openModal(record) {
     } else {
         elements.modalTitle.innerHTML = `${escapeHtml(record.brand_name || 'Unknown Brand')}${signalBadge}`;
     }
-    elements.modalSubtitle.textContent = `TTB ID: ${record.ttb_id}`;
-    
     // Get user info for Pro check
     const userInfo = localStorage.getItem('bevalc_user');
     let userEmail = null;
@@ -646,7 +644,14 @@ function openModal(record) {
             isPro = user.isPro || false;
         } catch (e) {}
     }
-    
+
+    // TTB ID - blur for free users
+    if (isPro) {
+        elements.modalSubtitle.innerHTML = `TTB ID: ${escapeHtml(record.ttb_id)}`;
+    } else {
+        elements.modalSubtitle.innerHTML = `TTB ID: <span class="detail-blur" style="cursor: pointer;" onclick="showProUpgradePrompt()">••••••••••</span>`;
+    }
+
     // Build TRACK section
     const trackHtml = buildTrackSection(record, userEmail, isPro);
     
