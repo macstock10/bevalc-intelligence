@@ -2581,12 +2581,15 @@ async function handleCompanyPage(path, env, corsHeaders) {
     let relatedCompanies = [];
     if (topCategory && hasCompanyId) {
         const relatedResult = await env.DB.prepare(`
-            SELECT c.canonical_name, c.slug, c.total_filings
+            SELECT c.canonical_name, c.slug, c.total_filings, COUNT(*) as category_filings
             FROM companies c
-            WHERE c.id != ? AND c.total_filings >= 10
-            ORDER BY c.total_filings DESC
+            JOIN company_aliases ca ON c.id = ca.company_id
+            JOIN colas co ON ca.raw_name = co.company_name
+            WHERE c.id != ? AND co.class_type_code = ? AND c.total_filings >= 10
+            GROUP BY c.id
+            ORDER BY category_filings DESC
             LIMIT 5
-        `).bind(company.id).all();
+        `).bind(company.id, topCategory).all();
         relatedCompanies = relatedResult.results || [];
     }
 
