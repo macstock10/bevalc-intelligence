@@ -231,9 +231,6 @@ See `CLAUDE-CONTENT.md` for full documentation.
 1. Scraping vulnerability - data accessible via SEO pages + sitemap
    - Consider: rate limiting, limiting data shown, honeypot entries
 
-### TODO
-1. **Add `completed_date` field to colas table** - Currently we only store `approval_date` (from TTB record). Need to also scrape/store the "Date Completed" which is when an action was taken (approval, surrender, etc.). This is different from `approval_date` which is the original approval date of the COLA.
-
 ## Programmatic SEO Pages
 
 **URLs:** `/company/[slug]`, `/brand/[slug]`, `/category/[category]/[year]`
@@ -258,7 +255,6 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - `approval_date` - The original approval date of the COLA (stored in each TTB record)
 - "Date Completed" (TTB search field) - When an action was completed (approval, surrender, amendment, etc.)
 - These are DIFFERENT dates. A label approved in 2018 might be surrendered in 2026 - the `approval_date` stays 2018, but "Date Completed" for the surrender action is 2026.
-- Currently we only store `approval_date`. TODO: Add `completed_date` field.
 
 **TTB IDs are unique**: Each filing gets a unique TTB ID. A surrender of an old label is a new filing with its own unique TTB ID.
 

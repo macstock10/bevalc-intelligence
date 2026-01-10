@@ -518,6 +518,9 @@ function renderResults(data) {
                 }
 
                 signalHtml = `<span class="signal-badge signal-${signalClass}">${cola.signal.replace(/_/g, ' ')}</span>${noteHtml}`;
+            } else {
+                // No signal yet - data enrichment in progress
+                signalHtml = `<span style="color: #94a3b8; font-style: italic; font-size: 0.75rem;">Enriching...</span>`;
             }
         } else {
             // Free users see locked state
@@ -625,7 +628,9 @@ function openModal(record) {
     // Make brand name a clickable link to brand page (opens in new tab)
     // Add signal badge next to brand name
     const brandSlug = makeSlug(record.brand_name);
-    const signalBadge = record.signal ? `<span class="signal-badge signal-${record.signal.toLowerCase().replace(/_/g, '-')}" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle;">${record.signal.replace('_', ' ')}</span>` : '';
+    const signalBadge = record.signal
+        ? `<span class="signal-badge signal-${record.signal.toLowerCase().replace(/_/g, '-')}" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle;">${record.signal.replace('_', ' ')}</span>`
+        : `<span style="margin-left: 12px; font-size: 0.65rem; color: #94a3b8; font-style: italic;">Data enrichment in progress</span>`;
 
     if (brandSlug) {
         elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>${signalBadge}`;
