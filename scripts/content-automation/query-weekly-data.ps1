@@ -66,35 +66,41 @@ function Invoke-D1Query {
     }
 }
 
-# Query 1: Total filings this week
+# Convert dates to year/month for indexed queries
+$year = $weekEndDate.Year
+$month = $weekEndDate.Month
+$startDay = $weekStartDate.Day
+$endDay = $weekEndDate.Day
+
+Write-Host "  Date range: Year=$year, Month=$month, Days=$startDay-$endDay"
+
+# Query 1: Total filings this week (using year/month columns for index)
 Write-Host "  Querying total filings..."
 $totalFilings = Invoke-D1Query -Sql @"
 SELECT COUNT(*) as count FROM colas
-WHERE approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
 "@
 
 # Query 2: Signal breakdown
 Write-Host "  Querying signal breakdown..."
 $signalBreakdown = Invoke-D1Query -Sql @"
 SELECT signal, COUNT(*) as count FROM colas
-WHERE approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
 GROUP BY signal
 "@
 
-# Query 3: Top filing companies
+# Query 3: Top filing companies (simpler query without joins for speed)
 Write-Host "  Querying top filers..."
 $topFilers = Invoke-D1Query -Sql @"
 SELECT
-    c.canonical_name as company,
+    company_name as company,
     COUNT(*) as count
-FROM colas co
-JOIN company_aliases ca ON co.company_name = ca.raw_name
-JOIN companies c ON ca.company_id = c.id
-WHERE co.approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND co.approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
-GROUP BY c.id
+FROM colas
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
+GROUP BY company_name
 ORDER BY count DESC
 LIMIT 15
 "@
@@ -108,8 +114,8 @@ SELECT
     class_type_code,
     approval_date
 FROM colas
-WHERE approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
   AND signal = 'NEW_BRAND'
 ORDER BY approval_date DESC
 LIMIT 25
@@ -118,26 +124,13 @@ LIMIT 25
 # Query 5: Category breakdown
 Write-Host "  Querying category breakdown..."
 $categoryBreakdown = Invoke-D1Query -Sql @"
-SELECT
-    CASE
-        WHEN class_type_code LIKE '%WHISKY%' OR class_type_code LIKE '%WHISKEY%' OR class_type_code LIKE '%BOURBON%' THEN 'Whiskey'
-        WHEN class_type_code LIKE '%VODKA%' THEN 'Vodka'
-        WHEN class_type_code LIKE '%TEQUILA%' THEN 'Tequila'
-        WHEN class_type_code LIKE '%RUM%' THEN 'Rum'
-        WHEN class_type_code LIKE '%GIN%' THEN 'Gin'
-        WHEN class_type_code LIKE '%WINE%' OR class_type_code LIKE '%VERMOUTH%' THEN 'Wine'
-        WHEN class_type_code LIKE '%BEER%' OR class_type_code LIKE '%MALT%' OR class_type_code LIKE '%ALE%' THEN 'Beer'
-        WHEN class_type_code LIKE '%COCKTAIL%' OR class_type_code LIKE '%RTD%' THEN 'RTD'
-        WHEN class_type_code LIKE '%BRANDY%' OR class_type_code LIKE '%COGNAC%' THEN 'Brandy'
-        WHEN class_type_code LIKE '%LIQUEUR%' OR class_type_code LIKE '%CORDIAL%' THEN 'Liqueur'
-        ELSE 'Other'
-    END as category,
-    COUNT(*) as count
+SELECT class_type_code as category, COUNT(*) as count
 FROM colas
-WHERE approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
-GROUP BY category
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
+GROUP BY class_type_code
 ORDER BY count DESC
+LIMIT 15
 "@
 
 # Query 6: New companies
@@ -149,8 +142,8 @@ SELECT
     class_type_code,
     approval_date
 FROM colas
-WHERE approval_date >= '$($weekStartDate.ToString('MM/dd/yyyy'))'
-  AND approval_date <= '$($weekEndDate.ToString('MM/dd/yyyy'))'
+WHERE year = $year AND month = $month
+  AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) BETWEEN $startDay AND $endDay
   AND signal = 'NEW_COMPANY'
 ORDER BY approval_date DESC
 LIMIT 15

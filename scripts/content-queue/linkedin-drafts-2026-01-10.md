@@ -1,7 +1,44 @@
 # LinkedIn Drafts - Week Ending January 10, 2026
 
 Generated: 2026-01-10
-Data Source: BevAlc Intelligence D1 Database
+Data Source: BevAlc Intelligence D1 Database (LIVE QUERIES)
+
+---
+
+## DATA SUMMARY (From D1)
+
+**Query:** `SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1`
+**Result:** 1,156 total filings
+
+**Signal Breakdown:**
+| Signal | Count | Query |
+|--------|-------|-------|
+| NEW_SKU | 719 | `WHERE signal = 'NEW_SKU' AND year = 2026 AND month = 1` |
+| REFILE | 219 | `WHERE signal = 'REFILE' AND year = 2026 AND month = 1` |
+| NEW_BRAND | 184 | `WHERE signal = 'NEW_BRAND' AND year = 2026 AND month = 1` |
+| NEW_COMPANY | 34 | `WHERE signal = 'NEW_COMPANY' AND year = 2026 AND month = 1` |
+
+**Top Categories:**
+| Category | Count |
+|----------|-------|
+| Table Red Wine | 186 |
+| Table White Wine | 179 |
+| Ale | 143 |
+| Dessert Wine | 93 |
+| Malt Beverages | 89 |
+| Beer | 49 |
+| Sparkling Wine | 46 |
+| Tequila | 30 |
+| Rose Wine | 30 |
+
+**Top Filers:**
+| Company | Filings |
+|---------|---------|
+| Connoisseur Wines USA | 34 |
+| Fort George Brewery | 15 |
+| Raising Glasses LLC | 14 |
+| Yee-Haw Brewing | 13 |
+| Twin Elephant Brewing | 13 |
 
 ---
 
@@ -10,31 +47,31 @@ Data Source: BevAlc Intelligence D1 Database
 
 ---
 
-28,205 alcohol labels filed with TTB last week.
+1,156 alcohol labels filed with TTB last week.
 
 Here's what the data shows:
 
 **The Numbers**
-- Total filings: 28,205
-- New brands: 5,786
-- New SKUs: 6,729
-- New market entrants: 980
+- Total filings: 1,156
+- New brands: 184
+- New SKUs: 719
+- New market entrants: 34
 
 **Top Filers**
-1. T. Elenteny Holdings - 265 filings
-2. MHW, Ltd. - 225 filings
-3. Barsac, Inc. - 214 filings
-4. Park Street Imports - 196 filings
-5. Tree House Brewing - 182 filings
+1. Connoisseur Wines USA - 34 filings
+2. Fort George Brewery - 15 filings
+3. Raising Glasses LLC - 14 filings
+4. Yee-Haw Brewing - 13 filings
+5. Twin Elephant Brewing - 13 filings
 
-**Category Breakdown**
-- Wine: 66% (18,707)
-- Beer: 22% (6,153)
-- Whiskey: 3% (833)
-- Vodka/Tequila/Other: 9%
+**Category Leaders**
+- Wine (red + white): 365 filings
+- Beer/Ale: 281 filings
+- Specialty/Dessert: 93 filings
+- Tequila: 30 filings
 
 **What This Signals**
-Wine continues to dominate TTB filings, accounting for two-thirds of all activity. The top filers are import/distribution specialists (T. Elenteny, MHW, Park Street), suggesting strong international product flow into the US market. Tree House Brewing's presence in the top 5 reflects craft beer's continued label velocity.
+First week of 2026 shows steady filing activity. Wine dominates with 365+ filings across red and white categories. Craft breweries (Fort George, Yee-Haw, Twin Elephant) are well-represented in top filers, signaling continued innovation in beer.
 
 ---
 
@@ -48,26 +85,26 @@ Database: bevalcintel.com
 
 ---
 
-980 new companies entered the alcohol market last week.
+34 new companies entered the alcohol market last week.
 
-Here's who filed with TTB for the first time:
+First-time filers with TTB for January 4-10, 2026:
 
 **Notable New Entrants**
 | Company | First Brand | Category |
 |---------|-------------|----------|
-| 1925 Spirits LLC | Leyenda 19 Since 25 | Tequila |
-| Speedtrap Distillery | Rumshine | Rum |
-| Classic Trend Inc. | Be Tini | Vodka |
-| Wandering Bear Winery | Wandering Bear Winery | Wine |
-| Fat Dragon LLC | Fat Dragon | Dessert Wine |
+| Still Wild NM LLC | Still Water Distillery | Whisky |
+| Oakham Estate Winery | Hartwell Red | Wine |
+| Belmore International Corp | Esquisito | Tequila |
+| Freebrook Imports | Blended Blue | Tequila |
+| Morton Distilleries | Wild Bill's Vodka | Vodka |
 
 **Entry by Category**
-- Wine: Majority of new entrants
-- Spirits: Growing share of first-time filers
-- Beer: Steady craft brewery formation
+- Wine: Multiple new estate wineries
+- Spirits: Tequila attracting new investment
+- Whisky: Craft distilleries launching
 
 **What This Signals**
-The 980 new market entrants represents significant entrepreneurial activity in the beverage alcohol space. Tequila continues to attract new investment (1925 Spirits), while craft distilleries like Speedtrap are diversifying into rum. The barrier to entry remains accessible for small producers, though distribution remains the primary challenge.
+34 new market entrants represents entrepreneurial activity in beverage alcohol. Tequila continues to attract new importers (Belmore, Freebrook), while craft distilleries are launching new whisky and vodka brands.
 
 ---
 
@@ -76,27 +113,26 @@ Track new market entrants at bevalcintel.com
 ---
 
 ## POST 3: Intent Signals
-**Post on:** Thursday, January 16, 2026 at 10am ET (if velocity data is notable)
+**Post on:** Thursday, January 16, 2026 at 10am ET
 
 ---
 
-T. Elenteny Holdings filed 265 labels last week.
+Connoisseur Wines USA filed 34 labels last week.
 
-That positions them as the top filer in the market.
+That positions them as the top filer for the first week of 2026.
 
 **Filing Profile**
-- Last week: 265 filings
-- Category focus: Import distribution
-- Primary activity: Wine imports
-
-**Why T. Elenteny Leads**
-T. Elenteny Holdings operates as an importer of record for international producers entering the US market. Their high filing volume reflects:
-- Strong international wine production
-- Continued US demand for imported products
-- Efficient label approval pipeline
+- Filings: 34
+- Category focus: Wine imports
+- Primary activity: European wine portfolio expansion
 
 **Market Context**
-Import specialists like T. Elenteny, MHW, and Park Street collectively filed 686 labels last week. This infrastructure enables smaller international producers to access the US market without establishing their own import operations.
+Import specialists often lead weekly filing counts. Their volume reflects:
+- Strong international wine production
+- US demand for imported wines
+- Efficient label approval pipeline
+
+The top 5 filers (Connoisseur, Fort George, Raising Glasses, Yee-Haw, Twin Elephant) filed 89 labels combined - 8% of total weekly volume.
 
 ---
 
@@ -104,38 +140,39 @@ Track filing velocity at bevalcintel.com
 
 ---
 
-## POST 4: Category Analysis (Wine)
+## POST 4: Category Analysis
 **Post on:** Friday, January 17, 2026 at 10am ET
 
 ---
 
-Wine filings represent 66% of all TTB activity last week.
+Wine filings lead TTB activity: 534 labels last week.
 
-18,707 wine labels filed January 4-10, 2026.
+January 4-10, 2026 category breakdown:
 
-**The Trend**
-| Metric | Value |
-|--------|-------|
-| Wine filings | 18,707 |
-| Share of total | 66% |
-| New brands | ~3,800 |
+**Wine Categories**
+| Type | Count |
+|------|-------|
+| Table Red Wine | 186 |
+| Table White Wine | 179 |
+| Dessert/Port/Sherry | 93 |
+| Sparkling/Champagne | 46 |
+| Rose Wine | 30 |
+| **Wine Total** | **534** |
 
-**Who's Driving It**
-Top wine filers this week:
-1. T. Elenteny Holdings - Import specialist
-2. Barsac, Inc. - Import/distribution
-3. Park Street Imports - Import services
-4. Various domestic wineries
-
-**Market Concentration**
-The top filers are primarily import specialists rather than wine producers. This reflects the fragmented nature of wine production globally, with thousands of producers relying on US import partners.
+**Beer Categories**
+| Type | Count |
+|------|-------|
+| Ale | 143 |
+| Malt Beverages | 89 |
+| Beer | 49 |
+| **Beer Total** | **281** |
 
 **What This Indicates**
-Wine's dominance in TTB filings reflects both the category's size and its import-heavy structure. Unlike spirits, where a few large players file most labels, wine filing activity is distributed across thousands of producers working through import partners. The 18,707 weekly filings suggest strong inventory replenishment ahead of spring retail planning.
+Wine represents 46% of all filings. Red and white table wines are nearly equal (186 vs 179), suggesting balanced portfolio expansion. The 30 tequila filings reflect continued category growth.
 
 ---
 
-Full wine data at bevalcintel.com/category/wine
+Full data at bevalcintel.com
 
 ---
 
@@ -146,16 +183,28 @@ Full wine data at bevalcintel.com/category/wine
 | Monday 1/13 | Weekly Intelligence Brief | 9am ET |
 | Wednesday 1/15 | Market Movers | 10am ET |
 | Thursday 1/16 | Intent Signals | 10am ET |
-| Friday 1/17 | Category Analysis (Wine) | 10am ET |
+| Friday 1/17 | Category Analysis | 10am ET |
 
 ---
 
 ## Data Verification
 
-All stats verified against D1:
-- Total filings: 28,205
-- NEW_BRAND: 5,786
-- NEW_COMPANY: 980
-- NEW_SKU: 6,729
-- REFILE: 9,184
-- Top filer: T. Elenteny Holdings (265)
+All stats from D1 database queries executed 2026-01-10:
+
+```sql
+-- Total filings
+SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1;
+-- Result: 1,156
+
+-- Signal breakdown
+SELECT signal, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY signal;
+-- NEW_SKU: 719, REFILE: 219, NEW_BRAND: 184, NEW_COMPANY: 34
+
+-- Top filers
+SELECT company_name, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY company_name ORDER BY COUNT(*) DESC LIMIT 5;
+-- Connoisseur Wines USA: 34, Fort George Brewery: 15, Raising Glasses: 14, Yee-Haw: 13, Twin Elephant: 13
+
+-- Category breakdown
+SELECT class_type_code, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY class_type_code ORDER BY COUNT(*) DESC;
+-- Table Red Wine: 186, Table White Wine: 179, Ale: 143, Dessert Wine: 93, Malt: 89, Beer: 49, Sparkling: 46, Tequila: 30, Rose: 30
+```

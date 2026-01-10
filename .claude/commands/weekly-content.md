@@ -64,13 +64,33 @@ Content includes:
 
 ## Pipeline Steps
 
-### 1. Data Mining
-**Query D1 for:**
-- Week's filing statistics
-- Signal breakdown (NEW_BRAND, NEW_SKU, NEW_COMPANY, REFILE)
-- Top filing companies (normalized)
-- Category breakdown
-- Filing velocity anomalies
+### 1. Data Mining (CRITICAL: USE REAL D1 DATA)
+
+**IMPORTANT:** All statistics MUST come from actual D1 queries. NEVER fabricate numbers.
+
+**Execute these queries via wrangler:**
+
+```bash
+# Total filings for the week (adjust year/month as needed)
+cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1"
+
+# Signal breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT signal, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY signal"
+
+# Top filers
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT company_name, COUNT(*) as filings FROM colas WHERE year = 2026 AND month = 1 GROUP BY company_name ORDER BY filings DESC LIMIT 10"
+
+# Category breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT class_type_code, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY class_type_code ORDER BY COUNT(*) DESC LIMIT 15"
+
+# New companies
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT brand_name, company_name, class_type_code FROM colas WHERE year = 2026 AND month = 1 AND signal = 'NEW_COMPANY' LIMIT 10"
+```
+
+**Or run the PowerShell script:**
+```powershell
+.\scripts\content-automation\query-weekly-data.ps1 -WeekEnding "2026-01-10"
+```
 
 **Output:** `scripts/content-queue/weekly-data-{date}.json`
 
