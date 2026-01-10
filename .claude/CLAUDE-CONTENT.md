@@ -1,15 +1,17 @@
 # CLAUDE-CONTENT.md
 
-Content automation infrastructure for BevAlc Intelligence. This document describes the agents, commands, skills, and workflows for automated content generation.
+Content automation infrastructure for BevAlc Intelligence. LinkedIn is the primary distribution channel with a professional, data-driven tone.
 
 ## Overview
 
-The content automation system enables Claude to:
-1. Query D1 for weekly filing data
-2. Scan industry news sources
-3. Generate multiple content types (articles, social posts, newsletters)
-4. Write engaging "absurd stories" from real filing data
-5. Maintain consistent brand voice
+The content system generates professional business intelligence content from TTB filing data:
+
+1. **Weekly Intelligence Brief** - Monday summary of prior week's filings
+2. **Intent Signals** - Companies showing unusual filing velocity
+3. **Category Analysis** - Deep dives on specific category trends
+4. **Market Movers** - New entrants and significant market activity
+
+All content is professional, data-forward, and suitable for industry executives on LinkedIn.
 
 ## Directory Structure
 
@@ -20,54 +22,118 @@ bevalc-intelligence/
 │   ├── CLAUDE-CONTENT.md            # This file - content automation
 │   ├── agents/                      # Subagent definitions
 │   │   ├── data-miner.md           # Query D1 for weekly data
-│   │   ├── email-scanner.md        # Scan Zoho Mail for news
-│   │   ├── site-monitor.md         # Monitor competitor sites
 │   │   ├── content-writer.md       # Write structured content
-│   │   ├── story-writer.md         # Write absurd stories
-│   │   ├── newsletter-writer.md    # Assemble newsletters
-│   │   └── seo-content.md          # Update SEO pages
+│   │   └── newsletter-writer.md    # Assemble newsletters
 │   └── commands/                    # Custom slash commands
 │       ├── weekly-content.md       # Full weekly pipeline
 │       ├── company-spotlight.md    # Company profile content
 │       ├── trend-report.md         # Category trend analysis
 │       ├── scan-news.md            # Run news scanners
-│       ├── absurd-story.md         # Generate creative story
-│       ├── brand-enricher.md       # Find single brand website
-│       └── enrich-brands.md        # Batch enrich from weekly sync
-├── skills/                          # Skill definitions
-│   ├── bevalc-business-context/    # Industry knowledge
-│   ├── bevalc-brand-voice/         # Writing style guide
-│   ├── content-workflow/           # Process documentation
-│   └── brand-enricher/             # Find brand websites
+│       └── enrich-brands.md        # Batch enrich brand websites
+├── templates/                       # Content templates
+│   ├── linkedin-weekly-intel.md    # Monday weekly summary
+│   ├── linkedin-intent-signals.md  # Filing velocity alerts
+│   ├── linkedin-category-analysis.md # Category deep dives
+│   ├── linkedin-market-movers.md   # New entrants & activity
+│   ├── company-spotlight.md        # Long-form company profiles
+│   └── trend-report.md             # Detailed trend analysis
 ├── scripts/
 │   ├── content-automation/         # PowerShell automation
 │   │   ├── query-weekly-data.ps1   # Query D1
-│   │   ├── generate-content-queue.ps1  # Pipeline orchestrator
-│   │   ├── zoho-email-config.ps1   # Zoho Mail setup
-│   │   └── schedule-task.ps1       # Windows Task Scheduler
+│   │   └── generate-content-queue.ps1  # Pipeline orchestrator
 │   └── content-queue/              # Generated content output
-├── templates/                       # Content templates
-│   ├── company-spotlight.md
-│   ├── weekly-roundup.md
-│   ├── trend-report.md
-│   └── absurd-story.md
 └── reference/                       # Reference documents
-    ├── newsletter-sources.md       # News source list
-    ├── sites-to-monitor.md         # Site monitoring config
-    └── seo-best-practices.md       # SEO guidelines
 ```
 
-## Quick Start
+## LinkedIn Content Types
+
+### 1. Weekly Intelligence Brief
+**Template:** `templates/linkedin-weekly-intel.md`
+**When:** Monday morning
+**Purpose:** Establish authority with consistent weekly data summary
+
+**Structure:**
+- Hook: Total filings number
+- Stats: New brands, new companies, category breakdown
+- Top filers: Top 3-5 companies
+- Analysis: 2-3 sentences of insight
+- CTA: Link to database
+
+### 2. Intent Signals
+**Template:** `templates/linkedin-intent-signals.md`
+**When:** 1-2x/week when significant
+**Purpose:** Surface actionable competitive intelligence
+
+**Criteria for posting:**
+- Company filing at 2x+ normal rate
+- 50+ filings in a week from moderate filer
+- New category entry by established player
+
+**Structure:**
+- Hook: Company + unusual activity
+- Data: Filing velocity comparison
+- Analysis: What it signals
+- Context: Industry relevance
+
+### 3. Category Analysis
+**Template:** `templates/linkedin-category-analysis.md`
+**When:** 1x/week, rotating categories
+**Purpose:** Establish expertise in specific categories
+
+**Rotation:** Whiskey, Tequila, RTD, Wine, Beer, Gin (6-week cycle)
+
+**Structure:**
+- Hook: Category trend + YoY change
+- Data: Filing trend, top filers, market concentration
+- New entrants: First-time filers in category
+- Analysis: What the data indicates
+
+### 4. Market Movers
+**Template:** `templates/linkedin-market-movers.md`
+**When:** Wednesday/Thursday
+**Purpose:** Track market entry and significant moves
+
+**Structure:**
+- Hook: Number of new entrants
+- Data: New companies, first filings
+- Notable entries: Most interesting new players
+- Established activity: Big company moves
+- Analysis: Market implications
+
+## Writing Guidelines
+
+### Tone
+- Professional and authoritative
+- Data-forward, insight-driven
+- Suitable for executives and analysts
+
+### Banned Elements
+- Emojis
+- Exclamation marks
+- Casual phrases ("check this out", "you won't believe", etc.)
+- Marketing language ("amazing", "incredible", "game-changing")
+- Overly enthusiastic language
+- First-person plural assumptions ("we all know")
+
+### Required Elements
+- Lead with data/numbers
+- Cite specific companies and counts
+- Include "What this signals/indicates" analysis
+- End with CTA to bevalcintel.com
+- Acknowledge limitations where appropriate
+
+### Length Guidelines
+- LinkedIn posts: 150-250 words
+- Hook must fit in first 2 lines (before "See more" truncation)
+- Long-form articles: 800-1500 words
+
+## Quick Commands
 
 ### Run Weekly Content Pipeline
 ```bash
-# PowerShell
-cd scripts/content-automation
-.\generate-content-queue.ps1
-
-# Or via Claude command
 /weekly-content
 ```
+Generates all four content types from current D1 data.
 
 ### Generate Specific Content
 ```bash
@@ -77,147 +143,60 @@ cd scripts/content-automation
 # Trend report
 /trend-report tequila --period year
 
-# Absurd story
-/absurd-story --random
-```
-
-### Set Up Automation
-```bash
-# Configure Zoho Mail (one-time)
-.\zoho-email-config.ps1
-
-# Install weekly scheduled task
-.\schedule-task.ps1 -Install
-```
-
-## Agents
-
-### data-miner
-**Purpose:** Query D1 for weekly filing statistics
-**Output:** `content-queue/weekly-data-{date}.json`
-**Data collected:**
-- Total filings, new brands, new SKUs, new companies
-- Top filing companies
-- Category breakdown
-- Notable new brands
-- Story hooks
-
-### email-scanner
-**Purpose:** Scan Zoho Mail for industry news
-**Output:** `content-queue/news-digest-{date}.json`
-**Sources:** Shanken News Daily, Beverage Dynamics, Google Alerts, PR Newswire
-
-### site-monitor
-**Purpose:** Monitor competitor and regulatory sites
-**Output:** `content-queue/site-changes-{date}.json`
-**Sites:** TTB.gov, competitor sites, company newsrooms
-
-### content-writer
-**Purpose:** Write structured articles
-**Content types:** Company spotlights, weekly roundups, trend reports
-
-### story-writer
-**Purpose:** Write creative "absurd stories" from filing data
-**Story types:** Naming committee, label artist, approval officer, origin story
-
-### newsletter-writer
-**Purpose:** Assemble weekly newsletter content
-**Output:** Newsletter JSON for email template, blog post, social posts
-
-### seo-content
-**Purpose:** Enhance SEO pages with descriptions and metadata
-**Focus:** High-traffic company and brand pages
-
-## Commands
-
-### /weekly-content
-Run the full Saturday content generation pipeline.
-```
-/weekly-content
-/weekly-content --dry-run
-/weekly-content --skip-news
-```
-
-### /company-spotlight
-Generate comprehensive content for a specific company.
-```
-/company-spotlight diageo
-/company-spotlight "E. & J. Gallo" --format blog
-```
-
-### /trend-report
-Generate trend analysis for a category or phenomenon.
-```
-/trend-report tequila
-/trend-report "RTD cocktails" --period year
-/trend-report --category whiskey --compare vodka
-```
-
-### /scan-news
-Run email and site scanning for industry news.
-```
+# Scan for industry news
 /scan-news
-/scan-news --email-only
-/scan-news --days 3
 ```
 
-### /absurd-story
-Generate a creative story from real filing data.
+## Weekly Schedule
+
+| Day | Content Type | Time |
+|-----|--------------|------|
+| Monday | Weekly Intelligence Brief | 9am ET |
+| Wednesday | Market Movers | 10am ET |
+| Thursday | Intent Signals (if notable) | 10am ET |
+| Friday | Category Analysis | 10am ET |
+
+## Data Requirements
+
+All content pulls from D1 using these core queries:
+
+```sql
+-- Weekly totals
+SELECT COUNT(*) FROM colas
+WHERE approval_date >= '[start]' AND approval_date <= '[end]'
+
+-- Signal breakdown
+SELECT signal, COUNT(*) FROM colas
+WHERE approval_date >= '[start]' AND approval_date <= '[end]'
+GROUP BY signal
+
+-- Top filers (normalized companies)
+SELECT c.canonical_name, COUNT(*) as count
+FROM colas co
+JOIN company_aliases ca ON co.company_name = ca.raw_name
+JOIN companies c ON ca.company_id = c.id
+WHERE approval_date >= '[start]' AND approval_date <= '[end]'
+GROUP BY c.id ORDER BY count DESC LIMIT 10
+
+-- Filing velocity (intent signals)
+WITH recent AS (
+  SELECT company_name, COUNT(*) as recent_count
+  FROM colas WHERE approval_date >= date('now', '-7 days')
+  GROUP BY company_name
+),
+baseline AS (
+  SELECT company_name, COUNT(*) / 4.0 as avg_weekly
+  FROM colas
+  WHERE approval_date >= date('now', '-35 days')
+    AND approval_date < date('now', '-7 days')
+  GROUP BY company_name
+)
+SELECT r.company_name, r.recent_count, b.avg_weekly,
+       r.recent_count / b.avg_weekly as velocity_multiple
+FROM recent r JOIN baseline b ON r.company_name = b.company_name
+WHERE b.avg_weekly >= 5 AND r.recent_count >= b.avg_weekly * 2
+ORDER BY velocity_multiple DESC
 ```
-/absurd-story
-/absurd-story "Sunset Thunder Vodka"
-/absurd-story --type naming-committee
-/absurd-story --random --count 3
-```
-
-### /brand-enricher
-Find official websites for beverage alcohol brands.
-```
-/brand-enricher "Wonky Ear"
-/brand-enricher "Carroll Noir" --save
-```
-
-**How it works:**
-1. Queries D1 to get company name and category for the brand
-2. Searches web with brand + company + category together
-3. Scores results (prefers official sites, skips retailers)
-4. Verifies top candidate with WebFetch
-5. Reports result with confidence level
-
-**Key insight:** Including company name from D1 dramatically improves accuracy. "Wonky Ear" alone = poor results. "Wonky Ear Sideshow Spirits whiskey" = finds distillery immediately.
-
-## Skills
-
-### bevalc-business-context
-Comprehensive knowledge about:
-- TTB and COLA process
-- Industry structure and major players
-- Market trends (RTD, premium, tequila growth)
-- What COLA data reveals (and doesn't)
-
-### bevalc-brand-voice
-Writing style guidelines:
-- Professional but accessible tone
-- Data-driven (always cite numbers)
-- No marketing hyperbole
-- Link to SEO pages
-- Acknowledge data limitations
-
-### content-workflow
-Process documentation:
-- Weekly content cycle timeline
-- Content creation workflows
-- Publishing checklists
-- Quality standards
-
-### brand-enricher
-Find official brand websites:
-- Query D1 for company + category context
-- Web search with all three pieces (brand + company + category)
-- Score and verify results
-- Skip retailers, prefer official sites
-
-**Trigger phrases:** "find the website for", "look up website", "enrich brand"
 
 ## Content Queue
 
@@ -226,68 +205,56 @@ Generated content is stored in `scripts/content-queue/`:
 | File Pattern | Contents |
 |--------------|----------|
 | `weekly-data-{date}.json` | D1 query results |
-| `news-digest-{date}.json` | Email/site scan results |
-| `stories-{date}.json` | Generated absurd stories |
-| `articles-{date}.json` | Written articles |
+| `linkedin-drafts-{date}.md` | LinkedIn post drafts |
 | `newsletter-{date}.json` | Assembled newsletter |
 | `spotlight-{company}-{date}.json` | Company spotlight |
 | `trend-{topic}-{date}.json` | Trend report |
 
-## Weekly Schedule
-
-| Day/Time | Activity |
-|----------|----------|
-| Friday 9pm ET | Weekly Update runs (GitHub Action) |
-| Saturday 2am ET | Weekly Update completes |
-| Saturday 9am ET | Weekly Report emails sent |
-| Saturday 10am ET | `/weekly-content` pipeline runs |
-| Saturday 12pm ET | Content review and editing |
-| Monday 9am | Blog post published |
-| Monday 10am | Social posts scheduled |
-
 ## Environment Variables
 
-For content automation:
 ```
-# D1 Queries (required)
 CLOUDFLARE_ACCOUNT_ID=xxx
 CLOUDFLARE_D1_DATABASE_ID=xxx
 CLOUDFLARE_API_TOKEN=xxx
-
-# Email Scanning (optional)
-ZOHO_CLIENT_ID=xxx
-ZOHO_CLIENT_SECRET=xxx
-ZOHO_REFRESH_TOKEN=xxx
-ZOHO_ACCOUNT_ID=xxx
 ```
 
-## Templates
+## Integration
 
-Templates in `/templates/` provide structure for:
-- Company spotlights (800-1200 words)
-- Weekly roundups (500-800 words)
-- Trend reports (800-1500 words)
-- Absurd stories (150-300 words)
+The content system integrates with:
 
-Each template includes:
-- Required sections
-- Data point requirements
-- SEO considerations
-- Voice/tone guidelines
+1. **D1 Database** - All data queries use the Cloudflare D1 API
+2. **SEO Pages** - Content links to `/company/[slug]` and `/brand/[slug]`
+3. **Weekly Report** - Content generation runs after weekly sync
+4. **Email System** - Newsletter content can feed React Email templates
 
-## Integration with Existing System
+## Example LinkedIn Post
 
-The content automation system integrates with:
+```
+3,247 alcohol labels filed with TTB last week.
 
-1. **D1 Database** - All data queries use the same D1 API as other scripts
-2. **SEO Pages** - Generated content links to `/company/[slug]` and `/brand/[slug]`
-3. **Email Templates** - Newsletter content can be used with existing React Email templates
-4. **Weekly Report** - Runs after `weekly_update.py` and before `send_weekly_report.py`
+Here's what the data shows:
 
-## Next Steps to Implement
+The Numbers
+- Total filings: 3,247 (down 8% from prior week)
+- New brands: 412
+- New market entrants: 23
+- Category leader: Wine at 41%
 
-1. **Zoho Mail Integration** - Set up API access for email scanning
-2. **Site Monitoring Script** - Implement hash-based change detection
-3. **Story Generation** - Train on example absurd stories
-4. **Newsletter Template** - Create React Email template for newsletter format
-5. **Blog CMS** - Integrate with publishing platform
+Top Filers
+1. Accolade Brands - 156 filings
+2. Treasury Wine Estates - 89 filings
+3. Constellation Brands - 67 filings
+
+Notable Activity
+Wine imports dominated, accounting for nearly half of all filings.
+Whiskey filings dropped 15% week-over-week after a strong December.
+
+What This Signals
+The post-holiday filing pattern is normalizing. Import activity
+suggests distributors are repositioning inventory for Q1.
+
+---
+
+Database: bevalcintel.com
+1.9M+ TTB filings. Updated weekly.
+```

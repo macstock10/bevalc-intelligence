@@ -180,12 +180,22 @@ GROUP BY c.id ORDER BY filings DESC;
 
 See `CLAUDE-CONTENT.md` for full documentation.
 
-**Quick commands:**
-- `/weekly-content` - Full pipeline
-- `/company-spotlight <company>` - Company content
-- `/trend-report <category>` - Category trends
-- `/absurd-story` - Creative story from data
-- `/scan-news` - Industry news scan
+**LinkedIn Content (Primary Distribution):**
+- `/weekly-content` - Generate all 4 LinkedIn posts for the week
+
+**Content Types:**
+1. **Weekly Intelligence Brief** (Monday) - Filing stats, top filers, analysis
+2. **Intent Signals** (Thu if notable) - Companies with unusual filing velocity
+3. **Category Analysis** (Friday) - Deep dive on rotating category
+4. **Market Movers** (Wednesday) - New market entrants, significant activity
+
+**Templates:** `templates/linkedin-*.md`
+
+**Tone:** Professional, data-forward, no emojis, no casual language
+
+**Other commands:**
+- `/company-spotlight <company>` - Long-form company profile
+- `/trend-report <category>` - Detailed trend analysis
 
 ## Current State (Last Updated: 2026-01-10)
 
