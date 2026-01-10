@@ -11,6 +11,8 @@ This script:
 1. Compares local DB record count with D1
 2. Uploads only new records using INSERT OR IGNORE
 3. Uses D1 REST API for efficient batching
+4. Updates brand_slugs table for SEO pages
+5. Updates companies/company_aliases tables
 """
 
 import sqlite3
@@ -21,6 +23,9 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
+
+# Add scripts dir to path for lib imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 # =============================================================================
 # CONFIG - Auto-detect paths (works on Windows and Linux/GitHub Actions)
@@ -324,7 +329,36 @@ def sync_to_d1(full_mode: bool = False):
         diff = local_count - final_d1_count
         print(f"\nNote: {diff:,} records difference (may be duplicates or schema differences)")
 
+    # Update brand_slugs and companies for SEO pages
+    if total_inserted > 0:
+        print(f"\n{'='*60}")
+        print("UPDATING SEO TABLES")
+        print(f"{'='*60}")
+        update_seo_tables(records)
+
     return True
+
+
+def update_seo_tables(records: List[Dict]):
+    """Update brand_slugs and companies tables for SEO pages."""
+    from lib.d1_utils import update_brand_slugs, add_new_companies, init_d1_config
+
+    # Initialize D1 config for lib functions
+    init_d1_config(
+        account_id=CLOUDFLARE_ACCOUNT_ID,
+        database_id=CLOUDFLARE_D1_DATABASE_ID,
+        api_token=CLOUDFLARE_API_TOKEN
+    )
+
+    # Update brand_slugs
+    print("\nUpdating brand_slugs...")
+    new_brands = update_brand_slugs(records)
+    print(f"  Added {new_brands:,} new brands to brand_slugs")
+
+    # Update companies
+    print("\nUpdating companies...")
+    new_companies = add_new_companies(records)
+    print(f"  Added {new_companies:,} new companies")
 
 # =============================================================================
 # MAIN
