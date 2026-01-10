@@ -28,7 +28,8 @@
       "Bash(findstr:*)",
       "Bash(sqlite3:*)",
       "Bash(for:*)",
-      "Bash(do echo -n \"2014_$m: links=\")"
+      "Bash(do echo -n \"2014_$m: links=\")",
+      "Bash(do)"
     ]
   }
 }

@@ -52,6 +52,16 @@ Notes: {explanation}
 ## Key Insight
 Including the company name from D1 dramatically improves search accuracy, especially for obscure brands. A brand like "Wonky Ear" alone yields poor results, but "Wonky Ear Sideshow Spirits whiskey" finds the distillery immediately.
 
+## Multi-Company Brands
+The same brand name can be filed by multiple companies (e.g., WYATT EARP is filed by World Whiskey Society, AIKO Importers, and Henebery Spirits). When enriching:
+
+1. **Check for multiple filers**: Query D1 for all unique (brand_name, company_name) pairs
+2. **Enrich each pairing separately**: Each company gets their own website lookup
+3. **Don't skip seen brands**: Always check the brand+company combo, not just the brand
+4. **Store appropriately**:
+   - Use `brand_websites` for the primary producer's product page
+   - Use `company_websites` for company-level sites (fallback)
+
 ## Examples
 
 **User:** "Find the website for Wonky Ear"

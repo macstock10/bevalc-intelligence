@@ -1939,7 +1939,7 @@ async function handleRecord(url, env) {
         return { success: false, error: 'Record not found' };
     }
 
-    // Look up website: first try brand_websites, then company_websites
+    // Look up website: brand first, company as fallback
     let websiteUrl = null;
 
     // Try brand-specific website first
