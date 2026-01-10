@@ -2883,7 +2883,8 @@ async function handleBrandPage(path, env, corsHeaders) {
                         <table class="filings-table">
                             <thead>
                                 <tr>
-                                    <th>Product Name</th>
+                                    <th>Brand Name</th>
+                                    <th>Fanciful Name</th>
                                     <th>Type</th>
                                     <th>Approved</th>
                                     <th>Status</th>
@@ -2892,7 +2893,8 @@ async function handleBrandPage(path, env, corsHeaders) {
                             <tbody>
                                 ${products.map(p => `
                                     <tr>
-                                        <td><strong>${escapeHtml(p.fanciful_name || brand.brand_name)}</strong></td>
+                                        <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
+                                        <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
                                         <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace(/_/g, '-')}">${p.signal.replace('_', ' ')}</span>` : '<span class="signal-badge signal-refile">—</span>'}</td>
