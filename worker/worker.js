@@ -2495,6 +2495,23 @@ async function handleCompanyPage(path, env, corsHeaders) {
 
     // Determine if we have a normalized company (with id) or a virtual one (from colas search)
     const hasCompanyId = company.id !== null;
+
+    // Get actual filing count from colas (companies.total_filings may be stale)
+    let actualTotalFilings;
+    if (hasCompanyId) {
+        const countResult = await env.DB.prepare(`
+            SELECT COUNT(*) as cnt FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+        `).bind(company.id).first();
+        actualTotalFilings = countResult?.cnt || company.total_filings;
+    } else {
+        const countResult = await env.DB.prepare(`
+            SELECT COUNT(*) as cnt FROM colas WHERE company_name = ?
+        `).bind(company.canonical_name).first();
+        actualTotalFilings = countResult?.cnt || company.total_filings;
+    }
+    company.total_filings = actualTotalFilings;
     let brands = [];
     let categories = [];
     let recentFilings = [];
@@ -2796,7 +2813,15 @@ async function handleBrandPage(path, env, corsHeaders) {
         return new Response('Brand not found', { status: 404 });
     }
 
-    const brand = brandResult;
+    // Get actual filing count from colas (brand_slugs.filing_count may be stale)
+    const actualCount = await env.DB.prepare(`
+        SELECT COUNT(*) as cnt FROM colas WHERE brand_name = ?
+    `).bind(brandResult.brand_name).first();
+
+    const brand = {
+        brand_name: brandResult.brand_name,
+        cnt: actualCount?.cnt || brandResult.cnt
+    };
 
     // Get company for this brand
     const companyResult = await env.DB.prepare(`
