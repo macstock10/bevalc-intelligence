@@ -1421,13 +1421,14 @@ function generateCompanyPDF() {
         const news = tearsheet.news || [];
         const recentFilings = tearsheet.recent_filings || [];
 
-        // Page dimensions and margins
+        // Page dimensions and margins (0.5 inch = 36pt)
         const pageWidth = 612;
         const pageHeight = 792;
-        const marginLeft = 40;
-        const marginRight = 40;
-        const marginTop = 40;
-        const marginBottom = 40;
+        const margin = 36;
+        const marginLeft = margin;
+        const marginRight = margin;
+        const marginTop = margin;
+        const marginBottom = margin;
         const contentWidth = pageWidth - marginLeft - marginRight;
 
         // Colors (RGB 0-255)
@@ -1576,7 +1577,14 @@ function generateCompanyPDF() {
             checkPageBreak(80);
             drawSectionLabel('Recent News');
 
-            news.slice(0, 3).forEach(n => {
+            // Sort news by date (most recent first)
+            const sortedNews = [...news].sort((a, b) => {
+                const dateA = a.date ? new Date(a.date) : new Date(0);
+                const dateB = b.date ? new Date(b.date) : new Date(0);
+                return dateB - dateA;
+            });
+
+            sortedNews.slice(0, 3).forEach(n => {
                 checkPageBreak(40);
 
                 // News headline in teal with quotes (clickable if URL exists)
