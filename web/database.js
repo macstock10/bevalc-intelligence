@@ -1297,6 +1297,8 @@ function renderTearsheet(tearsheet, cached) {
         trendHtml = '<span style="color: #22c55e;">Growing</span>';
     } else if (stats.trend === 'declining') {
         trendHtml = '<span style="color: #ef4444;">Declining</span>';
+    } else if (stats.trend === 'dormant') {
+        trendHtml = '<span style="color: #f59e0b;">Dormant</span>';
     } else {
         trendHtml = '<span style="color: #94a3b8;">Stable</span>';
     }
@@ -1330,11 +1332,15 @@ function renderTearsheet(tearsheet, cached) {
 
     return `
         <div class="tearsheet">
-            ${cached ? '<p style="font-size: 0.7rem; color: #64748b; margin-bottom: 12px;">Cached result</p>' : ''}
+            <div class="tearsheet-header">
+                <h3 style="margin: 0 0 4px 0; font-size: 1.1rem; color: var(--color-dark);">${escapeHtml(tearsheet.company_name || 'Company')}</h3>
+                ${tearsheet.website?.url ? `<a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="font-size: 0.85rem; color: var(--color-primary);">${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : ''}
+                ${cached ? '<span style="font-size: 0.65rem; color: #94a3b8; margin-left: 8px;">(cached)</span>' : ''}
+            </div>
 
             ${tearsheet.summary ? `
-                <div class="tearsheet-summary">
-                    <p style="font-size: 0.95rem; color: var(--color-dark); line-height: 1.5; margin-bottom: 16px;">${escapeHtml(tearsheet.summary)}</p>
+                <div class="tearsheet-summary" style="margin: 12px 0; padding: 12px; background: #f8fafc; border-radius: 6px;">
+                    <p style="font-size: 0.9rem; color: var(--color-dark); line-height: 1.5; margin: 0;">${escapeHtml(tearsheet.summary)}</p>
                 </div>
             ` : ''}
 
@@ -1376,19 +1382,8 @@ function renderTearsheet(tearsheet, cached) {
 
             ${stateList ? `
                 <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">States Filed</span>
+                    <span class="tearsheet-field-label">Distribution</span>
                     <span class="tearsheet-field-value">${stateList}</span>
-                </div>
-            ` : ''}
-
-            ${tearsheet.website?.url ? `
-                <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">Website</span>
-                    <span class="tearsheet-field-value">
-                        <a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="color: var(--color-primary);">
-                            ${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}
-                        </a>
-                    </span>
                 </div>
             ` : ''}
 

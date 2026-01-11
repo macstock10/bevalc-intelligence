@@ -3701,28 +3701,29 @@ async function deductCredit(email, companyId, env) {
 async function runEnhancement(companyId, companyName, env) {
     // Run D1 queries in parallel for speed
     const [stats, states, categories, brands, existingWebsite] = await Promise.all([
-        // Filing statistics
+        // Filing statistics - convert MM/DD/YYYY to sortable format for proper MIN/MAX
         env.DB.prepare(`
             SELECT
                 COUNT(*) as total_filings,
-                MIN(approval_date) as first_filing,
-                MAX(approval_date) as last_filing,
-                COUNT(CASE WHEN approval_date >= date('now', '-12 months') THEN 1 END) as last_12_months,
-                COUNT(CASE WHEN approval_date >= date('now', '-1 month') THEN 1 END) as last_month
+                MIN(substr(approval_date, 7, 4) || '-' || substr(approval_date, 1, 2) || '-' || substr(approval_date, 4, 2)) as first_filing_sort,
+                MAX(substr(approval_date, 7, 4) || '-' || substr(approval_date, 1, 2) || '-' || substr(approval_date, 4, 2)) as last_filing_sort,
+                COUNT(CASE WHEN substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) >= strftime('%Y%m%d', 'now', '-12 months') THEN 1 END) as last_12_months,
+                COUNT(CASE WHEN substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) >= strftime('%Y%m%d', 'now', '-1 month') THEN 1 END) as last_month
             FROM colas
             WHERE company_name IN (
                 SELECT raw_name FROM company_aliases WHERE company_id = ?
             )
         `).bind(companyId).first(),
 
-        // State distribution
+        // State distribution - only get 2-letter state codes
         env.DB.prepare(`
-            SELECT DISTINCT state
+            SELECT DISTINCT UPPER(TRIM(state)) as state
             FROM colas
             WHERE company_name IN (
                 SELECT raw_name FROM company_aliases WHERE company_id = ?
             )
-            AND state IS NOT NULL AND state != ''
+            AND state IS NOT NULL
+            AND LENGTH(TRIM(state)) = 2
             ORDER BY state
         `).bind(companyId).all(),
 
@@ -3756,16 +3757,27 @@ async function runEnhancement(companyId, companyName, env) {
         `).bind(companyId).first()
     ]);
 
-    // Calculate trend
+    // Calculate trend - handle dormant companies
     let trend = 'stable';
-    if (stats && stats.last_12_months > 0) {
-        const avgMonthly = stats.last_12_months / 12;
-        if (stats.last_month > avgMonthly * 1.5) {
-            trend = 'growing';
-        } else if (stats.last_month < avgMonthly * 0.5) {
-            trend = 'declining';
+    if (stats) {
+        if (stats.last_12_months === 0) {
+            trend = 'dormant';
+        } else if (stats.last_12_months > 0) {
+            const avgMonthly = stats.last_12_months / 12;
+            if (stats.last_month > avgMonthly * 1.5) {
+                trend = 'growing';
+            } else if (stats.last_month < avgMonthly * 0.5) {
+                trend = 'declining';
+            }
         }
     }
+
+    // Convert sorted dates back to readable format (YYYY-MM-DD -> MM/DD/YYYY)
+    const formatDate = (sortDate) => {
+        if (!sortDate) return null;
+        const [y, m, d] = sortDate.split('-');
+        return `${m}/${d}/${y}`;
+    };
 
     // Prepare data for Claude
     const brandList = brands?.results?.map(b => b.brand_name).slice(0, 5).join(', ') || 'Unknown';
@@ -3806,14 +3818,14 @@ async function runEnhancement(companyId, companyName, env) {
         website: websiteUrl ? { url: websiteUrl, confidence: 'high' } : null,
         filing_stats: {
             total_filings: stats?.total_filings || 0,
-            first_filing: stats?.first_filing || null,
-            last_filing: stats?.last_filing || null,
+            first_filing: formatDate(stats?.first_filing_sort),
+            last_filing: formatDate(stats?.last_filing_sort),
             last_12_months: stats?.last_12_months || 0,
             last_month: stats?.last_month || 0,
             trend
         },
         distribution: {
-            states: states?.results?.map(s => s.state) || []
+            states: states?.results?.map(s => s.state).filter(s => s && s.length === 2) || []
         },
         brands: brands?.results?.map(b => ({ name: b.brand_name, filings: b.filings })) || [],
         categories: categories?.results?.reduce((acc, c) => {
@@ -3894,9 +3906,14 @@ Respond in this exact JSON format:
         const jsonMatch = textContent.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
+            // Strip citation tags from summary
+            let summary = parsed.summary || null;
+            if (summary) {
+                summary = summary.replace(/<cite[^>]*>|<\/cite>/g, '');
+            }
             return {
                 website: parsed.website || null,
-                summary: parsed.summary || null
+                summary
             };
         }
     } catch (e) {
