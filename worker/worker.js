@@ -441,7 +441,7 @@ async function handleCustomerStatus(url, env) {
     // First check D1 database for is_pro flag (allows admin overrides)
     const dbUser = await env.DB.prepare(
         'SELECT is_pro, stripe_customer_id FROM user_preferences WHERE email = ?'
-    ).bind(email).first();
+    ).bind(email.toLowerCase()).first();
 
     if (dbUser && dbUser.is_pro === 1) {
         return {
