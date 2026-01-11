@@ -3813,28 +3813,25 @@ async function runEnhancement(companyId, companyName, env) {
     let news = [];
 
     if (env.ANTHROPIC_API_KEY) {
-        try {
-            const claudeResult = await callClaudeWithSearch(companyName, {
-                totalFilings: stats?.total_filings || 0,
-                firstFiling: stats?.first_filing,
-                lastFiling: stats?.last_filing,
-                last12Months: stats?.last_12_months || 0,
-                trend,
-                brands: brandList,
-                categories: categoryList,
-                states: stateList,
-                existingWebsite: websiteUrl
-            }, env);
+        const claudeResult = await callClaudeWithSearch(companyName, {
+            totalFilings: stats?.total_filings || 0,
+            firstFiling: stats?.first_filing,
+            lastFiling: stats?.last_filing,
+            last12Months: stats?.last_12_months || 0,
+            trend,
+            brands: brandList,
+            categories: categoryList,
+            states: stateList,
+            existingWebsite: websiteUrl
+        }, env);
 
-            if (claudeResult.website && !websiteUrl) {
-                websiteUrl = claudeResult.website;
-            }
-            summary = claudeResult.summary;
-            news = claudeResult.news || [];
-        } catch (error) {
-            console.error('Claude enhancement failed:', error);
-            // Continue without AI summary - still return D1 data
+        if (claudeResult.website && !websiteUrl) {
+            websiteUrl = claudeResult.website;
         }
+        summary = claudeResult.summary;
+        news = claudeResult.news || [];
+    } else {
+        console.error('ANTHROPIC_API_KEY not set');
     }
 
     return {
