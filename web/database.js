@@ -1673,22 +1673,14 @@ function generateCompanyPDF() {
         // Build the HTML report
         const reportHtml = buildReportHTML(currentTearsheetData);
 
-        // Inject into the hidden container
-        const container = document.getElementById('pdf-report-container');
-        if (!container) {
-            alert('PDF container not found. Please refresh the page.');
-            return;
-        }
-        container.innerHTML = reportHtml;
-
-        // Temporarily make container visible for html2canvas to render
-        // Position it off-screen but still in the document flow
-        container.style.position = 'fixed';
-        container.style.left = '0';
-        container.style.top = '0';
-        container.style.zIndex = '-9999';
-        container.style.opacity = '0';
-        container.style.pointerEvents = 'none';
+        // Create a temporary visible element for rendering
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = reportHtml;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '0';
+        tempDiv.style.top = '0';
+        tempDiv.style.background = 'white';
+        document.body.appendChild(tempDiv);
 
         // Configure html2pdf options
         const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
@@ -1700,28 +1692,23 @@ function generateCompanyPDF() {
             html2canvas: {
                 scale: 2,
                 useCORS: true,
-                logging: false,
-                windowWidth: 816  // 8.5 inches at 96 DPI
+                logging: true,
+                backgroundColor: '#ffffff'
             },
             jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
         };
 
         // Generate and download the PDF
-        html2pdf().set(options).from(container).save().then(() => {
-            // Clean up and hide the container
-            container.innerHTML = '';
-            container.style.position = 'absolute';
-            container.style.left = '-9999px';
-            container.style.opacity = '';
-            container.style.zIndex = '';
-            container.style.pointerEvents = '';
+        html2pdf().set(options).from(tempDiv).save().then(() => {
+            // Remove the temporary element
+            document.body.removeChild(tempDiv);
         }).catch(err => {
             console.error('PDF generation error:', err);
             alert('Failed to generate PDF: ' + err.message);
             // Clean up on error too
-            container.innerHTML = '';
-            container.style.position = 'absolute';
-            container.style.left = '-9999px';
+            if (tempDiv.parentNode) {
+                document.body.removeChild(tempDiv);
+            }
         });
 
     } catch (error) {
