@@ -1396,16 +1396,22 @@ function generateCompanyPDF() {
         return;
     }
 
-    // Check if jsPDF loaded
-    if (!window.jspdf || !window.jspdf.jsPDF) {
+    // Check if jsPDF loaded - handle different module formats
+    let jsPDFClass = null;
+    if (window.jspdf && window.jspdf.jsPDF) {
+        jsPDFClass = window.jspdf.jsPDF;
+    } else if (window.jsPDF) {
+        jsPDFClass = window.jsPDF;
+    }
+
+    if (!jsPDFClass) {
+        console.error('jsPDF not available. window.jspdf:', window.jspdf, 'window.jsPDF:', window.jsPDF);
         alert('PDF library not loaded. Please refresh the page and try again.');
-        console.error('jsPDF not available:', window.jspdf);
         return;
     }
 
     try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        const doc = new jsPDFClass();
         const tearsheet = currentTearsheetData;
 
     // Page settings

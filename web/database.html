@@ -336,7 +336,15 @@
         </div>
     </footer>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script>
+        // Fallback if primary CDN fails
+        if (!window.jspdf) {
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            document.head.appendChild(s);
+        }
+    </script>
     <script src="auth.js"></script>
     <script src="ttb-categories.js"></script>
     <script src="database.js"></script>
