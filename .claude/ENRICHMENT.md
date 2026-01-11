@@ -17,20 +17,22 @@ Run enrichment after:
 
 **CRITICAL: Always start from the most recent approval_date in the database.**
 
-### Order Within Each Date
-For each date, enrich in this order:
-1. NEW_COMPANY
-2. NEW_BRAND
-3. NEW_SKU
-4. REFILE
+### What to Enrich
+Only enrich these signals (in order):
+1. **NEW_COMPANY** - First-time filers, highest priority
+2. **NEW_BRAND** - New brands from known companies
+
+**DO NOT enrich:**
+- NEW_SKU - Inherits from brand, not worth the time
+- REFILE - Label updates, lowest value
 
 ### Example Flow
 If most recent scrape has dates 01/08, 01/07, 01/06:
 
 ```
-01/08/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
-01/07/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
-01/06/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
+01/08/2026: NEW_COMPANY → NEW_BRAND
+01/07/2026: NEW_COMPANY → NEW_BRAND
+01/06/2026: NEW_COMPANY → NEW_BRAND
 (continue backwards through all dates)
 ```
 
@@ -38,15 +40,15 @@ If most recent scrape has dates 01/08, 01/07, 01/06:
 ```sql
 SELECT DISTINCT brand_name, company_name, class_type_code, signal, approval_date
 FROM colas
-WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE')
+WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND')
   AND brand_name NOT IN (SELECT brand_name FROM brand_websites)
 ORDER BY
   substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC,
-  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 END
+  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 END
 LIMIT 30
 ```
 
-This orders by date descending first, then by signal priority within each date.
+This orders by date descending first, then NEW_COMPANY before NEW_BRAND within each date.
 
 ---
 
@@ -185,7 +187,7 @@ Common reasons for not finding:
 
 **Get brands needing enrichment (ALWAYS USE THIS):**
 ```bash
-cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT DISTINCT brand_name, company_name, class_type_code, signal, approval_date FROM colas WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE') AND brand_name NOT IN (SELECT brand_name FROM brand_websites) ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 END LIMIT 30"
+cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT DISTINCT brand_name, company_name, class_type_code, signal, approval_date FROM colas WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND') AND brand_name NOT IN (SELECT brand_name FROM brand_websites) ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 END LIMIT 30"
 ```
 
 **Check if brand already enriched:**
