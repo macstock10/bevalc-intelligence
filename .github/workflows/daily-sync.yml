@@ -2,15 +2,11 @@ name: Daily TTB Sync
 
 on:
   schedule:
-    # Run at 12am UTC = 7pm ET (winter) / 8pm ET (summer)
+    # Run at 2am UTC = 9pm ET (winter) / 10pm ET (summer)
     # TTB typically publishes same-day approvals by evening
-    - cron: '0 0 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
-      date:
-        description: 'Specific date to scrape (YYYY-MM-DD)'
-        required: false
-        type: string
       days:
         description: 'Number of days to scrape (for catch-up)'
         required: false
@@ -25,7 +21,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -43,30 +39,28 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager beautifulsoup4 requests
+          cd scripts
+          pip install -r requirements.txt
 
       - name: Create directories
         run: |
           mkdir -p data logs
 
-      - name: Run daily sync
+      - name: Run daily sync (uses same script as weekly)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
           cd scripts
 
-          ARGS="--headless"
+          DAYS="${{ inputs.days || '1' }}"
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-
-          if [ -n "${{ inputs.date }}" ]; then
-            python daily_sync.py $ARGS --date "${{ inputs.date }}"
+            python weekly_update.py --days $DAYS --dry-run
           else
-            python daily_sync.py $ARGS --days ${{ inputs.days || '1' }}
+            python weekly_update.py --days $DAYS
           fi
 
       - name: Upload logs
@@ -74,5 +68,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: daily-sync-logs-${{ github.run_number }}
-          path: logs/daily_sync.log
+          path: logs/weekly_update.log
           retention-days: 14

@@ -1240,6 +1240,168 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
 
 
 # ============================================================================
+# WATCHLIST ALERTS
+# ============================================================================
+
+def check_watchlist_and_alert(new_records: List[Dict], dry_run: bool = False) -> Dict:
+    """
+    Check new records against user watchlists and send real-time alerts.
+
+    Returns dict with stats on matches and alerts sent.
+    """
+    if not new_records:
+        return {'matches': 0, 'alerts_sent': 0}
+
+    logger.info(f"Checking {len(new_records):,} new records against watchlists...")
+
+    # Get all watchlist entries
+    watchlist_result = d1_execute("SELECT email, type, value FROM watchlist")
+    if not watchlist_result.get("success") or not watchlist_result.get("result"):
+        logger.warning("Failed to fetch watchlist entries")
+        return {'matches': 0, 'alerts_sent': 0, 'error': 'Failed to fetch watchlist'}
+
+    watchlist_entries = watchlist_result["result"][0].get("results", [])
+    if not watchlist_entries:
+        logger.info("No watchlist entries found")
+        return {'matches': 0, 'alerts_sent': 0}
+
+    logger.info(f"Found {len(watchlist_entries)} watchlist entries")
+
+    # Group watchlist by email for efficient matching
+    # Structure: {email: {'brands': set(), 'companies': set()}}
+    watchlist_by_user = {}
+    for entry in watchlist_entries:
+        email = entry.get('email', '').lower()
+        entry_type = entry.get('type', '')
+        value = entry.get('value', '').upper()  # Normalize to uppercase for matching
+
+        if email not in watchlist_by_user:
+            watchlist_by_user[email] = {'brands': set(), 'companies': set()}
+
+        if entry_type == 'brand':
+            watchlist_by_user[email]['brands'].add(value)
+        elif entry_type == 'company':
+            watchlist_by_user[email]['companies'].add(value)
+
+    # Check each new record against watchlists
+    # Structure: {email: [matched_records]}
+    matches_by_user = {}
+    total_matches = 0
+
+    for record in new_records:
+        brand_name = (record.get('brand_name', '') or '').upper()
+        company_name = (record.get('company_name', '') or '').upper()
+
+        for email, watches in watchlist_by_user.items():
+            matched = False
+            match_type = None
+
+            # Check brand match
+            if brand_name and brand_name in watches['brands']:
+                matched = True
+                match_type = 'brand'
+
+            # Check company match (partial match for company names)
+            if not matched and company_name:
+                for watched_company in watches['companies']:
+                    if watched_company in company_name or company_name in watched_company:
+                        matched = True
+                        match_type = 'company'
+                        break
+
+            if matched:
+                if email not in matches_by_user:
+                    matches_by_user[email] = []
+                matches_by_user[email].append({
+                    'record': record,
+                    'match_type': match_type
+                })
+                total_matches += 1
+
+    logger.info(f"Found {total_matches} watchlist matches for {len(matches_by_user)} users")
+
+    if not matches_by_user:
+        return {'matches': 0, 'alerts_sent': 0}
+
+    if dry_run:
+        logger.info("[DRY RUN] Would send alerts to:")
+        for email, matches in matches_by_user.items():
+            logger.info(f"  {email}: {len(matches)} matches")
+        return {'matches': total_matches, 'alerts_sent': 0, 'dry_run': True}
+
+    # Send alerts via Resend
+    alerts_sent = 0
+    resend_api_key = os.environ.get('RESEND_API_KEY')
+
+    if not resend_api_key:
+        logger.warning("RESEND_API_KEY not set, skipping alert emails")
+        return {'matches': total_matches, 'alerts_sent': 0, 'error': 'No RESEND_API_KEY'}
+
+    import requests
+
+    for email, matches in matches_by_user.items():
+        try:
+            # Build email content
+            match_lines = []
+            for m in matches[:20]:  # Limit to 20 matches per email
+                r = m['record']
+                brand = r.get('brand_name', 'Unknown')
+                company = r.get('company_name', 'Unknown')[:40]
+                fanciful = r.get('fanciful_name', '') or ''
+                signal = r.get('signal', '')
+
+                if fanciful:
+                    match_lines.append(f"• {brand} - {fanciful} ({company}) [{signal}]")
+                else:
+                    match_lines.append(f"• {brand} ({company}) [{signal}]")
+
+            matches_text = "\n".join(match_lines)
+            if len(matches) > 20:
+                matches_text += f"\n... and {len(matches) - 20} more"
+
+            # Send email via Resend
+            response = requests.post(
+                'https://api.resend.com/emails',
+                headers={
+                    'Authorization': f'Bearer {resend_api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'from': 'BevAlc Intelligence <alerts@bevalcintel.com>',
+                    'to': email,
+                    'subject': f'🔔 Watchlist Alert: {len(matches)} new filings match your watchlist',
+                    'text': f"""Your watchlist has {len(matches)} new matches!
+
+{matches_text}
+
+View full details at: https://bevalcintel.com/database
+
+---
+BevAlc Intelligence
+Manage your watchlist: https://bevalcintel.com/account.html
+"""
+                }
+            )
+
+            if response.status_code == 200:
+                alerts_sent += 1
+                logger.info(f"  Sent alert to {email}: {len(matches)} matches")
+            else:
+                logger.warning(f"  Failed to send alert to {email}: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"  Error sending alert to {email}: {e}")
+
+    logger.info(f"Sent {alerts_sent} watchlist alerts")
+
+    return {
+        'matches': total_matches,
+        'alerts_sent': alerts_sent,
+        'users_notified': len(matches_by_user)
+    }
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1356,7 +1518,7 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
         new_records = sync_result.get('new_records', [])
     
     # Step 4: Classify new records
-    logger.info("\n[STEP 4/4] Classifying new records...")
+    logger.info("\n[STEP 4/5] Classifying new records...")
     if not dry_run and new_records:
         classify_result = classify_new_records(new_records)
         results['classify'] = classify_result
@@ -1366,6 +1528,15 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     else:
         logger.info("No new records to classify")
         results['classify'] = {'total': 0, 'new_companies': 0, 'new_brands': 0, 'refiles': 0}
+
+    # Step 5: Check watchlists and send alerts
+    logger.info("\n[STEP 5/5] Checking watchlists and sending alerts...")
+    if new_records:
+        alert_result = check_watchlist_and_alert(new_records, dry_run=dry_run)
+        results['alerts'] = alert_result
+    else:
+        logger.info("No new records to check against watchlists")
+        results['alerts'] = {'matches': 0, 'alerts_sent': 0}
     
     # Summary
     logger.info("\n" + "=" * 60)
@@ -1393,7 +1564,14 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     
     if sync_result.get('errors'):
         logger.warning(f"Sync errors: {sync_result['errors']}")
-    
+
+    # Alert summary
+    a = results.get('alerts', {})
+    if a.get('matches', 0) > 0:
+        logger.info(f"Watchlist Alerts:")
+        logger.info(f"  Matches found: {a.get('matches', 0)}")
+        logger.info(f"  Alerts sent: {a.get('alerts_sent', 0)}")
+
     logger.info(f"Completed: {datetime.now()}")
     logger.info("=" * 60)
     
