@@ -51,9 +51,40 @@ USER REQUEST
 REQUESTS HANDLED BY WORKER:
 - /api/search → Query colas table, return results
 - /api/checkout → Create Stripe checkout session
+- /api/enhance → AI-powered company enhancement (uses Claude + web search)
+- /api/enhance/status → Check enhancement status / get cached result
+- /api/credits → Get user's enhancement credit balance
+- /api/company-lookup → Get company_id from company name
 - /company/[slug] → SSR company page from D1
 - /brand/[slug] → SSR brand page from D1
 - /sitemap-*.xml → Proxy to R2 bucket
+```
+
+### On-Demand Enhancement System
+
+```
+USER CLICKS "ENHANCE"
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      ENHANCEMENT FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. Check credits (user needs purchased credits)                        │
+│  2. Check cache (90-day TTL on enhancements)                           │
+│  3. If not cached, run enhancement:                                     │
+│     ├─► Query D1 for filing stats, brands, categories                   │
+│     ├─► Call Claude Sonnet 4 with web_search tool                       │
+│     │   └─► Searches: brand + industry, company name                    │
+│     └─► Returns: website, summary, news                                 │
+│  4. Cache result in company_enhancements table                          │
+│  5. Deduct 1 credit from user                                           │
+│  6. Return tearsheet for display + PDF download                         │
+│                                                                         │
+│  Cost per enhancement: ~$0.15-0.25 (Claude API + web search)            │
+│  Credit price: $1.67-2.00 per credit (sold in packs)                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Classification Logic
@@ -83,7 +114,7 @@ FOR EACH NEW RECORD:
 BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1.9M+ records with weekly email reports for subscribers.
 
 **Live Site**: https://bevalcintel.com
-**Price**: $49/month (Pro subscription via Stripe)
+**Price**: $79/month (Pro subscription via Stripe)
 
 ---
 
@@ -218,6 +249,38 @@ Core scraping class used by weekly_update.py:
 | stripe_customer_id | TEXT | Stripe customer ID |
 | is_pro | INT | 1 if active subscription |
 | categories | TEXT | JSON array of preferred categories |
+| enhancement_credits | INT | Purchased credits balance |
+| monthly_enhancements_used | INT | (Unused - credits now purchased) |
+| monthly_reset_date | TEXT | (Unused - credits now purchased) |
+
+### `company_enhancements` - Cached AI enhancement results
+| Column | Type | Notes |
+|--------|------|-------|
+| company_id | INT | Primary key (FK to companies.id) |
+| company_name | TEXT | Company display name |
+| website_url | TEXT | Discovered website |
+| website_confidence | TEXT | "high" or "medium" |
+| filing_stats | TEXT | JSON: {total, first_filing, last_filing, last_12_months, trend} |
+| distribution_states | TEXT | JSON array of state codes |
+| brand_portfolio | TEXT | JSON array of {name, filings} |
+| category_breakdown | TEXT | JSON: {CODE: count, ...} |
+| summary | TEXT | AI-generated company summary |
+| news | TEXT | JSON array of {title, date, source} |
+| enhanced_at | TEXT | ISO timestamp |
+| enhanced_by | TEXT | Email of user who triggered |
+| expires_at | TEXT | Cache expiry (90 days from enhanced_at) |
+
+### `enhancement_credits` - Credit transaction log
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INT | Primary key (auto-increment) |
+| email | TEXT | User email |
+| type | TEXT | 'purchase', 'used', 'expired' |
+| amount | INT | Positive for grants, negative for usage |
+| balance_after | INT | Balance after transaction |
+| stripe_payment_id | TEXT | For purchases |
+| company_id | INT | For usage (which company was enhanced) |
+| created_at | TEXT | ISO timestamp |
 
 ### `watchlist` - Pro user tracked items
 | Column | Type | Notes |
@@ -238,6 +301,7 @@ Core scraping class used by weekly_update.py:
 | `RESEND_API_KEY` | send_weekly_report.py, worker.js |
 | `STRIPE_SECRET_KEY` | Worker (checkout, webhooks) |
 | `STRIPE_PRICE_ID` | Worker (Pro subscription) |
+| `ANTHROPIC_API_KEY` | Worker (enhancement web search) |
 
 ---
 
@@ -264,6 +328,15 @@ cd emails && npm run dev             # Preview at localhost:3001
 
 # Reclassify historical records (if needed)
 python batch_classify.py
+
+# Add enhancement credits to a user
+npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET enhancement_credits = enhancement_credits + 10 WHERE email = 'user@example.com'"
+
+# Check user's credit balance
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, enhancement_credits FROM user_preferences WHERE email = 'user@example.com'"
+
+# Clear enhancement cache for a company (force re-enhancement)
+npx wrangler d1 execute bevalc-colas --remote --command "DELETE FROM company_enhancements WHERE company_id = 12345"
 ```
 
 ---
