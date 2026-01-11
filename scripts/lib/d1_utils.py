@@ -164,7 +164,7 @@ def d1_insert_batch(records: List[Dict]) -> Dict:
         'for_sale_in', 'total_bottle_capacity', 'formula', 'approval_date',
         'qualifications', 'grape_varietal', 'wine_vintage', 'appellation',
         'alcohol_content', 'ph_level', 'plant_registry', 'company_name',
-        'street', 'state', 'contact_person', 'phone_number', 'year', 'month'
+        'street', 'state', 'contact_person', 'phone_number', 'year', 'month', 'day'
     ]
 
     columns_str = ', '.join(columns)

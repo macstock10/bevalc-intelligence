@@ -19,11 +19,21 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           cd scripts
           pip install -r requirements.txt
-      
+
+      - name: Install Node.js (for email templates)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install email dependencies
+        run: |
+          cd emails
+          npm install
+
       - name: Generate weekly report
         working-directory: scripts
         env:

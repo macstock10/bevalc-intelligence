@@ -30,6 +30,16 @@ jobs:
           cd scripts
           pip install -r requirements.txt
       
+      - name: Install Node.js (for email templates)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install email dependencies
+        run: |
+          cd emails
+          npm install
+
       - name: Run weekly update
         working-directory: scripts
         env:
@@ -39,6 +49,7 @@ jobs:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: python weekly_update.py
 
       - name: Regenerate sitemaps

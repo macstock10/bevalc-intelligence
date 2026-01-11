@@ -450,7 +450,7 @@ def run_daily_sync(
             all_records = [dict(row) for row in conn.execute("SELECT * FROM colas")]
             conn.close()
 
-            # Fix year/month based on approval_date (not scrape date)
+            # Fix year/month/day based on approval_date (not scrape date)
             # approval_date format is MM/DD/YYYY
             for record in all_records:
                 approval_date = record.get('approval_date', '')
@@ -459,6 +459,7 @@ def run_daily_sync(
                     if len(parts) == 3:
                         try:
                             record['month'] = int(parts[0])
+                            record['day'] = int(parts[1])
                             record['year'] = int(parts[2])
                         except ValueError:
                             pass

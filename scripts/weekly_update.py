@@ -703,19 +703,23 @@ class DateRangeScraper:
                 # Add company details
                 data.update(self._extract_company_details(soup))
                 
-                # Extract year/month from approval_date for indexing
+                # Extract year/month/day from approval_date for indexing
+                # Format: MM/DD/YYYY
                 if data.get('approval_date'):
                     try:
                         parts = data['approval_date'].split('/')
                         if len(parts) == 3:
                             data['month'] = int(parts[0])
+                            data['day'] = int(parts[1])
                             data['year'] = int(parts[2])
                     except:
                         data['year'] = None
                         data['month'] = None
+                        data['day'] = None
                 else:
                     data['year'] = None
                     data['month'] = None
+                    data['day'] = None
                 
                 return data
                 
