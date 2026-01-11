@@ -1681,6 +1681,15 @@ function generateCompanyPDF() {
         }
         container.innerHTML = reportHtml;
 
+        // Temporarily make container visible for html2canvas to render
+        // Position it off-screen but still in the document flow
+        container.style.position = 'fixed';
+        container.style.left = '0';
+        container.style.top = '0';
+        container.style.zIndex = '-9999';
+        container.style.opacity = '0';
+        container.style.pointerEvents = 'none';
+
         // Configure html2pdf options
         const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
 
@@ -1688,17 +1697,31 @@ function generateCompanyPDF() {
             margin: 0,
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                windowWidth: 816  // 8.5 inches at 96 DPI
+            },
             jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
         };
 
         // Generate and download the PDF
         html2pdf().set(options).from(container).save().then(() => {
-            // Clean up the container
+            // Clean up and hide the container
             container.innerHTML = '';
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.style.opacity = '';
+            container.style.zIndex = '';
+            container.style.pointerEvents = '';
         }).catch(err => {
             console.error('PDF generation error:', err);
             alert('Failed to generate PDF: ' + err.message);
+            // Clean up on error too
+            container.innerHTML = '';
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
         });
 
     } catch (error) {
