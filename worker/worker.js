@@ -1937,7 +1937,8 @@ async function handleSearch(url, env) {
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
         // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, ttb_id ${sortOrder}`;
+        // Then by signal priority: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -2162,7 +2163,8 @@ async function handleExport(url, env) {
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
         // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, ttb_id ${sortOrder}`;
+        // Then by signal priority: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -2838,7 +2840,7 @@ async function handleCompanyPage(path, env, headers) {
             FROM colas co
             JOIN company_aliases ca ON co.company_name = ca.raw_name
             WHERE ca.company_id = ?
-            ORDER BY COALESCE(co.year, 9999) DESC, COALESCE(co.month, 99) DESC, CAST(SUBSTR(co.approval_date, 4, 2) AS INTEGER) DESC, co.ttb_id DESC
+            ORDER BY COALESCE(co.year, 9999) DESC, COALESCE(co.month, 99) DESC, CAST(SUBSTR(co.approval_date, 4, 2) AS INTEGER) DESC, CASE co.signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, co.ttb_id DESC
             LIMIT 10
         `).bind(company.id).all();
         recentFilings = recentResult.results || [];
@@ -2883,7 +2885,7 @@ async function handleCompanyPage(path, env, headers) {
             SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, state, company_name as filing_entity
             FROM colas
             WHERE company_name = ?
-            ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, ttb_id DESC
+            ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id DESC
             LIMIT 10
         `).bind(companyName).all();
         recentFilings = recentResult.results || [];
@@ -3155,7 +3157,7 @@ async function handleBrandPage(path, env, headers) {
     const productsResult = await env.DB.prepare(`
         SELECT ttb_id, fanciful_name, class_type_code, approval_date, signal
         FROM colas WHERE brand_name = ?
-        ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, ttb_id DESC
+        ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id DESC
         LIMIT 15
     `).bind(brand.brand_name).all();
     const products = productsResult.results || [];
