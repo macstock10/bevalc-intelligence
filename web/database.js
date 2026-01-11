@@ -1610,9 +1610,9 @@ function buildReportHTML(tearsheet) {
     // Footer date
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    // Assemble the full HTML
+    // Assemble the full HTML (816px = 8.5in at 96 DPI, 48px = 0.5in padding)
     return `
-        <div style="width: 8.5in; padding: 0.5in; font-family: system-ui, -apple-system, sans-serif; color: #374151; box-sizing: border-box;">
+        <div style="width: 816px; min-height: 1056px; padding: 48px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #374151; box-sizing: border-box; background: #ffffff;">
             <!-- Header -->
             <div style="border-top: 8px solid #0d9488; padding-top: 16px; margin-bottom: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -1673,14 +1673,19 @@ function generateCompanyPDF() {
         // Build the HTML report
         const reportHtml = buildReportHTML(currentTearsheetData);
 
+        console.log('PDF: Building report for', currentTearsheetData.company_name);
+        console.log('PDF: HTML length', reportHtml.length);
+
         // Create a temporary visible element for rendering
         const tempDiv = document.createElement('div');
+        tempDiv.id = 'pdf-temp-container';
         tempDiv.innerHTML = reportHtml;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '0';
-        tempDiv.style.top = '0';
-        tempDiv.style.background = 'white';
+        tempDiv.style.cssText = 'position: absolute; left: 0; top: 0; z-index: 9999; background: white;';
         document.body.appendChild(tempDiv);
+
+        // Get the actual content element
+        const contentElement = tempDiv.firstElementChild;
+        console.log('PDF: Content element dimensions', contentElement?.offsetWidth, 'x', contentElement?.offsetHeight);
 
         // Configure html2pdf options
         const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
@@ -1693,23 +1698,28 @@ function generateCompanyPDF() {
                 scale: 2,
                 useCORS: true,
                 logging: true,
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                width: 816,
+                windowWidth: 816
             },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            jsPDF: { unit: 'px', format: [816, 1056], orientation: 'portrait', hotfixes: ['px_scaling'] }
         };
 
-        // Generate and download the PDF
-        html2pdf().set(options).from(tempDiv).save().then(() => {
-            // Remove the temporary element
-            document.body.removeChild(tempDiv);
-        }).catch(err => {
-            console.error('PDF generation error:', err);
-            alert('Failed to generate PDF: ' + err.message);
-            // Clean up on error too
-            if (tempDiv.parentNode) {
+        // Wait for browser to render, then capture
+        setTimeout(() => {
+            console.log('PDF: Starting capture...');
+
+            html2pdf().set(options).from(contentElement).save().then(() => {
+                console.log('PDF: Download complete');
                 document.body.removeChild(tempDiv);
-            }
-        });
+            }).catch(err => {
+                console.error('PDF generation error:', err);
+                alert('Failed to generate PDF: ' + err.message);
+                if (tempDiv.parentNode) {
+                    document.body.removeChild(tempDiv);
+                }
+            });
+        }, 100);
 
     } catch (error) {
         console.error('PDF generation error:', error);
