@@ -1394,6 +1394,12 @@ a:hover {
     padding: var(--space-2xl);
     text-align: left;
     position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.pricing-card .btn {
+    margin-top: auto;
 }
 
 .pricing-card.featured {
