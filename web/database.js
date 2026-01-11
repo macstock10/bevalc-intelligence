@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     await loadFilters();
 
+    // Update blur overlay with actual record count
+    updateTotalRecordCount();
+
     // Apply URL parameters to filters before initial search
     applyUrlFilters();
 
@@ -147,6 +150,39 @@ function cacheElements() {
     elements.modalClose = document.getElementById('modal-close');
     elements.userGreeting = document.getElementById('user-greeting');
     elements.navSignup = document.getElementById('nav-signup');
+    elements.blurRecordCount = document.getElementById('blur-record-count');
+}
+
+// Fetch total record count and update the blur overlay
+async function updateTotalRecordCount() {
+    try {
+        // Use search with minimal params to get total count quickly
+        const response = await fetch(`${API_BASE}/api/search?limit=1`);
+        const data = await response.json();
+
+        if (data.success && data.total) {
+            const total = data.total;
+            let displayText;
+
+            if (total >= 1000000) {
+                // Format as X.XM+
+                const millions = (total / 1000000).toFixed(1);
+                displayText = `${millions}M+`;
+            } else if (total >= 1000) {
+                // Format as XXXK+
+                const thousands = Math.floor(total / 1000);
+                displayText = `${thousands}K+`;
+            } else {
+                displayText = `${total}+`;
+            }
+
+            if (elements.blurRecordCount) {
+                elements.blurRecordCount.textContent = displayText;
+            }
+        }
+    } catch (e) {
+        console.log('Could not fetch total record count');
+    }
 }
 
 function checkAccess() {

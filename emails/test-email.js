@@ -806,7 +806,7 @@ async function sendTestWeeklyReport(email) {
 }
 
 async function sendTestProWeeklyReport(email) {
-  console.log('\nSending Pro weekly report with REAL data...');
+  console.log('\nSending Premier weekly report with REAL data...');
   try {
     const metrics = await fetchProMetrics(email);
     console.log(`  Stats: ${metrics.totalFilings} filings, ${metrics.newBrands} new brands`);
@@ -817,6 +817,215 @@ async function sendTestProWeeklyReport(email) {
     const result = await sendTestEmail({
       to: email,
       template: 'pro-weekly-report',
+      props: metrics,
+    });
+
+    if (result.error) {
+      console.error('  Failed:', result.error.message);
+      return false;
+    }
+
+    console.log('  Success! Message ID:', result.data?.id);
+    return true;
+  } catch (error) {
+    console.error('  Error:', error.message);
+    return false;
+  }
+}
+
+async function fetchCategoryProMetrics(email, tierCategory = 'Whiskey') {
+  console.log(`  Fetching Category Pro metrics for ${tierCategory}...`);
+
+  const { thisWeekStart, thisWeekEnd, lastWeekStart, lastWeekEnd } = getWeekDates();
+  const thisWeekSql = dateRangeSql(thisWeekStart, thisWeekEnd);
+  const lastWeekSql = dateRangeSql(lastWeekStart, lastWeekEnd);
+
+  const categoryFilter = buildCategoryFilter([tierCategory]);
+
+  // Get user's watchlist counts
+  const watchlistCounts = await d1Query(`
+    SELECT type, COUNT(*) as count FROM watchlist
+    WHERE email = '${email.replace(/'/g, "''")}'
+    GROUP BY type
+  `);
+  const watchedCompaniesCount = watchlistCounts.find(r => r.type === 'company')?.count || 0;
+  const watchedBrandsCount = watchlistCounts.find(r => r.type === 'brand')?.count || 0;
+
+  // Category filings this week
+  const categoryFilingsResult = await d1Query(`
+    SELECT COUNT(*) as count FROM colas
+    WHERE ${thisWeekSql} AND status = 'APPROVED' ${categoryFilter}
+  `);
+  const categoryFilings = categoryFilingsResult[0]?.count || 0;
+
+  // Category filings last week
+  const lastWeekResult = await d1Query(`
+    SELECT COUNT(*) as count FROM colas
+    WHERE ${lastWeekSql} AND status = 'APPROVED' ${categoryFilter}
+  `);
+  const lastWeekFilings = lastWeekResult[0]?.count || 0;
+
+  // Week-over-week change
+  let weekOverWeekChange = '+0%';
+  if (lastWeekFilings > 0) {
+    const pctChange = Math.round(((categoryFilings - lastWeekFilings) / lastWeekFilings) * 100);
+    weekOverWeekChange = pctChange >= 0 ? `+${pctChange}%` : `${pctChange}%`;
+  }
+
+  // New brands in category
+  const newBrandsResult = await d1Query(`
+    SELECT COUNT(*) as count FROM colas
+    WHERE ${thisWeekSql} AND signal = 'NEW_BRAND' ${categoryFilter}
+  `);
+  const categoryNewBrands = newBrandsResult[0]?.count || 0;
+
+  // New SKUs in category
+  const newSkusResult = await d1Query(`
+    SELECT COUNT(*) as count FROM colas
+    WHERE ${thisWeekSql} AND signal = 'NEW_SKU' ${categoryFilter}
+  `);
+  const categoryNewSkus = newSkusResult[0]?.count || 0;
+
+  // New companies in category
+  const newCompaniesResult = await d1Query(`
+    SELECT COUNT(*) as count FROM colas
+    WHERE ${thisWeekSql} AND signal = 'NEW_COMPANY' ${categoryFilter}
+  `);
+  const categoryNewCompanies = newCompaniesResult[0]?.count || 0;
+
+  // Top companies in category
+  const topCompanies = await d1Query(`
+    SELECT company_name, COUNT(*) as filings
+    FROM colas
+    WHERE ${thisWeekSql} AND status = 'APPROVED' ${categoryFilter}
+    GROUP BY company_name
+    ORDER BY filings DESC
+    LIMIT 5
+  `);
+
+  // 4-week averages for change calculation
+  const fourWeeksAgo = new Date();
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+  const fourWeekSql = dateRangeSql(fourWeeksAgo, new Date());
+
+  const avgPerCompany = await d1Query(`
+    SELECT company_name, ROUND(COUNT(*) / 4.0) as avg_filings
+    FROM colas
+    WHERE ${fourWeekSql} AND status = 'APPROVED' ${categoryFilter}
+    GROUP BY company_name
+    HAVING COUNT(*) >= 4
+  `);
+  const avgLookup = {};
+  for (const r of avgPerCompany) {
+    avgLookup[r.company_name] = r.avg_filings;
+  }
+
+  const topCompaniesList = topCompanies.map(comp => {
+    const avg = avgLookup[comp.company_name] || 0;
+    const change = avg > 0 ? comp.filings - avg : comp.filings;
+    return {
+      company: comp.company_name,
+      filings: comp.filings,
+      change: change >= 0 ? `+${change}` : String(change),
+    };
+  });
+
+  // Filing spikes in category
+  const thisWeekByCompany = await d1Query(`
+    SELECT company_name, COUNT(*) as filings
+    FROM colas
+    WHERE ${thisWeekSql} AND status = 'APPROVED' ${categoryFilter}
+    GROUP BY company_name
+    HAVING COUNT(*) >= 5
+    ORDER BY filings DESC
+  `);
+
+  const filingSpikes = [];
+  for (const row of thisWeekByCompany) {
+    const avg = avgLookup[row.company_name] || 0;
+    if (avg > 0 && row.filings >= avg * 2) {
+      const pctIncrease = Math.round(((row.filings - avg) / avg) * 100);
+      if (pctIncrease >= 100) {
+        filingSpikes.push({
+          company: row.company_name,
+          thisWeek: row.filings,
+          avgWeek: Math.round(avg),
+          percentIncrease: pctIncrease,
+        });
+      }
+    }
+  }
+  filingSpikes.sort((a, b) => b.percentIncrease - a.percentIncrease);
+
+  // New brands list
+  const newBrandsList = await d1Query(`
+    SELECT ttb_id, brand_name, company_name
+    FROM colas
+    WHERE ${thisWeekSql} AND signal = 'NEW_BRAND' ${categoryFilter}
+    ORDER BY approval_date DESC
+    LIMIT 10
+  `);
+
+  const newBrands = newBrandsList.map(row => ({
+    ttbId: row.ttb_id,
+    brand: row.brand_name,
+    company: row.company_name,
+  }));
+
+  // New SKUs list
+  const newSkusList = await d1Query(`
+    SELECT ttb_id, brand_name, fanciful_name, company_name
+    FROM colas
+    WHERE ${thisWeekSql} AND signal = 'NEW_SKU' ${categoryFilter}
+    ORDER BY approval_date DESC
+    LIMIT 10
+  `);
+
+  const newSkus = newSkusList.map(row => ({
+    ttbId: row.ttb_id,
+    brand: row.brand_name,
+    fancifulName: row.fanciful_name,
+    company: row.company_name,
+  }));
+
+  const weekEnding = thisWeekEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const weekStartDate = thisWeekStart.toISOString().split('T')[0];
+  const weekEndDate = thisWeekEnd.toISOString().split('T')[0];
+
+  return {
+    tierCategory,
+    weekEnding,
+    categoryFilings: String(categoryFilings),
+    categoryNewBrands: String(categoryNewBrands),
+    categoryNewSkus: String(categoryNewSkus),
+    categoryNewCompanies: String(categoryNewCompanies),
+    weekOverWeekChange,
+    watchedCompaniesCount,
+    watchedBrandsCount,
+    watchlistMatches: [],
+    topCompaniesList,
+    filingSpikes: filingSpikes.slice(0, 3),
+    newBrands,
+    newSkus,
+    weekStartDate,
+    weekEndDate,
+    databaseUrl: 'https://bevalcintel.com/database',
+    accountUrl: 'https://bevalcintel.com/account.html',
+  };
+}
+
+async function sendTestCategoryProWeeklyReport(email, tierCategory = 'Whiskey') {
+  console.log(`\nSending Category Pro (${tierCategory}) weekly report with REAL data...`);
+  try {
+    const metrics = await fetchCategoryProMetrics(email, tierCategory);
+    console.log(`  Category: ${tierCategory}`);
+    console.log(`  Stats: ${metrics.categoryFilings} filings, ${metrics.categoryNewBrands} new brands, ${metrics.categoryNewSkus} new SKUs, ${metrics.categoryNewCompanies} new companies`);
+    console.log(`  Week-over-week: ${metrics.weekOverWeekChange}`);
+    console.log(`  Filing spikes: ${metrics.filingSpikes.length}`);
+
+    const result = await sendTestEmail({
+      to: email,
+      template: 'category-pro-weekly-report',
       props: metrics,
     });
 
@@ -929,18 +1138,21 @@ Required environment variables:
 
   if (sendAll) {
     const r1 = await sendTestWeeklyReport(email);
-    const r2 = await sendTestProWeeklyReport(email);
-    const r3 = await sendTestWelcome(email);
-    success = r1 && r2 && r3;
+    const r2 = await sendTestCategoryProWeeklyReport(email, 'Whiskey');
+    const r3 = await sendTestProWeeklyReport(email);
+    const r4 = await sendTestWelcome(email);
+    success = r1 && r2 && r3 && r4;
   } else if (template === 'weekly-report') {
     success = await sendTestWeeklyReport(email);
-  } else if (template === 'pro-weekly-report') {
+  } else if (template === 'category-pro-weekly-report') {
+    success = await sendTestCategoryProWeeklyReport(email, 'Whiskey');
+  } else if (template === 'pro-weekly-report' || template === 'premier-weekly-report') {
     success = await sendTestProWeeklyReport(email);
   } else if (template === 'welcome') {
     success = await sendTestWelcome(email);
   } else {
     console.error('Error: --template is required');
-    console.error('Options: weekly-report, pro-weekly-report, welcome, or --all');
+    console.error('Options: weekly-report, category-pro-weekly-report, premier-weekly-report, welcome, or --all');
     process.exit(1);
   }
 

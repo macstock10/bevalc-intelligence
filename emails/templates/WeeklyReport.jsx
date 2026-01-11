@@ -890,7 +890,7 @@ export function WeeklyReport({
               + {parseInt(newBrands) - 3} more new brands this week
             </Text>
 
-            {/* Locked Full List - Pro Feature */}
+            {/* Locked Full List - Upgrade CTA */}
             <Section
               style={{
                 backgroundColor: colors.purpleLight,
@@ -927,7 +927,7 @@ export function WeeklyReport({
                   lineHeight: "1.5",
                 }}
               >
-                Get the complete list of every new product filed with the TTB this week, plus watchlist alerts, filing spike detection, and direct links to official TTB labels.
+                Get the complete list of every new product filed with the TTB this week, plus watchlist alerts, filing spike detection, and CSV exports.
               </Text>
               <Link
                 href={pricingUrl}
@@ -942,7 +942,7 @@ export function WeeklyReport({
                   textDecoration: "none",
                 }}
               >
-                Upgrade to Pro
+                See Upgrade Options
               </Link>
             </Section>
 
@@ -962,7 +962,7 @@ export function WeeklyReport({
             </Section>
           </Section>
 
-          {/* Pro Features Card */}
+          {/* Upgrade Options Card */}
           <Section
             style={{
               backgroundColor: colors.bg,
@@ -977,61 +977,62 @@ export function WeeklyReport({
                 fontSize: "16px",
                 fontWeight: "700",
                 color: colors.primary,
-                margin: "0 0 12px 0",
+                margin: "0 0 16px 0",
                 textAlign: "center",
               }}
             >
-              Unlock Pro Features
+              Ready for More?
             </Text>
 
-            <table width="100%" cellPadding="0" cellSpacing="0">
-              <tbody>
-                <tr>
-                  <td style={{ padding: "8px 0" }}>
-                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
-                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                      Complete new brands & SKUs list every week
-                    </Text>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: "8px 0" }}>
-                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
-                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                      Watchlist alerts for brands & companies you track
-                    </Text>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: "8px 0" }}>
-                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
-                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                      Filing spike detection (M&A signals)
-                    </Text>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: "8px 0" }}>
-                    <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "14px" }}>
-                      <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                      Unlimited CSV exports
-                    </Text>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            {/* Category Pro */}
+            <Section
+              style={{
+                backgroundColor: colors.bgSecondary,
+                borderRadius: "8px",
+                padding: "16px",
+                marginBottom: "12px",
+              }}
+            >
+              <Text style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: colors.text }}>
+                Category Pro — $79/mo
+              </Text>
+              <Text style={{ margin: 0, fontSize: "13px", color: colors.textSecondary, lineHeight: "1.5" }}>
+                Pick one category to track. Get full signals, new brand alerts, CSV exports, and competitor watchlists for your focus area.
+              </Text>
+            </Section>
+
+            {/* Premier */}
+            <Section
+              style={{
+                backgroundColor: colors.primaryLight,
+                borderRadius: "8px",
+                padding: "16px",
+                border: `1px solid ${colors.primary}`,
+              }}
+            >
+              <Text style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: colors.primaryDark }}>
+                Premier — $149/mo
+              </Text>
+              <Text style={{ margin: 0, fontSize: "13px", color: colors.textSecondary, lineHeight: "1.5" }}>
+                Full access to all categories. Multi-category reports, unlimited exports, and complete market intelligence across the entire industry.
+              </Text>
+            </Section>
 
             <Section style={{ textAlign: "center", marginTop: "16px" }}>
               <Link
                 href={pricingUrl}
                 style={{
-                  color: colors.primary,
+                  display: "inline-block",
+                  backgroundColor: colors.primary,
+                  color: "#ffffff",
                   fontSize: "14px",
                   fontWeight: "600",
-                  textDecoration: "underline",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
                 }}
               >
-                See all Pro features →
+                Compare Plans
               </Link>
             </Section>
           </Section>

@@ -50,7 +50,7 @@ export function Welcome({
             <td style={{ padding: "8px 0" }}>
               <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "15px" }}>
                 <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                Weekly PDF report with new TTB approvals
+                Weekly email with new TTB approvals
               </Text>
             </td>
           </tr>
@@ -66,7 +66,7 @@ export function Welcome({
             <td style={{ padding: "8px 0" }}>
               <Text style={{ margin: 0, color: colors.textSecondary, fontSize: "15px" }}>
                 <span style={{ color: colors.primary, marginRight: "8px" }}>&#10003;</span>
-                Market trends and filing activity insights
+                Top filers and category trends
               </Text>
             </td>
           </tr>
@@ -75,7 +75,7 @@ export function Welcome({
 
       {/* Explore Database CTA */}
       <Text style={styles.paragraph}>
-        While you wait for your first report, explore our database of over 1
+        While you wait for your first report, explore our database of over 2
         million COLA records:
       </Text>
 
@@ -87,7 +87,7 @@ export function Welcome({
 
       <Hr style={styles.divider} />
 
-      {/* Pro Upsell */}
+      {/* Upgrade Options */}
       <Section
         style={{
           backgroundColor: colors.primaryLight,
@@ -101,20 +101,30 @@ export function Welcome({
             fontSize: "14px",
             fontWeight: "600",
             color: colors.primary,
-            margin: "0 0 8px 0",
-          }}
-        >
-          Need more?
-        </Text>
-        <Text
-          style={{
-            fontSize: "14px",
-            color: colors.textSecondary,
             margin: "0 0 12px 0",
           }}
         >
-          Pro members get category-specific reports, watchlist alerts for
-          specific brands and companies, and unlimited CSV exports.
+          Ready for More?
+        </Text>
+        <Text
+          style={{
+            fontSize: "13px",
+            color: colors.textSecondary,
+            margin: "0 0 8px 0",
+            lineHeight: "1.5",
+          }}
+        >
+          <strong>Category Pro ($79/mo)</strong> — Focus on one category with full signals, watchlist alerts, and CSV exports.
+        </Text>
+        <Text
+          style={{
+            fontSize: "13px",
+            color: colors.textSecondary,
+            margin: "0 0 12px 0",
+            lineHeight: "1.5",
+          }}
+        >
+          <strong>Premier ($149/mo)</strong> — Full access to all categories with complete market intelligence.
         </Text>
         <Link
           href="https://bevalcintel.com/#pricing"
@@ -124,7 +134,7 @@ export function Welcome({
             fontWeight: "500",
           }}
         >
-          Learn about Pro
+          Compare Plans
         </Link>
       </Section>
     </Layout>

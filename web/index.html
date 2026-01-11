@@ -728,11 +728,21 @@
             const premierCta = document.getElementById('premier-cta');
             if (categoryProCta) {
                 categoryProCta.addEventListener('click', () => handleTierUpgrade('category_pro', categoryProCta));
+                // Reset if stuck in loading state (back button from checkout)
+                if (categoryProCta.textContent === 'Loading...') {
+                    categoryProCta.disabled = false;
+                    categoryProCta.textContent = 'Get Category Pro';
+                }
             }
             if (premierCta) {
                 premierCta.addEventListener('click', () => handleTierUpgrade('premier', premierCta));
+                // Reset if stuck in loading state (back button from checkout)
+                if (premierCta.textContent === 'Loading...') {
+                    premierCta.disabled = false;
+                    premierCta.textContent = 'Get Premier';
+                }
             }
-            
+
             if (hasAccess) {
                 const navCta = document.getElementById('nav-cta');
                 const heroEmailSignup = document.getElementById('hero-email-signup');
@@ -858,7 +868,29 @@
                 button.textContent = originalText;
             }
         }
-        
+
+        // Reset tier buttons when returning via back button (from Stripe checkout)
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                // Page was restored from bfcache (back button)
+                const categoryProCta = document.getElementById('category-pro-cta');
+                const premierCta = document.getElementById('premier-cta');
+                const user = BevAlcAuth.getUser();
+
+                // Only reset if user is not already Pro
+                if (!user || !user.isPro) {
+                    if (categoryProCta && categoryProCta.textContent === 'Loading...') {
+                        categoryProCta.disabled = false;
+                        categoryProCta.textContent = 'Get Category Pro';
+                    }
+                    if (premierCta && premierCta.textContent === 'Loading...') {
+                        premierCta.disabled = false;
+                        premierCta.textContent = 'Get Premier';
+                    }
+                }
+            }
+        });
+
         // Hero email form submission
         document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
             e.preventDefault();

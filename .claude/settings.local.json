@@ -30,7 +30,9 @@
       "Bash(for:*)",
       "Bash(do echo -n \"2014_$m: links=\")",
       "Bash(do)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(python send_weekly_report.py:*)",
+      "Bash(python:*)"
     ]
   }
 }
