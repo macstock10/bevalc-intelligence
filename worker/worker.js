@@ -3542,7 +3542,7 @@ async function handleSitemap(path, env) {
 
 async function handleEnhance(request, env) {
     const body = await request.json();
-    const { company_id, company_name, email } = body;
+    const { company_id, company_name, brand_name, email } = body;
 
     if (!company_id || !company_name) {
         return { success: false, error: 'Missing company_id or company_name' };
@@ -3588,7 +3588,7 @@ async function handleEnhance(request, env) {
 
     // Run enhancement (synchronous for Phase 1)
     try {
-        const tearsheet = await runEnhancement(company_id, company_name, env);
+        const tearsheet = await runEnhancement(company_id, company_name, brand_name, env);
 
         // Only cache and charge if we got useful information
         const hasUsefulInfo = tearsheet.summary || tearsheet.website?.url;
@@ -3710,7 +3710,7 @@ async function deductCredit(email, companyId, env) {
     `).bind(email, companyId).run();
 }
 
-async function runEnhancement(companyId, companyName, env) {
+async function runEnhancement(companyId, companyName, clickedBrandName, env) {
     // Run D1 queries in parallel for speed
     const [stats, states, categories, brands, recentFilings, existingWebsite] = await Promise.all([
         // Filing statistics - convert MM/DD/YYYY to sortable format for proper MIN/MAX
@@ -3803,6 +3803,9 @@ async function runEnhancement(companyId, companyName, env) {
     };
 
     // Prepare data for Claude
+    // Use clicked brand name first, then fall back to top brand by filing count
+    const topBrandFromDb = brands?.results?.[0]?.brand_name || '';
+    const primaryBrand = clickedBrandName || topBrandFromDb || 'Unknown';
     const brandList = brands?.results?.map(b => b.brand_name).slice(0, 5).join(', ') || 'Unknown';
     const categoryList = categories?.results?.map(c => c.class_type_code).join(', ') || 'Unknown';
     const stateList = states?.results?.map(s => s.state).join(', ') || 'Unknown';
@@ -3819,6 +3822,7 @@ async function runEnhancement(companyId, companyName, env) {
             lastFiling: stats?.last_filing,
             last12Months: stats?.last_12_months || 0,
             trend,
+            primaryBrand: primaryBrand,
             brands: brandList,
             categories: categoryList,
             states: stateList,
@@ -3879,9 +3883,8 @@ async function callClaudeWithSearch(companyName, data, env) {
     else if (categories.includes('TEQUILA') || categories.includes('MEZCAL')) industryHint = 'tequila mezcal';
     else if (categories.includes('RUM')) industryHint = 'rum distillery';
 
-    // Get top brand name for searching
-    const brands = data.brands || '';
-    const topBrand = brands.split(',')[0]?.trim() || '';
+    // Use the primary brand (clicked brand) for searching
+    const topBrand = data.primaryBrand || '';
 
     const prompt = `You are researching a beverage alcohol company for a business intelligence report. Your PRIMARY goal is to find their official website and write a factual summary.
 

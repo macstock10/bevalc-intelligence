@@ -1159,6 +1159,7 @@ function closeModal() {
 
 function buildEnhancementSection(record, userEmail, isPro) {
     const companyName = record.company_name || '';
+    const brandName = record.brand_name || '';
 
     if (!companyName) {
         return '';
@@ -1172,7 +1173,7 @@ function buildEnhancementSection(record, userEmail, isPro) {
     return `
         <div class="modal-section enhancement-section">
             <h4>Company Intelligence</h4>
-            <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-email="${escapeHtml(userEmail || '')}">
+            <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-brand-name="${escapeHtml(brandName)}" data-email="${escapeHtml(userEmail || '')}">
                 <div class="enhancement-cta" id="enhancement-cta">
                     <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">
                         Get filing analytics, brand portfolio, distribution footprint, and more.
@@ -1228,6 +1229,7 @@ async function checkCachedEnhancement(companyName) {
 async function enhanceCompany() {
     const container = document.getElementById('enhancement-container');
     const companyName = container.dataset.companyName;
+    const brandName = container.dataset.brandName;
     const email = container.dataset.email;
 
     if (!email) {
@@ -1257,6 +1259,7 @@ async function enhanceCompany() {
             body: JSON.stringify({
                 company_id: companyId,
                 company_name: companyName,
+                brand_name: brandName,
                 email: email
             })
         });
@@ -1658,23 +1661,23 @@ function generateCompanyPDF() {
             drawSectionLabel('Category Mix');
 
             const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
-            const labelWidth = 100;
+            const labelWidth = 110;
             const pctWidth = 40;
-            const barMaxWidth = contentWidth - labelWidth - pctWidth - 20;
+            const barMaxWidth = contentWidth - labelWidth - pctWidth - 10;
 
             catEntries.slice(0, 5).forEach(([code, count]) => {
                 checkPageBreak(20);
                 const pct = Math.round((count / totalCat) * 100);
 
-                // Category label (right-aligned)
+                // Category label (left-aligned)
                 doc.setFontSize(10);
                 doc.setTextColor(...darkGray);
                 doc.setFont('helvetica', 'normal');
                 const label = truncateText(code, labelWidth - 10, 10);
-                doc.text(label, marginLeft + labelWidth - 5, y, { align: 'right' });
+                doc.text(label, marginLeft, y);
 
                 // Progress bar background
-                const barX = marginLeft + labelWidth + 5;
+                const barX = marginLeft + labelWidth;
                 const barY = y - 9;
                 const barHeight = 14;
                 doc.setFillColor(...borderGray);
