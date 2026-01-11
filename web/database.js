@@ -1285,56 +1285,32 @@ async function enhanceCompany() {
     }
 }
 
+// Store tearsheet data for PDF generation
+let currentTearsheetData = null;
+
 function renderTearsheet(tearsheet, cached) {
+    // Store for PDF generation
+    currentTearsheetData = tearsheet;
+
+    const news = tearsheet.news || [];
+
+    // Format news items
+    const newsHtml = news.length > 0 ? news.slice(0, 3).map(n => `
+        <div style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;">
+            <div style="font-size: 0.85rem; color: var(--color-dark);">${escapeHtml(n.title || '')}</div>
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${escapeHtml(n.source || '')} ${n.date ? '· ' + escapeHtml(n.date) : ''}</div>
+        </div>
+    `).join('') : '';
+
+    // Stats summary for preview
     const stats = tearsheet.filing_stats || {};
-    const brands = tearsheet.brands || [];
-    const states = tearsheet.distribution?.states || [];
-    const categories = tearsheet.categories || {};
-
-    // Format trend
-    let trendHtml = '';
-    if (stats.trend === 'growing') {
-        trendHtml = '<span style="color: #22c55e;">Growing</span>';
-    } else if (stats.trend === 'declining') {
-        trendHtml = '<span style="color: #ef4444;">Declining</span>';
-    } else if (stats.trend === 'dormant') {
-        trendHtml = '<span style="color: #f59e0b;">Dormant</span>';
-    } else {
-        trendHtml = '<span style="color: #94a3b8;">Stable</span>';
-    }
-
-    // Format categories
-    const categoryNames = {
-        'MBR': 'Malt Beverage',
-        'BWN': 'Wine',
-        'DSS': 'Distilled Spirits Specialty',
-        'WHL': 'Whisky',
-        'VDK': 'Vodka',
-        'GIN': 'Gin',
-        'RUM': 'Rum',
-        'TEQ': 'Tequila',
-        'BRN': 'Brandy'
-    };
-
-    const topCategories = Object.entries(categories)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([code, count]) => `<span class="tearsheet-tag">${categoryNames[code] || code} (${count})</span>`)
-        .join('');
-
-    // Format brands
-    const topBrands = brands.slice(0, 5)
-        .map(b => `<span class="tearsheet-tag">${escapeHtml(b.name)} (${b.filings})</span>`)
-        .join('');
-
-    // Format states
-    const stateList = states.slice(0, 8).join(', ') + (states.length > 8 ? ` +${states.length - 8} more` : '');
+    const brandCount = (tearsheet.brands || []).length;
 
     return `
         <div class="tearsheet">
             <div class="tearsheet-header">
                 <h3 style="margin: 0 0 4px 0; font-size: 1.1rem; color: var(--color-dark);">${escapeHtml(tearsheet.company_name || 'Company')}</h3>
-                ${tearsheet.website?.url ? `<a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="font-size: 0.85rem; color: var(--color-primary);">${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : ''}
+                ${tearsheet.website?.url ? `<a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="font-size: 0.85rem; color: var(--color-primary);">${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : '<span style="font-size: 0.8rem; color: #94a3b8;">No website found</span>'}
                 ${cached ? '<span style="font-size: 0.65rem; color: #94a3b8; margin-left: 8px;">(cached)</span>' : ''}
             </div>
 
@@ -1342,50 +1318,60 @@ function renderTearsheet(tearsheet, cached) {
                 <div class="tearsheet-summary" style="margin: 12px 0; padding: 12px; background: #f8fafc; border-radius: 6px;">
                     <p style="font-size: 0.9rem; color: var(--color-dark); line-height: 1.5; margin: 0;">${escapeHtml(tearsheet.summary)}</p>
                 </div>
+            ` : `
+                <div style="margin: 12px 0; padding: 12px; background: #fef3c7; border-radius: 6px;">
+                    <p style="font-size: 0.85rem; color: #92400e; margin: 0;">Limited information found for this company.</p>
+                </div>
+            `}
+
+            ${newsHtml ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">Recent News</span>
+                    <div style="margin-top: 4px;">${newsHtml}</div>
+                </div>
             ` : ''}
 
-            <div class="tearsheet-row">
-                <div class="tearsheet-stat">
-                    <span class="tearsheet-stat-value">${stats.total_filings?.toLocaleString() || 0}</span>
-                    <span class="tearsheet-stat-label">Total Filings</span>
+            <!-- Quick Stats Preview (3 metrics) -->
+            <div style="display: flex; gap: 20px; margin: 16px 0; justify-content: center;">
+                <div style="text-align: center; padding: 12px 16px; background: #f8fafc; border-radius: 8px; min-width: 70px;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary);">${stats.total_filings || 0}</div>
+                    <div style="font-size: 0.7rem; color: #64748b;">Total Filings</div>
                 </div>
-                <div class="tearsheet-stat">
-                    <span class="tearsheet-stat-value">${stats.last_12_months || 0}</span>
-                    <span class="tearsheet-stat-label">Last 12 Months</span>
+                <div style="text-align: center; padding: 12px 16px; background: #f8fafc; border-radius: 8px; min-width: 70px;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary);">${brandCount}</div>
+                    <div style="font-size: 0.7rem; color: #64748b;">Brands</div>
                 </div>
-                <div class="tearsheet-stat">
-                    <span class="tearsheet-stat-value">${trendHtml}</span>
-                    <span class="tearsheet-stat-label">Trend</span>
+                <div style="text-align: center; padding: 12px 16px; background: #f8fafc; border-radius: 8px; min-width: 70px;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary);">${stats.last_12_months || 0}</div>
+                    <div style="font-size: 0.7rem; color: #64748b;">Last 12 Mo</div>
                 </div>
             </div>
 
-            ${stats.first_filing ? `
-                <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">Filing History</span>
-                    <span class="tearsheet-field-value">${stats.first_filing} - ${stats.last_filing || 'Present'}</span>
-                </div>
-            ` : ''}
-
-            ${topCategories ? `
-                <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">Top Categories</span>
-                    <div class="tearsheet-tags">${topCategories}</div>
-                </div>
-            ` : ''}
-
-            ${topBrands ? `
-                <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">Brand Portfolio</span>
-                    <div class="tearsheet-tags">${topBrands}</div>
-                </div>
-            ` : ''}
-
-            ${stateList ? `
-                <div class="tearsheet-field">
-                    <span class="tearsheet-field-label">Distribution</span>
-                    <span class="tearsheet-field-value">${stateList}</span>
-                </div>
-            ` : ''}
+            <!-- Download PDF Button -->
+            <button onclick="generateCompanyPDF()" style="
+                width: 100%;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 12px;
+                transition: transform 0.2s, box-shadow 0.2s;
+            " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(13,148,136,0.3)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Company Report (PDF)
+            </button>
 
             <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
                 <a href="mailto:hello@bevalcintel.com?subject=Contact%20info%20request:%20${encodeURIComponent(tearsheet.company_name || '')}&body=I'd%20like%20contact%20information%20for%20${encodeURIComponent(tearsheet.company_name || '')}%0A%0ASpecifically%20looking%20for:%0A"
@@ -1399,6 +1385,287 @@ function renderTearsheet(tearsheet, cached) {
             </div>
         </div>
     `;
+}
+
+// Generate PDF report from tearsheet data
+function generateCompanyPDF() {
+    if (!currentTearsheetData) {
+        alert('No data available for PDF generation');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const tearsheet = currentTearsheetData;
+
+    // Page settings
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+    let y = margin;
+
+    // Colors
+    const teal = [13, 148, 136];
+    const darkGray = [30, 41, 59];
+    const lightGray = [148, 163, 184];
+
+    // Helper to add new page if needed
+    const checkPage = (needed = 30) => {
+        if (y + needed > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+            return true;
+        }
+        return false;
+    };
+
+    // ===== HEADER =====
+    doc.setFillColor(...teal);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('BevAlc Intelligence', margin, 12);
+
+    doc.setFontSize(8);
+    doc.text('Company Report', pageWidth - margin, 12, { align: 'right' });
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(tearsheet.company_name || 'Company', margin, 26);
+
+    y = 45;
+
+    // ===== WEBSITE / SOCIAL FALLBACK =====
+    doc.setTextColor(...darkGray);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+
+    const companyNameEncoded = encodeURIComponent(tearsheet.company_name || '');
+    if (tearsheet.website?.url) {
+        const displayUrl = tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        doc.setTextColor(...teal);
+        doc.text(displayUrl, margin, y);
+        y += 6;
+    } else if (tearsheet.social?.linkedin || tearsheet.social?.instagram || tearsheet.social?.facebook) {
+        // Show social links if no website
+        doc.setTextColor(...lightGray);
+        doc.setFontSize(9);
+        const socials = [];
+        if (tearsheet.social?.linkedin) socials.push('LinkedIn');
+        if (tearsheet.social?.instagram) socials.push('Instagram');
+        if (tearsheet.social?.facebook) socials.push('Facebook');
+        doc.text(`Find on: ${socials.join(' | ')}`, margin, y);
+        y += 6;
+    } else {
+        // Fallback to search links
+        doc.setTextColor(...lightGray);
+        doc.setFontSize(9);
+        doc.text('Search: Distiller | Wine-Searcher | Untappd | Google', margin, y);
+        y += 6;
+    }
+
+    // Filing date range
+    const stats = tearsheet.filing_stats || {};
+    if (stats.first_filing || stats.last_filing) {
+        doc.setTextColor(...lightGray);
+        doc.setFontSize(9);
+        doc.text(`Filing since ${stats.first_filing || 'N/A'} | Last filed ${stats.last_filing || 'N/A'}`, margin, y);
+        y += 10;
+    }
+
+    // ===== SUMMARY =====
+    if (tearsheet.summary) {
+        doc.setTextColor(...darkGray);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('SUMMARY', margin, y);
+        y += 6;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const summaryLines = doc.splitTextToSize(tearsheet.summary, contentWidth);
+        doc.text(summaryLines, margin, y);
+        y += summaryLines.length * 5 + 8;
+    }
+
+    // ===== RECENT NEWS =====
+    const news = tearsheet.news || [];
+    if (news.length > 0) {
+        checkPage(30);
+        doc.setTextColor(...darkGray);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RECENT NEWS', margin, y);
+        y += 6;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        news.slice(0, 3).forEach(n => {
+            doc.setTextColor(...darkGray);
+            const titleLines = doc.splitTextToSize(`"${n.title || ''}"`, contentWidth);
+            doc.text(titleLines, margin, y);
+            y += titleLines.length * 4;
+
+            doc.setTextColor(...lightGray);
+            doc.text(`${n.source || ''} | ${n.date || ''}`, margin, y);
+            y += 6;
+        });
+        y += 4;
+    }
+
+    // ===== KEY METRICS (3 boxes) =====
+    checkPage(40);
+    doc.setTextColor(...darkGray);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('KEY METRICS', margin, y);
+    y += 8;
+
+    const brandCount = (tearsheet.brands || []).length;
+    const metrics = [
+        { value: stats.total_filings || 0, label: 'Total Filings' },
+        { value: brandCount, label: 'Brands' },
+        { value: stats.last_12_months || 0, label: 'Last 12 Mo' }
+    ];
+
+    const boxWidth = 50;
+    const boxHeight = 26;
+    const boxGap = 10;
+
+    metrics.forEach((m, i) => {
+        const x = margin + (i * (boxWidth + boxGap));
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(x, y, boxWidth, boxHeight, 3, 3, 'F');
+
+        doc.setTextColor(...teal);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(m.value), x + boxWidth / 2, y + 12, { align: 'center' });
+
+        doc.setTextColor(...lightGray);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(m.label, x + boxWidth / 2, y + 21, { align: 'center' });
+    });
+    y += boxHeight + 12;
+
+    // ===== CATEGORY MIX =====
+    const categories = tearsheet.categories || {};
+    const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+    if (catEntries.length > 0) {
+        checkPage(40);
+        doc.setTextColor(...darkGray);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CATEGORY MIX', margin, y);
+        y += 8;
+
+        const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
+        const barMaxWidth = contentWidth * 0.6;
+
+        catEntries.slice(0, 5).forEach(([code, count]) => {
+            const pct = Math.round((count / totalCat) * 100);
+            const barWidth = (pct / 100) * barMaxWidth;
+
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...darkGray);
+            doc.text(code, margin, y + 4);
+
+            doc.setFillColor(...teal);
+            doc.roundedRect(margin + 35, y, barWidth, 6, 1, 1, 'F');
+
+            doc.setTextColor(...lightGray);
+            doc.text(`${pct}%`, margin + 35 + barMaxWidth + 5, y + 4);
+            y += 10;
+        });
+        y += 4;
+    }
+
+    // ===== TOP BRANDS =====
+    const brands = tearsheet.brands || [];
+    if (brands.length > 0) {
+        checkPage(30);
+        doc.setTextColor(...darkGray);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOP BRANDS', margin, y);
+        y += 6;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const brandText = brands.slice(0, 7).map(b => `${b.name} (${b.filings})`).join(' | ');
+        const brandLines = doc.splitTextToSize(brandText, contentWidth);
+        doc.text(brandLines, margin, y);
+        y += brandLines.length * 4 + 8;
+    }
+
+    // ===== RECENT FILINGS TABLE =====
+    const recentFilings = tearsheet.recent_filings || [];
+    if (recentFilings.length > 0) {
+        checkPage(60);
+        doc.setTextColor(...darkGray);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RECENT FILINGS', margin, y);
+        y += 8;
+
+        // Table header
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, contentWidth, 7, 'F');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Brand', margin + 2, y + 5);
+        doc.text('Product', margin + 50, y + 5);
+        doc.text('Date', margin + 115, y + 5);
+        doc.text('Signal', margin + 145, y + 5);
+        y += 9;
+
+        // Table rows
+        doc.setFont('helvetica', 'normal');
+        recentFilings.slice(0, 8).forEach((f, i) => {
+            if (i % 2 === 1) {
+                doc.setFillColor(252, 252, 253);
+                doc.rect(margin, y - 4, contentWidth, 7, 'F');
+            }
+            doc.setTextColor(...darkGray);
+            doc.text((f.brand || '').substring(0, 20), margin + 2, y);
+            doc.text((f.product || '-').substring(0, 25), margin + 50, y);
+            doc.text(f.date || '', margin + 115, y);
+
+            // Signal badge color
+            if (f.signal === 'NEW_COMPANY') {
+                doc.setTextColor(234, 88, 12); // orange
+            } else if (f.signal === 'NEW_BRAND') {
+                doc.setTextColor(22, 163, 74); // green
+            } else if (f.signal === 'NEW_SKU') {
+                doc.setTextColor(37, 99, 235); // blue
+            } else {
+                doc.setTextColor(...lightGray);
+            }
+            doc.text((f.signal || 'REFILE').replace('_', ' '), margin + 145, y);
+            y += 7;
+        });
+        y += 6;
+    }
+
+    // ===== FOOTER =====
+    const footerY = doc.internal.pageSize.getHeight() - 15;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+
+    doc.setTextColor(...lightGray);
+    doc.setFontSize(8);
+    doc.text('BevAlc Intelligence | bevalcintel.com', margin, footerY);
+
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    doc.text(`Generated ${today}`, pageWidth - margin, footerY, { align: 'right' });
+
+    // Save the PDF
+    const filename = `${(tearsheet.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
+    doc.save(filename);
 }
 
 function showCreditPurchaseModal(isPro) {

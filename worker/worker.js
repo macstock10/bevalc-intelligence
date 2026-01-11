@@ -3564,10 +3564,13 @@ async function handleEnhance(request, env) {
         const daysSince = (now - enhancedDate) / (1000 * 60 * 60 * 24);
 
         if (daysSince < 90) {
+            const tearsheet = parseEnhancement(existing);
+            // Add fresh recent filings for PDF report
+            tearsheet.recent_filings = await fetchRecentFilings(company_id, env);
             return {
                 success: true,
                 cached: true,
-                tearsheet: parseEnhancement(existing)
+                tearsheet
             };
         }
     }
@@ -3615,10 +3618,13 @@ async function handleEnhanceStatus(url, env) {
     ).bind(companyId).first();
 
     if (existing) {
+        const tearsheet = parseEnhancement(existing);
+        // Add fresh recent filings for PDF report
+        tearsheet.recent_filings = await fetchRecentFilings(companyId, env);
         return {
             success: true,
             status: 'complete',
-            tearsheet: parseEnhancement(existing)
+            tearsheet
         };
     }
 
@@ -3700,7 +3706,7 @@ async function deductCredit(email, companyId, env) {
 
 async function runEnhancement(companyId, companyName, env) {
     // Run D1 queries in parallel for speed
-    const [stats, states, categories, brands, existingWebsite] = await Promise.all([
+    const [stats, states, categories, brands, recentFilings, existingWebsite] = await Promise.all([
         // Filing statistics - convert MM/DD/YYYY to sortable format for proper MIN/MAX
         env.DB.prepare(`
             SELECT
@@ -3751,6 +3757,17 @@ async function runEnhancement(companyId, companyName, env) {
             LIMIT 10
         `).bind(companyId).all(),
 
+        // Recent filings for PDF report
+        env.DB.prepare(`
+            SELECT brand_name, fanciful_name, approval_date, status, signal
+            FROM colas
+            WHERE company_name IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+            ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC
+            LIMIT 10
+        `).bind(companyId).all(),
+
         // Check for existing website
         env.DB.prepare(`
             SELECT website_url FROM company_websites WHERE company_id = ?
@@ -3787,6 +3804,7 @@ async function runEnhancement(companyId, companyName, env) {
     // Call Claude with web search to find website and generate summary
     let websiteUrl = existingWebsite?.website_url || null;
     let summary = null;
+    let news = [];
 
     if (env.ANTHROPIC_API_KEY) {
         try {
@@ -3806,6 +3824,7 @@ async function runEnhancement(companyId, companyName, env) {
                 websiteUrl = claudeResult.website;
             }
             summary = claudeResult.summary;
+            news = claudeResult.news || [];
         } catch (error) {
             console.error('Claude enhancement failed:', error);
             // Continue without AI summary - still return D1 data
@@ -3833,35 +3852,39 @@ async function runEnhancement(companyId, companyName, env) {
             return acc;
         }, {}) || {},
         contacts: [],
-        news: [],
+        news,
         social: null,
-        summary
+        summary,
+        recent_filings: recentFilings?.results?.map(f => ({
+            brand: f.brand_name,
+            product: f.fanciful_name,
+            date: f.approval_date,
+            status: f.status,
+            signal: f.signal
+        })) || []
     };
 }
 
 async function callClaudeWithSearch(companyName, data, env) {
-    const prompt = `You are researching a beverage alcohol company for a business intelligence report.
+    const prompt = `You are researching a beverage alcohol company. Your job is to find information that ISN'T in TTB filings - background, news, context.
 
 Company: ${companyName}
+${data.existingWebsite ? `Known website: ${data.existingWebsite}` : ''}
 
-TTB Filing Data:
-- Total COLA filings: ${data.totalFilings}
-- First filing: ${data.firstFiling || 'Unknown'}
-- Last filing: ${data.lastFiling || 'Unknown'}
-- Last 12 months: ${data.last12Months} filings (trend: ${data.trend})
-- Top brands: ${data.brands}
-- Categories: ${data.categories}
-- States filed: ${data.states}
-${data.existingWebsite ? `- Known website: ${data.existingWebsite}` : ''}
+Search for and provide:
+1. Official company website (not retailers like Drizly, Total Wine, Vivino, Wine-Searcher)
+2. Company background - when founded, ownership, location, what makes them notable
+3. Recent news - any press mentions, awards, expansions, acquisitions from last 2 years
 
-Tasks:
-1. ${data.existingWebsite ? 'Verify the website is correct.' : 'Search for and find the official company website (not retailers like Drizly, Total Wine, or Vivino).'}
-2. Write a 2-3 sentence summary of this company for a B2B audience. Focus on: what they make, their market position, and any notable insights from the filing data.
+DO NOT mention filing counts or TTB data - the user already has that. Focus ONLY on information from your web search.
 
 Respond in this exact JSON format:
 {
   "website": "https://example.com" or null if not found,
-  "summary": "Your 2-3 sentence summary here."
+  "summary": "2-3 sentences about the company's background, story, and what makes them notable. Do NOT mention filing counts.",
+  "news": [
+    {"title": "Headline", "date": "2024-01", "source": "Publication Name"}
+  ]
 }`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -3913,14 +3936,15 @@ Respond in this exact JSON format:
             }
             return {
                 website: parsed.website || null,
-                summary
+                summary,
+                news: parsed.news || []
             };
         }
     } catch (e) {
         console.error('Failed to parse Claude response:', e);
     }
 
-    return { website: null, summary: null };
+    return { website: null, summary: null, news: [] };
 }
 
 async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
@@ -3930,8 +3954,8 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
     await env.DB.prepare(`
         INSERT OR REPLACE INTO company_enhancements
         (company_id, company_name, website_url, website_confidence, filing_stats,
-         distribution_states, brand_portfolio, category_breakdown, summary, enhanced_at, enhanced_by, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         distribution_states, brand_portfolio, category_breakdown, summary, news, enhanced_at, enhanced_by, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         companyId,
         companyName,
@@ -3942,6 +3966,7 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
         JSON.stringify(tearsheet.brands),
         JSON.stringify(tearsheet.categories),
         tearsheet.summary || null,
+        JSON.stringify(tearsheet.news || []),
         now,
         email,
         expiresAt
@@ -3963,6 +3988,26 @@ function parseEnhancement(row) {
         summary: row.summary || null,
         enhanced_at: row.enhanced_at
     };
+}
+
+async function fetchRecentFilings(companyId, env) {
+    const result = await env.DB.prepare(`
+        SELECT brand_name, fanciful_name, approval_date, status, signal
+        FROM colas
+        WHERE company_name IN (
+            SELECT raw_name FROM company_aliases WHERE company_id = ?
+        )
+        ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC
+        LIMIT 10
+    `).bind(companyId).all();
+
+    return result?.results?.map(f => ({
+        brand: f.brand_name,
+        product: f.fanciful_name,
+        date: f.approval_date,
+        status: f.status,
+        signal: f.signal
+    })) || [];
 }
 
 function generateUrlsetXml(urls) {
