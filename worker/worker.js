@@ -3866,26 +3866,37 @@ async function runEnhancement(companyId, companyName, env) {
 }
 
 async function callClaudeWithSearch(companyName, data, env) {
-    const prompt = `You are researching a beverage alcohol company. Your job is to find information that ISN'T in TTB filings - background, news, context.
+    // Build context about what type of company this is
+    const categories = data.categories || '';
+    let industryHint = 'beverage alcohol';
+    if (categories.includes('WHISKY') || categories.includes('BOURBON')) industryHint = 'distillery whiskey bourbon';
+    else if (categories.includes('WINE') || categories.includes('TABLE')) industryHint = 'winery wine';
+    else if (categories.includes('BEER') || categories.includes('ALE') || categories.includes('MALT')) industryHint = 'brewery craft beer';
+    else if (categories.includes('VODKA') || categories.includes('GIN')) industryHint = 'distillery spirits';
+    else if (categories.includes('TEQUILA') || categories.includes('MEZCAL')) industryHint = 'tequila mezcal';
+    else if (categories.includes('RUM')) industryHint = 'rum distillery';
+
+    const prompt = `You MUST use the web_search tool to research this beverage alcohol company. Do NOT answer from memory - actually search the web.
 
 Company: ${companyName}
+Industry context: ${industryHint}
 ${data.existingWebsite ? `Known website: ${data.existingWebsite}` : ''}
 
-Search for and provide:
-1. Official company website (not retailers like Drizly, Total Wine, Vivino, Wine-Searcher)
-2. Company background - when founded, ownership, location, what makes them notable
-3. Recent news - any press mentions, awards, expansions, acquisitions from last 2 years
+IMPORTANT: Use web_search to find:
+1. Search for "${companyName}" to find their official website (NOT retailers like Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar)
+2. Search for "${companyName} ${industryHint}" to find company background, founding story, location
+3. If needed, search for recent news or press releases
 
-DO NOT mention filing counts or TTB data - the user already has that. Focus ONLY on information from your web search.
-
-Respond in this exact JSON format:
+After searching, provide this JSON:
 {
   "website": "https://example.com" or null if not found,
-  "summary": "2-3 sentences about the company's background, story, and what makes them notable. Do NOT mention filing counts.",
+  "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Be specific with facts you found.",
   "news": [
     {"title": "Headline", "date": "2024-01", "source": "Publication Name"}
   ]
-}`;
+}
+
+DO NOT mention TTB filing counts. Focus on what you found from your web search.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -3900,7 +3911,7 @@ Respond in this exact JSON format:
             tools: [{
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 2
+                max_uses: 3
             }],
             messages: [{
                 role: 'user',
