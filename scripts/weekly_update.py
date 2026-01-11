@@ -1252,20 +1252,20 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
     if not new_records:
         return
 
-    # Query D1 for records with NEW_COMPANY or NEW_BRAND signals that don't have websites yet
-    # This is more accurate than checking new_records since classification just ran
-    # CRITICAL: Sort by most recent approval_date first, then NEW_COMPANY before NEW_BRAND
+    # Query D1 for records needing website enrichment
+    # CRITICAL: Sort by most recent approval_date first, then signal priority
+    # Priority: NEW_COMPANY (1) -> NEW_BRAND (2) -> NEW_SKU (3) -> REFILE (4)
     query = """
         SELECT DISTINCT c.brand_name, c.company_name, c.class_type_code, c.signal, c.approval_date
         FROM colas c
         LEFT JOIN brand_websites bw ON UPPER(c.brand_name) = UPPER(bw.brand_name)
-        WHERE c.signal IN ('NEW_COMPANY', 'NEW_BRAND')
+        WHERE c.signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE')
         AND bw.brand_name IS NULL
         AND c.brand_name IS NOT NULL
         AND c.brand_name != ''
         ORDER BY
             substr(c.approval_date, 7, 4) || substr(c.approval_date, 1, 2) || substr(c.approval_date, 4, 2) DESC,
-            CASE c.signal WHEN 'NEW_COMPANY' THEN 1 ELSE 2 END,
+            CASE c.signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 ELSE 4 END,
             c.brand_name
     """
 
@@ -1299,8 +1299,10 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
     # Count by signal type
     new_companies = sum(1 for x in needs_enrichment if x.get('signal') == 'NEW_COMPANY')
     new_brands = sum(1 for x in needs_enrichment if x.get('signal') == 'NEW_BRAND')
+    new_skus = sum(1 for x in needs_enrichment if x.get('signal') == 'NEW_SKU')
+    refiles = sum(1 for x in needs_enrichment if x.get('signal') == 'REFILE')
 
-    logger.info(f"Brands needing website enrichment: {len(needs_enrichment)} ({new_companies} NEW_COMPANY, {new_brands} NEW_BRAND)")
+    logger.info(f"Brands needing website enrichment: {len(needs_enrichment)} ({new_companies} NEW_COMPANY, {new_brands} NEW_BRAND, {new_skus} NEW_SKU, {refiles} REFILE)")
     logger.info(f"Enrichment list saved to: {enrichment_file}")
 
     # Also log first 10 for visibility (now sorted by approval_date DESC)

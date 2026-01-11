@@ -21,17 +21,21 @@ Run enrichment after:
 ```sql
 SELECT brand_name, company_name, class_type_code, signal, approval_date
 FROM colas
-WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND')
+WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE')
   AND brand_name NOT IN (SELECT brand_name FROM brand_websites)
 ORDER BY
   substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC,
-  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 END
+  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 ELSE 4 END
 LIMIT 50
 ```
 
 ### Step 2: Enrich in This Order
 1. **Most recent date first** (e.g., if 01/08/2026 exists, do those before 01/07/2026)
-2. Within each date: **NEW_COMPANY** before **NEW_BRAND**
+2. Within each date, process signals in order:
+   - **NEW_COMPANY** (highest priority)
+   - **NEW_BRAND**
+   - **NEW_SKU**
+   - **REFILE** (lowest priority)
 3. Then work backwards chronologically
 4. Backfill older records last
 

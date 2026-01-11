@@ -12,18 +12,22 @@ After any scrape that adds NEW_COMPANY or NEW_BRAND records. Typically:
 
 **Always enrich in this order:**
 1. **Most recent approval_date first** (e.g., 01/08/2026 before 01/07/2026)
-2. **Within each date: NEW_COMPANY before NEW_BRAND**
+2. **Within each date, process signals in order:**
+   - NEW_COMPANY (highest priority)
+   - NEW_BRAND
+   - NEW_SKU
+   - REFILE (lowest priority)
 3. Then work backwards chronologically
 
 The `needs_enrichment.json` file is already sorted this way.
 
 ## What Gets Enriched
 
-Only **NEW_COMPANY** and **NEW_BRAND** signals (not NEW_SKU or REFILE):
-- NEW_COMPANY: ~5-15 per week (highest priority)
-- NEW_BRAND: ~150-200 per week
-
-NEW_SKU records inherit their brand's existing website automatically.
+All signal types in priority order:
+- **NEW_COMPANY**: ~5-15 per week (highest priority)
+- **NEW_BRAND**: ~150-200 per week
+- **NEW_SKU**: Inherits brand website if already enriched, otherwise needs enrichment
+- **REFILE**: Lowest priority, only if time permits
 
 ## Workflow
 
