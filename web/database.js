@@ -1486,11 +1486,11 @@ function generateCompanyPDF() {
         doc.rect(marginLeft, y, contentWidth, 6, 'F');
         y += 20;
 
-        // "BevAlc Intelligence" on left with diamond
+        // "BevAlc Intelligence" on left
         doc.setFontSize(11);
         doc.setTextColor(...teal);
         doc.setFont('helvetica', 'bold');
-        doc.text('\u25C6 BevAlc Intelligence', marginLeft, y);
+        doc.text('BevAlc Intelligence', marginLeft, y);
 
         // "COMPANY REPORT" on right
         doc.setFontSize(9);
@@ -1700,39 +1700,41 @@ function generateCompanyPDF() {
             drawSectionLabel('Top Brands');
 
             let pillX = marginLeft;
-            const pillHeight = 22;
-            const pillPaddingH = 12;
-            const pillGap = 8;
-            const pillRowHeight = pillHeight + 10;
+            const pillHeight = 20;
+            const pillPaddingH = 10;
+            const pillGap = 6;
+            const pillRowGap = 8;  // Vertical gap between rows
+            y += 4;  // Extra space after section label
+            let currentRowY = y;
 
             brands.slice(0, 10).forEach(b => {
-                doc.setFontSize(10);
+                doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 const pillText = `${b.name} (${b.filings})`;
-                const truncatedPill = truncateText(pillText, 160, 10);
+                const truncatedPill = truncateText(pillText, 140, 9);
                 const textWidth = doc.getTextWidth(truncatedPill);
                 const pillWidth = textWidth + pillPaddingH * 2;
 
                 // Check if pill fits on current line
                 if (pillX + pillWidth > pageWidth - marginRight) {
                     pillX = marginLeft;
-                    y += pillRowHeight;
-                    checkPageBreak(pillRowHeight);
+                    currentRowY += pillHeight + pillRowGap;
+                    checkPageBreak(pillHeight + pillRowGap);
                 }
 
                 // Pill background (light teal)
                 doc.setFillColor(240, 253, 250);
                 doc.setDrawColor(153, 246, 228);
                 doc.setLineWidth(1);
-                roundedRect(pillX, y - 15, pillWidth, pillHeight, 11, 'FD');
+                roundedRect(pillX, currentRowY, pillWidth, pillHeight, 10, 'FD');
 
-                // Pill text
+                // Pill text (vertically centered in pill)
                 doc.setTextColor(...teal);
-                doc.text(truncatedPill, pillX + pillPaddingH, y - 2);
+                doc.text(truncatedPill, pillX + pillPaddingH, currentRowY + 13);
 
                 pillX += pillWidth + pillGap;
             });
-            y += pillRowHeight + 8;
+            y = currentRowY + pillHeight + 16;
         }
 
         // ========== RECENT FILINGS TABLE ==========
