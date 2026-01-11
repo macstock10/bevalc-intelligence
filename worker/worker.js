@@ -3115,17 +3115,19 @@ async function handleBrandPage(path, env, headers) {
         cnt: actualCount?.cnt || brandResult.cnt
     };
 
-    // Get company for this brand
-    const companyResult = await env.DB.prepare(`
-        SELECT co.company_name, c.canonical_name, c.slug
+    // Get ALL companies for this brand (brand names can be used by multiple companies)
+    const companiesResult = await env.DB.prepare(`
+        SELECT co.company_name, c.canonical_name, c.slug, COUNT(*) as filing_count
         FROM colas co
         LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
         LEFT JOIN companies c ON ca.company_id = c.id
         WHERE co.brand_name = ?
-        GROUP BY co.company_name
+        GROUP BY COALESCE(c.id, co.company_name)
         ORDER BY COUNT(*) DESC
-        LIMIT 1
-    `).bind(brand.brand_name).first();
+        LIMIT 10
+    `).bind(brand.brand_name).all();
+    const companies = companiesResult.results || [];
+    const companyResult = companies.length > 0 ? companies[0] : null;
 
     // Get category for this brand
     const categoryResult = await env.DB.prepare(`
@@ -3188,8 +3190,16 @@ async function handleBrandPage(path, env, headers) {
                     <a href="/">Home</a> / <a href="/database.html">Database</a> / Brand
                 </div>
                 <h1>${escapeHtml(brand.brand_name)}</h1>
+                ${companies.length > 1 ? `
+                <div class="multi-company-notice" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+                    <strong>Note:</strong> This brand name is used by ${companies.length} different companies:
+                    <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${companies.map(c => c.slug ? `<a href="/company/${c.slug}" style="background: #fff; padding: 4px 12px; border-radius: 4px; text-decoration: none; border: 1px solid #e5e7eb;">${escapeHtml(c.canonical_name || c.company_name)} (${c.filing_count})</a>` : `<span style="background: #fff; padding: 4px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">${escapeHtml(c.company_name)} (${c.filing_count})</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
                 <div class="meta">
-                    ${companyResult?.canonical_name ? `<span>by <a href="/company/${companyResult.slug}">${escapeHtml(companyResult.canonical_name)}</a></span>` : ''}
+                    ${companyResult?.canonical_name ? `<span>by <a href="/company/${companyResult.slug}">${escapeHtml(companyResult.canonical_name)}</a></span>` : (companyResult?.company_name ? `<span>by ${escapeHtml(companyResult.company_name)}</span>` : '')}
                     <span class="category-badge">${escapeHtml(primaryCategory)}</span>
                     <span><strong>${formatNumber(brand.cnt)}</strong> Filings</span>
                 </div>
