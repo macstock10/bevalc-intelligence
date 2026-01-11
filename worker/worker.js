@@ -3590,16 +3590,22 @@ async function handleEnhance(request, env) {
     try {
         const tearsheet = await runEnhancement(company_id, company_name, env);
 
-        // Save to cache
-        await saveEnhancement(company_id, company_name, tearsheet, email, env);
+        // Only cache and charge if we got useful information
+        const hasUsefulInfo = tearsheet.summary || tearsheet.website?.url;
 
-        // Deduct credit
-        await deductCredit(email, company_id, env);
+        if (hasUsefulInfo) {
+            // Save to cache
+            await saveEnhancement(company_id, company_name, tearsheet, email, env);
+
+            // Deduct credit
+            await deductCredit(email, company_id, env);
+        }
 
         return {
             success: true,
             cached: false,
-            tearsheet
+            tearsheet,
+            charged: hasUsefulInfo
         };
     } catch (error) {
         return { success: false, error: error.message };
