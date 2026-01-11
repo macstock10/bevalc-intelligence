@@ -1390,353 +1390,489 @@ function renderTearsheet(tearsheet, cached) {
 }
 
 // ============================================
-// PDF GENERATION WITH html2pdf.js
+// PDF GENERATION WITH jsPDF
 // ============================================
 
-// Helper: Escape HTML characters to prevent rendering issues
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Helper: Format date nicely
-function formatDate(dateStr) {
-    if (!dateStr) return '';
-    try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-        return dateStr;
-    }
-}
-
-// Helper: Get signal badge HTML
-function getSignalBadgeHtml(signal) {
-    const signalText = (signal || 'REFILE').replace('_', ' ');
-    let bgColor, textColor;
-
-    switch (signal) {
-        case 'NEW_COMPANY':
-            bgColor = '#dcfce7';
-            textColor = '#166534';
-            break;
-        case 'NEW_BRAND':
-            bgColor = '#dbeafe';
-            textColor = '#1e40af';
-            break;
-        case 'NEW_SKU':
-            bgColor = '#f0fdfa';
-            textColor = '#0d9488';
-            break;
-        default:
-            bgColor = '#f3f4f6';
-            textColor = '#6b7280';
-    }
-
-    return `<span style="display: inline-block; background: ${bgColor}; color: ${textColor}; padding: 4px 8px; border-radius: 4px; font-size: 10px; text-transform: uppercase; font-weight: 500;">${signalText}</span>`;
-}
-
-// Helper: Build metric box HTML
-function buildMetricBoxHtml(value, label) {
-    return `
-        <div style="flex: 1; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 12px; text-align: center;">
-            <div style="font-size: 28px; font-weight: 600; color: #0d9488; margin-bottom: 4px;">${escapeHtml(String(value))}</div>
-            <div style="font-size: 9px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px;">${escapeHtml(label)}</div>
-        </div>
-    `;
-}
-
-// Helper: Build category bar HTML
-function buildCategoryBarHtml(label, percentage) {
-    // Truncate long category labels
-    const displayLabel = label.length > 15 ? label.substring(0, 13) + '...' : label;
-    return `
-        <div style="display: flex; align-items: center; margin-bottom: 6px; width: 100%;">
-            <div style="width: 100px; min-width: 100px; font-size: 10px; color: #374151; text-align: right; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(displayLabel)}</div>
-            <div style="flex: 1; height: 14px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
-                <div style="width: ${percentage}%; height: 100%; background: #0d9488; border-radius: 4px;"></div>
-            </div>
-            <div style="width: 32px; min-width: 32px; font-size: 10px; color: #6b7280; text-align: right; padding-left: 6px;">${percentage}%</div>
-        </div>
-    `;
-}
-
-// Helper: Build brand pill HTML
-function buildBrandPillHtml(name, count) {
-    // Truncate long brand names
-    const displayName = name.length > 18 ? name.substring(0, 16) + '...' : name;
-    return `
-        <span style="display: inline-block; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 12px; padding: 4px 10px; margin: 0 6px 6px 0;">
-            <span style="font-size: 10px; color: #0d9488;">${escapeHtml(displayName)}</span>
-            <span style="font-size: 10px; color: #6b7280;"> (${count})</span>
-        </span>
-    `;
-}
-
-// Main function: Build the report HTML
-function buildReportHTML(tearsheet) {
-    const stats = tearsheet.filing_stats || {};
-    const brands = tearsheet.brands || [];
-    const categories = tearsheet.categories || {};
-    const news = tearsheet.news || [];
-    const recentFilings = tearsheet.recent_filings || [];
-
-    // Website display
-    const websiteUrl = tearsheet.website?.url || '';
-    const websiteDisplay = websiteUrl
-        ? websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        : 'No website found';
-    const websiteHtml = websiteUrl
-        ? `<a href="${escapeHtml(websiteUrl)}" style="color: #0d9488; text-decoration: none; font-size: 14px;">${escapeHtml(websiteDisplay)}</a>`
-        : `<span style="color: #9ca3af; font-size: 14px;">No website found</span>`;
-
-    // Filing date range
-    const filingRange = stats.first_filing ? `Filing since ${stats.first_filing}` : '';
-
-    // Build metrics section
-    const brandCount = brands.length;
-    const metricsHtml = `
-        <div style="display: flex; gap: 16px; margin-bottom: 24px;">
-            ${buildMetricBoxHtml(stats.total_filings || 0, 'Total Filings')}
-            ${buildMetricBoxHtml(brandCount, 'Brands')}
-            ${buildMetricBoxHtml(stats.last_12_months || 0, 'Last 12 Mo')}
-        </div>
-    `;
-
-    // Build categories section
-    let categoriesHtml = '';
-    const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-    if (catEntries.length > 0) {
-        const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
-        const categoryBars = catEntries.slice(0, 5).map(([code, count]) => {
-            const pct = Math.round((count / totalCat) * 100);
-            return buildCategoryBarHtml(code, pct);
-        }).join('');
-
-        categoriesHtml = `
-            <div style="margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Category Mix</div>
-                ${categoryBars}
-            </div>
-        `;
-    }
-
-    // Build brands section
-    let brandsHtml = '';
-    if (brands.length > 0) {
-        const brandPills = brands.slice(0, 10).map(b => buildBrandPillHtml(b.name, b.filings)).join('');
-        brandsHtml = `
-            <div style="margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Top Brands</div>
-                <div style="display: flex; flex-wrap: wrap;">
-                    ${brandPills}
-                </div>
-            </div>
-        `;
-    }
-
-    // Build news section
-    let newsHtml = '';
-    if (news.length > 0) {
-        const newsItems = news.slice(0, 3).map(n => {
-            const titleHtml = n.url
-                ? `<a href="${escapeHtml(n.url)}" style="color: #0d9488; text-decoration: none;">"${escapeHtml(n.title || '')}"</a>`
-                : `<span style="color: #0d9488;">"${escapeHtml(n.title || '')}"</span>`;
-            return `
-                <div style="margin-bottom: 8px;">
-                    <div style="font-size: 13px;">${titleHtml}</div>
-                    <div style="font-size: 11px; color: #9ca3af;">${escapeHtml(n.source || '')} • ${escapeHtml(n.date || '')}</div>
-                </div>
-            `;
-        }).join('');
-
-        newsHtml = `
-            <div style="margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Recent News</div>
-                ${newsItems}
-            </div>
-        `;
-    }
-
-    // Build recent filings table
-    let filingsHtml = '';
-    if (recentFilings.length > 0) {
-        const rows = recentFilings.slice(0, 8).map((f, i) => {
-            const bgColor = i % 2 === 1 ? '#f9fafb' : 'white';
-            // Truncate long brand/product names to fit table
-            const brandText = (f.brand || '').length > 20 ? f.brand.substring(0, 18) + '...' : (f.brand || '');
-            const productText = f.product && f.product.trim()
-                ? ((f.product.length > 18) ? f.product.substring(0, 16) + '...' : f.product)
-                : '—';
-            const productDisplay = productText === '—'
-                ? '<span style="color: #9ca3af;">—</span>'
-                : escapeHtml(productText);
-            return `
-                <tr style="background: ${bgColor};">
-                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(brandText)}</td>
-                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${productDisplay}</td>
-                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">${escapeHtml(f.date || '')}</td>
-                    <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb;">${getSignalBadgeHtml(f.signal)}</td>
-                </tr>
-            `;
-        }).join('');
-
-        filingsHtml = `
-            <div style="margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Recent Filings</div>
-                <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                    <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-                        <thead>
-                            <tr style="background: #f9fafb;">
-                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 30%;">Brand</th>
-                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 28%;">Product</th>
-                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 20%;">Date</th>
-                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 22%;">Signal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${rows}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }
-
-    // Build summary section
-    let summaryHtml = '';
-    if (tearsheet.summary) {
-        summaryHtml = `
-            <div style="background: #f8fafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Summary</div>
-                <div style="font-size: 13px; color: #374151; line-height: 1.6;">${escapeHtml(tearsheet.summary)}</div>
-            </div>
-        `;
-    }
-
-    // Footer date
-    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-    // Assemble the full HTML (612px = 6.375in content, fits in 7.5in printable area with padding)
-    return `
-        <div style="width: 612px; min-height: 900px; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #374151; box-sizing: border-box; background: #ffffff;">
-            <!-- Header -->
-            <div style="border-top: 8px solid #0d9488; padding-top: 16px; margin-bottom: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <div style="font-size: 12px; font-weight: 600; color: #0d9488;">◆ BevAlc Intelligence</div>
-                    <div style="font-size: 10px; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.5px;">Company Report</div>
-                </div>
-                <div style="font-size: 24px; font-weight: 600; color: #1a1a1a; line-height: 1.3; margin-bottom: 8px;">${escapeHtml(tearsheet.company_name || 'Company')}</div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    ${websiteHtml}
-                    <div style="font-size: 12px; color: #6b7280;">${escapeHtml(filingRange)}</div>
-                </div>
-            </div>
-
-            <!-- Summary -->
-            ${summaryHtml}
-
-            <!-- Recent News -->
-            ${newsHtml}
-
-            <!-- Key Metrics -->
-            <div style="margin-bottom: 24px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Key Metrics</div>
-                ${metricsHtml}
-            </div>
-
-            <!-- Category Mix -->
-            ${categoriesHtml}
-
-            <!-- Top Brands -->
-            ${brandsHtml}
-
-            <!-- Recent Filings -->
-            ${filingsHtml}
-
-            <!-- Footer -->
-            <div style="margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px; display: flex; justify-content: space-between;">
-                <div style="font-size: 11px; color: #9ca3af;">BevAlc Intelligence • bevalcintel.com</div>
-                <div style="font-size: 11px; color: #9ca3af;">Generated ${today}</div>
-            </div>
-        </div>
-    `;
-}
-
-// Main PDF generation function using html2pdf.js
+// Main PDF generation function using jsPDF with precise positioning
 function generateCompanyPDF() {
     if (!currentTearsheetData) {
         alert('No data available for PDF generation');
         return;
     }
 
-    if (typeof html2pdf === 'undefined') {
-        console.error('html2pdf not available');
+    if (typeof window.jspdf === 'undefined') {
+        console.error('jsPDF not available');
         alert('PDF library not loaded. Please refresh the page and try again.');
         return;
     }
 
     try {
-        // Build the HTML report
-        const reportHtml = buildReportHTML(currentTearsheetData);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'pt',
+            format: 'letter'  // 612 x 792 points
+        });
 
-        console.log('PDF: Building report for', currentTearsheetData.company_name);
-        console.log('PDF: HTML length', reportHtml.length);
+        const tearsheet = currentTearsheetData;
+        const stats = tearsheet.filing_stats || {};
+        const brands = tearsheet.brands || [];
+        const categories = tearsheet.categories || {};
+        const news = tearsheet.news || [];
+        const recentFilings = tearsheet.recent_filings || [];
 
-        // Create a visible container - html2canvas needs to see it
-        // Position it off-screen but in the viewport for proper rendering
-        const tempDiv = document.createElement('div');
-        tempDiv.id = 'pdf-temp-container';
-        tempDiv.style.cssText = 'position: fixed; left: 0; top: 0; z-index: -9999; background: white; overflow: visible;';
-        tempDiv.innerHTML = reportHtml;
-        document.body.appendChild(tempDiv);
+        // Page dimensions and margins
+        const pageWidth = 612;
+        const pageHeight = 792;
+        const marginLeft = 40;
+        const marginRight = 40;
+        const marginTop = 40;
+        const marginBottom = 40;
+        const contentWidth = pageWidth - marginLeft - marginRight;
 
-        // Get the content element
-        const contentElement = tempDiv.firstElementChild;
-        console.log('PDF: Content element dimensions', contentElement?.offsetWidth, 'x', contentElement?.offsetHeight);
+        // Colors (RGB 0-255)
+        const teal = [13, 148, 136];
+        const darkGray = [55, 65, 81];
+        const mediumGray = [107, 114, 128];
+        const lightGray = [156, 163, 175];
+        const black = [26, 26, 26];
+        const bgGray = [248, 250, 250];
+        const borderGray = [229, 231, 235];
 
-        // Configure html2pdf options
-        // Letter size is 8.5 x 11 inches
-        // Content is 612px wide (6.375in at 96dpi) to fit with margins
-        const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
+        // Track Y position
+        let y = marginTop;
 
-        const options = {
-            margin: [0.5, 0.5, 0.5, 0.5],  // top, left, bottom, right in inches
-            filename: filename,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff',
-                windowWidth: contentElement.offsetWidth,
-                windowHeight: contentElement.offsetHeight,
-                x: 0,
-                y: 0,
-                scrollX: 0,
-                scrollY: 0
-            },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-            pagebreak: { mode: 'avoid-all' }
-        };
+        // Helper: Check if we need a new page
+        function checkPageBreak(neededHeight) {
+            if (y + neededHeight > pageHeight - marginBottom) {
+                doc.addPage();
+                y = marginTop;
+                return true;
+            }
+            return false;
+        }
 
-        // Wait for browser to render, then capture
-        setTimeout(() => {
-            console.log('PDF: Starting capture...');
+        // Helper: Draw section label (uppercase, gray, small)
+        function drawSectionLabel(text) {
+            doc.setFontSize(9);
+            doc.setTextColor(...mediumGray);
+            doc.setFont('helvetica', 'bold');
+            doc.text(text.toUpperCase(), marginLeft, y);
+            y += 16;
+        }
 
-            html2pdf().set(options).from(contentElement).save().then(() => {
-                console.log('PDF: Download complete');
-                document.body.removeChild(tempDiv);
-            }).catch(err => {
-                console.error('PDF generation error:', err);
-                alert('Failed to generate PDF: ' + err.message);
-                if (tempDiv.parentNode) {
-                    document.body.removeChild(tempDiv);
+        // Helper: Truncate text with ellipsis
+        function truncateText(text, maxWidth, fontSize) {
+            if (!text) return '';
+            doc.setFontSize(fontSize);
+            const fullWidth = doc.getTextWidth(text);
+            if (fullWidth <= maxWidth) return text;
+            let truncated = text;
+            while (doc.getTextWidth(truncated + '...') > maxWidth && truncated.length > 0) {
+                truncated = truncated.slice(0, -1);
+            }
+            return truncated + '...';
+        }
+
+        // Helper: Draw rounded rectangle
+        function roundedRect(x, y, w, h, r, style) {
+            doc.roundedRect(x, y, w, h, r, r, style);
+        }
+
+        // ========== HEADER ==========
+        // Teal accent bar at top (8px = ~6pt)
+        doc.setFillColor(...teal);
+        doc.rect(marginLeft, y, contentWidth, 6, 'F');
+        y += 20;
+
+        // "BevAlc Intelligence" on left with diamond
+        doc.setFontSize(11);
+        doc.setTextColor(...teal);
+        doc.setFont('helvetica', 'bold');
+        doc.text('\u25C6 BevAlc Intelligence', marginLeft, y);
+
+        // "COMPANY REPORT" on right
+        doc.setFontSize(9);
+        doc.setTextColor(...lightGray);
+        doc.setFont('helvetica', 'normal');
+        doc.text('COMPANY REPORT', pageWidth - marginRight, y, { align: 'right' });
+        y += 24;
+
+        // Company name (large, bold, wraps if needed)
+        doc.setFontSize(22);
+        doc.setTextColor(...black);
+        doc.setFont('helvetica', 'bold');
+        const companyName = tearsheet.company_name || 'Company';
+        const companyNameLines = doc.splitTextToSize(companyName, contentWidth);
+        doc.text(companyNameLines, marginLeft, y);
+        y += companyNameLines.length * 26 + 10;
+
+        // Website (clickable link) on left
+        const websiteUrl = tearsheet.website?.url || '';
+        const websiteDisplay = websiteUrl
+            ? websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+            : 'No website found';
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        if (websiteUrl) {
+            doc.setTextColor(...teal);
+            const linkWidth = doc.getTextWidth(websiteDisplay);
+            doc.textWithLink(websiteDisplay, marginLeft, y, { url: websiteUrl });
+            // Add underline for link appearance
+            doc.setDrawColor(...teal);
+            doc.setLineWidth(0.5);
+            doc.line(marginLeft, y + 2, marginLeft + linkWidth, y + 2);
+        } else {
+            doc.setTextColor(...lightGray);
+            doc.text(websiteDisplay, marginLeft, y);
+        }
+
+        // Filing range on right
+        const filingRange = stats.first_filing ? `Filing since ${stats.first_filing}` : '';
+        if (filingRange) {
+            doc.setTextColor(...mediumGray);
+            doc.setFontSize(10);
+            doc.text(filingRange, pageWidth - marginRight, y, { align: 'right' });
+        }
+        y += 28;
+
+        // ========== SUMMARY ==========
+        if (tearsheet.summary) {
+            checkPageBreak(120);
+
+            // Calculate text lines first to determine box height
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            const summaryLines = doc.splitTextToSize(tearsheet.summary, contentWidth - 40);
+            const boxPadding = 16;
+            const labelHeight = 20;
+            const textLineHeight = 15;
+            const boxHeight = boxPadding + labelHeight + (summaryLines.length * textLineHeight) + boxPadding;
+
+            // Background box with border
+            doc.setFillColor(...bgGray);
+            doc.setDrawColor(...borderGray);
+            doc.setLineWidth(1);
+            roundedRect(marginLeft, y, contentWidth, boxHeight, 6, 'FD');
+
+            // "SUMMARY" label inside box
+            doc.setFontSize(9);
+            doc.setTextColor(...mediumGray);
+            doc.setFont('helvetica', 'bold');
+            doc.text('SUMMARY', marginLeft + boxPadding, y + boxPadding + 10);
+
+            // Summary text
+            doc.setFontSize(11);
+            doc.setTextColor(...darkGray);
+            doc.setFont('helvetica', 'normal');
+            doc.text(summaryLines, marginLeft + boxPadding, y + boxPadding + labelHeight + 10);
+
+            y += boxHeight + 20;
+        }
+
+        // ========== RECENT NEWS ==========
+        if (news.length > 0) {
+            checkPageBreak(80);
+            drawSectionLabel('Recent News');
+
+            news.slice(0, 3).forEach(n => {
+                checkPageBreak(40);
+
+                // News headline in teal with quotes (clickable if URL exists)
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                const headline = `"${n.title || ''}"`;
+                const truncatedHeadline = truncateText(headline, contentWidth - 20, 11);
+
+                if (n.url) {
+                    doc.setTextColor(...teal);
+                    const linkWidth = doc.getTextWidth(truncatedHeadline);
+                    doc.textWithLink(truncatedHeadline, marginLeft, y, { url: n.url });
+                } else {
+                    doc.setTextColor(...teal);
+                    doc.text(truncatedHeadline, marginLeft, y);
                 }
+                y += 14;
+
+                // Source and date in smaller gray text
+                doc.setFontSize(9);
+                doc.setTextColor(...lightGray);
+                const sourceDate = `${n.source || ''} \u2022 ${n.date || ''}`;
+                doc.text(sourceDate, marginLeft, y);
+                y += 16;
             });
-        }, 300);
+            y += 8;
+        }
+
+        // ========== KEY METRICS ==========
+        checkPageBreak(100);
+        drawSectionLabel('Key Metrics');
+
+        const metricBoxWidth = (contentWidth - 24) / 3;  // 3 boxes with 12pt gaps
+        const metricBoxHeight = 70;
+        const metrics = [
+            { value: stats.total_filings || 0, label: 'TOTAL FILINGS' },
+            { value: brands.length, label: 'BRANDS' },
+            { value: stats.last_12_months || 0, label: 'LAST 12 MO' }
+        ];
+
+        metrics.forEach((m, i) => {
+            const boxX = marginLeft + i * (metricBoxWidth + 12);
+
+            // Box with border
+            doc.setFillColor(255, 255, 255);
+            doc.setDrawColor(...borderGray);
+            doc.setLineWidth(1);
+            roundedRect(boxX, y, metricBoxWidth, metricBoxHeight, 6, 'FD');
+
+            // Large number centered
+            doc.setFontSize(32);
+            doc.setTextColor(...teal);
+            doc.setFont('helvetica', 'bold');
+            const valueStr = String(m.value);
+            const valueWidth = doc.getTextWidth(valueStr);
+            doc.text(valueStr, boxX + (metricBoxWidth - valueWidth) / 2, y + 38);
+
+            // Label centered below
+            doc.setFontSize(8);
+            doc.setTextColor(...mediumGray);
+            doc.setFont('helvetica', 'normal');
+            const labelWidth = doc.getTextWidth(m.label);
+            doc.text(m.label, boxX + (metricBoxWidth - labelWidth) / 2, y + 55);
+        });
+        y += metricBoxHeight + 24;
+
+        // ========== CATEGORY MIX ==========
+        const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+        if (catEntries.length > 0) {
+            checkPageBreak(120);
+            drawSectionLabel('Category Mix');
+
+            const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
+            const labelWidth = 100;
+            const pctWidth = 40;
+            const barMaxWidth = contentWidth - labelWidth - pctWidth - 20;
+
+            catEntries.slice(0, 5).forEach(([code, count]) => {
+                checkPageBreak(20);
+                const pct = Math.round((count / totalCat) * 100);
+
+                // Category label (right-aligned)
+                doc.setFontSize(10);
+                doc.setTextColor(...darkGray);
+                doc.setFont('helvetica', 'normal');
+                const label = truncateText(code, labelWidth - 10, 10);
+                doc.text(label, marginLeft + labelWidth - 5, y, { align: 'right' });
+
+                // Progress bar background
+                const barX = marginLeft + labelWidth + 5;
+                const barY = y - 9;
+                const barHeight = 14;
+                doc.setFillColor(...borderGray);
+                roundedRect(barX, barY, barMaxWidth, barHeight, 3, 'F');
+
+                // Progress bar fill
+                const fillWidth = Math.max((pct / 100) * barMaxWidth, 4);
+                doc.setFillColor(...teal);
+                roundedRect(barX, barY, fillWidth, barHeight, 3, 'F');
+
+                // Percentage on right
+                doc.setTextColor(...mediumGray);
+                doc.text(`${pct}%`, pageWidth - marginRight, y, { align: 'right' });
+
+                y += 20;
+            });
+            y += 8;
+        }
+
+        // ========== TOP BRANDS ==========
+        if (brands.length > 0) {
+            checkPageBreak(80);
+            drawSectionLabel('Top Brands');
+
+            let pillX = marginLeft;
+            const pillHeight = 22;
+            const pillPaddingH = 12;
+            const pillGap = 8;
+            const pillRowHeight = pillHeight + 10;
+
+            brands.slice(0, 10).forEach(b => {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                const pillText = `${b.name} (${b.filings})`;
+                const truncatedPill = truncateText(pillText, 160, 10);
+                const textWidth = doc.getTextWidth(truncatedPill);
+                const pillWidth = textWidth + pillPaddingH * 2;
+
+                // Check if pill fits on current line
+                if (pillX + pillWidth > pageWidth - marginRight) {
+                    pillX = marginLeft;
+                    y += pillRowHeight;
+                    checkPageBreak(pillRowHeight);
+                }
+
+                // Pill background (light teal)
+                doc.setFillColor(240, 253, 250);
+                doc.setDrawColor(153, 246, 228);
+                doc.setLineWidth(1);
+                roundedRect(pillX, y - 15, pillWidth, pillHeight, 11, 'FD');
+
+                // Pill text
+                doc.setTextColor(...teal);
+                doc.text(truncatedPill, pillX + pillPaddingH, y - 2);
+
+                pillX += pillWidth + pillGap;
+            });
+            y += pillRowHeight + 8;
+        }
+
+        // ========== RECENT FILINGS TABLE ==========
+        if (recentFilings.length > 0) {
+            checkPageBreak(200);
+            drawSectionLabel('Recent Filings');
+
+            // Table dimensions
+            const colWidths = [
+                contentWidth * 0.30,  // Brand
+                contentWidth * 0.28,  // Product
+                contentWidth * 0.20,  // Date
+                contentWidth * 0.22   // Signal
+            ];
+            const rowHeight = 26;
+            const headerHeight = 28;
+            const numRows = Math.min(recentFilings.length, 8);
+            const tableHeight = headerHeight + (numRows * rowHeight);
+
+            // Table border
+            doc.setDrawColor(...borderGray);
+            doc.setLineWidth(1);
+            roundedRect(marginLeft, y, contentWidth, tableHeight, 6, 'S');
+
+            // Header row background
+            doc.setFillColor(249, 250, 251);
+            // Draw header with rounded top corners only
+            doc.roundedRect(marginLeft + 0.5, y + 0.5, contentWidth - 1, headerHeight - 0.5, 5, 5, 'F');
+            doc.setFillColor(249, 250, 251);
+            doc.rect(marginLeft + 0.5, y + headerHeight - 6, contentWidth - 1, 6, 'F');
+
+            // Header text
+            const headers = ['BRAND', 'PRODUCT', 'DATE', 'SIGNAL'];
+            let headerX = marginLeft + 10;
+            doc.setFontSize(8);
+            doc.setTextColor(...mediumGray);
+            doc.setFont('helvetica', 'bold');
+            headers.forEach((h, i) => {
+                doc.text(h, headerX, y + 18);
+                headerX += colWidths[i];
+            });
+
+            // Header bottom border
+            doc.setDrawColor(...borderGray);
+            doc.line(marginLeft, y + headerHeight, marginLeft + contentWidth, y + headerHeight);
+
+            let tableY = y + headerHeight;
+
+            // Data rows
+            recentFilings.slice(0, 8).forEach((f, rowIndex) => {
+                // Alternating row background
+                if (rowIndex % 2 === 1) {
+                    doc.setFillColor(249, 250, 251);
+                    doc.rect(marginLeft + 1, tableY, contentWidth - 2, rowHeight, 'F');
+                }
+
+                let cellX = marginLeft + 10;
+                const cellY = tableY + 17;
+
+                // Brand
+                doc.setFontSize(10);
+                doc.setTextColor(...darkGray);
+                doc.setFont('helvetica', 'normal');
+                const brandText = truncateText(f.brand || '', colWidths[0] - 15, 10);
+                doc.text(brandText, cellX, cellY);
+                cellX += colWidths[0];
+
+                // Product (em dash if empty)
+                const productText = f.product && f.product.trim()
+                    ? truncateText(f.product, colWidths[1] - 15, 10)
+                    : '\u2014';
+                if (productText === '\u2014') {
+                    doc.setTextColor(...lightGray);
+                } else {
+                    doc.setTextColor(...darkGray);
+                }
+                doc.text(productText, cellX, cellY);
+                cellX += colWidths[1];
+
+                // Date
+                doc.setTextColor(...darkGray);
+                doc.text(f.date || '', cellX, cellY);
+                cellX += colWidths[2];
+
+                // Signal badge
+                const signal = f.signal || 'REFILE';
+                const signalText = signal.replace('_', ' ');
+                let badgeBg, badgeText;
+                switch (signal) {
+                    case 'NEW_COMPANY':
+                        badgeBg = [220, 252, 231]; badgeText = [22, 101, 52]; break;
+                    case 'NEW_BRAND':
+                        badgeBg = [219, 234, 254]; badgeText = [30, 64, 175]; break;
+                    case 'NEW_SKU':
+                        badgeBg = [240, 253, 250]; badgeText = [13, 148, 136]; break;
+                    default:
+                        badgeBg = [243, 244, 246]; badgeText = [107, 114, 128];
+                }
+
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'bold');
+                const badgeTextWidth = doc.getTextWidth(signalText);
+                const badgeWidth = badgeTextWidth + 12;
+                const badgeHeight = 16;
+                const badgeY = tableY + 6;
+
+                doc.setFillColor(...badgeBg);
+                roundedRect(cellX, badgeY, badgeWidth, badgeHeight, 3, 'F');
+                doc.setTextColor(...badgeText);
+                doc.text(signalText, cellX + 6, badgeY + 11);
+
+                // Row bottom border (except last row)
+                if (rowIndex < numRows - 1) {
+                    doc.setDrawColor(...borderGray);
+                    doc.line(marginLeft, tableY + rowHeight, marginLeft + contentWidth, tableY + rowHeight);
+                }
+
+                tableY += rowHeight;
+            });
+
+            y = tableY + 20;
+        }
+
+        // ========== FOOTER ==========
+        // Position footer at bottom of page or after content
+        const footerY = Math.max(y + 30, pageHeight - marginBottom - 20);
+
+        // If footer would go past page, it's already on content - just use current y
+        const actualFooterY = footerY > pageHeight - marginBottom ? y + 30 : footerY;
+
+        // Separator line
+        doc.setDrawColor(...borderGray);
+        doc.setLineWidth(1);
+        doc.line(marginLeft, actualFooterY, pageWidth - marginRight, actualFooterY);
+
+        // Footer text
+        doc.setFontSize(9);
+        doc.setTextColor(...lightGray);
+        doc.setFont('helvetica', 'normal');
+        doc.text('BevAlc Intelligence \u2022 bevalcintel.com', marginLeft, actualFooterY + 16);
+
+        const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        doc.text(`Generated ${today}`, pageWidth - marginRight, actualFooterY + 16, { align: 'right' });
+
+        // Save the PDF
+        const filename = `${(tearsheet.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
+        doc.save(filename);
+        console.log('PDF: Download complete for', tearsheet.company_name);
 
     } catch (error) {
         console.error('PDF generation error:', error);
