@@ -3,6 +3,86 @@
  * Cloudflare Worker for D1 database queries + Stripe integration
  */
 
+// Security headers for all responses
+const SECURITY_HEADERS = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
+
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://bevalcintel.com',
+    'https://www.bevalcintel.com',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8080',
+];
+
+// Verify Stripe webhook signature
+async function verifyStripeSignature(payload, signature, secret) {
+    if (!signature || !secret) return false;
+
+    const parts = signature.split(',');
+    let timestamp = null;
+    let sig = null;
+
+    for (const part of parts) {
+        const [key, value] = part.split('=');
+        if (key === 't') timestamp = value;
+        if (key === 'v1') sig = value;
+    }
+
+    if (!timestamp || !sig) return false;
+
+    // Check timestamp is within 5 minutes
+    const now = Math.floor(Date.now() / 1000);
+    if (Math.abs(now - parseInt(timestamp)) > 300) return false;
+
+    // Compute expected signature
+    const signedPayload = `${timestamp}.${payload}`;
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
+    const expectedSig = Array.from(new Uint8Array(signatureBytes))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+    return sig === expectedSig;
+}
+
+// Verify user token for authenticated endpoints
+async function verifyUserToken(email, token, env) {
+    if (!email || !token) return false;
+
+    const user = await env.DB.prepare(
+        'SELECT preferences_token FROM user_preferences WHERE email = ? AND preferences_token = ?'
+    ).bind(email.toLowerCase(), token).first();
+
+    return !!user;
+}
+
+// Get CORS headers based on origin
+function getCorsHeaders(request) {
+    const origin = request.headers.get('Origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+
+    return {
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true',
+    };
+}
+
 // Rate limiting configuration
 const RATE_LIMIT_REQUESTS = 60;
 const RATE_LIMIT_WINDOW = 60;
@@ -158,23 +238,20 @@ export default {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        // CORS headers
-        const corsHeaders = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-        };
+        // Dynamic CORS headers based on origin + security headers
+        const corsHeaders = getCorsHeaders(request);
+        const allHeaders = { ...corsHeaders, ...SECURITY_HEADERS };
 
         // Handle preflight
         if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: corsHeaders });
+            return new Response(null, { headers: allHeaders });
         }
 
-        // Rate limiting check (skip for Stripe webhooks)
+        // Rate limiting check (skip for Stripe webhooks - they have signature verification)
         const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
         if (!path.includes('/api/stripe/webhook')) {
             const rateLimit = checkRateLimit(clientIP);
-            
+
             if (!rateLimit.allowed) {
                 return new Response(JSON.stringify({
                     success: false,
@@ -185,7 +262,7 @@ export default {
                     headers: {
                         'Content-Type': 'application/json',
                         'Retry-After': String(rateLimit.retryAfter),
-                        ...corsHeaders
+                        ...allHeaders
                     }
                 });
             }
@@ -194,11 +271,11 @@ export default {
         try {
             // SEO Pages (HTML responses)
             if (path.startsWith('/company/')) {
-                return await handleCompanyPage(path, env, corsHeaders);
+                return await handleCompanyPage(path, env, allHeaders);
             } else if (path.startsWith('/brand/')) {
-                return await handleBrandPage(path, env, corsHeaders);
+                return await handleBrandPage(path, env, allHeaders);
             } else if (path.startsWith('/category/')) {
-                return await handleCategoryPage(path, env, corsHeaders);
+                return await handleCategoryPage(path, env, allHeaders);
             } else if (path === '/sitemap.xml' || path.startsWith('/sitemap-')) {
                 return await handleSitemap(path, env);
             }
@@ -209,7 +286,7 @@ export default {
             if (path === '/api/stripe/create-checkout' && request.method === 'POST') {
                 response = await handleCreateCheckout(request, env);
             } else if (path === '/api/stripe/webhook' && request.method === 'POST') {
-                return await handleStripeWebhook(request, env, corsHeaders);
+                return await handleStripeWebhook(request, env, allHeaders);
             } else if (path === '/api/stripe/customer-status') {
                 response = await handleCustomerStatus(url, env);
             } else if (path === '/api/stripe/verify-session') {
@@ -263,7 +340,7 @@ export default {
             return new Response(JSON.stringify(response), {
                 headers: {
                     'Content-Type': 'application/json',
-                    ...corsHeaders
+                    ...allHeaders
                 }
             });
         } catch (error) {
@@ -274,7 +351,7 @@ export default {
                 status: 500,
                 headers: {
                     'Content-Type': 'application/json',
-                    ...corsHeaders
+                    ...allHeaders
                 }
             });
         }
@@ -345,16 +422,33 @@ async function handleCreateCheckout(request, env) {
     };
 }
 
-async function handleStripeWebhook(request, env, corsHeaders) {
+async function handleStripeWebhook(request, env, headers) {
     const body = await request.text();
-    
+
+    // Verify Stripe webhook signature if secret is configured
+    const signature = request.headers.get('Stripe-Signature');
+    const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+
+    if (webhookSecret) {
+        const isValid = await verifyStripeSignature(body, signature, webhookSecret);
+        if (!isValid) {
+            console.error('Invalid Stripe webhook signature');
+            return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json', ...headers }
+            });
+        }
+    } else {
+        console.warn('STRIPE_WEBHOOK_SECRET not configured - signature verification skipped');
+    }
+
     let event;
     try {
         event = JSON.parse(body);
     } catch (err) {
         return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
             status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            headers: { 'Content-Type': 'application/json', ...headers }
         });
     }
     
@@ -440,7 +534,7 @@ async function handleStripeWebhook(request, env, corsHeaders) {
     }
     
     return new Response(JSON.stringify({ received: true }), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        headers: { 'Content-Type': 'application/json', ...headers }
     });
 }
 
@@ -1215,19 +1309,31 @@ async function handleSignupFree(request, env) {
 
 async function handleGetWatchlist(url, env) {
     const email = url.searchParams.get('email');
+    const token = url.searchParams.get('token');
 
     if (!email) {
         return { success: false, error: 'Email required' };
     }
 
     try {
-        // Verify user is Pro
+        // Verify user is Pro and optionally verify token
         const user = await env.DB.prepare(
-            'SELECT is_pro FROM user_preferences WHERE email = ?'
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
 
         if (!user || user.is_pro !== 1) {
             return { success: false, error: 'Pro subscription required' };
+        }
+
+        // If token is provided, verify it matches
+        if (token && user.preferences_token && token !== user.preferences_token) {
+            console.warn(`Invalid token attempt for watchlist GET: ${email}`);
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Log when token is not provided (for monitoring)
+        if (!token) {
+            console.warn(`Watchlist GET without token for: ${email}`);
         }
 
         // Get all watchlist items for this user
@@ -1334,7 +1440,7 @@ async function handleAddToWatchlist(request, env) {
         return { success: false, error: 'Invalid JSON' };
     }
 
-    const { email, type, value } = body;
+    const { email, type, value, token } = body;
 
     if (!email || !type || !value) {
         return { success: false, error: 'Email, type, and value required' };
@@ -1346,13 +1452,24 @@ async function handleAddToWatchlist(request, env) {
     }
 
     try {
-        // Verify user is Pro
+        // Verify user is Pro and optionally verify token
         const user = await env.DB.prepare(
-            'SELECT is_pro FROM user_preferences WHERE email = ?'
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
 
         if (!user || user.is_pro !== 1) {
             return { success: false, error: 'Pro subscription required' };
+        }
+
+        // If token is provided, verify it matches
+        if (token && user.preferences_token && token !== user.preferences_token) {
+            console.warn(`Invalid token attempt for watchlist ADD: ${email}`);
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Log when token is not provided (for monitoring)
+        if (!token) {
+            console.warn(`Watchlist ADD without token for: ${email}`);
         }
 
         // Add to watchlist (INSERT OR IGNORE handles duplicates)
@@ -1378,13 +1495,29 @@ async function handleRemoveFromWatchlist(request, env) {
         return { success: false, error: 'Invalid JSON' };
     }
 
-    const { email, type, value } = body;
+    const { email, type, value, token } = body;
 
     if (!email || !type || !value) {
         return { success: false, error: 'Email, type, and value required' };
     }
 
     try {
+        // Verify user exists and optionally verify token
+        const user = await env.DB.prepare(
+            'SELECT preferences_token FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        // If token is provided, verify it matches
+        if (token && user && user.preferences_token && token !== user.preferences_token) {
+            console.warn(`Invalid token attempt for watchlist REMOVE: ${email}`);
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Log when token is not provided (for monitoring)
+        if (!token) {
+            console.warn(`Watchlist REMOVE without token for: ${email}`);
+        }
+
         await env.DB.prepare(`
             DELETE FROM watchlist WHERE email = ? AND type = ? AND value = ?
         `).bind(email.toLowerCase(), type, value).run();
@@ -1838,6 +1971,7 @@ async function handleExport(url, env) {
 
     // Verify Pro status
     const email = params.get('email');
+    const token = params.get('token');
     if (!email) {
         return { success: false, error: 'Email required for export' };
     }
@@ -1848,8 +1982,19 @@ async function handleExport(url, env) {
 
     try {
         let user = await env.DB.prepare(
-            'SELECT is_pro, tier, tier_category FROM user_preferences WHERE email = ?'
+            'SELECT is_pro, tier, tier_category, preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
+
+        // If token is provided, verify it matches
+        if (token && user && user.preferences_token && token !== user.preferences_token) {
+            console.warn(`Invalid token attempt for export: ${email}`);
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Log when token is not provided (for monitoring)
+        if (!token) {
+            console.warn(`Export request without token for: ${email}`);
+        }
 
         // If no user record exists, check if they're Pro in Stripe and create one
         if (!user) {
@@ -2550,7 +2695,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
 }
 
 // Company Page Handler
-async function handleCompanyPage(path, env, corsHeaders) {
+async function handleCompanyPage(path, env, headers) {
     const slug = path.replace('/company/', '').replace(/\/$/, '');
 
     if (!slug) {
@@ -2938,13 +3083,13 @@ async function handleCompanyPage(path, env, corsHeaders) {
         headers: {
             'Content-Type': 'text/html',
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
-            ...corsHeaders
+            ...headers
         }
     });
 }
 
 // Brand Page Handler
-async function handleBrandPage(path, env, corsHeaders) {
+async function handleBrandPage(path, env, headers) {
     const slug = path.replace('/brand/', '').replace(/\/$/, '');
 
     if (!slug) {
@@ -3125,13 +3270,13 @@ async function handleBrandPage(path, env, corsHeaders) {
         headers: {
             'Content-Type': 'text/html',
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
-            ...corsHeaders
+            ...headers
         }
     });
 }
 
 // Category Page Handler
-async function handleCategoryPage(path, env, corsHeaders) {
+async function handleCategoryPage(path, env, headers) {
     const parts = path.replace('/category/', '').replace(/\/$/, '').split('/');
     const categorySlug = parts[0];
     const year = parseInt(parts[1]) || new Date().getFullYear();
@@ -3316,7 +3461,7 @@ async function handleCategoryPage(path, env, corsHeaders) {
         headers: {
             'Content-Type': 'text/html',
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
-            ...corsHeaders
+            ...headers
         }
     });
 }
