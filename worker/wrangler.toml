@@ -9,6 +9,8 @@ database_id = "377c1210-aca8-43a8-b575-7fc2f7e31616"
 
 # Secrets (set via wrangler secret put):
 # - STRIPE_SECRET_KEY
-# - STRIPE_PRICE_ID
+# - STRIPE_CATEGORY_PRO_PRICE_ID  (for $79 Category Pro tier)
+# - STRIPE_PREMIER_PRICE_ID       (for $149 Premier tier)
+# - STRIPE_PRICE_ID               (deprecated, kept for backwards compatibility)
 # - RESEND_API_KEY (for welcome emails)
 # - REPORT_API_KEY

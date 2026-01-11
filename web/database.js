@@ -198,7 +198,7 @@ async function checkProStatus(email) {
     try {
         const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(email)}`);
         const data = await response.json();
-        
+
         // Update isPro status in localStorage
         const userInfo = localStorage.getItem('bevalc_user');
         if (userInfo) {
@@ -208,10 +208,27 @@ async function checkProStatus(email) {
                 localStorage.setItem('bevalc_user', JSON.stringify(user));
             } catch (e) {}
         }
-        
+
         if (data.success && data.status === 'pro') {
             // Unlock CSV export button for Pro users
             updateCSVButtonState(true);
+
+            // Fetch tier info from preferences API
+            try {
+                const prefsResponse = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(email)}`);
+                const prefsData = await prefsResponse.json();
+                if (prefsData.success) {
+                    const userInfo = localStorage.getItem('bevalc_user');
+                    if (userInfo) {
+                        const user = JSON.parse(userInfo);
+                        user.tier = prefsData.tier || 'premier';
+                        user.tierCategory = prefsData.tier_category || null;
+                        localStorage.setItem('bevalc_user', JSON.stringify(user));
+                    }
+                }
+            } catch (e) {
+                console.log('Could not fetch tier info');
+            }
         } else {
             // Lock CSV export button for non-Pro users
             updateCSVButtonState(false);
@@ -641,28 +658,43 @@ function openModal(record) {
     const userInfo = localStorage.getItem('bevalc_user');
     let userEmail = null;
     let isPro = false;
-    
+    let userTier = null;
+    let userTierCategory = null;
+
     if (userInfo) {
         try {
             const user = JSON.parse(userInfo);
             userEmail = user.email;
             isPro = user.isPro || false;
+            userTier = user.tier || null;
+            userTierCategory = user.tierCategory || null;
         } catch (e) {}
     }
 
-    // TTB ID - blur for free users
-    if (isPro) {
+    // Check if user has access to this specific record based on tier
+    // Premier users: full access to everything
+    // Category Pro users: full access only to their category
+    // Free users: no Pro access
+    let hasRecordAccess = isPro;
+    if (isPro && userTier === 'category_pro' && userTierCategory) {
+        // Check if record's category matches user's tier category
+        const recordCategory = getCategory(record.class_type_code).category;
+        hasRecordAccess = (recordCategory === userTierCategory);
+    }
+
+    // TTB ID - blur for users without access
+    if (hasRecordAccess) {
         elements.modalSubtitle.innerHTML = `TTB ID: ${escapeHtml(record.ttb_id)}`;
     } else {
         elements.modalSubtitle.innerHTML = `TTB ID: <span class="detail-blur" style="cursor: pointer;" onclick="showProUpgradePrompt()">••••••••••</span>`;
     }
 
     // Build TRACK section
-    const trackHtml = buildTrackSection(record, userEmail, isPro);
-    
+    const trackHtml = buildTrackSection(record, userEmail, hasRecordAccess);
+
     // Build TTB Images link for Product Details
     const ttbUrl = `https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=${record.ttb_id}`;
-    const labelImagesHtml = buildLabelImagesField(ttbUrl, isPro);
+    const labelImagesHtml = buildLabelImagesField(ttbUrl, hasRecordAccess);
     
     const sections = [
         {
@@ -735,7 +767,7 @@ function openModal(record) {
                         
                         // Handle Pro-only fields
                         if (f.isPro) {
-                            if (isPro) {
+                            if (hasRecordAccess) {
                                 // Pro user: show field with teal label
                                 // Handle company link specially
                                 if (f.isCompanyLink && f.value) {
@@ -835,7 +867,7 @@ function openModal(record) {
     
     // Load watchlist states and counts after modal is rendered
     if (userEmail) {
-        loadWatchlistStates(record, userEmail, isPro);
+        loadWatchlistStates(record, userEmail, hasRecordAccess);
     }
     loadWatchlistCounts(record);
 }

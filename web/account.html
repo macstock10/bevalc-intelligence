@@ -341,8 +341,9 @@
     <script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
-        const CATEGORY_ICONS = { 'Whiskey': '🥃', 'Vodka': '🍸', 'Tequila': '🌵', 'Rum': '🏝️', 'Gin': '🫒', 'Brandy': '🍇', 'Wine': '🍷', 'Beer': '🍺', 'Liqueur': '🍬', 'RTD': '🥤' };
+        const CATEGORY_ICONS = { 'Whiskey': '🥃', 'Vodka': '🍸', 'Tequila': '🌵', 'Rum': '🏝️', 'Gin': '🫒', 'Brandy': '🍇', 'Wine': '🍷', 'Beer': '🍺', 'Liqueur': '🍬', 'RTD/Cocktails': '🥤', 'Other': '📦' };
         let currentToken = null, currentEmail = null;
+        let currentTier = null, currentTierCategory = null, canChangeCategory = true, cooldownEnds = null;
 
         function showState(state) {
             document.getElementById('loading-state').style.display = state === 'loading' ? 'block' : 'none';
@@ -350,18 +351,56 @@
             document.getElementById('account-content').style.display = state === 'account' ? 'block' : 'none';
         }
 
-        function buildCategoryGrid(availableCategories, selectedCats) {
+        function buildCategoryUI(availableCategories, selectedCats, tier, tierCategory) {
             const grid = document.getElementById('category-grid');
+            const helpers = document.querySelector('.select-helpers');
+            const sectionTitle = grid.parentElement.querySelector('h2');
+            const sectionDesc = grid.parentElement.querySelector('p');
             grid.innerHTML = '';
-            availableCategories.forEach(cat => {
-                const isSelected = selectedCats.includes(cat);
-                const option = document.createElement('div');
-                option.className = 'category-option' + (isSelected ? ' selected' : '');
-                option.innerHTML = `<input type="checkbox" id="cat-${cat}" value="${cat}" ${isSelected ? 'checked' : ''}><label for="cat-${cat}">${cat}</label><span class="category-icon">${CATEGORY_ICONS[cat] || '📦'}</span>`;
-                option.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const cb = option.querySelector('input'); cb.checked = !cb.checked; option.classList.toggle('selected', cb.checked); });
-                option.querySelector('input').addEventListener('click', (e) => { e.stopPropagation(); option.classList.toggle('selected', e.target.checked); });
-                grid.appendChild(option);
-            });
+
+            if (tier === 'category_pro') {
+                // Single category dropdown for Category Pro users
+                helpers.style.display = 'none';
+                sectionTitle.innerHTML = '<span class="section-icon">📊</span> Your Category';
+                sectionDesc.textContent = 'Your Category Pro subscription gives you full access to one category.';
+
+                let cooldownHtml = '';
+                if (!canChangeCategory && cooldownEnds) {
+                    const endDate = new Date(cooldownEnds);
+                    cooldownHtml = `<p style="color: var(--color-warning); font-size: 0.875rem; margin-top: 0.5rem;">Category change available ${endDate.toLocaleDateString()}</p>`;
+                }
+
+                grid.innerHTML = `
+                    <div style="max-width: 300px;">
+                        <select id="tier-category-select" style="width: 100%; padding: 0.875rem 1rem; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); color: var(--color-text-primary); font-size: 1rem;" ${!canChangeCategory ? 'disabled' : ''}>
+                            <option value="">Select your category...</option>
+                            ${availableCategories.map(cat => `<option value="${cat}" ${tierCategory === cat ? 'selected' : ''}>${CATEGORY_ICONS[cat] || '📦'} ${cat}</option>`).join('')}
+                        </select>
+                        ${cooldownHtml}
+                        ${tierCategory ? '' : '<p style="color: var(--color-accent); font-size: 0.875rem; margin-top: 0.5rem;">Please select your category to unlock full access.</p>'}
+                    </div>
+                `;
+            } else {
+                // Multi-category checkboxes for Premier users
+                helpers.style.display = 'flex';
+                sectionTitle.innerHTML = '<span class="section-icon">📊</span> Report Preferences';
+                sectionDesc.textContent = 'Select which category reports you want to receive each Sunday.';
+
+                availableCategories.forEach(cat => {
+                    const isSelected = selectedCats.includes(cat);
+                    const option = document.createElement('div');
+                    option.className = 'category-option' + (isSelected ? ' selected' : '');
+                    option.innerHTML = `<input type="checkbox" id="cat-${cat}" value="${cat}" ${isSelected ? 'checked' : ''}><label for="cat-${cat}">${cat}</label><span class="category-icon">${CATEGORY_ICONS[cat] || '📦'}</span>`;
+                    option.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const cb = option.querySelector('input'); cb.checked = !cb.checked; option.classList.toggle('selected', cb.checked); });
+                    option.querySelector('input').addEventListener('click', (e) => { e.stopPropagation(); option.classList.toggle('selected', e.target.checked); });
+                    grid.appendChild(option);
+                });
+            }
+        }
+
+        // Legacy function for backwards compatibility
+        function buildCategoryGrid(availableCategories, selectedCats) {
+            buildCategoryUI(availableCategories, selectedCats, currentTier || 'premier', currentTierCategory);
         }
 
         async function loadAccount() {
@@ -408,16 +447,27 @@
                 const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'];
                 
                 if (prefsData.success) {
+                    // Store tier info
+                    currentTier = prefsData.tier || 'premier';
+                    currentTierCategory = prefsData.tier_category || null;
+                    canChangeCategory = prefsData.can_change_category !== false;
+                    cooldownEnds = prefsData.category_change_cooldown_ends || null;
+
                     // Preferences exist - load them
                     const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
                     const tokenData = await tokenResponse.json();
-                    if (tokenData._debug_url) { 
-                        const url = new URL(tokenData._debug_url); 
-                        currentToken = url.searchParams.get('token'); 
-                        localStorage.setItem('bevalc_prefs_token', currentToken); 
+                    if (tokenData._debug_url) {
+                        const url = new URL(tokenData._debug_url);
+                        currentToken = url.searchParams.get('token');
+                        localStorage.setItem('bevalc_prefs_token', currentToken);
                     }
                     document.getElementById('user-email').textContent = prefsData.email;
-                    buildCategoryGrid(prefsData.available_categories || defaultCategories, prefsData.categories || []);
+
+                    // Show tier badge
+                    const tierBadge = currentTier === 'premier' ? 'Premier' : 'Category Pro';
+                    document.getElementById('user-email').insertAdjacentHTML('afterend', `<span style="background: var(--color-accent); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; margin-left: 0.5rem;">${tierBadge}</span>`);
+
+                    buildCategoryUI(prefsData.available_categories || defaultCategories, prefsData.categories || [], currentTier, currentTierCategory);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
                 } else {
                     // User is Pro but preferences record doesn't exist yet
@@ -454,13 +504,62 @@
             if (!currentToken) currentToken = localStorage.getItem('bevalc_prefs_token');
             if (!currentToken) { saveStatus.textContent = 'Error: Please refresh'; return; }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; saveStatus.textContent = '';
-            const categories = Array.from(document.querySelectorAll('#category-grid input:checked')).map(cb => cb.value);
+
             const receiveFreeReport = document.getElementById('receive-free-report').checked;
+            let body = { token: currentToken, receive_free_report: receiveFreeReport };
+
+            if (currentTier === 'category_pro') {
+                // Category Pro: save single tier_category
+                const select = document.getElementById('tier-category-select');
+                const newCategory = select ? select.value : null;
+
+                if (!newCategory) {
+                    saveStatus.textContent = 'Please select a category';
+                    saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
+                    return;
+                }
+
+                // Check if this is a category change that needs confirmation
+                if (currentTierCategory && newCategory !== currentTierCategory) {
+                    if (!confirm(`Change your category from ${currentTierCategory} to ${newCategory}?\n\nNote: You can only change categories once per week.`)) {
+                        saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
+                        return;
+                    }
+                    body.confirm_category_change = true;
+                }
+
+                body.tier_category = newCategory;
+            } else {
+                // Premier: save multiple categories
+                const categories = Array.from(document.querySelectorAll('#category-grid input:checked')).map(cb => cb.value);
+                body.categories = categories;
+            }
+
             try {
-                const response = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: currentToken, categories, receive_free_report: receiveFreeReport }) });
+                const response = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 const data = await response.json();
-                saveStatus.textContent = data.success ? '✓ Preferences saved' : 'Error: ' + (data.error || 'Could not save');
-                saveStatus.className = 'save-status' + (data.success ? ' success' : '');
+
+                if (data.requires_confirmation) {
+                    // Server wants confirmation for category change
+                    if (confirm(`Change your category from ${data.current_category} to ${data.new_category}?\n\nNote: You can only change categories once per week.`)) {
+                        body.confirm_category_change = true;
+                        const retryResponse = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                        const retryData = await retryResponse.json();
+                        saveStatus.textContent = retryData.success ? '✓ Category updated' : 'Error: ' + (retryData.error || 'Could not save');
+                        saveStatus.className = 'save-status' + (retryData.success ? ' success' : '');
+                        if (retryData.success && retryData.tier_category) {
+                            currentTierCategory = retryData.tier_category;
+                        }
+                    } else {
+                        saveStatus.textContent = 'Cancelled';
+                    }
+                } else {
+                    saveStatus.textContent = data.success ? '✓ Preferences saved' : 'Error: ' + (data.error || 'Could not save');
+                    saveStatus.className = 'save-status' + (data.success ? ' success' : '');
+                    if (data.success && data.tier_category) {
+                        currentTierCategory = data.tier_category;
+                    }
+                }
             } catch (e) { saveStatus.textContent = 'Error: Could not connect'; }
             saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
         }

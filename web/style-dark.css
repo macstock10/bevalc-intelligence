@@ -1370,6 +1370,10 @@ a:hover {
     margin-top: var(--space-xl);
 }
 
+.pricing-grid.pricing-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
 .pricing-card {
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);

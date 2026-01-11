@@ -507,8 +507,8 @@
         <div class="pricing-container">
             <h2 class="section-title">Simple Pricing</h2>
             <p class="section-subtitle">Start free. Upgrade when you need more.</p>
-            
-            <div class="pricing-grid">
+
+            <div class="pricing-grid pricing-grid-3">
                 <!-- Free Tier -->
                 <div class="pricing-card">
                     <div class="pricing-header">
@@ -527,28 +527,49 @@
                     </ul>
                     <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
                 </div>
-                
-                <!-- Pro Tier -->
+
+                <!-- Category Pro Tier -->
                 <div class="pricing-card featured">
                     <div class="pricing-badge">Most Popular</div>
                     <div class="pricing-header">
-                        <h3>Pro</h3>
+                        <h3>Category Pro</h3>
                         <div class="pricing-price">
-                            <span class="price-amount">$49</span>
+                            <span class="price-amount">$79</span>
                             <span class="price-period">/month</span>
                         </div>
                     </div>
                     <ul class="pricing-features">
                         <li><strong>Everything in Free, plus:</strong></li>
-                        <li>Weekly report by category</li>
-                        <li>New brand detection</li>
-                        <li>New SKU detection (vs refiles)</li>
-                        <li>CSV exports</li>
+                        <li>Pick one category to track</li>
+                        <li>Full signals for your category</li>
+                        <li>New brand & SKU detection</li>
+                        <li>CSV exports (your category)</li>
                         <li>Competitor watchlists</li>
-                        <li>Direct TTB filing links</li>
+                        <li>Weekly category report</li>
                     </ul>
-                    <button class="btn btn-glow" id="pro-cta">Get My Category Pack</button>
-                    <p class="pricing-note">Designed for operators tracking a single category (Whiskey / Tequila / Wine / etc.).</p>
+                    <button class="btn btn-glow" id="category-pro-cta" data-tier="category_pro">Get Category Pro</button>
+                    <p class="pricing-note">Perfect for brands tracking their specific category.</p>
+                </div>
+
+                <!-- Premier Tier -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Premier</h3>
+                        <div class="pricing-price">
+                            <span class="price-amount">$149</span>
+                            <span class="price-period">/month</span>
+                        </div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><strong>Everything in Category Pro, plus:</strong></li>
+                        <li>All categories unlocked</li>
+                        <li>Multi-category reports</li>
+                        <li>Unlimited CSV exports</li>
+                        <li>Cross-category watchlists</li>
+                        <li>Full market intelligence</li>
+                    </ul>
+                    <button class="btn btn-secondary-dark" id="premier-cta" data-tier="premier">Get Premier</button>
+                    <p class="pricing-note">For consultants, distributors & multi-brand operators.</p>
                 </div>
             </div>
         </div>
@@ -714,10 +735,14 @@
             const hasAccess = BevAlcAuth.hasAccess();
             const user = BevAlcAuth.getUser();
             
-            // Setup Pro CTA button
-            const proCta = document.getElementById('pro-cta');
-            if (proCta) {
-                proCta.addEventListener('click', handleProUpgrade);
+            // Setup tier CTA buttons
+            const categoryProCta = document.getElementById('category-pro-cta');
+            const premierCta = document.getElementById('premier-cta');
+            if (categoryProCta) {
+                categoryProCta.addEventListener('click', () => handleTierUpgrade('category_pro', categoryProCta));
+            }
+            if (premierCta) {
+                premierCta.addEventListener('click', () => handleTierUpgrade('premier', premierCta));
             }
             
             if (hasAccess) {
@@ -774,10 +799,16 @@
                                 userStatusMobile.className = 'user-status user-status-mobile pro';
                             }
                             
-                            if (proCta) {
-                                proCta.textContent = 'You\'re on Pro';
-                                proCta.disabled = true;
-                                proCta.style.cursor = 'default';
+                            // Disable both tier buttons for Pro users
+                            if (categoryProCta) {
+                                categoryProCta.textContent = 'You\'re Subscribed';
+                                categoryProCta.disabled = true;
+                                categoryProCta.style.cursor = 'default';
+                            }
+                            if (premierCta) {
+                                premierCta.textContent = 'You\'re Subscribed';
+                                premierCta.disabled = true;
+                                premierCta.style.cursor = 'default';
                             }
 
                             user.isPro = true;
@@ -794,49 +825,49 @@
             }
         });
         
-        // Handle Pro upgrade - go directly to Stripe Checkout
-        async function handleProUpgrade() {
+        // Handle tier upgrade - go directly to Stripe Checkout
+        async function handleTierUpgrade(tier, button) {
             const user = BevAlcAuth.getUser();
-            const proCta = document.getElementById('pro-cta');
-            
+
             // If user is already Pro, do nothing
             if (user && user.isPro) return;
-            
-            const originalText = proCta.textContent;
-            proCta.disabled = true;
-            proCta.textContent = 'Loading...';
-            
+
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Loading...';
+
             try {
-                // Create checkout session - email is optional, Stripe will collect it
+                // Create checkout session with tier
                 const body = {
+                    tier: tier,
                     successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
                     cancelUrl: window.location.origin + '/#pricing'
                 };
-                
+
                 // If user has email, include it for pre-fill
                 if (user && user.email) {
                     body.email = user.email;
                 }
-                
+
                 const response = await fetch(`${API_BASE}/api/stripe/create-checkout`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success && data.url) {
                     window.location.href = data.url;
                 } else {
                     alert('Something went wrong. Please try again.');
-                    proCta.disabled = false;
-                    proCta.textContent = originalText;
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (e) {
                 alert('Something went wrong. Please try again.');
-                proCta.disabled = false;
-                proCta.textContent = originalText;
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         
