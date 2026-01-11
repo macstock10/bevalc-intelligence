@@ -10,14 +10,16 @@ After any scrape that adds NEW_COMPANY or NEW_BRAND records. Typically:
 
 ## Priority Order (CRITICAL)
 
-**Always enrich in this order:**
-1. **Most recent approval_date first** (e.g., 01/08/2026 before 01/07/2026)
-2. **Within each date, process signals in order:**
-   - NEW_COMPANY (highest priority)
-   - NEW_BRAND
-   - NEW_SKU
-   - REFILE (lowest priority)
-3. Then work backwards chronologically
+**Phase 1: High-value signals (all dates first)**
+1. 01/08: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+2. 01/07: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+3. 01/06: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+4. (continue backwards through all dates in scrape)
+
+**Phase 2: REFILE signals (after all high-value done)**
+5. 01/08: REFILE
+6. 01/07: REFILE
+7. (continue backwards)
 
 The `needs_enrichment.json` file is already sorted this way.
 

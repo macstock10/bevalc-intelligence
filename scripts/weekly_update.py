@@ -1253,8 +1253,10 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
         return
 
     # Query D1 for records needing website enrichment
-    # CRITICAL: Sort by most recent approval_date first, then signal priority
-    # Priority: NEW_COMPANY (1) -> NEW_BRAND (2) -> NEW_SKU (3) -> REFILE (4)
+    # CRITICAL ORDER:
+    # 1. All NEW_COMPANY/NEW_BRAND/NEW_SKU first (by date DESC, then signal priority)
+    # 2. Then ALL REFILE records last (by date DESC)
+    # This ensures high-value signals get enriched across all dates before touching refiles
     query = """
         SELECT DISTINCT c.brand_name, c.company_name, c.class_type_code, c.signal, c.approval_date
         FROM colas c
@@ -1264,6 +1266,7 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
         AND c.brand_name IS NOT NULL
         AND c.brand_name != ''
         ORDER BY
+            CASE c.signal WHEN 'REFILE' THEN 1 ELSE 0 END,
             substr(c.approval_date, 7, 4) || substr(c.approval_date, 1, 2) || substr(c.approval_date, 4, 2) DESC,
             CASE c.signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 ELSE 4 END,
             c.brand_name

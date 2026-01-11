@@ -24,20 +24,27 @@ FROM colas
 WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE')
   AND brand_name NOT IN (SELECT brand_name FROM brand_websites)
 ORDER BY
+  CASE signal WHEN 'REFILE' THEN 1 ELSE 0 END,
   substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC,
   CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 ELSE 4 END
 LIMIT 50
 ```
 
 ### Step 2: Enrich in This Order
-1. **Most recent date first** (e.g., if 01/08/2026 exists, do those before 01/07/2026)
-2. Within each date, process signals in order:
-   - **NEW_COMPANY** (highest priority)
-   - **NEW_BRAND**
-   - **NEW_SKU**
-   - **REFILE** (lowest priority)
-3. Then work backwards chronologically
-4. Backfill older records last
+
+**Phase 1: High-value signals (all dates)**
+1. 01/08/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+2. 01/07/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+3. 01/06/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
+4. (continue backwards through all dates in scrape)
+
+**Phase 2: REFILE signals (all dates)**
+5. 01/08/2026: REFILE
+6. 01/07/2026: REFILE
+7. 01/06/2026: REFILE
+8. (continue backwards)
+
+This ensures all high-value signals get enriched before any refiles.
 
 ---
 
