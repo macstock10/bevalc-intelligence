@@ -333,6 +333,16 @@ export default {
                 response = await handleStats(env);
             } else if (path === '/api/categories') {
                 response = await handleCategories(env);
+            }
+            // Enhancement endpoints
+            else if (path === '/api/enhance' && request.method === 'POST') {
+                response = await handleEnhance(request, env);
+            } else if (path === '/api/enhance/status' && request.method === 'GET') {
+                response = await handleEnhanceStatus(url, env);
+            } else if (path === '/api/credits' && request.method === 'GET') {
+                response = await handleGetCredits(url, env);
+            } else if (path === '/api/company-lookup' && request.method === 'GET') {
+                response = await handleCompanyLookup(url, env);
             } else {
                 response = { success: false, error: 'Not found' };
             }
@@ -3520,6 +3530,422 @@ async function handleSitemap(path, env) {
         console.error(`Error fetching sitemap from R2: ${error.message}`);
         return new Response('Error loading sitemap', { status: 500 });
     }
+}
+
+// ==========================================
+// ENHANCEMENT HANDLERS
+// ==========================================
+
+// Enhancements are always paid - Pro users get discounted credit packs
+// Free: $10 for 5 credits ($2.00 each) or $25 for 15 credits ($1.67 each)
+// Pro:  $10 for 8 credits ($1.25 each) or $25 for 20 credits ($1.25 each)
+
+async function handleEnhance(request, env) {
+    const body = await request.json();
+    const { company_id, company_name, email } = body;
+
+    if (!company_id || !company_name) {
+        return { success: false, error: 'Missing company_id or company_name' };
+    }
+
+    if (!email) {
+        return { success: false, error: 'Authentication required' };
+    }
+
+    // Check if already enhanced (cache hit)
+    const existing = await env.DB.prepare(
+        'SELECT * FROM company_enhancements WHERE company_id = ?'
+    ).bind(company_id).first();
+
+    if (existing && existing.enhanced_at) {
+        // Check if expired (90 days)
+        const enhancedDate = new Date(existing.enhanced_at);
+        const now = new Date();
+        const daysSince = (now - enhancedDate) / (1000 * 60 * 60 * 24);
+
+        if (daysSince < 90) {
+            return {
+                success: true,
+                cached: true,
+                tearsheet: parseEnhancement(existing)
+            };
+        }
+    }
+
+    // Check user credits (all users need purchased credits now)
+    const creditCheck = await checkUserCredits(email, env);
+    if (!creditCheck.canEnhance) {
+        return {
+            success: false,
+            error: 'payment_required',
+            credits: creditCheck.credits,
+            is_pro: creditCheck.is_pro
+        };
+    }
+
+    // Run enhancement (synchronous for Phase 1)
+    try {
+        const tearsheet = await runEnhancement(company_id, company_name, env);
+
+        // Save to cache
+        await saveEnhancement(company_id, company_name, tearsheet, email, env);
+
+        // Deduct credit
+        await deductCredit(email, company_id, env);
+
+        return {
+            success: true,
+            cached: false,
+            tearsheet
+        };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+}
+
+async function handleEnhanceStatus(url, env) {
+    // For Phase 1, enhancements are synchronous, so this just checks cache
+    const companyId = url.searchParams.get('company_id');
+    if (!companyId) {
+        return { success: false, error: 'Missing company_id' };
+    }
+
+    const existing = await env.DB.prepare(
+        'SELECT * FROM company_enhancements WHERE company_id = ?'
+    ).bind(companyId).first();
+
+    if (existing) {
+        return {
+            success: true,
+            status: 'complete',
+            tearsheet: parseEnhancement(existing)
+        };
+    }
+
+    return { success: true, status: 'not_found' };
+}
+
+async function handleGetCredits(url, env) {
+    const email = url.searchParams.get('email');
+    if (!email) {
+        return { success: false, error: 'Missing email' };
+    }
+
+    const user = await env.DB.prepare(
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
+    ).bind(email).first();
+
+    if (!user) {
+        return {
+            success: true,
+            credits: 0,
+            is_pro: false
+        };
+    }
+
+    return {
+        success: true,
+        credits: user.enhancement_credits || 0,
+        is_pro: user.is_pro === 1
+    };
+}
+
+async function handleCompanyLookup(url, env) {
+    const companyName = url.searchParams.get('name');
+    if (!companyName) {
+        return { success: false, error: 'Missing company name' };
+    }
+
+    const result = await env.DB.prepare(
+        'SELECT company_id FROM company_aliases WHERE raw_name = ?'
+    ).bind(companyName).first();
+
+    if (!result) {
+        return { success: false, error: 'Company not found' };
+    }
+
+    return { success: true, company_id: result.company_id };
+}
+
+async function checkUserCredits(email, env) {
+    const user = await env.DB.prepare(
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
+    ).bind(email).first();
+
+    if (!user) {
+        return { canEnhance: false, credits: 0, is_pro: false };
+    }
+
+    // All users need purchased credits (Pro just gets better pricing on packs)
+    const credits = user.enhancement_credits || 0;
+    return {
+        canEnhance: credits > 0,
+        credits,
+        is_pro: user.is_pro === 1
+    };
+}
+
+async function deductCredit(email, companyId, env) {
+    // Deduct purchased credit
+    await env.DB.prepare(
+        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
+    ).bind(email).run();
+
+    // Log the transaction
+    await env.DB.prepare(`
+        INSERT INTO enhancement_credits (email, type, amount, company_id, created_at)
+        VALUES (?, 'used', -1, ?, datetime('now'))
+    `).bind(email, companyId).run();
+}
+
+async function runEnhancement(companyId, companyName, env) {
+    // Run D1 queries in parallel for speed
+    const [stats, states, categories, brands, existingWebsite] = await Promise.all([
+        // Filing statistics
+        env.DB.prepare(`
+            SELECT
+                COUNT(*) as total_filings,
+                MIN(approval_date) as first_filing,
+                MAX(approval_date) as last_filing,
+                COUNT(CASE WHEN approval_date >= date('now', '-12 months') THEN 1 END) as last_12_months,
+                COUNT(CASE WHEN approval_date >= date('now', '-1 month') THEN 1 END) as last_month
+            FROM colas
+            WHERE company_name IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+        `).bind(companyId).first(),
+
+        // State distribution
+        env.DB.prepare(`
+            SELECT DISTINCT state
+            FROM colas
+            WHERE company_name IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+            AND state IS NOT NULL AND state != ''
+            ORDER BY state
+        `).bind(companyId).all(),
+
+        // Category breakdown
+        env.DB.prepare(`
+            SELECT class_type_code, COUNT(*) as count
+            FROM colas
+            WHERE company_name IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+            GROUP BY class_type_code
+            ORDER BY count DESC
+            LIMIT 5
+        `).bind(companyId).all(),
+
+        // Brand portfolio
+        env.DB.prepare(`
+            SELECT brand_name, COUNT(*) as filings
+            FROM colas
+            WHERE company_name IN (
+                SELECT raw_name FROM company_aliases WHERE company_id = ?
+            )
+            GROUP BY brand_name
+            ORDER BY filings DESC
+            LIMIT 10
+        `).bind(companyId).all(),
+
+        // Check for existing website
+        env.DB.prepare(`
+            SELECT website_url FROM company_websites WHERE company_id = ?
+        `).bind(companyId).first()
+    ]);
+
+    // Calculate trend
+    let trend = 'stable';
+    if (stats && stats.last_12_months > 0) {
+        const avgMonthly = stats.last_12_months / 12;
+        if (stats.last_month > avgMonthly * 1.5) {
+            trend = 'growing';
+        } else if (stats.last_month < avgMonthly * 0.5) {
+            trend = 'declining';
+        }
+    }
+
+    // Prepare data for Claude
+    const brandList = brands?.results?.map(b => b.brand_name).slice(0, 5).join(', ') || 'Unknown';
+    const categoryList = categories?.results?.map(c => c.class_type_code).join(', ') || 'Unknown';
+    const stateList = states?.results?.map(s => s.state).join(', ') || 'Unknown';
+
+    // Call Claude with web search to find website and generate summary
+    let websiteUrl = existingWebsite?.website_url || null;
+    let summary = null;
+
+    if (env.ANTHROPIC_API_KEY) {
+        try {
+            const claudeResult = await callClaudeWithSearch(companyName, {
+                totalFilings: stats?.total_filings || 0,
+                firstFiling: stats?.first_filing,
+                lastFiling: stats?.last_filing,
+                last12Months: stats?.last_12_months || 0,
+                trend,
+                brands: brandList,
+                categories: categoryList,
+                states: stateList,
+                existingWebsite: websiteUrl
+            }, env);
+
+            if (claudeResult.website && !websiteUrl) {
+                websiteUrl = claudeResult.website;
+            }
+            summary = claudeResult.summary;
+        } catch (error) {
+            console.error('Claude enhancement failed:', error);
+            // Continue without AI summary - still return D1 data
+        }
+    }
+
+    return {
+        company_id: companyId,
+        company_name: companyName,
+        website: websiteUrl ? { url: websiteUrl, confidence: 'high' } : null,
+        filing_stats: {
+            total_filings: stats?.total_filings || 0,
+            first_filing: stats?.first_filing || null,
+            last_filing: stats?.last_filing || null,
+            last_12_months: stats?.last_12_months || 0,
+            last_month: stats?.last_month || 0,
+            trend
+        },
+        distribution: {
+            states: states?.results?.map(s => s.state) || []
+        },
+        brands: brands?.results?.map(b => ({ name: b.brand_name, filings: b.filings })) || [],
+        categories: categories?.results?.reduce((acc, c) => {
+            acc[c.class_type_code] = c.count;
+            return acc;
+        }, {}) || {},
+        contacts: [],
+        news: [],
+        social: null,
+        summary
+    };
+}
+
+async function callClaudeWithSearch(companyName, data, env) {
+    const prompt = `You are researching a beverage alcohol company for a business intelligence report.
+
+Company: ${companyName}
+
+TTB Filing Data:
+- Total COLA filings: ${data.totalFilings}
+- First filing: ${data.firstFiling || 'Unknown'}
+- Last filing: ${data.lastFiling || 'Unknown'}
+- Last 12 months: ${data.last12Months} filings (trend: ${data.trend})
+- Top brands: ${data.brands}
+- Categories: ${data.categories}
+- States filed: ${data.states}
+${data.existingWebsite ? `- Known website: ${data.existingWebsite}` : ''}
+
+Tasks:
+1. ${data.existingWebsite ? 'Verify the website is correct.' : 'Search for and find the official company website (not retailers like Drizly, Total Wine, or Vivino).'}
+2. Write a 2-3 sentence summary of this company for a B2B audience. Focus on: what they make, their market position, and any notable insights from the filing data.
+
+Respond in this exact JSON format:
+{
+  "website": "https://example.com" or null if not found,
+  "summary": "Your 2-3 sentence summary here."
+}`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            tools: [{
+                type: 'web_search_20250305',
+                name: 'web_search',
+                max_uses: 3
+            }],
+            messages: [{
+                role: 'user',
+                content: prompt
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    // Extract text from response
+    let textContent = '';
+    for (const block of result.content || []) {
+        if (block.type === 'text') {
+            textContent += block.text;
+        }
+    }
+
+    // Parse JSON from response
+    try {
+        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return {
+                website: parsed.website || null,
+                summary: parsed.summary || null
+            };
+        }
+    } catch (e) {
+        console.error('Failed to parse Claude response:', e);
+    }
+
+    return { website: null, summary: null };
+}
+
+async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    await env.DB.prepare(`
+        INSERT OR REPLACE INTO company_enhancements
+        (company_id, company_name, website_url, website_confidence, filing_stats,
+         distribution_states, brand_portfolio, category_breakdown, summary, enhanced_at, enhanced_by, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        companyId,
+        companyName,
+        tearsheet.website?.url || null,
+        tearsheet.website?.confidence || null,
+        JSON.stringify(tearsheet.filing_stats),
+        JSON.stringify(tearsheet.distribution.states),
+        JSON.stringify(tearsheet.brands),
+        JSON.stringify(tearsheet.categories),
+        tearsheet.summary || null,
+        now,
+        email,
+        expiresAt
+    ).run();
+}
+
+function parseEnhancement(row) {
+    return {
+        company_id: row.company_id,
+        company_name: row.company_name,
+        website: row.website_url ? { url: row.website_url, confidence: row.website_confidence } : null,
+        filing_stats: row.filing_stats ? JSON.parse(row.filing_stats) : null,
+        distribution: { states: row.distribution_states ? JSON.parse(row.distribution_states) : [] },
+        brands: row.brand_portfolio ? JSON.parse(row.brand_portfolio) : [],
+        categories: row.category_breakdown ? JSON.parse(row.category_breakdown) : {},
+        contacts: row.contacts ? JSON.parse(row.contacts) : [],
+        news: row.news ? JSON.parse(row.news) : [],
+        social: row.social_links ? JSON.parse(row.social_links) : null,
+        summary: row.summary || null,
+        enhanced_at: row.enhanced_at
+    };
 }
 
 function generateUrlsetXml(urls) {

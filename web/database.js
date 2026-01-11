@@ -764,7 +764,6 @@ function openModal(record) {
                 { label: 'State', value: record.state },
                 { label: 'Contact Person', value: record.contact_person, isPro: true },
                 { label: 'Phone Number', value: record.phone_number, isPro: true },
-                { label: 'Website', value: record.website_url, isPro: true, isWebsite: true, brandName: record.brand_name },
             ]
         }
     ];
@@ -898,6 +897,9 @@ function openModal(record) {
         `;
     });
 
+    // Add Enhancement section for Pro users
+    html += buildEnhancementSection(record, userEmail, hasRecordAccess);
+
     // Add footer with contact link
     const mailtoSubject = encodeURIComponent('Data correction: ' + (record.ttb_id || ''));
     const mailtoBody = encodeURIComponent('TTB ID: ' + (record.ttb_id || '') + '\nBrand: ' + (record.brand_name || '') + '\n\nCorrection:\n');
@@ -916,6 +918,7 @@ function openModal(record) {
     // Load watchlist states and counts after modal is rendered
     if (userEmail) {
         loadWatchlistStates(record, userEmail, hasRecordAccess);
+        loadCreditBalance(userEmail);
     }
     loadWatchlistCounts(record);
 }
@@ -1148,6 +1151,312 @@ function showProUpgradePrompt() {
 function closeModal() {
     elements.modalOverlay.classList.remove('active');
     document.body.style.overflow = '';
+}
+
+// ============================================
+// COMPANY ENHANCEMENT
+// ============================================
+
+function buildEnhancementSection(record, userEmail, isPro) {
+    // Get company_id from company_aliases lookup (we need this for enhancement)
+    // For now, we'll pass company_name and let the backend look it up
+    const companyName = record.company_name || '';
+
+    if (!companyName) {
+        return '';
+    }
+
+    const starIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+
+    return `
+        <div class="modal-section enhancement-section">
+            <h4>Company Intelligence</h4>
+            <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-email="${escapeHtml(userEmail || '')}">
+                <div class="enhancement-cta">
+                    <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">
+                        Get filing analytics, brand portfolio, distribution footprint, and more.
+                    </p>
+                    <button onclick="enhanceCompany()" class="enhance-btn" id="enhance-btn">
+                        ${starIcon}
+                        <span>Enhance Company</span>
+                        <span class="enhance-cost">(1 credit)</span>
+                    </button>
+                    <p style="color: #64748b; font-size: 0.75rem; margin-top: 8px;" id="credit-balance"></p>
+                </div>
+                <div id="enhancement-loading" style="display: none; text-align: center; padding: 20px;">
+                    <div class="spinner" style="margin: 0 auto 12px;"></div>
+                    <p style="color: #94a3b8;">Analyzing ${escapeHtml(companyName)}...</p>
+                </div>
+                <div id="enhancement-tearsheet" style="display: none;"></div>
+            </div>
+        </div>
+    `;
+}
+
+async function enhanceCompany() {
+    const container = document.getElementById('enhancement-container');
+    const companyName = container.dataset.companyName;
+    const email = container.dataset.email;
+
+    if (!email) {
+        showProUpgradePrompt();
+        return;
+    }
+
+    // Show loading state
+    document.getElementById('enhance-btn').parentElement.style.display = 'none';
+    document.getElementById('enhancement-loading').style.display = 'block';
+
+    try {
+        // First, get the company_id from company name
+        const lookupResp = await fetch(`${API_BASE}/api/company-lookup?name=${encodeURIComponent(companyName)}`);
+        const lookupData = await lookupResp.json();
+
+        if (!lookupData.success || !lookupData.company_id) {
+            throw new Error('Company not found in database');
+        }
+
+        const companyId = lookupData.company_id;
+
+        // Now call enhance
+        const response = await fetch(`${API_BASE}/api/enhance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                company_id: companyId,
+                company_name: companyName,
+                email: email
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            if (data.error === 'payment_required') {
+                showCreditPurchaseModal(data.is_pro);
+                // Reset to CTA state
+                document.getElementById('enhancement-loading').style.display = 'none';
+                document.getElementById('enhance-btn').parentElement.style.display = 'block';
+                return;
+            }
+            throw new Error(data.error || 'Enhancement failed');
+        }
+
+        // Show tearsheet
+        document.getElementById('enhancement-loading').style.display = 'none';
+        document.getElementById('enhancement-tearsheet').style.display = 'block';
+        document.getElementById('enhancement-tearsheet').innerHTML = renderTearsheet(data.tearsheet, data.cached);
+
+    } catch (error) {
+        console.error('Enhancement error:', error);
+        document.getElementById('enhancement-loading').style.display = 'none';
+        document.getElementById('enhance-btn').parentElement.style.display = 'block';
+        alert('Enhancement failed: ' + error.message);
+    }
+}
+
+function renderTearsheet(tearsheet, cached) {
+    const stats = tearsheet.filing_stats || {};
+    const brands = tearsheet.brands || [];
+    const states = tearsheet.distribution?.states || [];
+    const categories = tearsheet.categories || {};
+
+    // Format trend
+    let trendHtml = '';
+    if (stats.trend === 'growing') {
+        trendHtml = '<span style="color: #22c55e;">Growing</span>';
+    } else if (stats.trend === 'declining') {
+        trendHtml = '<span style="color: #ef4444;">Declining</span>';
+    } else {
+        trendHtml = '<span style="color: #94a3b8;">Stable</span>';
+    }
+
+    // Format categories
+    const categoryNames = {
+        'MBR': 'Malt Beverage',
+        'BWN': 'Wine',
+        'DSS': 'Distilled Spirits Specialty',
+        'WHL': 'Whisky',
+        'VDK': 'Vodka',
+        'GIN': 'Gin',
+        'RUM': 'Rum',
+        'TEQ': 'Tequila',
+        'BRN': 'Brandy'
+    };
+
+    const topCategories = Object.entries(categories)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([code, count]) => `<span class="tearsheet-tag">${categoryNames[code] || code} (${count})</span>`)
+        .join('');
+
+    // Format brands
+    const topBrands = brands.slice(0, 5)
+        .map(b => `<span class="tearsheet-tag">${escapeHtml(b.name)} (${b.filings})</span>`)
+        .join('');
+
+    // Format states
+    const stateList = states.slice(0, 8).join(', ') + (states.length > 8 ? ` +${states.length - 8} more` : '');
+
+    return `
+        <div class="tearsheet">
+            ${cached ? '<p style="font-size: 0.7rem; color: #64748b; margin-bottom: 12px;">Cached result</p>' : ''}
+
+            ${tearsheet.summary ? `
+                <div class="tearsheet-summary">
+                    <p style="font-size: 0.95rem; color: var(--color-dark); line-height: 1.5; margin-bottom: 16px;">${escapeHtml(tearsheet.summary)}</p>
+                </div>
+            ` : ''}
+
+            <div class="tearsheet-row">
+                <div class="tearsheet-stat">
+                    <span class="tearsheet-stat-value">${stats.total_filings?.toLocaleString() || 0}</span>
+                    <span class="tearsheet-stat-label">Total Filings</span>
+                </div>
+                <div class="tearsheet-stat">
+                    <span class="tearsheet-stat-value">${stats.last_12_months || 0}</span>
+                    <span class="tearsheet-stat-label">Last 12 Months</span>
+                </div>
+                <div class="tearsheet-stat">
+                    <span class="tearsheet-stat-value">${trendHtml}</span>
+                    <span class="tearsheet-stat-label">Trend</span>
+                </div>
+            </div>
+
+            ${stats.first_filing ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">Filing History</span>
+                    <span class="tearsheet-field-value">${stats.first_filing} - ${stats.last_filing || 'Present'}</span>
+                </div>
+            ` : ''}
+
+            ${topCategories ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">Top Categories</span>
+                    <div class="tearsheet-tags">${topCategories}</div>
+                </div>
+            ` : ''}
+
+            ${topBrands ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">Brand Portfolio</span>
+                    <div class="tearsheet-tags">${topBrands}</div>
+                </div>
+            ` : ''}
+
+            ${stateList ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">States Filed</span>
+                    <span class="tearsheet-field-value">${stateList}</span>
+                </div>
+            ` : ''}
+
+            ${tearsheet.website?.url ? `
+                <div class="tearsheet-field">
+                    <span class="tearsheet-field-label">Website</span>
+                    <span class="tearsheet-field-value">
+                        <a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="color: var(--color-primary);">
+                            ${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}
+                        </a>
+                    </span>
+                </div>
+            ` : ''}
+
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
+                <a href="mailto:hello@bevalcintel.com?subject=Contact%20info%20request:%20${encodeURIComponent(tearsheet.company_name || '')}&body=I'd%20like%20contact%20information%20for%20${encodeURIComponent(tearsheet.company_name || '')}%0A%0ASpecifically%20looking%20for:%0A"
+                   style="color: #64748b; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    Want contact info? Let us know
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+function showCreditPurchaseModal(isPro) {
+    const existing = document.getElementById('credit-purchase-modal');
+    if (existing) existing.remove();
+
+    // Pro users get better rates
+    const packs = isPro ? [
+        { id: 'pro_8_credits', credits: 8, price: '$10', perCredit: '$1.25' },
+        { id: 'pro_20_credits', credits: 20, price: '$25', perCredit: '$1.25', best: true }
+    ] : [
+        { id: 'free_5_credits', credits: 5, price: '$10', perCredit: '$2.00' },
+        { id: 'free_15_credits', credits: 15, price: '$25', perCredit: '$1.67', best: true }
+    ];
+
+    const modal = document.createElement('div');
+    modal.id = 'credit-purchase-modal';
+    modal.className = 'pro-upgrade-prompt';
+    modal.innerHTML = `
+        <div class="pro-prompt-content" style="max-width: 400px;">
+            <button class="pro-prompt-close" onclick="this.closest('#credit-purchase-modal').remove()">&times;</button>
+            <h3>Enhancement Credits</h3>
+            <p style="margin-bottom: 16px;">Get detailed company intelligence with enhancement credits.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                ${packs.map(p => `
+                    <button onclick="purchaseCredits('${p.id}')" class="credit-pack-btn ${p.best ? 'credit-pack-best' : ''}" style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px 16px;
+                        border: 2px solid ${p.best ? 'var(--color-primary)' : '#e2e8f0'};
+                        border-radius: 8px;
+                        background: ${p.best ? 'rgba(26, 188, 156, 0.1)' : '#fff'};
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    ">
+                        <div style="text-align: left;">
+                            <div style="font-weight: 600;">${p.credits} credits</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">${p.perCredit} each</div>
+                        </div>
+                        <div style="font-weight: 600; font-size: 1.1rem;">${p.price}</div>
+                        ${p.best ? '<span style="position: absolute; top: -8px; right: 12px; background: var(--color-primary); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;">BEST VALUE</span>' : ''}
+                    </button>
+                `).join('')}
+            </div>
+
+            ${!isPro ? `
+                <p style="margin-top: 16px; font-size: 0.8rem; color: #64748b; text-align: center;">
+                    <a href="/#pricing" style="color: var(--color-primary);">Upgrade to Pro ($79/mo)</a> for 25% off credits
+                </p>
+            ` : ''}
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function purchaseCredits(packId) {
+    // TODO: Implement Stripe checkout for credit packs
+    alert('Credit purchase coming soon! Pack: ' + packId);
+}
+
+// Load user's credit balance when modal opens
+async function loadCreditBalance(email) {
+    if (!email) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(email)}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const balanceEl = document.getElementById('credit-balance');
+            if (balanceEl) {
+                if (data.credits > 0) {
+                    balanceEl.textContent = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''}`;
+                } else {
+                    balanceEl.innerHTML = `<a href="#" onclick="showCreditPurchaseModal(${data.is_pro}); return false;" style="color: var(--color-primary);">Get credits</a>`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error loading credit balance:', e);
+    }
 }
 
 // ============================================

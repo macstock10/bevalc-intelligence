@@ -1612,3 +1612,119 @@ a:hover { color: var(--color-primary-hover); }
         display: none;
     }
 }
+
+/* ==========================================
+   COMPANY ENHANCEMENT / TEARSHEET
+   ========================================== */
+
+.enhancement-section {
+    background: linear-gradient(135deg, rgba(26, 188, 156, 0.05) 0%, rgba(26, 188, 156, 0.02) 100%);
+    border: 1px solid rgba(26, 188, 156, 0.2);
+    border-radius: 8px;
+    margin-top: var(--space-md);
+}
+
+.enhance-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--color-primary) 0%, #16a085 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.enhance-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 188, 156, 0.3);
+}
+
+.enhance-cost {
+    font-size: 0.8rem;
+    opacity: 0.85;
+    font-weight: 400;
+}
+
+/* Tearsheet */
+.tearsheet {
+    padding: 4px 0;
+}
+
+.tearsheet-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.tearsheet-stat {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.tearsheet-stat-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--color-dark);
+}
+
+.tearsheet-stat-label {
+    display: block;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+
+.tearsheet-field {
+    margin-bottom: 12px;
+}
+
+.tearsheet-field-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.tearsheet-field-value {
+    color: var(--color-dark);
+    font-size: 0.9rem;
+}
+
+.tearsheet-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tearsheet-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #475569;
+}
+
+/* Credit purchase modal buttons */
+.credit-pack-btn:hover {
+    border-color: var(--color-primary) !important;
+    transform: translateY(-1px);
+}
+
+.credit-pack-best {
+    position: relative;
+}
