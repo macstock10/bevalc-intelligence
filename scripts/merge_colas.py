@@ -145,7 +145,7 @@ def merge_databases(source_dbs: List[str], output_path: str):
     
     for db_path in source_dbs:
         if not os.path.exists(db_path):
-            print(f"⚠️  Skipping {db_path} (not found)")
+            print(f"WARNING  Skipping {db_path} (not found)")
             continue
         
         print(f"Processing: {db_path}")
@@ -231,12 +231,12 @@ def merge_databases(source_dbs: List[str], output_path: str):
             out.commit()
             src.close()
             
-            print(f"  → Links: +{links_added:,}, COLAs: +{colas_added:,}")
+            print(f"  -> Links: +{links_added:,}, COLAs: +{colas_added:,}")
             total_links += links_added
             total_colas += colas_added
             
         except Exception as e:
-            print(f"  ⚠️  Error: {e}")
+            print(f"  WARNING  Error: {e}")
     
     out.close()
     
@@ -503,17 +503,17 @@ def validate_against_ttb(db_path: str):
             total_ttb += ttb_count
             
             if diff == 0:
-                status = "✅"
+                status = "OK"
             elif diff > 0:
-                status = f"❌ -{diff}"
+                status = f"MISSING -{diff}"
                 discrepancies.append(r)
                 total_diff += diff
             else:
-                status = f"⚠️ +{-diff}"
+                status = f"WARNING +{-diff}"
             
             print(f"{month_str:<10} {db_count:>10,} {ttb_count:>10,} {diff:>+10,} {status:<10}")
         else:
-            print(f"{month_str:<10} {db_count:>10,} {'ERROR':>10} {'N/A':>10} {'⚠️':<10}")
+            print(f"{month_str:<10} {db_count:>10,} {'ERROR':>10} {'N/A':>10} {'WARNING':<10}")
     
     print("-" * 55)
     print(f"{'TOTAL':<10} {total_db:>10,} {total_ttb:>10,} {total_diff:>+10,}")
@@ -529,7 +529,7 @@ def validate_against_ttb(db_path: str):
         print(f"\nThen re-merge:")
         print(f"  python merge_colas.py --auto --output {db_path}")
     else:
-        print("✅ ALL MONTHS MATCH TTB COUNTS")
+        print("OK ALL MONTHS MATCH TTB COUNTS")
     print(f"{'='*70}\n")
 
 

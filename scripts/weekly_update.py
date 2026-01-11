@@ -1254,8 +1254,9 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
 
     # Query D1 for records with NEW_COMPANY or NEW_BRAND signals that don't have websites yet
     # This is more accurate than checking new_records since classification just ran
+    # CRITICAL: Sort by most recent approval_date first, then NEW_COMPANY before NEW_BRAND
     query = """
-        SELECT DISTINCT c.brand_name, c.company_name, c.class_type_code, c.signal
+        SELECT DISTINCT c.brand_name, c.company_name, c.class_type_code, c.signal, c.approval_date
         FROM colas c
         LEFT JOIN brand_websites bw ON UPPER(c.brand_name) = UPPER(bw.brand_name)
         WHERE c.signal IN ('NEW_COMPANY', 'NEW_BRAND')
@@ -1263,6 +1264,7 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
         AND c.brand_name IS NOT NULL
         AND c.brand_name != ''
         ORDER BY
+            substr(c.approval_date, 7, 4) || substr(c.approval_date, 1, 2) || substr(c.approval_date, 4, 2) DESC,
             CASE c.signal WHEN 'NEW_COMPANY' THEN 1 ELSE 2 END,
             c.brand_name
     """
@@ -1278,13 +1280,15 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
         return
 
     # Build enrichment list (already deduplicated by DISTINCT)
+    # Sorted by: most recent approval_date DESC, then NEW_COMPANY before NEW_BRAND
     needs_enrichment = []
     for row in rows:
         needs_enrichment.append({
             'brand_name': row.get('brand_name', ''),
             'company_name': row.get('company_name', ''),
             'class_type_code': row.get('class_type_code', ''),
-            'signal': row.get('signal', '')
+            'signal': row.get('signal', ''),
+            'approval_date': row.get('approval_date', '')
         })
 
     # Output to file
@@ -1299,12 +1303,13 @@ def output_enrichment_list(new_records: List[Dict], classify_result: Dict):
     logger.info(f"Brands needing website enrichment: {len(needs_enrichment)} ({new_companies} NEW_COMPANY, {new_brands} NEW_BRAND)")
     logger.info(f"Enrichment list saved to: {enrichment_file}")
 
-    # Also log first 10 for visibility
+    # Also log first 10 for visibility (now sorted by approval_date DESC)
     if needs_enrichment:
-        logger.info("First 10 brands needing enrichment:")
+        logger.info("First 10 brands needing enrichment (most recent first):")
         for item in needs_enrichment[:10]:
             signal = item.get('signal', '')
-            logger.info(f"  [{signal}] {item['brand_name']} ({item['company_name'][:30]})")
+            date = item.get('approval_date', '')
+            logger.info(f"  [{date}] [{signal}] {item['brand_name']} ({item['company_name'][:30]})")
 
 
 # ============================================================================
