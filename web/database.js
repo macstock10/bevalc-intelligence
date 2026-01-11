@@ -1158,8 +1158,6 @@ function closeModal() {
 // ============================================
 
 function buildEnhancementSection(record, userEmail, isPro) {
-    // Get company_id from company_aliases lookup (we need this for enhancement)
-    // For now, we'll pass company_name and let the backend look it up
     const companyName = record.company_name || '';
 
     if (!companyName) {
@@ -1168,11 +1166,14 @@ function buildEnhancementSection(record, userEmail, isPro) {
 
     const starIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
 
+    // Schedule check for cached enhancement after render
+    setTimeout(() => checkCachedEnhancement(companyName), 100);
+
     return `
         <div class="modal-section enhancement-section">
             <h4>Company Intelligence</h4>
             <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-email="${escapeHtml(userEmail || '')}">
-                <div class="enhancement-cta">
+                <div class="enhancement-cta" id="enhancement-cta">
                     <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">
                         Get filing analytics, brand portfolio, distribution footprint, and more.
                     </p>
@@ -1191,6 +1192,35 @@ function buildEnhancementSection(record, userEmail, isPro) {
             </div>
         </div>
     `;
+}
+
+async function checkCachedEnhancement(companyName) {
+    try {
+        // Look up company_id first
+        const lookupResp = await fetch(`${API_BASE}/api/company-lookup?name=${encodeURIComponent(companyName)}`);
+        const lookupData = await lookupResp.json();
+
+        if (!lookupData.success || !lookupData.company_id) {
+            return; // No company found, show enhance button
+        }
+
+        // Check for cached enhancement
+        const statusResp = await fetch(`${API_BASE}/api/enhance/status?company_id=${lookupData.company_id}`);
+        const statusData = await statusResp.json();
+
+        if (statusData.success && statusData.status === 'complete' && statusData.tearsheet) {
+            // Show cached tearsheet
+            const ctaEl = document.getElementById('enhancement-cta');
+            const tearsheetEl = document.getElementById('enhancement-tearsheet');
+            if (ctaEl && tearsheetEl) {
+                ctaEl.style.display = 'none';
+                tearsheetEl.style.display = 'block';
+                tearsheetEl.innerHTML = renderTearsheet(statusData.tearsheet, true);
+            }
+        }
+    } catch (e) {
+        console.error('Error checking cached enhancement:', e);
+    }
 }
 
 async function enhanceCompany() {
