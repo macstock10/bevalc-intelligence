@@ -382,6 +382,7 @@ class DateRangeScraper:
                 phone_number TEXT,
                 year INTEGER,
                 month INTEGER,
+                day INTEGER,
                 scraped_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             
@@ -772,8 +773,8 @@ class DateRangeScraper:
                          for_sale_in, total_bottle_capacity, formula, approval_date,
                          qualifications, grape_varietal, wine_vintage, appellation,
                          alcohol_content, ph_level, plant_registry, company_name,
-                         street, state, contact_person, phone_number, year, month)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         street, state, contact_person, phone_number, year, month, day)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         data.get('ttb_id'), data.get('status'), data.get('vendor_code'),
                         data.get('serial_number'), data.get('class_type_code'),
@@ -787,7 +788,7 @@ class DateRangeScraper:
                         data.get('plant_registry'), data.get('company_name'),
                         data.get('street'), data.get('state'),
                         data.get('contact_person'), data.get('phone_number'),
-                        data.get('year'), data.get('month')
+                        data.get('year'), data.get('month'), data.get('day')
                     ))
                     
                     self.conn.execute(
@@ -938,25 +939,25 @@ def merge_new_data(temp_db: str) -> Dict:
                     INSERT OR IGNORE INTO colas
                     (ttb_id, status, vendor_code, serial_number, class_type_code,
                      origin_code, brand_name, fanciful_name, type_of_application,
-                     for_sale_in, total_bottle_capacity, formula, approval_date, 
+                     for_sale_in, total_bottle_capacity, formula, approval_date,
                      qualifications, grape_varietal, wine_vintage, appellation,
-                     alcohol_content, ph_level, plant_registry, company_name, 
-                     street, state, contact_person, phone_number, year, month)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     alcohol_content, ph_level, plant_registry, company_name,
+                     street, state, contact_person, phone_number, year, month, day)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     r.get('ttb_id'), r.get('status'), r.get('vendor_code'),
                     r.get('serial_number'), r.get('class_type_code'),
                     r.get('origin_code'), r.get('brand_name'),
                     r.get('fanciful_name'), r.get('type_of_application'),
                     r.get('for_sale_in'), r.get('total_bottle_capacity'),
-                    r.get('formula'), r.get('approval_date'), 
+                    r.get('formula'), r.get('approval_date'),
                     r.get('qualifications'), r.get('grape_varietal'),
                     r.get('wine_vintage'), r.get('appellation'),
                     r.get('alcohol_content'), r.get('ph_level'),
-                    r.get('plant_registry'), r.get('company_name'), 
+                    r.get('plant_registry'), r.get('company_name'),
                     r.get('street'), r.get('state'),
                     r.get('contact_person'), r.get('phone_number'),
-                    r.get('year'), r.get('month')
+                    r.get('year'), r.get('month'), r.get('day')
                 ))
                 if dst.execute("SELECT changes()").fetchone()[0] > 0:
                     added += 1
@@ -1595,13 +1596,19 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
     # Step 4: Classify new records
     logger.info("\n[STEP 4/5] Classifying new records...")
     if not dry_run and new_records:
-        classify_result = classify_new_records(new_records)
-        results['classify'] = classify_result
+        try:
+            classify_result = classify_new_records(new_records)
+            results['classify'] = classify_result
 
-        # Output brands needing website enrichment
-        output_enrichment_list(new_records, classify_result)
+            # Output brands needing website enrichment
+            output_enrichment_list(new_records, classify_result)
+        except Exception as e:
+            logger.error(f"Classification failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            results['classify'] = {'total': 0, 'error': str(e)}
     else:
-        logger.info("No new records to classify")
+        logger.info(f"No new records to classify (dry_run={dry_run}, records={len(new_records) if new_records else 0})")
         results['classify'] = {'total': 0, 'new_companies': 0, 'new_brands': 0, 'refiles': 0}
 
     # Step 5: Check watchlists and send alerts
