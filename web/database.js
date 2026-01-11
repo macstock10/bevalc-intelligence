@@ -1441,32 +1441,36 @@ function getSignalBadgeHtml(signal) {
 // Helper: Build metric box HTML
 function buildMetricBoxHtml(value, label) {
     return `
-        <div style="flex: 1; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px 16px; text-align: center;">
-            <div style="font-size: 36px; font-weight: 600; color: #0d9488; margin-bottom: 4px;">${escapeHtml(String(value))}</div>
-            <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px;">${escapeHtml(label)}</div>
+        <div style="flex: 1; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 12px; text-align: center;">
+            <div style="font-size: 28px; font-weight: 600; color: #0d9488; margin-bottom: 4px;">${escapeHtml(String(value))}</div>
+            <div style="font-size: 9px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px;">${escapeHtml(label)}</div>
         </div>
     `;
 }
 
 // Helper: Build category bar HTML
 function buildCategoryBarHtml(label, percentage) {
+    // Truncate long category labels
+    const displayLabel = label.length > 15 ? label.substring(0, 13) + '...' : label;
     return `
-        <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            <div style="width: 160px; font-size: 12px; color: #374151; text-align: right; padding-right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(label)}</div>
-            <div style="flex: 1; height: 20px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+        <div style="display: flex; align-items: center; margin-bottom: 6px; width: 100%;">
+            <div style="width: 100px; min-width: 100px; font-size: 10px; color: #374151; text-align: right; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(displayLabel)}</div>
+            <div style="flex: 1; height: 14px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
                 <div style="width: ${percentage}%; height: 100%; background: #0d9488; border-radius: 4px;"></div>
             </div>
-            <div style="width: 40px; font-size: 12px; color: #6b7280; text-align: right; padding-left: 8px;">${percentage}%</div>
+            <div style="width: 32px; min-width: 32px; font-size: 10px; color: #6b7280; text-align: right; padding-left: 6px;">${percentage}%</div>
         </div>
     `;
 }
 
 // Helper: Build brand pill HTML
 function buildBrandPillHtml(name, count) {
+    // Truncate long brand names
+    const displayName = name.length > 18 ? name.substring(0, 16) + '...' : name;
     return `
-        <span style="display: inline-block; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 16px; padding: 6px 12px; margin: 0 8px 8px 0;">
-            <span style="font-size: 12px; color: #0d9488;">${escapeHtml(name)}</span>
-            <span style="font-size: 12px; color: #6b7280;"> (${count})</span>
+        <span style="display: inline-block; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 12px; padding: 4px 10px; margin: 0 6px 6px 0;">
+            <span style="font-size: 10px; color: #0d9488;">${escapeHtml(displayName)}</span>
+            <span style="font-size: 10px; color: #6b7280;"> (${count})</span>
         </span>
     `;
 }
@@ -1561,15 +1565,20 @@ function buildReportHTML(tearsheet) {
     if (recentFilings.length > 0) {
         const rows = recentFilings.slice(0, 8).map((f, i) => {
             const bgColor = i % 2 === 1 ? '#f9fafb' : 'white';
-            const productDisplay = f.product && f.product.trim()
-                ? escapeHtml(f.product)
-                : '<span style="color: #9ca3af;">—</span>';
+            // Truncate long brand/product names to fit table
+            const brandText = (f.brand || '').length > 20 ? f.brand.substring(0, 18) + '...' : (f.brand || '');
+            const productText = f.product && f.product.trim()
+                ? ((f.product.length > 18) ? f.product.substring(0, 16) + '...' : f.product)
+                : '—';
+            const productDisplay = productText === '—'
+                ? '<span style="color: #9ca3af;">—</span>'
+                : escapeHtml(productText);
             return `
                 <tr style="background: ${bgColor};">
-                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${escapeHtml(f.brand || '')}</td>
-                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${productDisplay}</td>
-                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${escapeHtml(f.date || '')}</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${getSignalBadgeHtml(f.signal)}</td>
+                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(brandText)}</td>
+                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${productDisplay}</td>
+                    <td style="padding: 8px 6px; font-size: 11px; color: #374151; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">${escapeHtml(f.date || '')}</td>
+                    <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb;">${getSignalBadgeHtml(f.signal)}</td>
                 </tr>
             `;
         }).join('');
@@ -1578,13 +1587,13 @@ function buildReportHTML(tearsheet) {
             <div style="margin-bottom: 24px;">
                 <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Recent Filings</div>
                 <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                    <table style="width: 100%; border-collapse: collapse;">
+                    <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
                         <thead>
                             <tr style="background: #f9fafb;">
-                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Brand</th>
-                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Product</th>
-                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Date</th>
-                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Signal</th>
+                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 30%;">Brand</th>
+                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 28%;">Product</th>
+                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 20%;">Date</th>
+                                <th style="padding: 8px 6px; font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500; width: 22%;">Signal</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1610,9 +1619,9 @@ function buildReportHTML(tearsheet) {
     // Footer date
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    // Assemble the full HTML (816px = 8.5in at 96 DPI, 48px = 0.5in padding)
+    // Assemble the full HTML (612px = 6.375in content, fits in 7.5in printable area with padding)
     return `
-        <div style="width: 816px; min-height: 1056px; padding: 48px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #374151; box-sizing: border-box; background: #ffffff;">
+        <div style="width: 612px; min-height: 900px; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #374151; box-sizing: border-box; background: #ffffff;">
             <!-- Header -->
             <div style="border-top: 8px solid #0d9488; padding-top: 16px; margin-bottom: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -1676,27 +1685,25 @@ function generateCompanyPDF() {
         console.log('PDF: Building report for', currentTearsheetData.company_name);
         console.log('PDF: HTML length', reportHtml.length);
 
-        // Create a temporary container - use fixed position off-screen but still rendered
+        // Create a visible container - html2canvas needs to see it
+        // Position it off-screen but in the viewport for proper rendering
         const tempDiv = document.createElement('div');
         tempDiv.id = 'pdf-temp-container';
-        tempDiv.style.cssText = 'position: fixed; left: 0; top: 0; width: 816px; background: white; z-index: -1; overflow: visible;';
-
-        // Create the content wrapper with explicit dimensions
-        const contentWrapper = document.createElement('div');
-        contentWrapper.style.cssText = 'width: 816px; background: white;';
-        contentWrapper.innerHTML = reportHtml;
-        tempDiv.appendChild(contentWrapper);
+        tempDiv.style.cssText = 'position: fixed; left: 0; top: 0; z-index: -9999; background: white; overflow: visible;';
+        tempDiv.innerHTML = reportHtml;
         document.body.appendChild(tempDiv);
 
-        // Get the actual content element (the inner div with all the report content)
-        const contentElement = contentWrapper.firstElementChild;
+        // Get the content element
+        const contentElement = tempDiv.firstElementChild;
         console.log('PDF: Content element dimensions', contentElement?.offsetWidth, 'x', contentElement?.offsetHeight);
 
         // Configure html2pdf options
+        // Letter size is 8.5 x 11 inches
+        // Content is 612px wide (6.375in at 96dpi) to fit with margins
         const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
 
         const options = {
-            margin: [0, 0, 0, 0],
+            margin: [0.5, 0.5, 0.5, 0.5],  // top, left, bottom, right in inches
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
@@ -1704,12 +1711,15 @@ function generateCompanyPDF() {
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                scrollX: 0,
-                scrollY: 0,
+                windowWidth: contentElement.offsetWidth,
+                windowHeight: contentElement.offsetHeight,
                 x: 0,
-                y: 0
+                y: 0,
+                scrollX: 0,
+                scrollY: 0
             },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+            pagebreak: { mode: 'avoid-all' }
         };
 
         // Wait for browser to render, then capture
@@ -1726,7 +1736,7 @@ function generateCompanyPDF() {
                     document.body.removeChild(tempDiv);
                 }
             });
-        }, 200);
+        }, 300);
 
     } catch (error) {
         console.error('PDF generation error:', error);
