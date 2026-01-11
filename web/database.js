@@ -1655,7 +1655,16 @@ function generateCompanyPDF() {
         y += metricBoxHeight + 24;
 
         // ========== CATEGORY MIX ==========
-        const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+        // Group subcategories into parent categories using getCategoryName
+        const categoryGroups = {};
+        for (const [code, count] of Object.entries(categories)) {
+            const parentCategory = (typeof getCategoryName === 'function')
+                ? getCategoryName(code)
+                : code;
+            categoryGroups[parentCategory] = (categoryGroups[parentCategory] || 0) + count;
+        }
+        const catEntries = Object.entries(categoryGroups).sort((a, b) => b[1] - a[1]);
+
         if (catEntries.length > 0) {
             checkPageBreak(120);
             drawSectionLabel('Category Mix');
@@ -1665,7 +1674,7 @@ function generateCompanyPDF() {
             const pctWidth = 40;
             const barMaxWidth = contentWidth - labelWidth - pctWidth - 10;
 
-            catEntries.slice(0, 5).forEach(([code, count]) => {
+            catEntries.slice(0, 5).forEach(([categoryName, count]) => {
                 checkPageBreak(20);
                 const pct = Math.round((count / totalCat) * 100);
 
@@ -1673,7 +1682,7 @@ function generateCompanyPDF() {
                 doc.setFontSize(10);
                 doc.setTextColor(...darkGray);
                 doc.setFont('helvetica', 'normal');
-                const label = truncateText(code, labelWidth - 10, 10);
+                const label = truncateText(categoryName, labelWidth - 10, 10);
                 doc.text(label, marginLeft, y);
 
                 // Progress bar background
