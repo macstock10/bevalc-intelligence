@@ -508,9 +508,9 @@
             <h2 class="section-title">Simple Pricing</h2>
             <p class="section-subtitle">Start free. Upgrade when you need more.</p>
 
-            <div class="pricing-grid pricing-grid-3">
-                <!-- Free Tier -->
-                <div class="pricing-card">
+            <!-- Free Tier - Full Width on Top -->
+            <div class="pricing-free-tier">
+                <div class="pricing-card pricing-card-horizontal">
                     <div class="pricing-header">
                         <h3>Free</h3>
                         <div class="pricing-price">
@@ -518,19 +518,20 @@
                             <span class="price-period">forever</span>
                         </div>
                     </div>
-                    <ul class="pricing-features">
+                    <ul class="pricing-features pricing-features-horizontal">
                         <li>Full database search</li>
                         <li>Weekly Market Pulse email</li>
                         <li>Category totals & top filers</li>
                         <li>TTB detail links</li>
-                        <li>Glossary & documentation</li>
                     </ul>
                     <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
                 </div>
+            </div>
 
+            <!-- Paid Tiers - Two Columns -->
+            <div class="pricing-grid">
                 <!-- Category Pro Tier -->
-                <div class="pricing-card featured">
-                    <div class="pricing-badge">Most Popular</div>
+                <div class="pricing-card">
                     <div class="pricing-header">
                         <h3>Category Pro</h3>
                         <div class="pricing-price">
@@ -547,12 +548,13 @@
                         <li>Competitor watchlists</li>
                         <li>Weekly category report</li>
                     </ul>
-                    <button class="btn btn-glow" id="category-pro-cta" data-tier="category_pro">Get Category Pro</button>
-                    <p class="pricing-note">Perfect for brands tracking their specific category.</p>
+                    <button class="btn btn-secondary-dark" id="category-pro-cta" data-tier="category_pro">Get Category Pro</button>
+                    <p class="pricing-note">Perfect for brands focused on one category.</p>
                 </div>
 
                 <!-- Premier Tier -->
-                <div class="pricing-card">
+                <div class="pricing-card featured">
+                    <div class="pricing-badge">Recommended</div>
                     <div class="pricing-header">
                         <h3>Premier</h3>
                         <div class="pricing-price">
@@ -568,7 +570,7 @@
                         <li>Cross-category watchlists</li>
                         <li>Full market intelligence</li>
                     </ul>
-                    <button class="btn btn-secondary-dark" id="premier-cta" data-tier="premier">Get Premier</button>
+                    <button class="btn btn-glow" id="premier-cta" data-tier="premier">Get Premier</button>
                     <p class="pricing-note">For consultants, distributors & multi-brand operators.</p>
                 </div>
             </div>
