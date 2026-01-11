@@ -3876,16 +3876,23 @@ async function callClaudeWithSearch(companyName, data, env) {
     else if (categories.includes('TEQUILA') || categories.includes('MEZCAL')) industryHint = 'tequila mezcal';
     else if (categories.includes('RUM')) industryHint = 'rum distillery';
 
+    // Get top brand name for searching
+    const brands = data.brands || '';
+    const topBrand = brands.split(',')[0]?.trim() || '';
+
     const prompt = `You MUST use the web_search tool to research this beverage alcohol company. Do NOT answer from memory - actually search the web.
 
 Company: ${companyName}
-Industry context: ${industryHint}
+Top brand: ${topBrand}
+Industry: ${industryHint}
 ${data.existingWebsite ? `Known website: ${data.existingWebsite}` : ''}
 
-IMPORTANT: Use web_search to find:
-1. Search for "${companyName}" to find their official website (NOT retailers like Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar)
-2. Search for "${companyName} ${industryHint}" to find company background, founding story, location
-3. If needed, search for recent news or press releases
+IMPORTANT: Use web_search with these strategies:
+1. Search "${topBrand} ${industryHint}" - brand names are often more findable than company names
+2. Search "${companyName}" to find their official website
+3. If needed, search "${companyName} ${industryHint} news" for recent press
+
+Find the official company website (NOT retailers like Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar, Caskers).
 
 After searching, provide this JSON:
 {
