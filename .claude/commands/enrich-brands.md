@@ -41,11 +41,16 @@ All signal types in priority order:
    - Most recent approval_date first
    - NEW_COMPANY before NEW_BRAND within each date
 
-2. **For each brand (in order!):**
+2. **For each brand (in order!) - ALWAYS USE ALL THREE:**
    - Search format: `"[Brand Name]" [Category] "[Company Name]"`
-   - Example: `"Stella Di Campalto" Wine "Oenot, A&N Fine Wines"`
-   - Skip retailers (drizly, totalwine, amazon, wine-searcher, vivino, etc.)
-   - Pick the official producer/brand website
+   - Example: `"Stella Di Campalto" Wine "Oenoteca" OR "A&N Fine Wines"`
+
+   **CRITICAL:** Same brand names exist from DIFFERENT companies!
+   - Example: "FIELD & STREAM" = Drowned Lands Brewery (beer) AND Sugarlands (moonshine)
+   - You MUST verify the website matches the SPECIFIC company in the filing
+
+   - Skip retailers (drizly, totalwine, amazon, wine-searcher, vivino)
+   - Pick the official producer website that matches the filing company
 
 3. **Save to D1:**
    ```bash

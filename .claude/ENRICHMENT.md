@@ -48,33 +48,46 @@ This ensures all high-value signals get enriched before any refiles.
 
 ---
 
-## Search Pattern
+## Search Pattern (CRITICAL - ALWAYS FOLLOW)
 
-For each brand, search using this format:
+**ALWAYS search with ALL THREE components:**
 
 ```
 "[Brand Name]" [Category] "[Company Name]"
 ```
 
-**Example:**
-- Brand: STELLA DI CAMPALTO
-- Category: TABLE RED WINE (from class_type_code)
-- Company: Oenoteca, A&N Fine Wines LLC
+**Example from database:**
+- brand_name: STELLA DI CAMPALTO
+- class_type_code: TABLE RED WINE
+- company_name: Oenoteca, A&N Fine Wines LLC
 
-Search: `"Stella Di Campalto" Wine "Oenoteca, A&N Fine Wines"`
+**Search query:** `"Stella Di Campalto" Wine "Oenoteca" OR "A&N Fine Wines"`
 
-**Category simplification:** Use the simple category name:
-- TABLE RED WINE, TABLE WHITE WINE -> Wine
-- BEER, ALE, LAGER -> Beer
-- VODKA 80-89 PROOF -> Vodka
-- BOURBON WHISKY, BLENDED BOURBON -> Bourbon/Whiskey
-- etc.
+**WHY THIS MATTERS:**
+- Same brand names can exist from DIFFERENT companies
+- Example: "FIELD & STREAM" filed by BOTH Drowned Lands Brewery AND Sugarlands Distilling
+- You MUST verify the website matches the SPECIFIC company in the filing
 
-If no results, try variations:
-1. Brand name + category only
-2. Company name + category only
-3. Brand name + company name (no category)
-4. Just company name + "distillery/winery/brewery"
+**Category simplification:**
+| class_type_code | Search term |
+|-----------------|-------------|
+| TABLE RED WINE, TABLE WHITE WINE | Wine |
+| BEER, ALE, LAGER, MALT BEVERAGES | Beer |
+| VODKA, VODKA SPECIALTIES | Vodka |
+| BOURBON WHISKY, BLENDED BOURBON | Bourbon/Whiskey |
+| BRANDY, FRUIT BRANDY | Brandy |
+| GIN, DRY GIN | Gin |
+| RUM, LIGHT RUM | Rum |
+| TEQUILA, MEZCAL | Tequila/Mezcal |
+| LIQUEURS, CORDIALS | Liqueur |
+
+**Search variations (in order):**
+1. `"Brand Name" Category "Company Name"` (ALWAYS TRY FIRST)
+2. `"Company Name" Category official website`
+3. `"Brand Name" "Company Name"`
+4. `Company Name distillery/winery/brewery`
+
+**NEVER save a website without verifying it matches the filing company.**
 
 ---
 
