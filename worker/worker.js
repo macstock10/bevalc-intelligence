@@ -3895,12 +3895,12 @@ Respond in this exact JSON format:
             'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 500,
+            model: 'claude-haiku-4-20250514',
+            max_tokens: 400,
             tools: [{
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 3
+                max_uses: 1
             }],
             messages: [{
                 role: 'user',

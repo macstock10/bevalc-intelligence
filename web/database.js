@@ -1184,9 +1184,11 @@ function buildEnhancementSection(record, userEmail, isPro) {
                     </button>
                     <p style="color: #64748b; font-size: 0.75rem; margin-top: 8px;" id="credit-balance"></p>
                 </div>
-                <div id="enhancement-loading" style="display: none; text-align: center; padding: 20px;">
-                    <div class="spinner" style="margin: 0 auto 12px;"></div>
-                    <p style="color: #94a3b8;">Analyzing ${escapeHtml(companyName)}...</p>
+                <div id="enhancement-loading" style="display: none; text-align: center; padding: 30px;">
+                    <div style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #0d9488; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+                    <p style="color: var(--color-dark); font-weight: 600; margin-bottom: 8px;">Researching ${escapeHtml(companyName)}...</p>
+                    <p style="color: #94a3b8; font-size: 0.8rem;">Searching web for company info, news, and website</p>
+                    <p style="color: #64748b; font-size: 0.75rem; margin-top: 12px;">This typically takes 15-30 seconds</p>
                 </div>
                 <div id="enhancement-tearsheet" style="display: none;"></div>
             </div>
@@ -1394,9 +1396,17 @@ function generateCompanyPDF() {
         return;
     }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const tearsheet = currentTearsheetData;
+    // Check if jsPDF loaded
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('PDF library not loaded. Please refresh the page and try again.');
+        console.error('jsPDF not available:', window.jspdf);
+        return;
+    }
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const tearsheet = currentTearsheetData;
 
     // Page settings
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1666,6 +1676,11 @@ function generateCompanyPDF() {
     // Save the PDF
     const filename = `${(tearsheet.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
     doc.save(filename);
+
+    } catch (error) {
+        console.error('PDF generation error:', error);
+        alert('Failed to generate PDF: ' + error.message);
+    }
 }
 
 function showCreditPurchaseModal(isPro) {
