@@ -33,6 +33,7 @@ import json
 import sqlite3
 import argparse
 import logging
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -63,6 +64,7 @@ BASE_DIR = SCRIPT_DIR.parent
 # Paths relative to repo
 DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
+EMAILS_DIR = BASE_DIR / "emails"
 
 DB_PATH = str(DATA_DIR / "consolidated_colas.db")
 LOG_FILE = str(LOGS_DIR / "weekly_update.log")
@@ -1390,7 +1392,7 @@ def check_watchlist_and_alert(new_records: List[Dict], dry_run: bool = False) ->
             logger.info(f"  {email}: {len(matches)} matches")
         return {'matches': total_matches, 'alerts_sent': 0, 'dry_run': True}
 
-    # Send alerts via Resend
+    # Send alerts via Node.js email sender (uses React Email templates)
     alerts_sent = 0
     resend_api_key = os.environ.get('RESEND_API_KEY')
 
@@ -1398,57 +1400,65 @@ def check_watchlist_and_alert(new_records: List[Dict], dry_run: bool = False) ->
         logger.warning("RESEND_API_KEY not set, skipping alert emails")
         return {'matches': total_matches, 'alerts_sent': 0, 'error': 'No RESEND_API_KEY'}
 
-    import requests
-
     for email, matches in matches_by_user.items():
         try:
-            # Build email content
-            match_lines = []
+            # Build matches array for the template
+            matches_data = []
             for m in matches[:20]:  # Limit to 20 matches per email
                 r = m['record']
-                brand = r.get('brand_name', 'Unknown')
-                company = r.get('company_name', 'Unknown')[:40]
-                fanciful = r.get('fanciful_name', '') or ''
-                signal = r.get('signal', '')
+                matches_data.append({
+                    'brandName': r.get('brand_name', 'Unknown'),
+                    'fancifulName': r.get('fanciful_name', '') or '',
+                    'companyName': (r.get('company_name', 'Unknown') or '')[:50],
+                    'signal': r.get('signal', 'FILING')
+                })
 
-                if fanciful:
-                    match_lines.append(f"• {brand} - {fanciful} ({company}) [{signal}]")
+            # Create the Node.js script to send the email
+            matches_json = json.dumps(matches_data)
+
+            send_script = f'''
+import {{ sendWatchlistAlert }} from './send.js';
+
+const result = await sendWatchlistAlert({{
+    to: "{email}",
+    matchCount: {len(matches)},
+    matches: {matches_json}
+}});
+
+if (result.error) {{
+    console.error("Error:", result.error.message);
+    process.exit(1);
+}} else {{
+    console.log("Success:", result.data?.id);
+}}
+'''
+            # Write temp script
+            temp_script = EMAILS_DIR / "_send_alert_temp.js"
+            with open(temp_script, 'w') as f:
+                f.write(send_script)
+
+            try:
+                result = subprocess.run(
+                    f"npx tsx {temp_script.name}",
+                    cwd=str(EMAILS_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    shell=True  # Required on Windows
+                )
+
+                if result.returncode == 0:
+                    alerts_sent += 1
+                    logger.info(f"  Sent alert to {email}: {len(matches)} matches")
                 else:
-                    match_lines.append(f"• {brand} ({company}) [{signal}]")
+                    logger.warning(f"  Failed to send alert to {email}: {result.stderr}")
 
-            matches_text = "\n".join(match_lines)
-            if len(matches) > 20:
-                matches_text += f"\n... and {len(matches) - 20} more"
-
-            # Send email via Resend
-            response = requests.post(
-                'https://api.resend.com/emails',
-                headers={
-                    'Authorization': f'Bearer {resend_api_key}',
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    'from': 'BevAlc Intelligence <alerts@bevalcintel.com>',
-                    'to': email,
-                    'subject': f'🔔 Watchlist Alert: {len(matches)} new filings match your watchlist',
-                    'text': f"""Your watchlist has {len(matches)} new matches!
-
-{matches_text}
-
-View full details at: https://bevalcintel.com/database
-
----
-BevAlc Intelligence
-Manage your watchlist: https://bevalcintel.com/account.html
-"""
-                }
-            )
-
-            if response.status_code == 200:
-                alerts_sent += 1
-                logger.info(f"  Sent alert to {email}: {len(matches)} matches")
-            else:
-                logger.warning(f"  Failed to send alert to {email}: {response.status_code}")
+            except subprocess.TimeoutExpired:
+                logger.error(f"  Timeout sending alert to {email}")
+            finally:
+                # Clean up temp script
+                if temp_script.exists():
+                    temp_script.unlink()
 
         except Exception as e:
             logger.error(f"  Error sending alert to {email}: {e}")

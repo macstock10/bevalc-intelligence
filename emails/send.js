@@ -15,6 +15,7 @@ import { WeeklyReport } from './templates/WeeklyReport.jsx';
 import { ProWeeklyReport } from './templates/ProWeeklyReport.jsx';
 import { CategoryProWeeklyReport } from './templates/CategoryProWeeklyReport.jsx';
 import { Welcome } from './templates/Welcome.jsx';
+import { WatchlistAlert } from './templates/WatchlistAlert.jsx';
 
 // Lazy initialize Resend (allows dotenv to load first)
 let _resend = null;
@@ -227,6 +228,35 @@ export async function sendWelcome({
 }
 
 /**
+ * Send a watchlist alert email
+ */
+export async function sendWatchlistAlert({
+  to,
+  matchCount,
+  matches = [],
+  databaseUrl = 'https://bevalcintel.com/database',
+  accountUrl = 'https://bevalcintel.com/account.html',
+}) {
+  const html = await render(
+    WatchlistAlert({
+      matchCount,
+      matches,
+      databaseUrl,
+      accountUrl,
+    })
+  );
+
+  const result = await getResend().emails.send({
+    from: process.env.FROM_EMAIL_ALERTS || 'BevAlc Intelligence <alerts@bevalcintel.com>',
+    to,
+    subject: `Watchlist Alert: ${matchCount} new filing${matchCount === 1 ? '' : 's'} match your watchlist`,
+    html,
+  });
+
+  return result;
+}
+
+/**
  * Send a test email (for previewing any template)
  */
 export async function sendTestEmail({
@@ -254,6 +284,10 @@ export async function sendTestEmail({
     case 'welcome':
       Component = Welcome;
       subject = '[TEST] Welcome Email';
+      break;
+    case 'watchlist-alert':
+      Component = WatchlistAlert;
+      subject = `[TEST] Watchlist Alert - ${props.matchCount || 0} matches`;
       break;
     default:
       throw new Error(`Unknown template: ${template}`);
@@ -289,6 +323,7 @@ Templates:
   weekly-report      Weekly report email (free users)
   pro-weekly-report  Pro weekly report email (paid subscribers)
   welcome            New subscriber welcome email
+  watchlist-alert    Watchlist match notification (Pro users)
 
 Options:
   --to             Recipient email (required)
@@ -309,6 +344,7 @@ Examples:
   node send.js weekly-report --to user@example.com --weekEnding "January 5, 2026"
   node send.js pro-weekly-report --to pro@example.com --firstName "John" --weekEnding "January 5, 2026"
   node send.js welcome --to user@example.com --firstName "John"
+  node send.js watchlist-alert --to user@example.com --test
   node send.js pro-weekly-report --to test@example.com --test
 `);
     process.exit(0);
@@ -373,6 +409,18 @@ Examples:
           result = await sendWelcome({
             to: options.to,
             firstName: options.firstName || '',
+          });
+          break;
+        case 'watchlist-alert':
+          // For CLI usage, provide sample data
+          result = await sendWatchlistAlert({
+            to: options.to,
+            matchCount: 3,
+            matches: [
+              { brandName: 'SAMPLE BRAND', fancifulName: 'Premium Reserve', companyName: 'Sample Distillery LLC', signal: 'NEW_BRAND' },
+              { brandName: 'ANOTHER BRAND', fancifulName: '', companyName: 'Test Winery Inc', signal: 'NEW_SKU' },
+              { brandName: 'THIRD BRAND', fancifulName: 'Special Edition', companyName: 'Demo Brewery Co', signal: 'NEW_COMPANY' },
+            ],
           });
           break;
         default:
