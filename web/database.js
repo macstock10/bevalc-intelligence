@@ -819,7 +819,7 @@ function openModal(record) {
                                 }
                                 // Handle website field specially
                                 if (f.isWebsite) {
-                                    if (f.value) {
+                                    if (f.value && f.value !== 'NOT_FOUND') {
                                         // Has website - show clickable link
                                         const displayUrl = f.value.replace(/^https?:\/\//, '').replace(/\/$/, '');
                                         return `
@@ -827,6 +827,18 @@ function openModal(record) {
                                                 <span class="detail-label detail-label-pro">${f.label}</span>
                                                 <span class="detail-value">
                                                     <a href="${escapeHtml(f.value)}" target="_blank" rel="noopener" style="color: var(--color-primary);">🔗 ${escapeHtml(displayUrl)}</a>
+                                                </span>
+                                            </div>
+                                        `;
+                                    } else if (f.value === 'NOT_FOUND') {
+                                        // Searched but not found - ask user for help
+                                        const mailtoSubject = encodeURIComponent(`Website for ${f.brandName || 'brand'}`);
+                                        const mailtoBody = encodeURIComponent(`Hi,\n\nI know the website for ${f.brandName || 'this brand'}:\n\n`);
+                                        return `
+                                            <div class="detail-item">
+                                                <span class="detail-label detail-label-pro">${f.label}</span>
+                                                <span class="detail-value">
+                                                    <a href="mailto:hello@bevalcintel.com?subject=${mailtoSubject}&body=${mailtoBody}" style="color: #94a3b8;">N/A - Know the site?</a>
                                                 </span>
                                             </div>
                                         `;

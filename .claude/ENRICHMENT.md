@@ -17,43 +17,45 @@ Run enrichment after:
 
 **CRITICAL: Always start from the most recent approval_date in the database.**
 
-### Step 1: Query Most Recent Records
+### Order Within Each Date
+For each date, enrich in this order:
+1. NEW_COMPANY
+2. NEW_BRAND
+3. NEW_SKU
+4. REFILE
+
+### Example Flow
+If most recent scrape has dates 01/08, 01/07, 01/06:
+
+```
+01/08/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
+01/07/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
+01/06/2026: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
+(continue backwards through all dates)
+```
+
+### Query to Get Brands
 ```sql
-SELECT brand_name, company_name, class_type_code, signal, approval_date
+SELECT DISTINCT brand_name, company_name, class_type_code, signal, approval_date
 FROM colas
 WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE')
   AND brand_name NOT IN (SELECT brand_name FROM brand_websites)
 ORDER BY
-  CASE signal WHEN 'REFILE' THEN 1 ELSE 0 END,
   substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC,
-  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 ELSE 4 END
-LIMIT 50
+  CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 END
+LIMIT 30
 ```
 
-### Step 2: Enrich in This Order
-
-**Phase 1: High-value signals (all dates)**
-1. 01/08/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
-2. 01/07/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
-3. 01/06/2026: NEW_COMPANY, then NEW_BRAND, then NEW_SKU
-4. (continue backwards through all dates in scrape)
-
-**Phase 2: REFILE signals (all dates)**
-5. 01/08/2026: REFILE
-6. 01/07/2026: REFILE
-7. 01/06/2026: REFILE
-8. (continue backwards)
-
-This ensures all high-value signals get enriched before any refiles.
+This orders by date descending first, then by signal priority within each date.
 
 ---
 
 ## Search Pattern (CRITICAL - ALWAYS FOLLOW)
 
-**ALWAYS search with ALL THREE components:**
+**ALWAYS search with ALL THREE components (NO quotation marks):**
 
 ```
-"[Brand Name]" [Category] "[Company Name]"
+[Brand Name] [Category] [Company Name]
 ```
 
 **Example from database:**
@@ -61,7 +63,7 @@ This ensures all high-value signals get enriched before any refiles.
 - class_type_code: TABLE RED WINE
 - company_name: Oenoteca, A&N Fine Wines LLC
 
-**Search query:** `"Stella Di Campalto" Wine "Oenoteca" OR "A&N Fine Wines"`
+**Search query:** `Stella Di Campalto wine Oenoteca`
 
 **WHY THIS MATTERS:**
 - Same brand names can exist from DIFFERENT companies
@@ -71,20 +73,22 @@ This ensures all high-value signals get enriched before any refiles.
 **Category simplification:**
 | class_type_code | Search term |
 |-----------------|-------------|
-| TABLE RED WINE, TABLE WHITE WINE | Wine |
-| BEER, ALE, LAGER, MALT BEVERAGES | Beer |
-| VODKA, VODKA SPECIALTIES | Vodka |
-| BOURBON WHISKY, BLENDED BOURBON | Bourbon/Whiskey |
-| BRANDY, FRUIT BRANDY | Brandy |
-| GIN, DRY GIN | Gin |
-| RUM, LIGHT RUM | Rum |
-| TEQUILA, MEZCAL | Tequila/Mezcal |
-| LIQUEURS, CORDIALS | Liqueur |
+| TABLE RED WINE, TABLE WHITE WINE | wine |
+| BEER, ALE, LAGER, MALT BEVERAGES | beer |
+| VODKA, VODKA SPECIALTIES | vodka |
+| BOURBON WHISKY, BLENDED BOURBON | whiskey |
+| BRANDY, FRUIT BRANDY | brandy |
+| GIN, DRY GIN | gin |
+| RUM, LIGHT RUM | rum |
+| TEQUILA, MEZCAL | tequila |
+| LIQUEURS, CORDIALS | liqueur |
+| SAKE | sake |
+| HONEY BASED TABLE WINE | mead |
 
-**Search variations (in order):**
-1. `"Brand Name" Category "Company Name"` (ALWAYS TRY FIRST)
-2. `"Company Name" Category official website`
-3. `"Brand Name" "Company Name"`
+**Search variations (try in order if first fails):**
+1. `Brand Name Category Company Name` (ALWAYS TRY FIRST)
+2. `Company Name Category official website`
+3. `Brand Name Company Name`
 4. `Company Name distillery/winery/brewery`
 
 **NEVER save a website without verifying it matches the filing company.**
@@ -162,8 +166,11 @@ Track progress in `scripts/logs/enrichment_progress.json`:
 ## Brands Not Found
 
 If a brand cannot be found after multiple search attempts:
-1. Add to `brands_not_found` in progress log
-2. Include company name for future reference
+1. **Save to D1 with NOT_FOUND flag** so the modal shows we looked:
+   ```bash
+   cd worker && npx wrangler d1 execute bevalc-colas --remote --command="INSERT OR REPLACE INTO brand_websites (brand_name, website_url, confidence, verified_at, notes) VALUES ('BRAND NAME', 'NOT_FOUND', 'none', datetime('now'), 'Reason not found')"
+   ```
+2. Include reason in notes field (e.g., "new distillery, no website yet")
 3. Move on to next brand (don't waste time)
 
 Common reasons for not finding:
@@ -176,9 +183,9 @@ Common reasons for not finding:
 
 ## Quick Reference Commands
 
-**Get brands needing enrichment:**
+**Get brands needing enrichment (ALWAYS USE THIS):**
 ```bash
-cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT brand_name, company_name, class_type_code, signal FROM colas WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND') AND brand_name NOT IN (SELECT brand_name FROM brand_websites) ORDER BY CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 END LIMIT 50"
+cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT DISTINCT brand_name, company_name, class_type_code, signal, approval_date FROM colas WHERE signal IN ('NEW_COMPANY', 'NEW_BRAND', 'NEW_SKU', 'REFILE') AND brand_name NOT IN (SELECT brand_name FROM brand_websites) ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 END LIMIT 30"
 ```
 
 **Check if brand already enriched:**
