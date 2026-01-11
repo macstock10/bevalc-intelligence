@@ -1676,33 +1676,40 @@ function generateCompanyPDF() {
         console.log('PDF: Building report for', currentTearsheetData.company_name);
         console.log('PDF: HTML length', reportHtml.length);
 
-        // Create a temporary visible element for rendering
+        // Create a temporary container - use fixed position off-screen but still rendered
         const tempDiv = document.createElement('div');
         tempDiv.id = 'pdf-temp-container';
-        tempDiv.innerHTML = reportHtml;
-        tempDiv.style.cssText = 'position: absolute; left: 0; top: 0; z-index: 9999; background: white;';
+        tempDiv.style.cssText = 'position: fixed; left: 0; top: 0; width: 816px; background: white; z-index: -1; overflow: visible;';
+
+        // Create the content wrapper with explicit dimensions
+        const contentWrapper = document.createElement('div');
+        contentWrapper.style.cssText = 'width: 816px; background: white;';
+        contentWrapper.innerHTML = reportHtml;
+        tempDiv.appendChild(contentWrapper);
         document.body.appendChild(tempDiv);
 
-        // Get the actual content element
-        const contentElement = tempDiv.firstElementChild;
+        // Get the actual content element (the inner div with all the report content)
+        const contentElement = contentWrapper.firstElementChild;
         console.log('PDF: Content element dimensions', contentElement?.offsetWidth, 'x', contentElement?.offsetHeight);
 
         // Configure html2pdf options
         const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
 
         const options = {
-            margin: 0,
+            margin: [0, 0, 0, 0],
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
                 useCORS: true,
-                logging: true,
+                logging: false,
                 backgroundColor: '#ffffff',
-                width: 816,
-                windowWidth: 816
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: 0
             },
-            jsPDF: { unit: 'px', format: [816, 1056], orientation: 'portrait', hotfixes: ['px_scaling'] }
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
         };
 
         // Wait for browser to render, then capture
@@ -1719,7 +1726,7 @@ function generateCompanyPDF() {
                     document.body.removeChild(tempDiv);
                 }
             });
-        }, 100);
+        }, 200);
 
     } catch (error) {
         console.error('PDF generation error:', error);
