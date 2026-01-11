@@ -1389,310 +1389,317 @@ function renderTearsheet(tearsheet, cached) {
     `;
 }
 
-// Generate PDF report from tearsheet data
+// ============================================
+// PDF GENERATION WITH html2pdf.js
+// ============================================
+
+// Helper: Escape HTML characters to prevent rendering issues
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Helper: Format date nicely
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+}
+
+// Helper: Get signal badge HTML
+function getSignalBadgeHtml(signal) {
+    const signalText = (signal || 'REFILE').replace('_', ' ');
+    let bgColor, textColor;
+
+    switch (signal) {
+        case 'NEW_COMPANY':
+            bgColor = '#dcfce7';
+            textColor = '#166534';
+            break;
+        case 'NEW_BRAND':
+            bgColor = '#dbeafe';
+            textColor = '#1e40af';
+            break;
+        case 'NEW_SKU':
+            bgColor = '#f0fdfa';
+            textColor = '#0d9488';
+            break;
+        default:
+            bgColor = '#f3f4f6';
+            textColor = '#6b7280';
+    }
+
+    return `<span style="display: inline-block; background: ${bgColor}; color: ${textColor}; padding: 4px 8px; border-radius: 4px; font-size: 10px; text-transform: uppercase; font-weight: 500;">${signalText}</span>`;
+}
+
+// Helper: Build metric box HTML
+function buildMetricBoxHtml(value, label) {
+    return `
+        <div style="flex: 1; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px 16px; text-align: center;">
+            <div style="font-size: 36px; font-weight: 600; color: #0d9488; margin-bottom: 4px;">${escapeHtml(String(value))}</div>
+            <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px;">${escapeHtml(label)}</div>
+        </div>
+    `;
+}
+
+// Helper: Build category bar HTML
+function buildCategoryBarHtml(label, percentage) {
+    return `
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <div style="width: 160px; font-size: 12px; color: #374151; text-align: right; padding-right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(label)}</div>
+            <div style="flex: 1; height: 20px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                <div style="width: ${percentage}%; height: 100%; background: #0d9488; border-radius: 4px;"></div>
+            </div>
+            <div style="width: 40px; font-size: 12px; color: #6b7280; text-align: right; padding-left: 8px;">${percentage}%</div>
+        </div>
+    `;
+}
+
+// Helper: Build brand pill HTML
+function buildBrandPillHtml(name, count) {
+    return `
+        <span style="display: inline-block; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 16px; padding: 6px 12px; margin: 0 8px 8px 0;">
+            <span style="font-size: 12px; color: #0d9488;">${escapeHtml(name)}</span>
+            <span style="font-size: 12px; color: #6b7280;"> (${count})</span>
+        </span>
+    `;
+}
+
+// Main function: Build the report HTML
+function buildReportHTML(tearsheet) {
+    const stats = tearsheet.filing_stats || {};
+    const brands = tearsheet.brands || [];
+    const categories = tearsheet.categories || {};
+    const news = tearsheet.news || [];
+    const recentFilings = tearsheet.recent_filings || [];
+
+    // Website display
+    const websiteUrl = tearsheet.website?.url || '';
+    const websiteDisplay = websiteUrl
+        ? websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        : 'No website found';
+    const websiteHtml = websiteUrl
+        ? `<a href="${escapeHtml(websiteUrl)}" style="color: #0d9488; text-decoration: none; font-size: 14px;">${escapeHtml(websiteDisplay)}</a>`
+        : `<span style="color: #9ca3af; font-size: 14px;">No website found</span>`;
+
+    // Filing date range
+    const filingRange = stats.first_filing ? `Filing since ${stats.first_filing}` : '';
+
+    // Build metrics section
+    const brandCount = brands.length;
+    const metricsHtml = `
+        <div style="display: flex; gap: 16px; margin-bottom: 24px;">
+            ${buildMetricBoxHtml(stats.total_filings || 0, 'Total Filings')}
+            ${buildMetricBoxHtml(brandCount, 'Brands')}
+            ${buildMetricBoxHtml(stats.last_12_months || 0, 'Last 12 Mo')}
+        </div>
+    `;
+
+    // Build categories section
+    let categoriesHtml = '';
+    const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+    if (catEntries.length > 0) {
+        const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
+        const categoryBars = catEntries.slice(0, 5).map(([code, count]) => {
+            const pct = Math.round((count / totalCat) * 100);
+            return buildCategoryBarHtml(code, pct);
+        }).join('');
+
+        categoriesHtml = `
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Category Mix</div>
+                ${categoryBars}
+            </div>
+        `;
+    }
+
+    // Build brands section
+    let brandsHtml = '';
+    if (brands.length > 0) {
+        const brandPills = brands.slice(0, 10).map(b => buildBrandPillHtml(b.name, b.filings)).join('');
+        brandsHtml = `
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Top Brands</div>
+                <div style="display: flex; flex-wrap: wrap;">
+                    ${brandPills}
+                </div>
+            </div>
+        `;
+    }
+
+    // Build news section
+    let newsHtml = '';
+    if (news.length > 0) {
+        const newsItems = news.slice(0, 3).map(n => {
+            const titleHtml = n.url
+                ? `<a href="${escapeHtml(n.url)}" style="color: #0d9488; text-decoration: none;">"${escapeHtml(n.title || '')}"</a>`
+                : `<span style="color: #0d9488;">"${escapeHtml(n.title || '')}"</span>`;
+            return `
+                <div style="margin-bottom: 8px;">
+                    <div style="font-size: 13px;">${titleHtml}</div>
+                    <div style="font-size: 11px; color: #9ca3af;">${escapeHtml(n.source || '')} • ${escapeHtml(n.date || '')}</div>
+                </div>
+            `;
+        }).join('');
+
+        newsHtml = `
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Recent News</div>
+                ${newsItems}
+            </div>
+        `;
+    }
+
+    // Build recent filings table
+    let filingsHtml = '';
+    if (recentFilings.length > 0) {
+        const rows = recentFilings.slice(0, 8).map((f, i) => {
+            const bgColor = i % 2 === 1 ? '#f9fafb' : 'white';
+            const productDisplay = f.product && f.product.trim()
+                ? escapeHtml(f.product)
+                : '<span style="color: #9ca3af;">—</span>';
+            return `
+                <tr style="background: ${bgColor};">
+                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${escapeHtml(f.brand || '')}</td>
+                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${productDisplay}</td>
+                    <td style="padding: 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #e5e7eb;">${escapeHtml(f.date || '')}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${getSignalBadgeHtml(f.signal)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        filingsHtml = `
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Recent Filings</div>
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f9fafb;">
+                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Brand</th>
+                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Product</th>
+                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Date</th>
+                                <th style="padding: 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; text-align: left; font-weight: 500;">Signal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // Build summary section
+    let summaryHtml = '';
+    if (tearsheet.summary) {
+        summaryHtml = `
+            <div style="background: #f8fafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Summary</div>
+                <div style="font-size: 13px; color: #374151; line-height: 1.6;">${escapeHtml(tearsheet.summary)}</div>
+            </div>
+        `;
+    }
+
+    // Footer date
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Assemble the full HTML
+    return `
+        <div style="width: 8.5in; padding: 0.5in; font-family: system-ui, -apple-system, sans-serif; color: #374151; box-sizing: border-box;">
+            <!-- Header -->
+            <div style="border-top: 8px solid #0d9488; padding-top: 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #0d9488;">◆ BevAlc Intelligence</div>
+                    <div style="font-size: 10px; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.5px;">Company Report</div>
+                </div>
+                <div style="font-size: 24px; font-weight: 600; color: #1a1a1a; line-height: 1.3; margin-bottom: 8px;">${escapeHtml(tearsheet.company_name || 'Company')}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    ${websiteHtml}
+                    <div style="font-size: 12px; color: #6b7280;">${escapeHtml(filingRange)}</div>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            ${summaryHtml}
+
+            <!-- Recent News -->
+            ${newsHtml}
+
+            <!-- Key Metrics -->
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; margin-bottom: 12px;">Key Metrics</div>
+                ${metricsHtml}
+            </div>
+
+            <!-- Category Mix -->
+            ${categoriesHtml}
+
+            <!-- Top Brands -->
+            ${brandsHtml}
+
+            <!-- Recent Filings -->
+            ${filingsHtml}
+
+            <!-- Footer -->
+            <div style="margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px; display: flex; justify-content: space-between;">
+                <div style="font-size: 11px; color: #9ca3af;">BevAlc Intelligence • bevalcintel.com</div>
+                <div style="font-size: 11px; color: #9ca3af;">Generated ${today}</div>
+            </div>
+        </div>
+    `;
+}
+
+// Main PDF generation function using html2pdf.js
 function generateCompanyPDF() {
     if (!currentTearsheetData) {
         alert('No data available for PDF generation');
         return;
     }
 
-    // Check if jsPDF loaded - handle different module formats
-    let jsPDFClass = null;
-    if (window.jspdf && window.jspdf.jsPDF) {
-        jsPDFClass = window.jspdf.jsPDF;
-    } else if (window.jsPDF) {
-        jsPDFClass = window.jsPDF;
-    }
-
-    if (!jsPDFClass) {
-        console.error('jsPDF not available. window.jspdf:', window.jspdf, 'window.jsPDF:', window.jsPDF);
+    if (typeof html2pdf === 'undefined') {
+        console.error('html2pdf not available');
         alert('PDF library not loaded. Please refresh the page and try again.');
         return;
     }
 
     try {
-        const doc = new jsPDFClass();
-        const tearsheet = currentTearsheetData;
+        // Build the HTML report
+        const reportHtml = buildReportHTML(currentTearsheetData);
 
-        // Page settings
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 15;
-        const contentWidth = pageWidth - (margin * 2);
-        let y = margin;
-
-        // Colors
-        const teal = [13, 148, 136];
-        const darkGray = [30, 41, 59];
-        const lightGray = [148, 163, 184];
-        const bgGray = [248, 250, 252];
-
-        // Helper to add footer to current page
-        const addFooter = () => {
-            const footerY = pageHeight - 12;
-            doc.setDrawColor(226, 232, 240);
-            doc.line(margin, footerY - 4, pageWidth - margin, footerY - 4);
-            doc.setTextColor(...lightGray);
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'normal');
-            doc.text('BevAlc Intelligence | bevalcintel.com', margin, footerY);
-            const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            doc.text(`Generated ${today}`, pageWidth - margin, footerY, { align: 'right' });
-        };
-
-        // Helper to check page and add footer before new page
-        const checkPage = (needed = 25) => {
-            if (y + needed > pageHeight - 20) {
-                addFooter();
-                doc.addPage();
-                y = margin;
-                return true;
-            }
-            return false;
-        };
-
-        // Helper to truncate text
-        const truncate = (text, maxLen) => {
-            if (!text) return '';
-            return text.length > maxLen ? text.substring(0, maxLen - 2) + '..' : text;
-        };
-
-        // ===== HEADER (slimmer) =====
-        doc.setFillColor(...teal);
-        doc.rect(0, 0, pageWidth, 22, 'F');
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text('BevAlc Intelligence', margin, 8);
-        doc.text('Company Report', pageWidth - margin, 8, { align: 'right' });
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        const companyName = truncate(tearsheet.company_name || 'Company', 50);
-        doc.text(companyName, margin, 17);
-
-        y = 28;
-
-        // ===== WEBSITE & DATE RANGE =====
-        const stats = tearsheet.filing_stats || {};
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-
-        if (tearsheet.website?.url) {
-            const displayUrl = tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-            doc.setTextColor(...teal);
-            doc.text(displayUrl, margin, y);
-        } else {
-            doc.setTextColor(...lightGray);
-            doc.text('Website not found', margin, y);
+        // Inject into the hidden container
+        const container = document.getElementById('pdf-report-container');
+        if (!container) {
+            alert('PDF container not found. Please refresh the page.');
+            return;
         }
+        container.innerHTML = reportHtml;
 
-        doc.setTextColor(...lightGray);
-        doc.setFontSize(8);
-        const dateRange = `Filing since ${stats.first_filing || 'N/A'} | Last filed ${stats.last_filing || 'N/A'}`;
-        doc.text(dateRange, pageWidth - margin, y, { align: 'right' });
-        y += 8;
+        // Configure html2pdf options
+        const filename = `${(currentTearsheetData.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
 
-        // ===== SUMMARY (with background) =====
-        if (tearsheet.summary) {
-            doc.setFillColor(...bgGray);
-            doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'F');
+        const options = {
+            margin: 0,
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
 
-            doc.setTextColor(...darkGray);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('SUMMARY', margin + 4, y + 6);
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            const summaryLines = doc.splitTextToSize(tearsheet.summary, contentWidth - 8);
-            doc.text(summaryLines.slice(0, 4), margin + 4, y + 12);
-            y += 32;
-        }
-
-        // ===== KEY METRICS (3 boxes, compact) =====
-        doc.setTextColor(...darkGray);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('KEY METRICS', margin, y + 4);
-        y += 8;
-
-        const brandCount = (tearsheet.brands || []).length;
-        const metrics = [
-            { value: stats.total_filings || 0, label: 'Total Filings' },
-            { value: brandCount, label: 'Brands' },
-            { value: stats.last_12_months || 0, label: 'Last 12 Mo' }
-        ];
-
-        const boxWidth = 45;
-        const boxHeight = 20;
-        const boxGap = 8;
-
-        metrics.forEach((m, i) => {
-            const x = margin + (i * (boxWidth + boxGap));
-            doc.setFillColor(...bgGray);
-            doc.roundedRect(x, y, boxWidth, boxHeight, 2, 2, 'F');
-
-            doc.setTextColor(...teal);
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text(String(m.value), x + boxWidth / 2, y + 10, { align: 'center' });
-
-            doc.setTextColor(...lightGray);
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'normal');
-            doc.text(m.label, x + boxWidth / 2, y + 17, { align: 'center' });
+        // Generate and download the PDF
+        html2pdf().set(options).from(container).save().then(() => {
+            // Clean up the container
+            container.innerHTML = '';
+        }).catch(err => {
+            console.error('PDF generation error:', err);
+            alert('Failed to generate PDF: ' + err.message);
         });
-        y += boxHeight + 8;
-
-        // ===== CATEGORY MIX (fixed-width labels) =====
-        const categories = tearsheet.categories || {};
-        const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-        if (catEntries.length > 0) {
-            doc.setTextColor(...darkGray);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('CATEGORY MIX', margin, y + 4);
-            y += 8;
-
-            const totalCat = catEntries.reduce((sum, [, count]) => sum + count, 0);
-            const labelWidth = 55; // Fixed width for labels
-            const barStartX = margin + labelWidth;
-            const barMaxWidth = contentWidth - labelWidth - 25;
-
-            catEntries.slice(0, 4).forEach(([code, count]) => {
-                const pct = Math.round((count / totalCat) * 100);
-                const barWidth = Math.max((pct / 100) * barMaxWidth, 2);
-
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(...darkGray);
-                // Truncate long category codes
-                const label = truncate(code, 22);
-                doc.text(label, margin, y + 4);
-
-                // All bars start at same position
-                doc.setFillColor(...teal);
-                doc.roundedRect(barStartX, y, barWidth, 5, 1, 1, 'F');
-
-                doc.setTextColor(...lightGray);
-                doc.text(`${pct}%`, barStartX + barMaxWidth + 3, y + 4);
-                y += 8;
-            });
-            y += 4;
-        }
-
-        // ===== TOP BRANDS (2-column grid) =====
-        const brands = tearsheet.brands || [];
-        if (brands.length > 0) {
-            doc.setTextColor(...darkGray);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('TOP BRANDS', margin, y + 4);
-            y += 8;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            const colWidth = contentWidth / 2;
-            const displayBrands = brands.slice(0, 6);
-
-            displayBrands.forEach((b, i) => {
-                const col = i % 2;
-                const x = margin + (col * colWidth);
-                if (i > 0 && col === 0) y += 5;
-
-                doc.setTextColor(...darkGray);
-                const brandName = truncate(b.name, 25);
-                doc.text(`${brandName} (${b.filings})`, x, y + 4);
-            });
-            y += 10;
-        }
-
-        // ===== RECENT NEWS (compact) =====
-        const news = tearsheet.news || [];
-        if (news.length > 0) {
-            doc.setTextColor(...darkGray);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('RECENT NEWS', margin, y + 4);
-            y += 7;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            news.slice(0, 2).forEach(n => {
-                doc.setTextColor(...darkGray);
-                const title = truncate(n.title || '', 70);
-                doc.text(`"${title}"`, margin, y + 4);
-                y += 4;
-                doc.setTextColor(...lightGray);
-                doc.text(`${n.source || ''} | ${n.date || ''}`, margin, y + 4);
-                y += 6;
-            });
-            y += 2;
-        }
-
-        // ===== RECENT FILINGS TABLE (5 rows max) =====
-        const recentFilings = tearsheet.recent_filings || [];
-        if (recentFilings.length > 0) {
-            checkPage(50);
-
-            doc.setTextColor(...darkGray);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('RECENT FILINGS', margin, y + 4);
-            y += 8;
-
-            // Table header
-            doc.setFillColor(...bgGray);
-            doc.rect(margin, y, contentWidth, 6, 'F');
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...darkGray);
-            doc.text('Brand', margin + 2, y + 4);
-            doc.text('Product', margin + 55, y + 4);
-            doc.text('Date', margin + 120, y + 4);
-            doc.text('Signal', margin + 150, y + 4);
-            y += 8;
-
-            // Table rows (limit to 5)
-            doc.setFont('helvetica', 'normal');
-            recentFilings.slice(0, 5).forEach((f, i) => {
-                if (i % 2 === 1) {
-                    doc.setFillColor(252, 252, 253);
-                    doc.rect(margin, y - 3, contentWidth, 6, 'F');
-                }
-                doc.setTextColor(...darkGray);
-                doc.text(truncate(f.brand || '', 22), margin + 2, y);
-
-                // Show product name or empty (not "-")
-                const product = f.product && f.product.trim() ? truncate(f.product, 28) : '';
-                doc.text(product, margin + 55, y);
-
-                doc.text(f.date || '', margin + 120, y);
-
-                // Signal badge color
-                const signal = f.signal || 'REFILE';
-                if (signal === 'NEW_COMPANY') {
-                    doc.setTextColor(234, 88, 12);
-                } else if (signal === 'NEW_BRAND') {
-                    doc.setTextColor(22, 163, 74);
-                } else if (signal === 'NEW_SKU') {
-                    doc.setTextColor(37, 99, 235);
-                } else {
-                    doc.setTextColor(...lightGray);
-                }
-                doc.text(signal.replace('_', ' '), margin + 150, y);
-                y += 6;
-            });
-        }
-
-        // ===== FOOTER on last page =====
-        addFooter();
-
-        // Save the PDF
-        const filename = `${(tearsheet.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
-        doc.save(filename);
 
     } catch (error) {
         console.error('PDF generation error:', error);

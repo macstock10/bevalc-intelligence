@@ -73,15 +73,15 @@ USER CLICKS "ENHANCE"
 │  1. Check credits (user needs purchased credits)                        │
 │  2. Check cache (90-day TTL on enhancements)                           │
 │  3. If not cached, run enhancement:                                     │
-│     ├─► Query D1 for filing stats, brands, categories                   │
-│     ├─► Call Claude Sonnet 4 with web_search tool                       │
-│     │   └─► Searches: brand + industry, company name                    │
-│     └─► Returns: website, summary, news                                 │
+│     ├─► Query D1 for filing stats, brands, categories, recent filings   │
+│     ├─► Call Claude Sonnet 4 with web_search tool (max 5 searches)      │
+│     │   └─► Multi-strategy search: company name, brand name, industry   │
+│     └─► Returns: website, summary, news (with URLs)                     │
 │  4. Cache result in company_enhancements table                          │
 │  5. Deduct 1 credit from user                                           │
-│  6. Return tearsheet for display + PDF download                         │
+│  6. Return tearsheet for display + PDF download (html2pdf.js)           │
 │                                                                         │
-│  Cost per enhancement: ~$0.15-0.25 (Claude API + web search)            │
+│  Cost per enhancement: ~$0.20-0.35 (Claude API + up to 5 web searches)  │
 │  Credit price: $1.67-2.00 per credit (sold in packs)                    │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -337,6 +337,12 @@ npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, enhanceme
 
 # Clear enhancement cache for a company (force re-enhancement)
 npx wrangler d1 execute bevalc-colas --remote --command "DELETE FROM company_enhancements WHERE company_id = 12345"
+
+# Find company_id by name (for cache clearing)
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, company_name, website_url FROM company_enhancements WHERE company_name LIKE '%CompanyName%'"
+
+# View all cached enhancements
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, company_name, website_url, enhanced_at FROM company_enhancements ORDER BY enhanced_at DESC LIMIT 20"
 ```
 
 ---
@@ -386,6 +392,8 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - These are DIFFERENT. A 2018 label surrendered in 2026 keeps approval_date=2018.
 
 **Company Normalization:** Raw company names are mapped to normalized `company_id` via `company_aliases` table. This handles "ABC Inc" vs "ABC Inc." as the same company.
+
+**PDF Generation:** Company reports use html2pdf.js (not jsPDF). The report is built as HTML with inline styles, rendered in a hidden container, then converted to PDF. This gives full control over typography and layout.
 
 ---
 

@@ -3880,30 +3880,38 @@ async function callClaudeWithSearch(companyName, data, env) {
     const brands = data.brands || '';
     const topBrand = brands.split(',')[0]?.trim() || '';
 
-    const prompt = `You MUST use the web_search tool to research this beverage alcohol company. Do NOT answer from memory - actually search the web.
+    const prompt = `You are researching a beverage alcohol company for a business intelligence report. Your PRIMARY goal is to find their official website and write a factual summary.
 
 Company: ${companyName}
 Top brand: ${topBrand}
 Industry: ${industryHint}
 ${data.existingWebsite ? `Known website: ${data.existingWebsite}` : ''}
 
-IMPORTANT: Use web_search with these strategies:
-1. Search "${topBrand} ${industryHint}" - brand names are often more findable than company names
-2. Search "${companyName}" to find their official website
-3. If needed, search "${companyName} ${industryHint} news" for recent press
+REQUIRED: You MUST use web_search multiple times with different queries. Do NOT give up after one search.
 
-Find the official company website (NOT retailers like Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar, Caskers).
+Search strategy (try ALL of these):
+1. "${companyName}" - direct company name search
+2. "${topBrand} official website" - search by their main brand
+3. "${companyName} ${industryHint}" - company + industry terms
+4. "${topBrand} distillery" or "${topBrand} winery" - brand + facility type
+5. If still not found, try variations: remove "LLC", "Inc", try just the first word of the company name
 
-After searching, provide this JSON:
+IMPORTANT:
+- The official website is almost always a .com domain matching the company or brand name
+- IGNORE retailers: Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar, Caskers, wine.com
+- IGNORE social media as the primary website (but note them for reference)
+- Most legitimate beverage companies HAVE a website - keep searching if you don't find it immediately
+
+After thorough searching, provide this JSON:
 {
-  "website": "https://example.com" or null if not found,
+  "website": "https://example.com" or null ONLY if truly not found after multiple searches,
   "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Be specific with facts you found.",
   "news": [
-    {"title": "Headline", "date": "2024-01", "source": "Publication Name"}
+    {"title": "Headline", "date": "2024-01", "source": "Publication Name", "url": "https://article-url.com"}
   ]
 }
 
-DO NOT mention TTB filing counts. Focus on what you found from your web search.`;
+DO NOT say "limited information" unless you've tried at least 4 different search queries. Most companies are findable.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -3914,11 +3922,11 @@ DO NOT mention TTB filing counts. Focus on what you found from your web search.`
         },
         body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 500,
+            max_tokens: 800,
             tools: [{
                 type: 'web_search_20250305',
                 name: 'web_search',
-                max_uses: 3
+                max_uses: 5
             }],
             messages: [{
                 role: 'user',
