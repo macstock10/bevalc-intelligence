@@ -2009,11 +2009,11 @@ function showCreditPurchaseModal(isPro) {
 
     // Pro users get better rates
     const packs = isPro ? [
-        { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
-        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit' }
+        { id: 'pack_10', credits: 10, price: '$20', perCredit: '$2.00/credit' },
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
     ] : [
-        { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
-        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit' }
+        { id: 'pack_10', credits: 10, price: '$20', perCredit: '$2.00/credit' },
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
     ];
 
     const modal = document.createElement('div');
