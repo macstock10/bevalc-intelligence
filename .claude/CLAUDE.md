@@ -114,7 +114,45 @@ FOR EACH NEW RECORD:
 BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1.9M+ records with weekly email reports for subscribers.
 
 **Live Site**: https://bevalcintel.com
-**Price**: $79/month (Pro subscription via Stripe)
+
+**Pricing Tiers:**
+- **Free**: Basic search, blurred signals, locked Pro features
+- **Category Pro** ($29/month): Full access to ONE selected category
+- **Premier** ($79/month): Full access to ALL categories
+
+---
+
+## Subscription Tier System
+
+### Tier Behavior
+
+| Feature | Free | Category Pro | Premier |
+|---------|------|--------------|---------|
+| Search database | Yes | Yes | Yes |
+| View signals | No (blurred) | Own category only | All |
+| CSV export | No | Own category only | All |
+| Watchlist | No | Own category only | All |
+| Company Intelligence | No | Own category only | All |
+| Weekly email reports | Basic summary | Own category | All subscribed |
+
+### Category Pro Specifics
+- User selects ONE category (Whiskey, Vodka, Tequila, etc.)
+- Can change category once per week (7-day cooldown)
+- When category changes, watchlist is automatically cleared
+- Signals/exports outside their category show same as Free tier
+- Mobile badge shows "Pro", Premier shows "Premier"
+
+### Tier Detection Flow
+```
+1. Frontend fetches /api/user/preferences?email=...
+2. Response includes: { tier: "category_pro" | "premier", tier_category: "Whiskey" | null }
+3. Frontend uses tier to show correct badge and unlock features
+4. For Category Pro, hasRecordAccess checks if record's category matches tier_category
+```
+
+### Upgrade Path
+- Category Pro → Premier: Uses /api/stripe/upgrade-subscription with prorated billing
+- Stripe webhook updates tier in D1 database
 
 ---
 
@@ -248,10 +286,13 @@ Core scraping class used by weekly_update.py:
 | email | TEXT | Primary key |
 | stripe_customer_id | TEXT | Stripe customer ID |
 | is_pro | INT | 1 if active subscription |
-| categories | TEXT | JSON array of preferred categories |
+| tier | TEXT | "category_pro" or "premier" |
+| tier_category | TEXT | Selected category for Category Pro users |
+| category_changed_at | TEXT | ISO timestamp of last category change |
+| categories | TEXT | JSON array of report categories (Premier) |
+| receive_free_report | INT | 1 to receive free weekly summary |
 | enhancement_credits | INT | Purchased credits balance |
-| monthly_enhancements_used | INT | (Unused - credits now purchased) |
-| monthly_reset_date | TEXT | (Unused - credits now purchased) |
+| preferences_token | TEXT | Unique token for settings access |
 
 ### `company_enhancements` - Cached AI enhancement results
 | Column | Type | Notes |
@@ -332,8 +373,20 @@ python batch_classify.py
 # Add enhancement credits to a user
 npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET enhancement_credits = enhancement_credits + 10 WHERE email = 'user@example.com'"
 
-# Check user's credit balance
-npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, enhancement_credits FROM user_preferences WHERE email = 'user@example.com'"
+# Check user's subscription and tier
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, is_pro, tier, tier_category, category_changed_at, enhancement_credits FROM user_preferences WHERE email = 'user@example.com'"
+
+# Reset category change cooldown (allow immediate category switch)
+npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET category_changed_at = NULL WHERE email = 'user@example.com'"
+
+# Upgrade user to Premier tier
+npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET tier = 'premier' WHERE email = 'user@example.com'"
+
+# Clear user's watchlist
+npx wrangler d1 execute bevalc-colas --remote --command "DELETE FROM watchlist WHERE email = 'user@example.com'"
+
+# View user's watchlist
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT * FROM watchlist WHERE email = 'user@example.com'"
 
 # Clear enhancement cache for a company (force re-enhancement)
 npx wrangler d1 execute bevalc-colas --remote --command "DELETE FROM company_enhancements WHERE company_id = 12345"
@@ -392,6 +445,13 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - These are DIFFERENT. A 2018 label surrendered in 2026 keeps approval_date=2018.
 
 **Company Normalization:** Raw company names are mapped to normalized `company_id` via `company_aliases` table. This handles "ABC Inc" vs "ABC Inc." as the same company.
+
+**Tier Badge Display:** All pages (index.html, database.js, account.html, glossary.html, legal.html, success.html) check `data.tier` from the preferences API and show "Premier" or "Pro" badge accordingly. The comparison uses `.toLowerCase()` for case-insensitive matching.
+
+**Category Change Behavior:** When a Category Pro user changes their selected category:
+1. The `category_changed_at` timestamp is set (starts 7-day cooldown)
+2. The user's watchlist is automatically cleared (old items aren't relevant)
+3. The weekly report email will use the new category
 
 **PDF Generation:** Company reports use jsPDF for precise control. The report uses coordinate-based positioning with:
 - `textWithLink()` for clickable URLs (website, news articles)
