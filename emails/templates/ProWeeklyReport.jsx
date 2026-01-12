@@ -774,7 +774,7 @@ export function ProWeeklyReport({
                 fontStyle: "italic",
               }}
             >
-              Prior week data — our scrapers fill in gaps as TTB publishes
+              TTB publishes on a lag — data fills in over the following days
             </Text>
           </Section>
 
