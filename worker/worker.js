@@ -786,23 +786,32 @@ async function handleUpgradeSubscription(request, env) {
         return { success: false, error: 'Stripe not configured' };
     }
 
-    // Find customer by email
-    const searchResponse = await fetch(
-        `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
-        {
-            headers: {
-                'Authorization': `Bearer ${stripeSecretKey}`
+    // Get stripe_customer_id from database first (more reliable than Stripe search)
+    const userResult = await env.DB.prepare(`
+        SELECT stripe_customer_id FROM user_preferences WHERE email = ?
+    `).bind(email.toLowerCase()).first();
+
+    let customerId = userResult?.stripe_customer_id;
+
+    // Fallback to Stripe search if not in database
+    if (!customerId) {
+        const searchResponse = await fetch(
+            `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${stripeSecretKey}`
+                }
             }
+        );
+
+        const searchData = await searchResponse.json();
+
+        if (!searchData.data || searchData.data.length === 0) {
+            return { success: false, error: 'No customer found' };
         }
-    );
 
-    const searchData = await searchResponse.json();
-
-    if (!searchData.data || searchData.data.length === 0) {
-        return { success: false, error: 'No customer found' };
+        customerId = searchData.data[0].id;
     }
-
-    const customerId = searchData.data[0].id;
 
     // Get current subscription
     const subsResponse = await fetch(
@@ -2177,18 +2186,20 @@ async function handleSearch(url, env) {
     if (dateFrom) {
         const parts = dateFrom.split('-');
         if (parts.length === 3) {
-            const [year, month] = parts;
-            whereClause += ' AND (year > ? OR (year = ? AND month >= ?))';
-            queryParams.push(parseInt(year), parseInt(year), parseInt(month));
+            const [year, month, day] = parts;
+            // Compare year > OR (year = AND month >) OR (year = AND month = AND day >=)
+            whereClause += ' AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))';
+            queryParams.push(parseInt(year), parseInt(year), parseInt(month), parseInt(year), parseInt(month), parseInt(day));
         }
     }
 
     if (dateTo) {
         const parts = dateTo.split('-');
         if (parts.length === 3) {
-            const [year, month] = parts;
-            whereClause += ' AND (year < ? OR (year = ? AND month <= ?))';
-            queryParams.push(parseInt(year), parseInt(year), parseInt(month));
+            const [year, month, day] = parts;
+            // Compare year < OR (year = AND month <) OR (year = AND month = AND day <=)
+            whereClause += ' AND (year < ? OR (year = ? AND month < ?) OR (year = ? AND month = ? AND day <= ?))';
+            queryParams.push(parseInt(year), parseInt(year), parseInt(month), parseInt(year), parseInt(month), parseInt(day));
         }
     }
 
@@ -2420,18 +2431,18 @@ async function handleExport(url, env) {
     if (dateFrom) {
         const parts = dateFrom.split('-');
         if (parts.length === 3) {
-            const [year, month] = parts;
-            whereClause += ' AND (year > ? OR (year = ? AND month >= ?))';
-            queryParams.push(parseInt(year), parseInt(year), parseInt(month));
+            const [year, month, day] = parts;
+            whereClause += ' AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))';
+            queryParams.push(parseInt(year), parseInt(year), parseInt(month), parseInt(year), parseInt(month), parseInt(day));
         }
     }
 
     if (dateTo) {
         const parts = dateTo.split('-');
         if (parts.length === 3) {
-            const [year, month] = parts;
-            whereClause += ' AND (year < ? OR (year = ? AND month <= ?))';
-            queryParams.push(parseInt(year), parseInt(year), parseInt(month));
+            const [year, month, day] = parts;
+            whereClause += ' AND (year < ? OR (year = ? AND month < ?) OR (year = ? AND month = ? AND day <= ?))';
+            queryParams.push(parseInt(year), parseInt(year), parseInt(month), parseInt(year), parseInt(month), parseInt(day));
         }
     }
 

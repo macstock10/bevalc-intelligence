@@ -38,6 +38,10 @@ export function WatchlistAlert({
           : `${matchCount} new filings match your watchlist:`}
       </Text>
 
+      <Text style={{ ...styles.paragraph, fontSize: "12px", color: colors.textTertiary, fontStyle: "italic", marginTop: "-8px" }}>
+        Our scrapers run daily with a 7-day rolling window to catch records as TTB publishes them.
+      </Text>
+
       {/* Matches List */}
       <Section
         style={{

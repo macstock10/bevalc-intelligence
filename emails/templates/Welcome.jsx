@@ -20,7 +20,11 @@ export function Welcome({
 
       <Text style={styles.paragraph}>
         Thanks for signing up. You'll now receive our free weekly snapshot of
-        TTB COLA filings, straight to your inbox every Monday.
+        TTB COLA filings every Saturday, covering the prior week's approvals.
+      </Text>
+
+      <Text style={{ ...styles.paragraph, fontSize: "13px", color: colors.textSecondary, fontStyle: "italic" }}>
+        Note: TTB data can take up to 7 days to fully populate. Our scrapers run daily with a rolling window to catch records as they're published.
       </Text>
 
       {/* What You'll Get Section */}
@@ -114,7 +118,7 @@ export function Welcome({
             lineHeight: "1.5",
           }}
         >
-          <strong>Category Pro ($79/mo)</strong> — Focus on one category with full signals, watchlist alerts, and CSV exports.
+          <strong>Category Pro ($29/mo)</strong> — Focus on one category with full signals, watchlist alerts, and CSV exports.
         </Text>
         <Text
           style={{
@@ -124,7 +128,7 @@ export function Welcome({
             lineHeight: "1.5",
           }}
         >
-          <strong>Premier ($149/mo)</strong> — Full access to all categories with complete market intelligence.
+          <strong>Premier ($79/mo)</strong> — Full access to all categories with complete market intelligence.
         </Text>
         <Link
           href="https://bevalcintel.com/#pricing"

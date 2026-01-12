@@ -344,6 +344,16 @@ export function CategoryProWeeklyReport({
             >
               Your {tierCategory} Weekly Report
             </Text>
+            <Text
+              style={{
+                fontSize: "11px",
+                color: colors.textTertiary,
+                margin: "8px 0 0 0",
+                fontStyle: "italic",
+              }}
+            >
+              Prior week data — our scrapers fill in gaps as TTB publishes
+            </Text>
           </Section>
 
           {/* Main Card */}
@@ -385,7 +395,7 @@ export function CategoryProWeeklyReport({
                 margin: "0 0 20px 0",
               }}
             >
-              Everything that happened in {tierCategory} this week.
+              Everything that happened in {tierCategory} last week.
             </Text>
 
             {/* Stat Tiles - Row 1 */}
@@ -542,7 +552,7 @@ export function CategoryProWeeklyReport({
             {/* Top Filing Companies */}
             <SectionHeader
               title={`Top ${tierCategory} Filers`}
-              subtitle="Companies with the most filings this week"
+              subtitle="Companies with the most filings last week"
               color={colorScheme.text}
             />
             <table
@@ -632,7 +642,7 @@ export function CategoryProWeeklyReport({
               <>
                 <SectionHeader
                   title={`New ${tierCategory} Brands`}
-                  subtitle="First-time brand filings this week"
+                  subtitle="First-time brand filings last week"
                   color={colors.purple}
                 />
                 <table
@@ -672,7 +682,7 @@ export function CategoryProWeeklyReport({
               <>
                 <SectionHeader
                   title={`New ${tierCategory} SKUs`}
-                  subtitle="New product variants this week"
+                  subtitle="New product variants last week"
                   color={colors.blue}
                 />
                 <table

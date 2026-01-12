@@ -1,16 +1,20 @@
 name: Daily TTB Sync
 
+# Scrapes a rolling 7-day window each day.
+# Recent days may have incomplete data initially, but subsequent runs
+# fill in gaps as TTB publishes delayed records. INSERT OR IGNORE
+# handles duplicates, so re-scraping the same dates is harmless.
+
 on:
   schedule:
     # Run at 2am UTC = 9pm ET (winter) / 10pm ET (summer)
-    # TTB typically publishes same-day approvals by evening
     - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       days:
-        description: 'Number of days to scrape (for catch-up)'
+        description: 'Days to look back (default: 7)'
         required: false
-        default: '1'
+        default: '7'
         type: string
       dry_run:
         description: 'Dry run (scrape but skip D1 sync)'
@@ -56,7 +60,7 @@ jobs:
         run: |
           mkdir -p data logs
 
-      - name: Run daily sync (uses same script as weekly)
+      - name: Run daily sync (7-day rolling window)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
@@ -65,7 +69,8 @@ jobs:
         run: |
           cd scripts
 
-          DAYS="${{ inputs.days || '1' }}"
+          DAYS="${{ inputs.days || '7' }}"
+          echo "Scraping last ${DAYS} days"
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python weekly_update.py --days $DAYS --dry-run

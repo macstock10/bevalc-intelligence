@@ -38,3 +38,9 @@ temporaryweb/
 
 # Large SQL files
 d1_import.sql
+
+# Playwright
+playwright-report/
+test-results/
+tests/screenshots/
+tests/videos/

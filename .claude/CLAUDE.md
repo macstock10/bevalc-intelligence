@@ -12,6 +12,19 @@ This is the most important section. Read this first to understand how the system
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
+│                         DAILY SYNC                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  DAILY 2am UTC / 9pm ET (GitHub Actions: daily-sync.yml)                │
+│  └─► weekly_update.py --days 1                                          │
+│       ├─► 1. Scrape previous day's filings from TTB website             │
+│       ├─► 2. Insert records to D1 (colas table)                         │
+│       ├─► 3. Classify: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE       │
+│       └─► 4. Check watchlists → send real-time alerts via Resend        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
 │                         WEEKLY CYCLE                                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
@@ -51,6 +64,7 @@ USER REQUEST
 REQUESTS HANDLED BY WORKER:
 - /api/search → Query colas table, return results
 - /api/checkout → Create Stripe checkout session
+- /api/credits/checkout → Create checkout for credit pack purchase
 - /api/enhance → AI-powered company enhancement (uses Claude + web search)
 - /api/enhance/status → Check enhancement status / get cached result
 - /api/credits → Get user's enhancement credit balance
@@ -83,6 +97,33 @@ USER CLICKS "ENHANCE"
 │                                                                         │
 │  Cost per enhancement: ~$0.20-0.35 (Claude API + up to 5 web searches)  │
 │  Credit price: $1.67-2.00 per credit (sold in packs)                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Credit Purchase System
+
+```
+USER BUYS CREDITS
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      CREDIT PURCHASE FLOW                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Credit Packs (defined in worker.js):                                   │
+│  ├─► pack_10: 10 credits for $20 ($2.00/credit)                        │
+│  └─► pack_25: 25 credits for $40 ($1.60/credit)                        │
+│                                                                         │
+│  Purchase Flow:                                                         │
+│  1. User selects pack on account.html                                   │
+│  2. Frontend calls POST /api/credits/checkout                           │
+│  3. Worker creates Stripe checkout session with inline pricing          │
+│     └─► Uses price_data (no pre-created Stripe price IDs needed)       │
+│  4. User completes Stripe checkout                                      │
+│  5. Stripe webhook (checkout.session.completed) fires                   │
+│  6. Worker checks metadata.type === 'credit_purchase'                   │
+│  7. Credits added to user_preferences.enhancement_credits               │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -166,6 +207,7 @@ bevalc-intelligence/
 │   ├── agents/                # Content subagents
 │   └── commands/              # Custom slash commands
 ├── .github/workflows/
+│   ├── daily-sync.yml         # Daily 2am UTC: scrape + sync + watchlist alerts
 │   ├── weekly-update.yml      # Friday 9pm: scrape + sync + classify
 │   └── weekly-report.yml      # Saturday 9am: send emails
 ├── emails/
@@ -173,9 +215,11 @@ bevalc-intelligence/
 │   ├── test-email.js          # Test email tool
 │   ├── components/Layout.jsx  # Shared email layout
 │   └── templates/
-│       ├── Welcome.jsx        # Signup confirmation
-│       ├── WeeklyReport.jsx   # Free users
-│       └── ProWeeklyReport.jsx # Pro users
+│       ├── Welcome.jsx              # Signup confirmation
+│       ├── WeeklyReport.jsx         # Free users
+│       ├── ProWeeklyReport.jsx      # Premier users (all categories)
+│       ├── CategoryProWeeklyReport.jsx  # Category Pro users (single category)
+│       └── WatchlistAlert.jsx       # Watchlist match notifications
 ├── scripts/
 │   ├── lib/
 │   │   ├── __init__.py
@@ -429,6 +473,8 @@ See `CLAUDE-CONTENT.md` for full documentation.
 - `/sitemap.xml` - Index
 - `/sitemap-companies.xml` - All companies
 - `/sitemap-brands-1.xml` through `-6.xml` - All brands (split for 50k limit)
+
+**IMPORTANT:** Sitemaps are actively being indexed by Google. DO NOT change sitemap structure or URLs - they must remain stable.
 
 **Paywall:** Pro content blurred for free users. Uses `bevalc_pro=1` cookie.
 - Test: `?pro=grant` (enable) / `?pro=revoke` (disable)

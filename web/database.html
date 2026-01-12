@@ -123,6 +123,28 @@
             color: #0d9488 !important;
             font-weight: 600;
         }
+
+        /* Filter help link */
+        .filter-help {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .filter-help-text {
+            font-size: 0.8125rem;
+            color: #64748b;
+        }
+
+        .filter-help-link {
+            color: #0d9488;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .filter-help-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -238,6 +260,10 @@
                     </div>
                     
                     <button class="btn btn-secondary btn-small" id="clear-filters">Clear All</button>
+                </div>
+
+                <div class="filter-help">
+                    <a href="glossary.html#signals" class="filter-help-link">How to interpret the Signal column →</a>
                 </div>
             </div>
 

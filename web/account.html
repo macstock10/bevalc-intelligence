@@ -222,7 +222,7 @@
                     </div>
                     <div class="section-content">
                         <h2><span class="section-icon">📊</span> Report Preferences</h2>
-                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Saturday (covering the prior week).</p>
                         <div class="category-grid">
                             <div class="category-option"><input type="checkbox" disabled><label>Whiskey</label><span class="category-icon">🥃</span></div>
                             <div class="category-option"><input type="checkbox" disabled><label>Vodka</label><span class="category-icon">🍸</span></div>
@@ -304,7 +304,7 @@
 
                 <div class="account-section">
                     <h2><span class="section-icon">📊</span> Report Preferences</h2>
-                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Saturday (covering the prior week).</p>
                     
                     <div class="select-helpers">
                         <button type="button" class="select-helper-btn" id="select-all">Select All</button>
@@ -437,7 +437,7 @@
                 // Multi-category checkboxes for Premier users
                 helpers.style.display = 'flex';
                 sectionTitle.innerHTML = '<span class="section-icon">📊</span> Report Preferences';
-                sectionDesc.textContent = 'Select which category reports you want to receive each Sunday.';
+                sectionDesc.textContent = 'Select which category reports you want to receive each Saturday (covering the prior week).';
 
                 availableCategories.forEach(cat => {
                     const isSelected = selectedCats.includes(cat);

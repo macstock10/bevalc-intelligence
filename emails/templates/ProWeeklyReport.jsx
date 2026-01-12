@@ -484,7 +484,7 @@ function CategoryReportSection({ category, data, weekStartDate, weekEndDate }) {
           margin: "0 0 16px 0",
         }}
       >
-        {data.totalFilings} filings this week
+        {data.totalFilings} filings last week
         {data.change && ` (${data.change} vs last week)`}
       </Text>
 
@@ -766,6 +766,16 @@ export function ProWeeklyReport({
             >
               Weekly Premier Report
             </Text>
+            <Text
+              style={{
+                fontSize: "11px",
+                color: colors.textTertiary,
+                margin: "8px 0 0 0",
+                fontStyle: "italic",
+              }}
+            >
+              Prior week data — our scrapers fill in gaps as TTB publishes
+            </Text>
           </Section>
 
           {/* Main Card */}
@@ -891,7 +901,7 @@ export function ProWeeklyReport({
                 textAlign: "center",
               }}
             >
-              Top filer this week:{" "}
+              Top filer last week:{" "}
               <Link
                 href={`https://bevalcintel.com/company/${makeSlug(topFiler)}`}
                 style={{ color: colors.primary, fontWeight: "600", textDecoration: "none" }}
@@ -1021,7 +1031,7 @@ export function ProWeeklyReport({
             {/* Category Breakdown */}
             <SectionHeader
               title="Filings by Category"
-              subtitle="Filings in your selected categories this week"
+              subtitle="Filings in your selected categories last week"
             />
             <table
               width="100%"
@@ -1584,7 +1594,7 @@ export function ProWeeklyReport({
               });
             })()}
 
-            {/* View all this week's filings CTA */}
+            {/* View all last week's filings CTA */}
             <Section
               style={{
                 backgroundColor: colors.primaryLight,

@@ -307,7 +307,7 @@ export function WeeklyReport({
   topFiler = "Diageo",
   topFilerCount = "34",
 
-  // Category bar chart data (total filings by category this week)
+  // Category bar chart data (total filings by category last week)
   categoryData = [
     { label: "Whiskey", value: 187 },
     { label: "Tequila", value: 156 },
@@ -317,7 +317,7 @@ export function WeeklyReport({
     { label: "RTD", value: 64 },
   ],
 
-  // Top filing companies this week (ranked by total filings)
+  // Top filing companies last week (ranked by total filings)
   topCompaniesList = [
     { company: "Diageo", category: "Whiskey", filings: 34 },
     { company: "Constellation Brands", category: "Beer", filings: 28 },
@@ -326,7 +326,7 @@ export function WeeklyReport({
     { company: "Brown-Forman", category: "Whiskey", filings: 16 },
   ],
 
-  // Top brand extensions this week (brands with most NEW_SKU filings)
+  // Top brand extensions last week (brands with most NEW_SKU filings)
   topExtensionsList = [
     { brand: "Crown Royal", company: "Diageo", category: "Whiskey", newSkus: 14 },
     { brand: "High Noon", company: "E&J Gallo", category: "RTD", newSkus: 9 },
@@ -353,7 +353,7 @@ export function WeeklyReport({
   return (
     <Html>
       <Head />
-      <Preview>BevAlc Weekly: {totalFilings} filings, {newBrands} new brands this week</Preview>
+      <Preview>BevAlc Weekly: {totalFilings} filings, {newBrands} new brands last week</Preview>
       <Body
         style={{
           backgroundColor: colors.bgSecondary,
@@ -391,6 +391,16 @@ export function WeeklyReport({
             >
               Weekly Market Snapshot
             </Text>
+            <Text
+              style={{
+                fontSize: "11px",
+                color: colors.textTertiary,
+                margin: "8px 0 0 0",
+                fontStyle: "italic",
+              }}
+            >
+              Prior week data — our scrapers fill in gaps as TTB publishes
+            </Text>
           </Section>
 
           {/* Main Card */}
@@ -423,7 +433,7 @@ export function WeeklyReport({
                 lineHeight: "1.3",
               }}
             >
-              This week in beverage alcohol
+              Last week in beverage alcohol
             </Heading>
             {/* Summary Bullets */}
             {summaryBullets && summaryBullets.length > 0 && (
@@ -472,7 +482,7 @@ export function WeeklyReport({
                 textAlign: "center",
               }}
             >
-              Top filer this week:{" "}
+              Top filer last week:{" "}
               <Link
                 href={`https://bevalcintel.com/company/${makeSlug(topFiler)}`}
                 style={{ color: colors.primary, fontWeight: "600", textDecoration: "none" }}
@@ -487,7 +497,7 @@ export function WeeklyReport({
             {/* Category Breakdown */}
             <SectionHeader
               title="Filings by Category"
-              subtitle="Total approvals this week"
+              subtitle="Total approvals last week"
             />
             <table width="100%" cellPadding="0" cellSpacing="0" style={{ marginBottom: "24px" }}>
               <tbody>
@@ -643,7 +653,7 @@ export function WeeklyReport({
             {/* Top Brand Extensions */}
             <SectionHeader
               title="Top Brand Extensions"
-              subtitle="Brands adding the most new SKUs this week"
+              subtitle="Brands adding the most new SKUs last week"
             />
             <table
               width="100%"
@@ -768,7 +778,7 @@ export function WeeklyReport({
             {/* Notable New Brands Preview */}
             <SectionHeader
               title="Notable New Brands"
-              subtitle="First-time brand filings this week"
+              subtitle="First-time brand filings last week"
               color={colors.purple}
             />
             <table
@@ -887,7 +897,7 @@ export function WeeklyReport({
                 textAlign: "center",
               }}
             >
-              + {parseInt(newBrands) - 3} more new brands this week
+              + {parseInt(newBrands) - 3} more new brands last week
             </Text>
 
             {/* Locked Full List - Upgrade CTA */}
@@ -927,7 +937,7 @@ export function WeeklyReport({
                   lineHeight: "1.5",
                 }}
               >
-                Get the complete list of every new product filed with the TTB this week, plus watchlist alerts, filing spike detection, and CSV exports.
+                Get the complete list of every new product filed with the TTB last week, plus watchlist alerts, filing spike detection, and CSV exports.
               </Text>
               <Link
                 href={pricingUrl}
