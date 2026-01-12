@@ -615,8 +615,9 @@ function renderResults(data, userAllowedCategory = null) {
             // No access (free user or Category Pro viewing other category) - show locked state
             signalHtml = `<span class="signal-badge signal-locked" onclick="showProUpgradePrompt(); event.stopPropagation();">${lockIcon} Upgrade</span>`;
         }
+        // Note: No blurred-row class - Category Pro users see other categories same as free users
         return `
-        <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row${hasAccessToRow ? '' : ' blurred-row'}">
+        <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
             <td class="cell-brand">${escapeHtml(cola.brand_name || '-')}</td>
             <td class="cell-fanciful">${escapeHtml(cola.fanciful_name || '-')}</td>
             <td>${escapeHtml(cola.class_type_code || '-')}</td>
