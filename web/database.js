@@ -474,7 +474,8 @@ async function performSearch() {
 
         if (data.success) {
             state.currentResults = data.data;  // Store for CSV export
-            renderResults(data.data);
+            state.userAllowedCategory = data.userAllowedCategory || null;  // For Category Pro users
+            renderResults(data.data, data.userAllowedCategory);
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
         } else if (data.error === 'category_required') {
@@ -548,7 +549,7 @@ function showCategoryRequiredMessage() {
     elements.resultsCount.textContent = '';
 }
 
-function renderResults(data) {
+function renderResults(data, userAllowedCategory = null) {
     if (!data || data.length === 0) {
         elements.resultsBody.innerHTML = `
             <tr>
@@ -580,9 +581,17 @@ function renderResults(data) {
     const lockIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
 
     elements.resultsBody.innerHTML = data.map(cola => {
+        // Check if this result is in the user's allowed category (for Category Pro)
+        let hasAccessToRow = isPro;
+        if (userAllowedCategory && cola.class_type_code) {
+            // Get the parent category for this TTB code
+            const rowCategory = getCategoryName(cola.class_type_code);
+            hasAccessToRow = (rowCategory === userAllowedCategory);
+        }
+
         let signalHtml = '-';
-        if (isPro) {
-            // Pro users see actual signals with refile note
+        if (hasAccessToRow) {
+            // User has access - show actual signals with refile note
             if (cola.signal) {
                 const signalClass = cola.signal.toLowerCase().replace(/_/g, '-');
                 let noteHtml = '';
@@ -603,11 +612,11 @@ function renderResults(data) {
                 signalHtml = `<span style="color: #94a3b8; font-style: italic; font-size: 0.75rem;">Enriching...</span>`;
             }
         } else {
-            // Free users see locked state
+            // No access (free user or Category Pro viewing other category) - show locked state
             signalHtml = `<span class="signal-badge signal-locked" onclick="showProUpgradePrompt(); event.stopPropagation();">${lockIcon} Upgrade</span>`;
         }
         return `
-        <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row">
+        <tr data-ttb-id="${escapeHtml(cola.ttb_id)}" class="clickable-row${hasAccessToRow ? '' : ' blurred-row'}">
             <td class="cell-brand">${escapeHtml(cola.brand_name || '-')}</td>
             <td class="cell-fanciful">${escapeHtml(cola.fanciful_name || '-')}</td>
             <td>${escapeHtml(cola.class_type_code || '-')}</td>
@@ -662,10 +671,7 @@ function renderPagination(pagination) {
         html += `<button class="page-btn ${i === pagination.page ? 'active' : ''}" data-page="${i}">${i}</button>`;
     }
     
-    if (endPage < pagination.totalPages) {
-        if (endPage < pagination.totalPages - 1) html += `<span class="page-ellipsis">...</span>`;
-        html += `<button class="page-btn" data-page="${pagination.totalPages}">${pagination.totalPages}</button>`;
-    }
+    // Note: Last page button removed - it doesn't work well with large datasets
     
     // Next button
     html += `<button class="page-btn" ${pagination.page === pagination.totalPages ? 'disabled' : ''} data-page="${pagination.page + 1}">
@@ -1159,16 +1165,25 @@ function showProUpgradePrompt() {
     // Create a simple modal prompt
     const existingPrompt = document.getElementById('pro-upgrade-prompt');
     if (existingPrompt) existingPrompt.remove();
-    
+
+    // Check user's current tier to show appropriate upgrade message
+    const user = typeof BevAlcAuth !== 'undefined' ? BevAlcAuth.getUser() : null;
+    const userTier = user?.tier || null;
+    const isPro = user?.isPro === true;
+
+    // Category Pro users (isPro but not premier) should upgrade to Premier
+    // Free users should upgrade to Pro
+    const isCategoryPro = isPro && userTier !== 'premier';
+    const upgradeText = isCategoryPro ? 'Upgrade to Premier' : 'Upgrade to Pro';
+
     const prompt = document.createElement('div');
     prompt.id = 'pro-upgrade-prompt';
     prompt.innerHTML = `
         <div class="pro-prompt-overlay">
             <div class="pro-prompt-content">
                 <button class="pro-prompt-close" onclick="this.closest('#pro-upgrade-prompt').remove()">&times;</button>
-                <h3>Pro Feature</h3>
-                <p>Pro unlocks watchlists + alerts + CSV exports.</p>
-                <a href="/#pricing" class="btn btn-primary" onclick="this.closest('#pro-upgrade-prompt').remove()">Upgrade to Pro</a>
+                <h3>${isCategoryPro ? 'Premier Feature' : 'Pro Feature'}</h3>
+                <a href="/#pricing" class="btn btn-primary" onclick="this.closest('#pro-upgrade-prompt').remove()">${upgradeText}</a>
             </div>
         </div>
     `;
@@ -1184,7 +1199,7 @@ function closeModal() {
 // COMPANY ENHANCEMENT
 // ============================================
 
-function buildEnhancementSection(record, userEmail, isPro) {
+function buildEnhancementSection(record, userEmail, hasRecordAccess) {
     const companyName = record.company_name || '';
     const brandName = record.brand_name || '';
 
@@ -1194,11 +1209,29 @@ function buildEnhancementSection(record, userEmail, isPro) {
 
     const starIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
 
+    // If user doesn't have access to this record, show upgrade prompt
+    if (!hasRecordAccess) {
+        return `
+            <div class="modal-section enhancement-section" style="text-align: center;">
+                <h4>Company Intelligence</h4>
+                <div style="padding: 20px;">
+                    <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;">
+                        Upgrade to access Company Intelligence for this category.
+                    </p>
+                    <button onclick="showProUpgradePrompt()" class="enhance-btn">
+                        ${starIcon}
+                        <span>Upgrade to Access</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     // Schedule check for cached enhancement after render
     setTimeout(() => checkCachedEnhancement(companyName), 100);
 
     return `
-        <div class="modal-section enhancement-section">
+        <div class="modal-section enhancement-section" style="text-align: center;">
             <h4>Company Intelligence</h4>
             <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-brand-name="${escapeHtml(brandName)}" data-email="${escapeHtml(userEmail || '')}">
                 <div class="enhancement-cta" id="enhancement-cta">
@@ -2024,7 +2057,7 @@ async function loadCreditBalance(email) {
             const balanceEl = document.getElementById('credit-balance');
             if (balanceEl) {
                 if (data.credits > 0) {
-                    balanceEl.textContent = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''}`;
+                    balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} · <a href="#" onclick="showCreditPurchaseModal(${data.is_pro}); return false;" style="color: var(--color-primary);">Get more</a>`;
                 } else {
                     balanceEl.innerHTML = `<a href="#" onclick="showCreditPurchaseModal(${data.is_pro}); return false;" style="color: var(--color-primary);">Get credits</a>`;
                 }

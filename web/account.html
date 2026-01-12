@@ -49,7 +49,8 @@
         .cancel-link { color: #ef4444; font-size: 0.875rem; text-decoration: none; cursor: pointer; }
         .cancel-link:hover { color: #f87171; text-decoration: underline; }
         /* Category select dropdown styling */
-        #tier-category-select { background-color: #1e293b; color: #f1f5f9; }
+        #tier-category-select { background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; outline: none; }
+        #tier-category-select:focus { border-color: var(--color-accent); }
         #tier-category-select option { background-color: #1e293b; color: #f1f5f9; padding: 0.5rem; }
         .loading-state, .not-pro-state { text-align: center; padding: 4rem 2rem; }
         .loading-state .spinner { width: 40px; height: 40px; border: 3px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
@@ -66,15 +67,13 @@
         .account-section.locked .section-content { filter: blur(3px); opacity: 0.6; pointer-events: none; user-select: none; }
         .locked-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10, 25, 47, 0.7); border-radius: var(--radius-2xl); z-index: 10; }
         .locked-overlay .lock-icon-small { width: 48px; height: 48px; background: rgba(251, 191, 36, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: #fbbf24; }
-        .locked-overlay h3 { color: var(--color-text-primary); font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .locked-overlay p { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem; text-align: center; max-width: 280px; }
+        .locked-overlay h3 { color: var(--color-text-primary); font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
         .locked-overlay .btn-upgrade { background: linear-gradient(135deg, var(--color-accent), #0d7377); color: white; padding: 0.625rem 1.25rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.875rem; text-decoration: none; transition: all 0.2s ease; }
         .locked-overlay .btn-upgrade:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4); }
 
         /* Pro upgrade banner */
-        .upgrade-banner { background: linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%); border: 1px solid var(--color-accent); border-radius: var(--radius-2xl); padding: 1.5rem; margin-bottom: 1.5rem; text-align: center; }
-        .upgrade-banner h3 { color: var(--color-text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .upgrade-banner p { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .upgrade-banner { background: linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%); border: 1px solid var(--color-accent); border-radius: var(--radius-2xl); padding: 1.25rem; margin-bottom: 1.5rem; text-align: center; }
+        .upgrade-banner h3 { color: var(--color-text-primary); font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; }
         .upgrade-banner .btn-upgrade-main { background: linear-gradient(135deg, var(--color-accent), #0d7377); color: white; padding: 0.75rem 2rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.9375rem; text-decoration: none; display: inline-block; transition: all 0.2s ease; }
         .upgrade-banner .btn-upgrade-main:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4); }
 
@@ -156,8 +155,6 @@
 
                 <!-- Upgrade Banner -->
                 <div class="upgrade-banner">
-                    <h3>Unlock Pro Features</h3>
-                    <p>Get weekly category reports, watchlist alerts, and CSV exports</p>
                     <a href="index.html#pricing" class="btn-upgrade-main">Upgrade to Pro</a>
                 </div>
 
@@ -179,8 +176,7 @@
                             </svg>
                         </div>
                         <h3>Pro Feature</h3>
-                        <p>Track specific brands and companies to get alerts when they file new labels</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
                     </div>
                     <div class="section-content">
                         <h2><span class="section-icon">⭐</span> Watchlist</h2>
@@ -218,8 +214,7 @@
                             </svg>
                         </div>
                         <h3>Pro Feature</h3>
-                        <p>Choose which category reports you receive every Sunday</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
                     </div>
                     <div class="section-content">
                         <h2><span class="section-icon">📊</span> Report Preferences</h2>
@@ -247,8 +242,7 @@
                             </svg>
                         </div>
                         <h3>Pro Feature</h3>
-                        <p>Export search results to CSV for analysis in Excel or other tools</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Unlock</a>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
                     </div>
                     <div class="section-content">
                         <h2><span class="section-icon">📥</span> CSV Export</h2>
@@ -270,9 +264,15 @@
                 <div class="account-section">
                     <h2><span class="section-icon">✦</span> Subscription</h2>
                     <div class="subscription-status">
-                        <span class="pro-badge">PRO</span>
+                        <span class="pro-badge" id="pro-badge-text">PRO</span>
                         <div class="subscription-details"><span>Active subscription</span></div>
                     </div>
+                </div>
+
+                <!-- Upgrade to Premier banner for Category Pro users -->
+                <div class="upgrade-banner" id="upgrade-to-premier-banner" style="display: none;">
+                    <h3>Unlock All Categories</h3>
+                    <a href="index.html#pricing" class="btn-upgrade-main" id="upgrade-to-premier-btn">Upgrade to Premier</a>
                 </div>
 
                 <div class="account-section">
@@ -301,6 +301,17 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="account-section">
+                    <h2><span class="section-icon">✨</span> Company Intelligence Credits</h2>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                        Credits are used to generate Company Intelligence reports in the database.
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <span style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary);" id="account-credit-balance">Loading...</span>
+                        <button class="btn btn-glow" id="get-credits-btn" onclick="openCreditPurchase()">Get Credits</button>
                     </div>
                 </div>
 
@@ -470,6 +481,16 @@
                     const tierBadge = currentTier === 'premier' ? 'Premier' : 'Category Pro';
                     document.getElementById('user-email').insertAdjacentHTML('afterend', `<span style="background: var(--color-accent); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; margin-left: 0.5rem;">${tierBadge}</span>`);
 
+                    // Update Pro badge text
+                    const proBadgeEl = document.getElementById('pro-badge-text');
+                    if (proBadgeEl) proBadgeEl.textContent = tierBadge;
+
+                    // Show upgrade to Premier banner for Category Pro users
+                    if (currentTier === 'category_pro') {
+                        const upgradeBanner = document.getElementById('upgrade-to-premier-banner');
+                        if (upgradeBanner) upgradeBanner.style.display = 'block';
+                    }
+
                     buildCategoryUI(prefsData.available_categories || defaultCategories, prefsData.categories || [], currentTier, currentTierCategory);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
                 } else {
@@ -492,13 +513,17 @@
                     } catch (e) { console.log('Could not get preferences token:', e); }
                 }
                 showState('account');
-            } catch (e) { 
-                console.error('Error loading preferences:', e); 
+                loadCredits();
+                loadWatchlist();
+            } catch (e) {
+                console.error('Error loading preferences:', e);
                 // Still show account page for Pro users even if preferences API fails
                 document.getElementById('user-email').textContent = user.email;
                 buildCategoryGrid(['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'], []);
                 document.getElementById('receive-free-report').checked = true;
                 showState('account');
+                loadCredits();
+                loadWatchlist();
             }
         }
 
@@ -524,7 +549,7 @@
 
                 // Check if this is a category change that needs confirmation
                 if (currentTierCategory && newCategory !== currentTierCategory) {
-                    if (!confirm(`Change your category from ${currentTierCategory} to ${newCategory}?\n\nNote: You can only change categories once per week.`)) {
+                    if (!confirm(`Change your category from ${currentTierCategory} to ${newCategory}?\n\nNote: You can only change categories once per month.`)) {
                         saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
                         return;
                     }
@@ -544,7 +569,7 @@
 
                 if (data.requires_confirmation) {
                     // Server wants confirmation for category change
-                    if (confirm(`Change your category from ${data.current_category} to ${data.new_category}?\n\nNote: You can only change categories once per week.`)) {
+                    if (confirm(`Change your category from ${data.current_category} to ${data.new_category}?\n\nNote: You can only change categories once per month.`)) {
                         body.confirm_category_change = true;
                         const retryResponse = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                         const retryData = await retryResponse.json();
@@ -576,6 +601,79 @@
                 const data = await response.json();
                 if (data.success && data.url) { window.location.href = data.url; } else { alert('Could not open billing portal: ' + (data.error || 'Unknown error')); link.textContent = originalText; }
             } catch (e) { alert('Could not connect to server'); link.textContent = originalText; }
+        }
+
+        async function loadCredits() {
+            const user = BevAlcAuth.getUser();
+            if (!user || !user.email) return;
+
+            const balanceEl = document.getElementById('account-credit-balance');
+            try {
+                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(user.email)}`);
+                const data = await response.json();
+                if (data.success) {
+                    balanceEl.textContent = `${data.credits} credit${data.credits !== 1 ? 's' : ''}`;
+                } else {
+                    balanceEl.textContent = '0 credits';
+                }
+            } catch (e) {
+                balanceEl.textContent = 'Could not load';
+            }
+        }
+
+        function openCreditPurchase() {
+            const user = BevAlcAuth.getUser();
+            const isPro = user && user.isPro;
+            showCreditPurchaseModal(isPro);
+        }
+
+        function showCreditPurchaseModal(isPro) {
+            const existingModal = document.getElementById('credit-purchase-modal');
+            if (existingModal) existingModal.remove();
+
+            const packs = isPro ? [
+                { id: 'pack_5_pro', credits: 5, price: '$7.50', perCredit: '$1.50/credit' },
+                { id: 'pack_10_pro', credits: 10, price: '$12.50', perCredit: '$1.25/credit', best: true },
+                { id: 'pack_25_pro', credits: 25, price: '$25.00', perCredit: '$1.00/credit' }
+            ] : [
+                { id: 'pack_5', credits: 5, price: '$10.00', perCredit: '$2.00/credit' },
+                { id: 'pack_10', credits: 10, price: '$17.50', perCredit: '$1.75/credit', best: true },
+                { id: 'pack_25', credits: 25, price: '$37.50', perCredit: '$1.50/credit' }
+            ];
+
+            const modal = document.createElement('div');
+            modal.id = 'credit-purchase-modal';
+            modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; position: relative;">
+                    <button onclick="this.closest('#credit-purchase-modal').remove()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+                    <h3 style="margin: 0 0 8px; color: #1e293b;">Get Credits</h3>
+                    <p style="margin: 0 0 20px; color: #64748b; font-size: 0.9rem;">Credits are used for Company Intelligence reports.</p>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        ${packs.map(p => `
+                            <button onclick="purchaseCredits('${p.id}')" style="
+                                display: flex; justify-content: space-between; align-items: center;
+                                padding: 16px; border: 2px solid ${p.best ? 'var(--color-accent, #0d9488)' : '#e2e8f0'};
+                                border-radius: 8px; background: ${p.best ? 'rgba(13, 148, 136, 0.05)' : 'white'};
+                                cursor: pointer; transition: all 0.2s; position: relative;
+                            ">
+                                <div style="text-align: left;">
+                                    <div style="font-weight: 600; color: #1e293b;">${p.credits} credits</div>
+                                    <div style="font-size: 0.8rem; color: #64748b;">${p.perCredit}</div>
+                                </div>
+                                <div style="font-weight: 600; font-size: 1.1rem; color: #1e293b;">${p.price}</div>
+                                ${p.best ? '<span style="position: absolute; top: -8px; right: 12px; background: var(--color-accent, #0d9488); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;">BEST VALUE</span>' : ''}
+                            </button>
+                        `).join('')}
+                    </div>
+                    ${!isPro ? '<p style="margin-top: 16px; font-size: 0.8rem; color: #64748b; text-align: center;"><a href="/#pricing" style="color: var(--color-accent, #0d9488);">Upgrade to Pro</a> for 25% off credits</p>' : ''}
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        async function purchaseCredits(packId) {
+            alert('Credit purchase coming soon! Pack: ' + packId);
         }
 
         async function loadWatchlist() {

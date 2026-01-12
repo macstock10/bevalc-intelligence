@@ -293,6 +293,8 @@ export default {
                 response = await handleVerifySession(url, env);
             } else if (path === '/api/stripe/create-portal-session' && request.method === 'POST') {
                 response = await handleCreatePortalSession(request, env);
+            } else if (path === '/api/stripe/upgrade-subscription' && request.method === 'POST') {
+                response = await handleUpgradeSubscription(request, env);
             }
             // User preferences endpoints
             else if (path === '/api/user/preferences' && request.method === 'GET') {
@@ -717,6 +719,118 @@ async function handleCreatePortalSession(request, env) {
     return {
         success: true,
         url: portalData.url
+    };
+}
+
+async function handleUpgradeSubscription(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const { email } = body;
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    const stripeSecretKey = env.STRIPE_SECRET_KEY;
+    const premierPriceId = env.STRIPE_PREMIER_PRICE_ID;
+
+    if (!stripeSecretKey || !premierPriceId) {
+        return { success: false, error: 'Stripe not configured' };
+    }
+
+    // Find customer by email
+    const searchResponse = await fetch(
+        `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
+        {
+            headers: {
+                'Authorization': `Bearer ${stripeSecretKey}`
+            }
+        }
+    );
+
+    const searchData = await searchResponse.json();
+
+    if (!searchData.data || searchData.data.length === 0) {
+        return { success: false, error: 'No customer found' };
+    }
+
+    const customerId = searchData.data[0].id;
+
+    // Get current subscription
+    const subsResponse = await fetch(
+        `https://api.stripe.com/v1/subscriptions?customer=${customerId}&status=active`,
+        {
+            headers: {
+                'Authorization': `Bearer ${stripeSecretKey}`
+            }
+        }
+    );
+
+    const subsData = await subsResponse.json();
+
+    if (!subsData.data || subsData.data.length === 0) {
+        return { success: false, error: 'No active subscription found' };
+    }
+
+    const subscription = subsData.data[0];
+    const subscriptionItemId = subscription.items?.data?.[0]?.id;
+    const currentPriceId = subscription.items?.data?.[0]?.price?.id;
+
+    // Check if already on Premier
+    if (currentPriceId === premierPriceId) {
+        return { success: false, error: 'Already on Premier plan' };
+    }
+
+    if (!subscriptionItemId) {
+        return { success: false, error: 'Could not find subscription item' };
+    }
+
+    // Update subscription with proration
+    // proration_behavior: 'create_prorations' will credit unused time from old plan
+    // and charge prorated amount for new plan
+    const updateResponse = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${subscription.id}`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${stripeSecretKey}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                'items[0][id]': subscriptionItemId,
+                'items[0][price]': premierPriceId,
+                'proration_behavior': 'create_prorations',
+                'metadata[tier]': 'premier'
+            })
+        }
+    );
+
+    const updateData = await updateResponse.json();
+
+    if (updateData.error) {
+        return { success: false, error: updateData.error.message };
+    }
+
+    // Update tier in D1
+    try {
+        await env.DB.prepare(`
+            UPDATE user_preferences SET tier = 'premier', updated_at = datetime('now')
+            WHERE email = ?
+        `).bind(email.toLowerCase()).run();
+    } catch (e) {
+        console.error('Failed to update tier in D1:', e);
+        // Don't fail the request - Stripe update succeeded
+    }
+
+    return {
+        success: true,
+        message: 'Subscription upgraded to Premier',
+        subscriptionId: subscription.id
     };
 }
 
@@ -1844,7 +1958,7 @@ async function handleSearch(url, env) {
 
     // Check for Category Pro user restrictions
     const email = params.get('email');
-    let forcedCategory = null;
+    let userAllowedCategory = null;  // For Category Pro users, which category they have access to
 
     if (email) {
         try {
@@ -1860,7 +1974,8 @@ async function handleSearch(url, env) {
                         message: 'Please select your category in account settings to access the database.'
                     };
                 }
-                forcedCategory = user.tier_category;
+                // Don't force filter - just track which category they have access to
+                userAllowedCategory = user.tier_category;
             }
         } catch (e) {
             console.error('Error checking user tier:', e);
@@ -1870,7 +1985,7 @@ async function handleSearch(url, env) {
     const query = params.get('q')?.trim();
     const origin = params.get('origin');
     const classType = params.get('class_type');
-    let category = forcedCategory || params.get('category');  // Force category for Category Pro users
+    let category = params.get('category');  // No longer forced for Category Pro
     const subcategory = params.get('subcategory');  // Subcategory name (e.g., "Bourbon", "Irish Whiskey")
     const status = params.get('status');
     const dateFrom = params.get('date_from');
@@ -1990,7 +2105,7 @@ async function handleSearch(url, env) {
     const dataParams = [...queryParams, limit, offset];
     const dataResult = await env.DB.prepare(dataQuery).bind(...dataParams).all();
 
-    return {
+    const response = {
         success: true,
         data: dataResult.results || [],
         pagination: {
@@ -2000,6 +2115,13 @@ async function handleSearch(url, env) {
             totalPages: Math.ceil(total / limit)
         }
     };
+
+    // Include allowed category for Category Pro users (front-end will blur other categories)
+    if (userAllowedCategory) {
+        response.userAllowedCategory = userAllowedCategory;
+    }
+
+    return response;
 }
 
 async function handleExport(url, env) {

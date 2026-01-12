@@ -847,6 +847,17 @@ a:hover { color: var(--color-primary-hover); }
     border: 1px solid var(--color-border);
 }
 
+/* Blurred rows for Category Pro users viewing other categories */
+.blurred-row td {
+    filter: blur(4px);
+    user-select: none;
+    pointer-events: none;
+}
+.blurred-row td.cell-signal {
+    filter: none;
+    pointer-events: auto;
+}
+
 .blur-content h3 {
     font-size: 1.25rem;
     margin-bottom: var(--space-sm);

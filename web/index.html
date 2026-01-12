@@ -771,46 +771,68 @@
                     `;
                 }
                 
-                // Check if user is Pro
+                // Check if user is Pro and get their tier
                 if (user && user.email) {
                     try {
-                        const response = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(user.email)}`);
+                        const response = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(user.email)}`);
                         const data = await response.json();
-                        
-                        if (data.success && data.status === 'pro') {
+
+                        // User is Pro if is_pro is true OR if they have a tier set
+                        const isPro = data.success && (data.is_pro || data.tier);
+                        if (isPro) {
                             const userStatus = document.getElementById('user-status');
                             const userStatusMobile = document.getElementById('user-status-mobile');
+                            const userTier = data.tier || 'category_pro';
 
+                            // Show tier badge
+                            const tierLabel = userTier === 'premier' ? 'Premier' : 'Pro';
                             if (userStatus) {
-                                userStatus.textContent = 'Pro';
+                                userStatus.textContent = tierLabel;
                                 userStatus.style.display = 'inline';
                                 userStatus.className = 'user-status pro';
                             }
-
-                            // Also set mobile Pro badge
                             if (userStatusMobile) {
-                                userStatusMobile.textContent = 'Pro';
+                                userStatusMobile.textContent = tierLabel;
                                 userStatusMobile.style.display = 'inline';
                                 userStatusMobile.className = 'user-status user-status-mobile pro';
                             }
-                            
-                            // Disable both tier buttons for Pro users
-                            if (categoryProCta) {
-                                categoryProCta.textContent = 'You\'re Subscribed';
-                                categoryProCta.disabled = true;
-                                categoryProCta.style.cursor = 'default';
-                            }
-                            if (premierCta) {
-                                premierCta.textContent = 'You\'re Subscribed';
-                                premierCta.disabled = true;
-                                premierCta.style.cursor = 'default';
+
+                            // Update tier buttons based on user's current tier
+                            if (userTier === 'premier') {
+                                // Premier user - disable both buttons
+                                if (categoryProCta) {
+                                    categoryProCta.textContent = 'You\'re Subscribed';
+                                    categoryProCta.disabled = true;
+                                    categoryProCta.style.cursor = 'default';
+                                }
+                                if (premierCta) {
+                                    premierCta.textContent = 'You\'re Subscribed';
+                                    premierCta.disabled = true;
+                                    premierCta.style.cursor = 'default';
+                                }
+                            } else {
+                                // Category Pro user - show upgrade option on Premier
+                                if (categoryProCta) {
+                                    categoryProCta.textContent = 'You\'re Subscribed';
+                                    categoryProCta.disabled = true;
+                                    categoryProCta.style.cursor = 'default';
+                                }
+                                if (premierCta) {
+                                    premierCta.textContent = 'Upgrade to Premier';
+                                    premierCta.disabled = false;
+                                    premierCta.style.cursor = 'pointer';
+                                    // Store user tier for upgrade handler
+                                    premierCta.dataset.userTier = 'category_pro';
+                                }
                             }
 
                             user.isPro = true;
+                            user.tier = userTier;
                             BevAlcAuth.setUser(user);
                         } else {
                             // User is not Pro - clear Pro status from localStorage
                             user.isPro = false;
+                            user.tier = null;
                             BevAlcAuth.setUser(user);
                         }
                     } catch (e) {
@@ -820,19 +842,56 @@
             }
         });
         
-        // Handle tier upgrade - go directly to Stripe Checkout
+        // Handle tier upgrade - go directly to Stripe Checkout or upgrade subscription
         async function handleTierUpgrade(tier, button) {
             const user = BevAlcAuth.getUser();
 
-            // If user is already Pro, do nothing
-            if (user && user.isPro) return;
+            // Check if this is an upgrade from Category Pro to Premier
+            const isUpgrade = button.dataset.userTier === 'category_pro' && tier === 'premier';
+
+            // If user is already Premier, do nothing
+            if (user && user.tier === 'premier') return;
 
             const originalText = button.textContent;
             button.disabled = true;
             button.textContent = 'Loading...';
 
             try {
-                // Create checkout session with tier
+                // If upgrading from Category Pro, use upgrade endpoint
+                if (isUpgrade && user && user.email) {
+                    const response = await fetch(`${API_BASE}/api/stripe/upgrade-subscription`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: user.email })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update local user state
+                        user.tier = 'premier';
+                        BevAlcAuth.setUser(user);
+
+                        // Show success and update UI
+                        alert('Successfully upgraded to Premier! You now have access to all categories.');
+                        button.textContent = 'You\'re Subscribed';
+                        button.disabled = true;
+                        button.style.cursor = 'default';
+
+                        // Update status badge
+                        const userStatus = document.getElementById('user-status');
+                        const userStatusMobile = document.getElementById('user-status-mobile');
+                        if (userStatus) userStatus.textContent = 'Premier';
+                        if (userStatusMobile) userStatusMobile.textContent = 'Premier';
+                    } else {
+                        alert(data.error || 'Upgrade failed. Please try again.');
+                        button.disabled = false;
+                        button.textContent = originalText;
+                    }
+                    return;
+                }
+
+                // Create checkout session for new subscription
                 const body = {
                     tier: tier,
                     successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
