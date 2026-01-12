@@ -1101,6 +1101,14 @@ async function handleSavePreferences(request, env) {
                     WHERE preferences_token = ?
                 `).bind(tier_category, receiveFreeReport ? 1 : 0, token).run();
 
+                // Clear watchlist when category changes (old watchlist items aren't relevant to new category)
+                if (isCategoryChange) {
+                    await env.DB.prepare(`
+                        DELETE FROM watchlist WHERE email = ?
+                    `).bind(user.email.toLowerCase()).run();
+                    console.log(`Cleared watchlist for ${user.email} after category change from ${user.tier_category} to ${tier_category}`);
+                }
+
                 // Sync to Loops
                 await syncToLoops(user.email, [tier_category], true, receiveFreeReport, env);
 
