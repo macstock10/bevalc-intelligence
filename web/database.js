@@ -613,8 +613,8 @@ function renderResults(data, userAllowedCategory = null) {
             }
         } else {
             // No access (free user or Category Pro viewing other category) - show blurred signal
-            const blurredSignal = cola.signal ? cola.signal.replace(/_/g, ' ') : 'SIGNAL';
-            signalHtml = `<span class="signal-badge signal-blurred" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">${blurredSignal}</span>`;
+            // Use fixed-width placeholder so length doesn't reveal the signal type
+            signalHtml = `<span class="signal-badge signal-blurred" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">XXXXXXXX</span>`;
         }
         // Note: No blurred-row class - Category Pro users see other categories same as free users
         return `
@@ -713,19 +713,9 @@ function updateResultsCount(pagination) {
 // ============================================
 
 function openModal(record) {
-    // Make brand name a clickable link to brand page (opens in new tab)
-    // Add signal badge next to brand name
     const brandSlug = makeSlug(record.brand_name);
-    const signalBadge = record.signal
-        ? `<span class="signal-badge signal-${record.signal.toLowerCase().replace(/_/g, '-')}" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle;">${record.signal.replace('_', ' ')}</span>`
-        : `<span style="margin-left: 12px; font-size: 0.65rem; color: #94a3b8; font-style: italic;">Data enrichment in progress</span>`;
 
-    if (brandSlug) {
-        elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>${signalBadge}`;
-    } else {
-        elements.modalTitle.innerHTML = `${escapeHtml(record.brand_name || 'Unknown Brand')}${signalBadge}`;
-    }
-    // Get user info for Pro check
+    // Get user info for Pro check FIRST (before rendering anything)
     const userInfo = localStorage.getItem('bevalc_user');
     let userEmail = null;
     let isPro = false;
@@ -751,6 +741,24 @@ function openModal(record) {
         // Check if record's category matches user's tier category
         const recordCategory = getCategory(record.class_type_code).category;
         hasRecordAccess = (recordCategory === userTierCategory);
+    }
+
+    // Signal badge - only show actual signal if user has access
+    let signalBadge = '';
+    if (hasRecordAccess) {
+        signalBadge = record.signal
+            ? `<span class="signal-badge signal-${record.signal.toLowerCase().replace(/_/g, '-')}" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle;">${record.signal.replace('_', ' ')}</span>`
+            : `<span style="margin-left: 12px; font-size: 0.65rem; color: #94a3b8; font-style: italic;">Data enrichment in progress</span>`;
+    } else {
+        // Blurred signal for users without access
+        signalBadge = `<span class="signal-badge signal-blurred" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle; cursor: pointer;" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">XXXXXXXX</span>`;
+    }
+
+    // Set modal title with brand name and signal badge
+    if (brandSlug) {
+        elements.modalTitle.innerHTML = `<a href="/brand/${brandSlug}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none; border-bottom: 2px solid var(--color-primary);">${escapeHtml(record.brand_name)}</a>${signalBadge}`;
+    } else {
+        elements.modalTitle.innerHTML = `${escapeHtml(record.brand_name || 'Unknown Brand')}${signalBadge}`;
     }
 
     // TTB ID - blur for users without access
@@ -1214,7 +1222,7 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
     // If user doesn't have access to this record, show upgrade prompt
     if (!hasRecordAccess) {
         return `
-            <div class="modal-section enhancement-section" style="text-align: center;">
+            <div class="modal-section enhancement-section" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 120px;">
                 <h4>Company Intelligence</h4>
                 <div style="padding: 20px;">
                     <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;">
@@ -1233,7 +1241,7 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
     setTimeout(() => checkCachedEnhancement(companyName), 100);
 
     return `
-        <div class="modal-section enhancement-section" style="text-align: center;">
+        <div class="modal-section enhancement-section" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 120px;">
             <h4>Company Intelligence</h4>
             <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-brand-name="${escapeHtml(brandName)}" data-email="${escapeHtml(userEmail || '')}">
                 <div class="enhancement-cta" id="enhancement-cta">
@@ -2114,22 +2122,35 @@ function showError(message) {
 // ============================================
 
 async function exportCSV() {
-    // Check if user is Pro
+    // Check if user is Pro and get tier info
     const userInfo = localStorage.getItem('bevalc_user');
     let isPro = false;
     let userEmail = '';
-    
+    let userTier = null;
+    let userTierCategory = null;
+
     if (userInfo) {
         try {
             const user = JSON.parse(userInfo);
             isPro = user.isPro === true;
             userEmail = user.email || '';
+            userTier = user.tier || null;
+            userTierCategory = user.tierCategory || null;
         } catch (e) {}
     }
-    
+
     if (!isPro) {
         showProUpgradePrompt();
         return;
+    }
+
+    // Category Pro users can only export their selected category
+    if (userTier === 'category_pro' && userTierCategory) {
+        const currentCategory = elements.categorySelect?.value;
+        if (currentCategory && currentCategory !== userTierCategory) {
+            showProUpgradePrompt();
+            return;
+        }
     }
     
     if (!userEmail) {
