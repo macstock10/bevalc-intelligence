@@ -612,8 +612,9 @@ function renderResults(data, userAllowedCategory = null) {
                 signalHtml = `<span style="color: #94a3b8; font-style: italic; font-size: 0.75rem;">Enriching...</span>`;
             }
         } else {
-            // No access (free user or Category Pro viewing other category) - show locked state
-            signalHtml = `<span class="signal-badge signal-locked" onclick="showProUpgradePrompt(); event.stopPropagation();">${lockIcon} Upgrade</span>`;
+            // No access (free user or Category Pro viewing other category) - show blurred signal
+            const blurredSignal = cola.signal ? cola.signal.replace(/_/g, ' ') : 'SIGNAL';
+            signalHtml = `<span class="signal-badge signal-blurred" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">${blurredSignal}</span>`;
         }
         // Note: No blurred-row class - Category Pro users see other categories same as free users
         return `
@@ -1992,11 +1993,11 @@ function showCreditPurchaseModal(isPro) {
 
     // Pro users get better rates
     const packs = isPro ? [
-        { id: 'pro_8_credits', credits: 8, price: '$10', perCredit: '$1.25' },
-        { id: 'pro_20_credits', credits: 20, price: '$25', perCredit: '$1.25', best: true }
+        { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
     ] : [
-        { id: 'free_5_credits', credits: 5, price: '$10', perCredit: '$2.00' },
-        { id: 'free_15_credits', credits: 15, price: '$25', perCredit: '$1.67', best: true }
+        { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
     ];
 
     const modal = document.createElement('div');
@@ -2031,11 +2032,6 @@ function showCreditPurchaseModal(isPro) {
                 `).join('')}
             </div>
 
-            ${!isPro ? `
-                <p style="margin-top: 16px; font-size: 0.8rem; color: #64748b; text-align: center;">
-                    <a href="/#pricing" style="color: var(--color-primary);">Upgrade to Pro ($79/mo)</a> for 25% off credits
-                </p>
-            ` : ''}
         </div>
     `;
     document.body.appendChild(modal);

@@ -3215,7 +3215,7 @@ async function handleCompanyPage(path, env, headers) {
                                         <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                         <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                         <td>${escapeHtml(f.approval_date)}</td>
-                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace(/_/g, '-')}">${f.signal.replace('_', ' ')}</span>` : '<span class="signal-badge signal-refile">—</span>'}</td>
+                                        <td><a href="/database.html?q=${encodeURIComponent(f.brand_name)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
                                     </tr>
                                 `}).join('')}
                             </tbody>
@@ -3412,7 +3412,7 @@ async function handleBrandPage(path, env, headers) {
                                         <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
-                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace(/_/g, '-')}">${p.signal.replace('_', ' ')}</span>` : '<span class="signal-badge signal-refile">—</span>'}</td>
+                                        <td><a href="/database.html?q=${encodeURIComponent(brandName)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
                                     </tr>
                                 `).join('')}
                             </tbody>

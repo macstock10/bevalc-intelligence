@@ -807,6 +807,19 @@ a:hover { color: var(--color-primary-hover); }
     opacity: 0.9;
 }
 
+.signal-badge.signal-blurred {
+    background: #e2e8f0;
+    color: #64748b;
+    filter: blur(4px);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.signal-badge.signal-blurred:hover {
+    filter: blur(3px);
+}
+
 .cell-signal {
     text-align: center;
 }

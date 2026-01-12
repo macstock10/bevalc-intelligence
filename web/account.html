@@ -631,14 +631,9 @@
             const existingModal = document.getElementById('credit-purchase-modal');
             if (existingModal) existingModal.remove();
 
-            const packs = isPro ? [
-                { id: 'pack_5_pro', credits: 5, price: '$7.50', perCredit: '$1.50/credit' },
-                { id: 'pack_10_pro', credits: 10, price: '$12.50', perCredit: '$1.25/credit', best: true },
-                { id: 'pack_25_pro', credits: 25, price: '$25.00', perCredit: '$1.00/credit' }
-            ] : [
-                { id: 'pack_5', credits: 5, price: '$10.00', perCredit: '$2.00/credit' },
-                { id: 'pack_10', credits: 10, price: '$17.50', perCredit: '$1.75/credit', best: true },
-                { id: 'pack_25', credits: 25, price: '$37.50', perCredit: '$1.50/credit' }
+            const packs = [
+                { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
+                { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
             ];
 
             const modal = document.createElement('div');
@@ -666,7 +661,6 @@
                             </button>
                         `).join('')}
                     </div>
-                    ${!isPro ? '<p style="margin-top: 16px; font-size: 0.8rem; color: #64748b; text-align: center;"><a href="/#pricing" style="color: var(--color-accent, #0d9488);">Upgrade to Pro</a> for 25% off credits</p>' : ''}
                 </div>
             `;
             document.body.appendChild(modal);
