@@ -559,7 +559,7 @@ async function handleCustomerStatus(url, env) {
 
     // First check D1 database for is_pro flag (allows admin overrides)
     const dbUser = await env.DB.prepare(
-        'SELECT is_pro, stripe_customer_id FROM user_preferences WHERE email = ?'
+        'SELECT is_pro, stripe_customer_id, tier FROM user_preferences WHERE email = ?'
     ).bind(email.toLowerCase()).first();
 
     if (dbUser && dbUser.is_pro === 1) {
@@ -568,6 +568,7 @@ async function handleCustomerStatus(url, env) {
             status: 'pro',
             email,
             customerId: dbUser.stripe_customer_id || null,
+            tier: dbUser.tier || null,
             source: 'database'
         };
     }
@@ -608,12 +609,18 @@ async function handleCustomerStatus(url, env) {
     const subsData = await subsResponse.json();
 
     if (subsData.data && subsData.data.length > 0) {
+        // Determine tier from subscription price
+        const subscription = subsData.data[0];
+        const priceId = subscription.items?.data?.[0]?.price?.id;
+        const tier = priceId === env.STRIPE_PREMIER_PRICE_ID ? 'premier' : 'category_pro';
+
         return {
             success: true,
             status: 'pro',
             email,
             customerId: customer.id,
-            subscriptionId: subsData.data[0].id
+            subscriptionId: subscription.id,
+            tier: tier
         };
     }
 

@@ -782,9 +782,9 @@
                         if (isPro) {
                             const userStatus = document.getElementById('user-status');
                             const userStatusMobile = document.getElementById('user-status-mobile');
-                            const userTier = data.tier || 'category_pro';
+                            const userTier = (data.tier || 'category_pro').toLowerCase();
 
-                            // Show tier badge
+                            // Show tier badge - Premier shows "Premier", Category Pro shows "Pro"
                             const tierLabel = userTier === 'premier' ? 'Premier' : 'Pro';
                             if (userStatus) {
                                 userStatus.textContent = tierLabel;
