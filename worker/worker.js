@@ -3917,7 +3917,11 @@ After thorough searching, provide this JSON:
   ]
 }
 
-CRITICAL for news: The "url" field MUST be the actual clickable URL to the article from your search results. Do NOT make up URLs or use placeholder text. Only include news items where you have the real article URL. If you cannot find real news articles with URLs, return an empty array: "news": []
+CRITICAL for news:
+- Only include articles that are PRIMARILY ABOUT this company or brand - not articles that merely mention them in passing
+- The "url" field MUST be the actual clickable URL to the article from your search results
+- Do NOT make up URLs or use placeholder text
+- If you cannot find real news articles specifically about this company, return an empty array: "news": []
 
 DO NOT say "limited information" unless you've tried at least 4 different search queries. Most companies are findable.`;
 

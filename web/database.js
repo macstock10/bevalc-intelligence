@@ -1380,7 +1380,11 @@ function renderTearsheet(tearsheet, cached) {
                 Download Company Report (PDF)
             </button>
 
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
+            <div style="margin-top: 12px; padding: 8px 12px; background: #fefce8; border-radius: 6px; text-align: center;">
+                <p style="font-size: 0.7rem; color: #a16207; margin: 0;">Our generated content may contain irrelevancies. Please verify before use.</p>
+            </div>
+
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
                 <a href="mailto:hello@bevalcintel.com?subject=Contact%20info%20request:%20${encodeURIComponent(tearsheet.company_name || '')}&body=I'd%20like%20contact%20information%20for%20${encodeURIComponent(tearsheet.company_name || '')}%0A%0ASpecifically%20looking%20for:%0A"
                    style="color: #64748b; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1895,14 +1899,20 @@ function generateCompanyPDF() {
         doc.setLineWidth(1);
         doc.line(marginLeft, actualFooterY, pageWidth - marginRight, actualFooterY);
 
+        // Disclaimer
+        doc.setFontSize(8);
+        doc.setTextColor(...lightGray);
+        doc.setFont('helvetica', 'italic');
+        doc.text('Our generated content may contain irrelevancies. Please verify before use.', pageWidth / 2, actualFooterY + 12, { align: 'center' });
+
         // Footer text
         doc.setFontSize(9);
         doc.setTextColor(...lightGray);
         doc.setFont('helvetica', 'normal');
-        doc.text('BevAlc Intelligence \u2022 bevalcintel.com', marginLeft, actualFooterY + 16);
+        doc.text('BevAlc Intelligence \u2022 bevalcintel.com', marginLeft, actualFooterY + 24);
 
         const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        doc.text(`Generated ${today}`, pageWidth - marginRight, actualFooterY + 16, { align: 'right' });
+        doc.text(`Generated ${today}`, pageWidth - marginRight, actualFooterY + 24, { align: 'right' });
 
         // Save the PDF
         const filename = `${(tearsheet.company_name || 'company').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.pdf`;
