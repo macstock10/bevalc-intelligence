@@ -1346,10 +1346,8 @@ async function enhanceCompany() {
 
         if (!data.success) {
             if (data.error === 'payment_required') {
-                showCreditPurchaseModal(data.is_pro);
-                // Reset to CTA state
-                document.getElementById('enhancement-loading').style.display = 'none';
-                document.getElementById('enhance-btn').parentElement.style.display = 'block';
+                // Redirect to account page credits section
+                window.location.href = '/account.html#credits';
                 return;
             }
             throw new Error(data.error || 'Enhancement failed');
@@ -2070,9 +2068,9 @@ async function loadCreditBalance(email) {
             const balanceEl = document.getElementById('credit-balance');
             if (balanceEl) {
                 if (data.credits > 0) {
-                    balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} · <a href="#" onclick="showCreditPurchaseModal(${data.is_pro}); return false;" style="color: var(--color-primary);">Get more</a>`;
+                    balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} · <a href="/account.html#credits" style="color: var(--color-primary);">Get more</a>`;
                 } else {
-                    balanceEl.innerHTML = `<a href="#" onclick="showCreditPurchaseModal(${data.is_pro}); return false;" style="color: var(--color-primary);">Get credits</a>`;
+                    balanceEl.innerHTML = `<a href="/account.html#credits" style="color: var(--color-primary);">Get credits</a>`;
                 }
             }
         }

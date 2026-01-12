@@ -339,10 +339,11 @@
                         navCta.style.display = 'inline-flex';
                     }
 
-                    // Show Pro badge on mobile
+                    // Show tier badge on mobile - check actual tier
                     const mobileBadge = document.getElementById('user-status-mobile');
                     if (mobileBadge) {
-                        mobileBadge.textContent = 'Pro';
+                        const tierLabel = data.tier === 'premier' ? 'Premier' : 'Pro';
+                        mobileBadge.textContent = tierLabel;
                         mobileBadge.style.display = 'inline-flex';
                     }
                 }

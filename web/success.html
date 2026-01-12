@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Pro | BevAlc Intelligence</title>
+    <title>Welcome | BevAlc Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -139,9 +139,9 @@
         <div class="success-card" id="success-card">
             <div class="success-loading" id="loading-state">
                 <div class="spinner"></div>
-                <p>Activating your Pro account...</p>
+                <p>Activating your subscription...</p>
             </div>
-            
+
             <div id="success-state" style="display: none;">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -149,8 +149,8 @@
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                 </div>
-                <h1>Welcome to Pro!</h1>
-                <p>Your subscription is now active. You have full access to category packs, CSV exports, and weekly intel reports.</p>
+                <h1 id="success-title">Welcome!</h1>
+                <p id="success-description">Your subscription is now active. You have full access to category packs, CSV exports, and weekly intel reports.</p>
                 
                 <div id="preferences-section">
                     <a href="#" id="preferences-link" class="btn btn-glow" style="display: none;">Choose Your Categories</a>
@@ -228,15 +228,26 @@
                 
                 if (data.success && data.status === 'complete') {
                     const customerEmail = data.customer_email;
-                    
+                    const tier = data.tier || 'category_pro';
+
                     // Save user info locally
                     localStorage.setItem('bevalc_user', JSON.stringify({
                         email: customerEmail,
                         isPro: true,
+                        tier: tier,
                         signedUpAt: new Date().toISOString()
                     }));
                     BevAlcAuth.grantAccess();
-                    
+
+                    // Update title and description based on tier
+                    const tierLabel = tier === 'premier' ? 'Premier' : 'Category Pro';
+                    document.getElementById('success-title').textContent = `Welcome to ${tierLabel}!`;
+                    if (tier === 'premier') {
+                        document.getElementById('success-description').textContent = 'Your subscription is now active. You have full access to all categories, CSV exports, and weekly intel reports.';
+                    } else {
+                        document.getElementById('success-description').textContent = 'Your subscription is now active. You have full access to your selected category, CSV exports, and weekly intel reports.';
+                    }
+
                     // Show success immediately
                     successState.style.display = 'block';
                     
