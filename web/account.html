@@ -93,6 +93,10 @@
         .watchlist-item-remove { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: transparent; border: none; color: var(--color-text-secondary); cursor: pointer; border-radius: 4px; transition: all 0.15s ease; flex-shrink: 0; }
         .watchlist-item-remove:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 
+        /* Credit pack styles */
+        .credit-pack:hover { border-color: var(--color-accent) !important; transform: translateY(-2px); }
+        .credit-pack:active { transform: translateY(0); }
+
         /* Mobile fixes */
         @media (max-width: 600px) {
             .account-page { padding: 5rem 1rem 3rem; }
@@ -303,10 +307,45 @@
                     <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
                         Credits are used to generate Company Intelligence reports in the database.
                     </p>
-                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                        <span style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary);" id="account-credit-balance">Loading...</span>
-                        <button class="btn btn-glow" id="get-credits-btn" onclick="openCreditPurchase()">Get Credits</button>
+
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🎯</span>
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Your Balance</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-text-primary);" id="account-credit-balance">-</div>
+                            </div>
+                        </div>
                     </div>
+
+                    <div id="credit-success-message" style="display: none; background: rgba(74, 222, 128, 0.1); border: 1px solid #4ade80; border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; color: #4ade80; font-weight: 500;">
+                        Credits added successfully!
+                    </div>
+
+                    <h3 style="font-size: 1rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 1rem;">Get More Credits</h3>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <!-- 10 Credit Pack -->
+                        <div class="credit-pack" id="pack-10" onclick="selectCreditPack('pack_10')" style="background: var(--color-bg-tertiary); border: 2px solid var(--color-border); border-radius: var(--radius-xl); padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--color-text-primary);">10</div>
+                            <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.75rem;">credits</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: var(--color-accent);">$20</div>
+                            <div style="font-size: 0.75rem; color: var(--color-text-secondary);">$2.00 per credit</div>
+                        </div>
+
+                        <!-- 25 Credit Pack -->
+                        <div class="credit-pack" id="pack-25" onclick="selectCreditPack('pack_25')" style="background: var(--color-bg-tertiary); border: 2px solid var(--color-border); border-radius: var(--radius-xl); padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; text-align: center; position: relative;">
+                            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--color-accent); color: white; font-size: 0.625rem; font-weight: 700; padding: 0.25rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Best Value</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--color-text-primary);">25</div>
+                            <div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.75rem;">credits</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: var(--color-accent);">$40</div>
+                            <div style="font-size: 0.75rem; color: var(--color-text-secondary);">$1.60 per credit</div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-glow" id="buy-credits-btn" onclick="purchaseCredits()" disabled style="margin-top: 1.25rem; width: 100%; opacity: 0.6;">
+                        Select a Pack
+                    </button>
                 </div>
 
                 <div class="account-section">
@@ -668,8 +707,93 @@
             document.body.appendChild(modal);
         }
 
-        async function purchaseCredits(packId) {
-            alert('Credit purchase coming soon! Pack: ' + packId);
+        let selectedCreditPack = null;
+
+        function selectCreditPack(packId) {
+            selectedCreditPack = packId;
+
+            // Update UI - highlight selected pack
+            document.querySelectorAll('.credit-pack').forEach(el => {
+                el.style.borderColor = 'var(--color-border)';
+                el.style.background = 'var(--color-bg-tertiary)';
+            });
+
+            const selectedEl = document.getElementById(packId.replace('_', '-'));
+            if (selectedEl) {
+                selectedEl.style.borderColor = 'var(--color-accent)';
+                selectedEl.style.background = 'rgba(20, 184, 166, 0.1)';
+            }
+
+            // Enable buy button
+            const buyBtn = document.getElementById('buy-credits-btn');
+            const packName = packId === 'pack_10' ? '10 Credits - $20' : '25 Credits - $40';
+            buyBtn.textContent = `Buy ${packName}`;
+            buyBtn.disabled = false;
+            buyBtn.style.opacity = '1';
+        }
+
+        async function purchaseCredits() {
+            if (!selectedCreditPack) {
+                alert('Please select a credit pack');
+                return;
+            }
+
+            const user = BevAlcAuth.getUser();
+            if (!user || !user.email) {
+                alert('Please sign in first');
+                return;
+            }
+
+            const buyBtn = document.getElementById('buy-credits-btn');
+            const originalText = buyBtn.textContent;
+            buyBtn.disabled = true;
+            buyBtn.textContent = 'Redirecting to checkout...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/credits/checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: user.email,
+                        pack: selectedCreditPack,
+                        successUrl: window.location.origin + '/account.html?credits=success#credits',
+                        cancelUrl: window.location.origin + '/account.html#credits'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert('Error: ' + (data.error || 'Could not create checkout'));
+                    buyBtn.disabled = false;
+                    buyBtn.textContent = originalText;
+                }
+            } catch (e) {
+                alert('Could not connect to server');
+                buyBtn.disabled = false;
+                buyBtn.textContent = originalText;
+            }
+        }
+
+        function checkCreditPurchaseSuccess() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('credits') === 'success') {
+                // Show success message
+                const successEl = document.getElementById('credit-success-message');
+                if (successEl) {
+                    successEl.style.display = 'block';
+                    // Hide after 5 seconds
+                    setTimeout(() => {
+                        successEl.style.display = 'none';
+                    }, 5000);
+                }
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname + '#credits');
+                // Scroll to credits section
+                document.getElementById('credits')?.scrollIntoView({ behavior: 'smooth' });
+            }
         }
 
         async function loadWatchlist() {
@@ -779,7 +903,7 @@
         document.getElementById('select-all')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = true; cb.closest('.category-option').classList.add('selected'); }); });
         document.getElementById('select-none')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = false; cb.closest('.category-option').classList.remove('selected'); }); });
         document.getElementById('save-btn')?.addEventListener('click', savePreferences);
-        document.addEventListener('DOMContentLoaded', () => { loadAccount(); loadWatchlist(); });
+        document.addEventListener('DOMContentLoaded', () => { loadAccount(); loadWatchlist(); checkCreditPurchaseSuccess(); });
 
         // Mobile menu toggle
         function toggleMobileMenu() {
