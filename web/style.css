@@ -1248,6 +1248,32 @@ a:hover { color: var(--color-primary-hover); }
 .glossary-term.status-needs-correction { border-left-color: #f59e0b; }
 .glossary-term.status-withdrawn { border-left-color: #6b7280; }
 
+/* Signal-specific styling */
+.glossary-term.signal-new-company { border-left-color: #7c3aed; }
+.glossary-term.signal-new-brand { border-left-color: #059669; }
+.glossary-term.signal-new-sku { border-left-color: #0284c7; }
+.glossary-term.signal-refile { border-left-color: #6b7280; }
+
+.section-intro {
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-xl);
+    line-height: 1.7;
+}
+
+.glossary-note {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: var(--space-lg);
+    margin-top: var(--space-xl);
+}
+
+.glossary-note p {
+    color: #166534;
+    margin: 0;
+}
+
 .glossary-footer {
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
