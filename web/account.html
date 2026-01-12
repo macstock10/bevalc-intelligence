@@ -269,12 +269,6 @@
                     </div>
                 </div>
 
-                <!-- Upgrade to Premier banner for Category Pro users -->
-                <div class="upgrade-banner" id="upgrade-to-premier-banner" style="display: none;">
-                    <h3>Unlock All Categories</h3>
-                    <a href="index.html#pricing" class="btn-upgrade-main" id="upgrade-to-premier-btn">Upgrade to Premier</a>
-                </div>
-
                 <div class="account-section">
                     <h2><span class="section-icon">⭐</span> Watchlist</h2>
                     <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
@@ -342,7 +336,13 @@
                         <button class="btn btn-glow" id="save-btn">Save Preferences</button>
                     </div>
                 </div>
-                
+
+                <!-- Upgrade to Premier banner for Category Pro users -->
+                <div class="upgrade-banner" id="upgrade-to-premier-banner" style="display: none;">
+                    <h3>Unlock All Categories</h3>
+                    <a href="index.html#pricing" class="btn-upgrade-main" id="upgrade-to-premier-btn">Upgrade to Premier</a>
+                </div>
+
                 <div class="account-section cancel-section">
                     <h2>Manage Subscription</h2>
                     <p class="cancel-text">Need to update your payment method, view invoices, or cancel your subscription?</p>
@@ -434,12 +434,7 @@
                 const statusData = await statusResponse.json();
                 if (statusData.success && statusData.status === 'pro') {
                     isPro = true;
-                    // Show Pro badge on mobile
-                    const mobileBadge = document.getElementById('user-status-mobile');
-                    if (mobileBadge) {
-                        mobileBadge.textContent = 'Pro';
-                        mobileBadge.style.display = 'inline-flex';
-                    }
+                    // Mobile badge will be updated after we know the tier
                 }
             } catch (e) {
                 console.error('Error checking status:', e);
@@ -484,6 +479,13 @@
                     // Update Pro badge text
                     const proBadgeEl = document.getElementById('pro-badge-text');
                     if (proBadgeEl) proBadgeEl.textContent = tierBadge;
+
+                    // Update mobile badge with correct tier
+                    const mobileBadge = document.getElementById('user-status-mobile');
+                    if (mobileBadge) {
+                        mobileBadge.textContent = tierBadge;
+                        mobileBadge.style.display = 'inline-flex';
+                    }
 
                     // Show upgrade to Premier banner for Category Pro users
                     if (currentTier === 'category_pro') {
@@ -633,7 +635,7 @@
 
             const packs = [
                 { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
-                { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
+                { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit' }
             ];
 
             const modal = document.createElement('div');

@@ -1672,6 +1672,12 @@ a:hover { color: var(--color-primary-hover); }
     border: 1px solid rgba(26, 188, 156, 0.2);
     border-radius: 8px;
     margin-top: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
 }
 
 .enhance-btn {

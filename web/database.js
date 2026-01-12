@@ -260,6 +260,15 @@ async function checkProStatus(email) {
                         user.tier = prefsData.tier || 'premier';
                         user.tierCategory = prefsData.tier_category || null;
                         localStorage.setItem('bevalc_user', JSON.stringify(user));
+
+                        // Update mobile badge with correct tier
+                        const mobileBadge = document.getElementById('user-status-mobile');
+                        if (mobileBadge) {
+                            const tierLabel = user.tier === 'premier' ? 'Premier' : 'Pro';
+                            mobileBadge.textContent = tierLabel;
+                            mobileBadge.style.display = 'inline-flex';
+                            mobileBadge.classList.add('pro');
+                        }
                     }
                 }
             } catch (e) {
@@ -613,8 +622,7 @@ function renderResults(data, userAllowedCategory = null) {
             }
         } else {
             // No access (free user or Category Pro viewing other category) - show blurred signal
-            // Use fixed-width placeholder so length doesn't reveal the signal type
-            signalHtml = `<span class="signal-badge signal-blurred" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">XXXXXXXX</span>`;
+            signalHtml = `<span class="signal-badge signal-blurred" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">X</span>`;
         }
         // Note: No blurred-row class - Category Pro users see other categories same as free users
         return `
@@ -751,7 +759,7 @@ function openModal(record) {
             : `<span style="margin-left: 12px; font-size: 0.65rem; color: #94a3b8; font-style: italic;">Data enrichment in progress</span>`;
     } else {
         // Blurred signal for users without access
-        signalBadge = `<span class="signal-badge signal-blurred" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle; cursor: pointer;" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">XXXXXXXX</span>`;
+        signalBadge = `<span class="signal-badge signal-blurred" style="margin-left: 12px; font-size: 0.7rem; vertical-align: middle; cursor: pointer;" onclick="showProUpgradePrompt(); event.stopPropagation();" title="Upgrade to view">X</span>`;
     }
 
     // Set modal title with brand name and signal badge
@@ -1222,9 +1230,9 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
     // If user doesn't have access to this record, show upgrade prompt
     if (!hasRecordAccess) {
         return `
-            <div class="modal-section enhancement-section" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 120px;">
+            <div class="modal-section enhancement-section">
                 <h4>Company Intelligence</h4>
-                <div style="padding: 20px;">
+                <div>
                     <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;">
                         Upgrade to access Company Intelligence for this category.
                     </p>
@@ -1241,7 +1249,7 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
     setTimeout(() => checkCachedEnhancement(companyName), 100);
 
     return `
-        <div class="modal-section enhancement-section" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 120px;">
+        <div class="modal-section enhancement-section">
             <h4>Company Intelligence</h4>
             <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-brand-name="${escapeHtml(brandName)}" data-email="${escapeHtml(userEmail || '')}">
                 <div class="enhancement-cta" id="enhancement-cta">
@@ -2002,10 +2010,10 @@ function showCreditPurchaseModal(isPro) {
     // Pro users get better rates
     const packs = isPro ? [
         { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
-        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit' }
     ] : [
         { id: 'pack_10', credits: 10, price: '$15', perCredit: '$1.50/credit' },
-        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit', best: true }
+        { id: 'pack_25', credits: 25, price: '$40', perCredit: '$1.60/credit' }
     ];
 
     const modal = document.createElement('div');
