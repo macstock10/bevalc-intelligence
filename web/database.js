@@ -1280,6 +1280,7 @@ async function enhanceCompany() {
         // Show tearsheet
         document.getElementById('enhancement-loading').style.display = 'none';
         document.getElementById('enhancement-tearsheet').style.display = 'block';
+        currentBrandName = brandName;  // Store for PDF generation
         document.getElementById('enhancement-tearsheet').innerHTML = renderTearsheet(data.tearsheet, data.cached);
 
     } catch (error) {
@@ -1292,6 +1293,7 @@ async function enhanceCompany() {
 
 // Store tearsheet data for PDF generation
 let currentTearsheetData = null;
+let currentBrandName = null;
 
 function renderTearsheet(tearsheet, cached) {
     // Store for PDF generation
@@ -1509,7 +1511,18 @@ function generateCompanyPDF() {
         const companyName = tearsheet.company_name || 'Company';
         const companyNameLines = doc.splitTextToSize(companyName, contentWidth);
         doc.text(companyNameLines, marginLeft, y);
-        y += companyNameLines.length * 26 + 10;
+        y += companyNameLines.length * 26 + 4;
+
+        // Brand name (smaller, below company name)
+        if (currentBrandName) {
+            doc.setFontSize(12);
+            doc.setTextColor(...mediumGray);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Brand: ${currentBrandName}`, marginLeft, y);
+            y += 18;
+        } else {
+            y += 6;
+        }
 
         // Website (clickable link) on left
         const websiteUrl = tearsheet.website?.url || '';
