@@ -551,7 +551,7 @@
 
                 // Check if this is a category change that needs confirmation
                 if (currentTierCategory && newCategory !== currentTierCategory) {
-                    if (!confirm(`Change your category from ${currentTierCategory} to ${newCategory}?\n\nNote: You can only change categories once per month.`)) {
+                    if (!confirm(`Change your category from ${currentTierCategory} to ${newCategory}?\n\nNote: You can only change categories once per week.`)) {
                         saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences';
                         return;
                     }
@@ -571,7 +571,7 @@
 
                 if (data.requires_confirmation) {
                     // Server wants confirmation for category change
-                    if (confirm(`Change your category from ${data.current_category} to ${data.new_category}?\n\nNote: You can only change categories once per month.`)) {
+                    if (confirm(`Change your category from ${data.current_category} to ${data.new_category}?\n\nNote: You can only change categories once per week.`)) {
                         body.confirm_category_change = true;
                         const retryResponse = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                         const retryData = await retryResponse.json();
