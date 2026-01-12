@@ -804,11 +804,15 @@
                                     categoryProCta.textContent = 'You\'re Subscribed';
                                     categoryProCta.disabled = true;
                                     categoryProCta.style.cursor = 'default';
+                                    categoryProCta.style.pointerEvents = 'none';
+                                    categoryProCta.style.opacity = '0.7';
                                 }
                                 if (premierCta) {
                                     premierCta.textContent = 'You\'re Subscribed';
                                     premierCta.disabled = true;
                                     premierCta.style.cursor = 'default';
+                                    premierCta.style.pointerEvents = 'none';
+                                    premierCta.style.opacity = '0.7';
                                 }
                             } else {
                                 // Category Pro user - show upgrade option on Premier
@@ -816,11 +820,15 @@
                                     categoryProCta.textContent = 'You\'re Subscribed';
                                     categoryProCta.disabled = true;
                                     categoryProCta.style.cursor = 'default';
+                                    categoryProCta.style.pointerEvents = 'none';
+                                    categoryProCta.style.opacity = '0.7';
                                 }
                                 if (premierCta) {
                                     premierCta.textContent = 'Upgrade to Premier';
                                     premierCta.disabled = false;
                                     premierCta.style.cursor = 'pointer';
+                                    premierCta.style.pointerEvents = 'auto';
+                                    premierCta.style.opacity = '1';
                                     // Store user tier for upgrade handler
                                     premierCta.dataset.userTier = 'category_pro';
                                 }
