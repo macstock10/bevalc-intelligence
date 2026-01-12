@@ -343,6 +343,8 @@ export default {
                 response = await handleEnhanceStatus(url, env);
             } else if (path === '/api/credits' && request.method === 'GET') {
                 response = await handleGetCredits(url, env);
+            } else if (path === '/api/credits/checkout' && request.method === 'POST') {
+                response = await handleCreditCheckout(request, env);
             } else if (path === '/api/company-lookup' && request.method === 'GET') {
                 response = await handleCompanyLookup(url, env);
             } else {
@@ -470,34 +472,68 @@ async function handleStripeWebhook(request, env, headers) {
             const session = event.data.object;
             const customerEmail = session.customer_email || session.customer_details?.email;
             const customerId = session.customer;
-            const tier = session.metadata?.tier || 'category_pro';
 
-            if (customerEmail) {
-                console.log(`Subscription activated for: ${customerEmail}, tier: ${tier}`);
+            // Check if this is a credit purchase or subscription
+            if (session.metadata?.type === 'credit_purchase') {
+                // Handle credit purchase
+                const credits = parseInt(session.metadata.credits || '0', 10);
+                const pack = session.metadata.pack;
+                const email = (session.metadata.email || customerEmail).toLowerCase();
 
-                // Generate unique preferences token
-                const preferencesToken = generateToken();
+                if (email && credits > 0) {
+                    console.log(`Credit purchase: ${credits} credits for ${email}, pack: ${pack}`);
 
-                // Create or update user_preferences record with tier
-                try {
-                    await env.DB.prepare(`
-                        INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
-                        VALUES (?, ?, 1, ?, ?, '[]', datetime('now'))
-                        ON CONFLICT(email) DO UPDATE SET
-                            stripe_customer_id = excluded.stripe_customer_id,
-                            is_pro = 1,
-                            tier = excluded.tier,
-                            preferences_token = COALESCE(user_preferences.preferences_token, excluded.preferences_token),
-                            updated_at = datetime('now')
-                    `).bind(customerEmail.toLowerCase(), customerId, tier, preferencesToken).run();
+                    try {
+                        // Add credits to user account
+                        await env.DB.prepare(`
+                            UPDATE user_preferences
+                            SET enhancement_credits = COALESCE(enhancement_credits, 0) + ?,
+                                updated_at = datetime('now')
+                            WHERE email = ?
+                        `).bind(credits, email).run();
 
-                    console.log(`User preferences record created/updated for: ${customerEmail}, tier: ${tier}`);
+                        // Log the transaction
+                        await env.DB.prepare(`
+                            INSERT INTO enhancement_credits (email, type, amount, stripe_payment_id, created_at)
+                            VALUES (?, 'purchase', ?, ?, datetime('now'))
+                        `).bind(email, credits, session.payment_intent || session.id).run();
 
-                    // Sync to Loops - mark as Pro with no categories selected yet
-                    await syncToLoops(customerEmail, [], true, true, env);
+                        console.log(`Added ${credits} credits to ${email}`);
+                    } catch (dbError) {
+                        console.error(`Failed to add credits: ${dbError.message}`);
+                    }
+                }
+            } else {
+                // Handle subscription checkout
+                const tier = session.metadata?.tier || 'category_pro';
 
-                } catch (dbError) {
-                    console.error(`Failed to create user_preferences record: ${dbError.message}`);
+                if (customerEmail) {
+                    console.log(`Subscription activated for: ${customerEmail}, tier: ${tier}`);
+
+                    // Generate unique preferences token
+                    const preferencesToken = generateToken();
+
+                    // Create or update user_preferences record with tier
+                    try {
+                        await env.DB.prepare(`
+                            INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
+                            VALUES (?, ?, 1, ?, ?, '[]', datetime('now'))
+                            ON CONFLICT(email) DO UPDATE SET
+                                stripe_customer_id = excluded.stripe_customer_id,
+                                is_pro = 1,
+                                tier = excluded.tier,
+                                preferences_token = COALESCE(user_preferences.preferences_token, excluded.preferences_token),
+                                updated_at = datetime('now')
+                        `).bind(customerEmail.toLowerCase(), customerId, tier, preferencesToken).run();
+
+                        console.log(`User preferences record created/updated for: ${customerEmail}, tier: ${tier}`);
+
+                        // Sync to Loops - mark as Pro with no categories selected yet
+                        await syncToLoops(customerEmail, [], true, true, env);
+
+                    } catch (dbError) {
+                        console.error(`Failed to create user_preferences record: ${dbError.message}`);
+                    }
                 }
             }
             break;
@@ -839,6 +875,78 @@ async function handleUpgradeSubscription(request, env) {
         message: 'Subscription upgraded to Premier',
         subscriptionId: subscription.id
     };
+}
+
+// ==========================================
+// CREDIT PURCHASE HANDLERS
+// ==========================================
+
+const CREDIT_PACKS = {
+    'pack_10': { credits: 10, price: 2000, name: '10 Credits' },  // $20.00
+    'pack_25': { credits: 25, price: 4000, name: '25 Credits' }   // $40.00
+};
+
+async function handleCreditCheckout(request, env) {
+    const body = await request.json();
+    const { email, pack, successUrl, cancelUrl } = body;
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    if (!pack || !CREDIT_PACKS[pack]) {
+        return { success: false, error: 'Invalid credit pack. Use pack_10 or pack_25' };
+    }
+
+    const stripeSecretKey = env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+        return { success: false, error: 'Stripe not configured' };
+    }
+
+    const creditPack = CREDIT_PACKS[pack];
+
+    // Create one-time payment checkout session
+    const checkoutData = {
+        'mode': 'payment',
+        'payment_method_types[]': 'card',
+        'line_items[0][price_data][currency]': 'usd',
+        'line_items[0][price_data][unit_amount]': creditPack.price.toString(),
+        'line_items[0][price_data][product_data][name]': `BevAlc Intelligence - ${creditPack.name}`,
+        'line_items[0][price_data][product_data][description]': `${creditPack.credits} Company Intelligence credits`,
+        'line_items[0][quantity]': '1',
+        'success_url': successUrl || 'https://bevalcintel.com/account.html?credits=success',
+        'cancel_url': cancelUrl || 'https://bevalcintel.com/account.html#credits',
+        'customer_email': email,
+        'metadata[type]': 'credit_purchase',
+        'metadata[pack]': pack,
+        'metadata[credits]': creditPack.credits.toString(),
+        'metadata[email]': email.toLowerCase()
+    };
+
+    try {
+        const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${stripeSecretKey}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: Object.entries(checkoutData).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+        });
+
+        const session = await response.json();
+
+        if (session.error) {
+            return { success: false, error: session.error.message };
+        }
+
+        return {
+            success: true,
+            sessionId: session.id,
+            url: session.url
+        };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
 }
 
 // ==========================================
