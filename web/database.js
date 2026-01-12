@@ -425,10 +425,10 @@ async function loadFilters() {
 
 async function performSearch() {
     if (state.isLoading) return;
-    
+
     state.isLoading = true;
     showLoading();
-    
+
     try {
         const params = new URLSearchParams({
             page: state.currentPage,
@@ -436,10 +436,16 @@ async function performSearch() {
             sort: state.sortColumn,
             order: state.sortDirection
         });
-        
+
+        // Pass user email for tier checking
+        const user = BevAlcAuth.getUser();
+        if (user?.email) {
+            params.append('email', user.email);
+        }
+
         const query = elements.searchInput.value.trim();
         if (query) params.append('q', query);
-        
+
         const origin = elements.filterOrigin.value;
         if (origin) params.append('origin', origin);
 
@@ -465,12 +471,15 @@ async function performSearch() {
 
         const response = await fetch(`${API_BASE}/api/search?${params}`);
         const data = await response.json();
-        
+
         if (data.success) {
             state.currentResults = data.data;  // Store for CSV export
             renderResults(data.data);
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
+        } else if (data.error === 'category_required') {
+            // Category Pro user hasn't selected their category yet
+            showCategoryRequiredMessage();
         } else {
             showError('Failed to load data. Please try again.');
         }
@@ -519,6 +528,24 @@ function populateFilterDropdowns() {
         option.textContent = status;
         elements.filterStatus.appendChild(option);
     });
+}
+
+function showCategoryRequiredMessage() {
+    elements.resultsBody.innerHTML = `
+        <tr>
+            <td colspan="7" class="no-results">
+                <div class="no-results-content">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path>
+                    </svg>
+                    <h3>Select Your Category</h3>
+                    <p>Please choose your category in <a href="account.html" style="color: var(--color-primary);">Account Settings</a> to access the database.</p>
+                </div>
+            </td>
+        </tr>
+    `;
+    elements.pagination.innerHTML = '';
+    elements.resultsCount.textContent = '';
 }
 
 function renderResults(data) {

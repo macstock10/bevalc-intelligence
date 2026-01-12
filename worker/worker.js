@@ -1842,10 +1842,35 @@ async function handleSearch(url, env) {
 
     const offset = (page - 1) * limit;
 
+    // Check for Category Pro user restrictions
+    const email = params.get('email');
+    let forcedCategory = null;
+
+    if (email) {
+        try {
+            const user = await env.DB.prepare(
+                'SELECT tier, tier_category FROM user_preferences WHERE email = ?'
+            ).bind(email.toLowerCase()).first();
+
+            if (user?.tier === 'category_pro') {
+                if (!user.tier_category) {
+                    return {
+                        success: false,
+                        error: 'category_required',
+                        message: 'Please select your category in account settings to access the database.'
+                    };
+                }
+                forcedCategory = user.tier_category;
+            }
+        } catch (e) {
+            console.error('Error checking user tier:', e);
+        }
+    }
+
     const query = params.get('q')?.trim();
     const origin = params.get('origin');
     const classType = params.get('class_type');
-    const category = params.get('category');
+    let category = forcedCategory || params.get('category');  // Force category for Category Pro users
     const subcategory = params.get('subcategory');  // Subcategory name (e.g., "Bourbon", "Irish Whiskey")
     const status = params.get('status');
     const dateFrom = params.get('date_from');
