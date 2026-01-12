@@ -302,6 +302,34 @@
                     </div>
                 </div>
 
+                <div class="account-section">
+                    <h2><span class="section-icon">📊</span> Report Preferences</h2>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
+                    
+                    <div class="select-helpers">
+                        <button type="button" class="select-helper-btn" id="select-all">Select All</button>
+                        <button type="button" class="select-helper-btn" id="select-none">Clear All</button>
+                    </div>
+                    
+                    <div class="category-grid" id="category-grid"></div>
+                    
+                    <div class="toggle-option">
+                        <div>
+                            <div class="toggle-label">Free Weekly Snapshot</div>
+                            <div class="toggle-desc">Market-wide summary with top-level metrics</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="receive-free-report" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="save-section">
+                        <span class="save-status" id="save-status"></span>
+                        <button class="btn btn-glow" id="save-btn">Save Preferences</button>
+                    </div>
+                </div>
+
                 <div class="account-section" id="credits">
                     <h2><span class="section-icon">✨</span> Company Intelligence Credits</h2>
                     <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
@@ -346,34 +374,6 @@
                     <button class="btn btn-glow" id="buy-credits-btn" onclick="purchaseCredits()" disabled style="margin-top: 1.25rem; width: 100%; opacity: 0.6;">
                         Select a Pack
                     </button>
-                </div>
-
-                <div class="account-section">
-                    <h2><span class="section-icon">📊</span> Report Preferences</h2>
-                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Select which category reports you want to receive each Sunday.</p>
-                    
-                    <div class="select-helpers">
-                        <button type="button" class="select-helper-btn" id="select-all">Select All</button>
-                        <button type="button" class="select-helper-btn" id="select-none">Clear All</button>
-                    </div>
-                    
-                    <div class="category-grid" id="category-grid"></div>
-                    
-                    <div class="toggle-option">
-                        <div>
-                            <div class="toggle-label">Free Weekly Snapshot</div>
-                            <div class="toggle-desc">Market-wide summary with top-level metrics</div>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="receive-free-report" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    
-                    <div class="save-section">
-                        <span class="save-status" id="save-status"></span>
-                        <button class="btn btn-glow" id="save-btn">Save Preferences</button>
-                    </div>
                 </div>
 
                 <!-- Upgrade to Premier banner for Category Pro users -->
