@@ -265,7 +265,7 @@ Core scraping class used by weekly_update.py:
 | brand_portfolio | TEXT | JSON array of {name, filings} |
 | category_breakdown | TEXT | JSON: {CODE: count, ...} |
 | summary | TEXT | AI-generated company summary |
-| news | TEXT | JSON array of {title, date, source} |
+| news | TEXT | JSON array of {title, date, source, url} |
 | enhanced_at | TEXT | ISO timestamp |
 | enhanced_by | TEXT | Email of user who triggered |
 | expires_at | TEXT | Cache expiry (90 days from enhanced_at) |
@@ -393,7 +393,16 @@ See `CLAUDE-CONTENT.md` for full documentation.
 
 **Company Normalization:** Raw company names are mapped to normalized `company_id` via `company_aliases` table. This handles "ABC Inc" vs "ABC Inc." as the same company.
 
-**PDF Generation:** Company reports use html2pdf.js (not jsPDF). The report is built as HTML with inline styles, rendered in a hidden container, then converted to PDF. This gives full control over typography and layout.
+**PDF Generation:** Company reports use jsPDF for precise control. The report uses coordinate-based positioning with:
+- `textWithLink()` for clickable URLs (website, news articles)
+- `splitTextToSize()` for text wrapping
+- Category grouping (TTB subcodes → parent categories via `getCategoryName()`)
+- Signal badges (NEW_COMPANY, NEW_BRAND, etc.)
+
+**Enhancement API:** When user clicks Enhance from a brand modal:
+- The clicked brand name is passed to `/api/enhance` (not just top-filing brand)
+- Claude uses this brand name in search queries for better relevance
+- Rate limit retry: 10s, 30s, 60s delays (max 3 attempts) for Claude API 429 errors
 
 ---
 

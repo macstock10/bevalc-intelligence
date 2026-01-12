@@ -143,6 +143,12 @@ The script:
 - Scripts use inline SQL values (not parameterized) to avoid this.
 - See `escape_sql_value()` function in weekly_update.py.
 
+### "Claude API rate limit exceeded" in enhancement
+- Enhancement retries automatically (10s, 30s, 60s delays, max 3 attempts)
+- If still failing, wait 2+ minutes and retry
+- For testing, space out enhancement requests
+- Low volume (5-10 per user) should not hit limits in production
+
 ### Netlify deploy shows "Not Found"
 - Check Build settings ? Publish directory = `web`
 - Or check `netlify.toml` has `publish = "web"`

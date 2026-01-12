@@ -3913,40 +3913,67 @@ After thorough searching, provide this JSON:
   "website": "https://example.com" or null ONLY if truly not found after multiple searches,
   "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Be specific with facts you found.",
   "news": [
-    {"title": "Headline", "date": "2024-01", "source": "Publication Name", "url": "https://article-url.com"}
+    {"title": "Actual article headline", "date": "2024-01", "source": "Publication Name", "url": "https://actual-article-url.com/full/path"}
   ]
 }
 
+CRITICAL for news: The "url" field MUST be the actual clickable URL to the article from your search results. Do NOT make up URLs or use placeholder text. Only include news items where you have the real article URL. If you cannot find real news articles with URLs, return an empty array: "news": []
+
 DO NOT say "limited information" unless you've tried at least 4 different search queries. Most companies are findable.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 800,
-            tools: [{
-                type: 'web_search_20250305',
-                name: 'web_search',
-                max_uses: 5
-            }],
-            messages: [{
-                role: 'user',
-                content: prompt
-            }]
-        })
-    });
+    // Retry logic for rate limits
+    const maxRetries = 3;
+    let lastError = null;
 
-    if (!response.ok) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (attempt > 0) {
+            // Wait before retry: 10s, 30s, 60s (generous delays for rate limit recovery)
+            const waitMs = Math.min(10000 * Math.pow(2, attempt), 60000);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 800,
+                tools: [{
+                    type: 'web_search_20250305',
+                    name: 'web_search',
+                    max_uses: 5
+                }],
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            })
+        });
+
+        if (response.ok) {
+            // Success - continue with processing below
+            var result = await response.json();
+            break;
+        }
+
+        if (response.status === 429) {
+            // Rate limited - retry after delay
+            lastError = `Rate limited (attempt ${attempt + 1}/${maxRetries})`;
+            console.log(lastError);
+            if (attempt === maxRetries - 1) {
+                throw new Error('Claude API rate limit exceeded. Please try again in a minute.');
+            }
+            continue;
+        }
+
+        // Other error - don't retry
         const errorText = await response.text();
         throw new Error(`Claude API error: ${response.status} - ${errorText}`);
     }
-
-    const result = await response.json();
 
     // Extract text from response
     let textContent = '';
