@@ -600,7 +600,7 @@ function showDataLagBanner(lagMonths) {
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M12 6v6l4 2"></path>
         </svg>
-        <span>Free accounts see data with a ${lagMonths}-month delay. <a href="#pricing">Upgrade to Pro</a> for real-time access.</span>
+        <span>Free accounts see data with a ${lagMonths}-month delay. <a href="index.html#pricing">Upgrade to Pro</a> for real-time access.</span>
     `;
 
     // Insert before the results table
