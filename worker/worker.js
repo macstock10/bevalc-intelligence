@@ -2981,6 +2981,28 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                 // Remove email gate on company/brand pages for Pro users
                 document.querySelectorAll('.gate-overlay').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.gated-table').forEach(el => el.classList.remove('gated-table'));
+                // Replace "Upgrade" badges with actual signal values for Pro users
+                document.querySelectorAll('td[data-signal] .signal-upgrade').forEach(el => {
+                    const signal = el.closest('td').dataset.signal;
+                    if (signal) {
+                        const signalClasses = {
+                            'NEW_COMPANY': 'signal-new-company',
+                            'NEW_BRAND': 'signal-new-brand',
+                            'NEW_SKU': 'signal-new-sku',
+                            'REFILE': 'signal-refile'
+                        };
+                        const signalLabels = {
+                            'NEW_COMPANY': 'New Company',
+                            'NEW_BRAND': 'New Brand',
+                            'NEW_SKU': 'New SKU',
+                            'REFILE': 'Refile'
+                        };
+                        const span = document.createElement('span');
+                        span.className = 'signal-badge ' + (signalClasses[signal] || 'signal-refile');
+                        span.textContent = signalLabels[signal] || signal;
+                        el.replaceWith(span);
+                    }
+                });
             }
 
             try {
@@ -3441,7 +3463,7 @@ async function handleCompanyPage(path, env, headers) {
                                             <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                             <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                             <td>${escapeHtml(f.approval_date)}</td>
-                                            <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                            <td data-signal="${f.signal || ''}"><a href="/#pricing" class="signal-badge signal-upgrade" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
                                         </tr>
                                     `}).join('')}
                                 </tbody>
@@ -3661,7 +3683,7 @@ async function handleBrandPage(path, env, headers) {
                                             <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                             <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                             <td>${escapeHtml(p.approval_date)}</td>
-                                            <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                            <td data-signal="${p.signal || ''}"><a href="/#pricing" class="signal-badge signal-upgrade" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -4214,7 +4236,7 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         return `${m}/${d}/${y}`;
     };
 
-    // Prepare data for Claude
+    // Prepare data for enhancement
     // Use clicked brand name first, then fall back to top brand by filing count
     const topBrandFromDb = brands?.results?.[0]?.brand_name || '';
     const primaryBrand = clickedBrandName || topBrandFromDb || 'Unknown';
@@ -4222,33 +4244,62 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
     const categoryList = categories?.results?.map(c => c.class_type_code).join(', ') || 'Unknown';
     const stateList = states?.results?.map(s => s.state).join(', ') || 'Unknown';
 
-    // Call Claude with web search to find website and generate summary
+    // Get industry hint for better search results
+    const industryHint = getIndustryHint(categoryList);
+
+    // NEW FLOW: Google CSE + Deep Crawl + Claude Summarization
     let websiteUrl = existingWebsite?.website_url || null;
     let summary = null;
     let news = [];
+    let social = null;
 
-    if (env.ANTHROPIC_API_KEY) {
-        const claudeResult = await callClaudeWithSearch(companyName, {
-            totalFilings: stats?.total_filings || 0,
-            firstFiling: stats?.first_filing,
-            lastFiling: stats?.last_filing,
-            last12Months: stats?.last_12_months || 0,
-            trend,
-            primaryBrand: primaryBrand,
-            brands: brandList,
-            categories: categoryList,
-            states: stateList,
-            existingWebsite: websiteUrl
-        }, env);
+    try {
+        // Step 1: Discover URLs using Google Custom Search
+        console.log(`[Enhancement] Discovering URLs for: ${companyName}`);
+        const discoveredUrls = await discoverCompanyUrls(companyName, primaryBrand, industryHint, env);
 
-        if (claudeResult.website && !websiteUrl) {
-            websiteUrl = claudeResult.website;
+        // Use discovered website or existing one
+        if (discoveredUrls.website && !websiteUrl) {
+            websiteUrl = discoveredUrls.website;
         }
-        summary = claudeResult.summary;
-        news = claudeResult.news || [];
-        var social = claudeResult.social || null;
-    } else {
-        console.error('ANTHROPIC_API_KEY not set');
+        console.log(`[Enhancement] Website found: ${websiteUrl || 'none'}`);
+
+        // Step 2: Deep crawl the website for content
+        let websiteContent = null;
+        if (websiteUrl) {
+            console.log(`[Enhancement] Crawling website: ${websiteUrl}`);
+            websiteContent = await crawlWebsite(websiteUrl);
+            console.log(`[Enhancement] Crawled pages: homepage=${!!websiteContent?.homepage}, about=${!!websiteContent?.aboutPage}, contact=${!!websiteContent?.contactPage}`);
+        }
+
+        // Step 3: Generate summary using Claude (no web_search - just text analysis)
+        if (env.ANTHROPIC_API_KEY) {
+            console.log(`[Enhancement] Generating summary with Claude...`);
+            const claudeResult = await callClaudeForSummary(companyName, {
+                totalFilings: stats?.total_filings || 0,
+                firstFiling: formatDate(stats?.first_filing_sort),
+                lastFiling: formatDate(stats?.last_filing_sort),
+                last12Months: stats?.last_12_months || 0,
+                trend,
+                primaryBrand,
+                brands: brandList,
+                categories: categoryList,
+                states: stateList
+            }, discoveredUrls, websiteContent, env);
+
+            summary = claudeResult.summary;
+            console.log(`[Enhancement] Summary generated, confidence: ${claudeResult.confidence}`);
+        } else {
+            console.error('ANTHROPIC_API_KEY not set');
+        }
+
+        // Use discovered social and news
+        social = discoveredUrls.social || null;
+        news = discoveredUrls.news || [];
+
+    } catch (e) {
+        console.error('[Enhancement] Error in new flow:', e);
+        // Continue with partial results
     }
 
     return {
@@ -4285,6 +4336,434 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
     };
 }
 
+// ============================================================================
+// NEW ENHANCEMENT FUNCTIONS (Google CSE + Deep Crawl)
+// ============================================================================
+
+// Single Google Custom Search query
+async function googleSearch(query, env) {
+    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
+        console.error('Google CSE credentials not configured');
+        return [];
+    }
+
+    try {
+        const url = new URL('https://www.googleapis.com/customsearch/v1');
+        url.searchParams.set('key', env.GOOGLE_CSE_API_KEY);
+        url.searchParams.set('cx', env.GOOGLE_CSE_ID);
+        url.searchParams.set('q', query);
+        url.searchParams.set('num', '5');
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            console.error('Google CSE error:', response.status, await response.text());
+            return [];
+        }
+
+        const data = await response.json();
+        return data.items || [];
+    } catch (e) {
+        console.error('Google search failed:', e);
+        return [];
+    }
+}
+
+// Run multiple Google searches to discover company URLs
+async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
+    // Retailer domains to skip
+    const retailerDomains = [
+        'drizly.com', 'totalwine.com', 'vivino.com', 'wine-searcher.com',
+        'reservebar.com', 'caskers.com', 'wine.com', 'thewhiskyexchange.com',
+        'masterofmalt.com', 'klwines.com', 'astorwines.com', 'bevmo.com',
+        'liquor.com', 'thewhiskyworld.com', 'flaviar.com'
+    ];
+
+    // Review/listing sites to skip
+    const skipDomains = [
+        'yelp.com', 'tripadvisor.com', 'untappd.com', 'ratebeer.com',
+        'beeradvocate.com', 'whiskybase.com', 'distiller.com',
+        'linkedin.com', 'twitter.com', 'x.com', 'youtube.com',
+        'amazon.com', 'walmart.com', 'target.com'
+    ];
+
+    // Clean company name for searching (remove LLC, Inc, etc.)
+    const cleanCompanyName = companyName
+        .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.L\.C\.|INC\.|CORP\.)\b\.?/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Run 4 searches in parallel
+    const [companyResults, brandResults, socialResults, newsResults] = await Promise.all([
+        googleSearch(`"${cleanCompanyName}"`, env),
+        googleSearch(`${brandName} official website ${industryHint}`, env),
+        googleSearch(`${cleanCompanyName} OR ${brandName} facebook instagram`, env),
+        googleSearch(`"${cleanCompanyName}" OR "${brandName}" news 2024 2025`, env)
+    ]);
+
+    // Extract official website (first non-retailer result)
+    let websiteUrl = null;
+    const allResults = [...companyResults, ...brandResults];
+
+    for (const result of allResults) {
+        try {
+            const url = result.link;
+            const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
+
+            // Skip retailers
+            if (retailerDomains.some(r => domain.includes(r))) continue;
+            // Skip review/listing sites
+            if (skipDomains.some(r => domain.includes(r))) continue;
+            // Skip social media as primary website
+            if (domain.includes('facebook.com') || domain.includes('instagram.com')) continue;
+
+            // Found likely official website
+            websiteUrl = url;
+            break;
+        } catch (e) {
+            continue;
+        }
+    }
+
+    // Extract social media URLs
+    let facebookUrl = null;
+    let instagramUrl = null;
+
+    for (const result of [...socialResults, ...companyResults, ...brandResults]) {
+        const url = result.link;
+        if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) {
+            facebookUrl = url;
+        }
+        if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) {
+            instagramUrl = url;
+        }
+    }
+
+    // Extract news articles
+    const newsArticles = [];
+    const seenUrls = new Set();
+
+    for (const result of newsResults) {
+        try {
+            const url = result.link;
+            const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
+
+            // Skip company's own site
+            if (websiteUrl && url.includes(new URL(websiteUrl).hostname)) continue;
+            // Skip retailers
+            if (retailerDomains.some(r => domain.includes(r))) continue;
+            // Skip duplicates
+            if (seenUrls.has(url)) continue;
+
+            seenUrls.add(url);
+            newsArticles.push({
+                title: result.title,
+                url: url,
+                source: domain.replace('.com', '').replace('.org', ''),
+                snippet: result.snippet
+            });
+
+            if (newsArticles.length >= 3) break;
+        } catch (e) {
+            continue;
+        }
+    }
+
+    return {
+        website: websiteUrl,
+        social: {
+            facebook: facebookUrl,
+            instagram: instagramUrl
+        },
+        news: newsArticles
+    };
+}
+
+// Deep crawl a website - homepage + relevant internal pages
+async function crawlWebsite(websiteUrl) {
+    if (!websiteUrl) return null;
+
+    const results = {
+        homepage: null,
+        aboutPage: null,
+        contactPage: null,
+        otherPages: []
+    };
+
+    // Keywords that indicate valuable pages
+    const relevantKeywords = [
+        'about', 'story', 'history', 'heritage', 'tradition', 'our-story',
+        'team', 'people', 'founder', 'family', 'who-we-are',
+        'contact', 'visit', 'location', 'find-us', 'hours',
+        'distillery', 'winery', 'brewery', 'cellar', 'tasting'
+    ];
+
+    // Common paths to try as fallback
+    const commonPaths = [
+        '/about', '/about-us', '/our-story', '/story', '/history',
+        '/contact', '/contact-us', '/visit', '/location',
+        '/team', '/our-team'
+    ];
+
+    // Clean HTML content
+    function cleanHtml(html) {
+        return html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    // Fetch a single page
+    async function fetchPage(url) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; BevAlcIntelBot/1.0; +https://bevalcintel.com)'
+                },
+                redirect: 'follow'
+            });
+
+            if (!response.ok) return null;
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('text/html')) return null;
+
+            const html = await response.text();
+            return {
+                html,
+                text: cleanHtml(html)
+            };
+        } catch (e) {
+            console.error(`Failed to fetch ${url}:`, e.message);
+            return null;
+        }
+    }
+
+    // Extract internal links from HTML
+    function extractInternalLinks(html, baseUrl) {
+        const baseDomain = new URL(baseUrl).hostname;
+        const linkRegex = /href=["']([^"']+)["']/gi;
+        const links = [];
+        let match;
+
+        while ((match = linkRegex.exec(html)) !== null) {
+            let href = match[1];
+
+            // Skip anchors, javascript, mailto, tel
+            if (href.startsWith('#') || href.startsWith('javascript:') ||
+                href.startsWith('mailto:') || href.startsWith('tel:')) continue;
+
+            // Convert relative to absolute
+            try {
+                const absoluteUrl = new URL(href, baseUrl).href;
+                const urlDomain = new URL(absoluteUrl).hostname;
+
+                // Only include internal links
+                if (urlDomain === baseDomain || urlDomain === 'www.' + baseDomain ||
+                    'www.' + urlDomain === baseDomain) {
+                    links.push(absoluteUrl);
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        return [...new Set(links)]; // Dedupe
+    }
+
+    try {
+        // Step 1: Fetch homepage
+        const homepage = await fetchPage(websiteUrl);
+        if (!homepage) return null;
+
+        results.homepage = homepage.text.substring(0, 3500);
+
+        // Step 2: Extract and filter internal links
+        const internalLinks = extractInternalLinks(homepage.html, websiteUrl);
+        const relevantLinks = internalLinks.filter(link => {
+            const path = new URL(link).pathname.toLowerCase();
+            return relevantKeywords.some(kw => path.includes(kw));
+        });
+
+        // Step 3: Fetch relevant pages (max 3)
+        const pagesToFetch = relevantLinks.slice(0, 3);
+
+        // Step 4: If no relevant links found, try common paths
+        if (pagesToFetch.length === 0) {
+            const baseUrl = new URL(websiteUrl).origin;
+            for (const path of commonPaths) {
+                pagesToFetch.push(baseUrl + path);
+                if (pagesToFetch.length >= 3) break;
+            }
+        }
+
+        // Fetch additional pages in parallel
+        const additionalPages = await Promise.all(
+            pagesToFetch.map(url => fetchPage(url))
+        );
+
+        // Categorize fetched pages
+        for (let i = 0; i < pagesToFetch.length; i++) {
+            const page = additionalPages[i];
+            if (!page) continue;
+
+            const path = new URL(pagesToFetch[i]).pathname.toLowerCase();
+            const content = page.text.substring(0, 2500);
+
+            if (path.includes('about') || path.includes('story') || path.includes('history')) {
+                results.aboutPage = content;
+            } else if (path.includes('contact') || path.includes('visit') || path.includes('location')) {
+                results.contactPage = content;
+            } else {
+                results.otherPages.push(content);
+            }
+        }
+
+        return results;
+    } catch (e) {
+        console.error('Website crawl failed:', e);
+        return null;
+    }
+}
+
+// Generate summary using Claude (no web_search - just text analysis)
+async function callClaudeForSummary(companyName, filingData, discoveredUrls, websiteContent, env) {
+    // Build the content sections
+    let contentSections = [];
+
+    if (websiteContent?.homepage) {
+        contentSections.push(`HOMEPAGE CONTENT:\n${websiteContent.homepage}`);
+    }
+    if (websiteContent?.aboutPage) {
+        contentSections.push(`ABOUT PAGE CONTENT:\n${websiteContent.aboutPage}`);
+    }
+    if (websiteContent?.contactPage) {
+        contentSections.push(`CONTACT PAGE CONTENT:\n${websiteContent.contactPage}`);
+    }
+    if (websiteContent?.otherPages?.length > 0) {
+        contentSections.push(`OTHER PAGE CONTENT:\n${websiteContent.otherPages.join('\n\n')}`);
+    }
+
+    const websiteContentText = contentSections.length > 0
+        ? contentSections.join('\n\n---\n\n')
+        : 'No website content available.';
+
+    const newsText = discoveredUrls.news?.length > 0
+        ? discoveredUrls.news.map(n => `- ${n.title} (${n.source}): ${n.snippet || ''}`).join('\n')
+        : 'No news articles found.';
+
+    const prompt = `You are writing a company intelligence summary for a beverage alcohol business report.
+
+COMPANY: ${companyName}
+PRIMARY BRAND: ${filingData.primaryBrand || 'Unknown'}
+INDUSTRY: ${filingData.categories || 'Beverage alcohol'}
+
+TTB FILING DATA:
+- Total filings: ${filingData.totalFilings}
+- First filing: ${filingData.firstFiling || 'Unknown'}
+- Last filing: ${filingData.lastFiling || 'Unknown'}
+- Last 12 months: ${filingData.last12Months} filings
+- Trend: ${filingData.trend}
+- States: ${filingData.states || 'Unknown'}
+- Top brands: ${filingData.brands || 'Unknown'}
+
+${discoveredUrls.website ? `OFFICIAL WEBSITE: ${discoveredUrls.website}` : 'NO WEBSITE FOUND'}
+${discoveredUrls.social?.facebook ? `FACEBOOK: ${discoveredUrls.social.facebook}` : ''}
+${discoveredUrls.social?.instagram ? `INSTAGRAM: ${discoveredUrls.social.instagram}` : ''}
+
+WEBSITE CONTENT:
+${websiteContentText}
+
+RECENT NEWS:
+${newsText}
+
+Based on ALL the information above, write a JSON response:
+{
+    "summary": "Write 3-5 detailed sentences about this company. Include: 1) What they are and where located, 2) Founding story/history if mentioned, 3) Their flagship products or what they're known for, 4) Any awards, recognition, or unique facts, 5) Recent developments if found in news. Use SPECIFIC facts from the website content - founding year, city/state, founder names, product names, etc. Do NOT be generic.",
+    "confidence": "high" if website content was available and informative, "medium" if limited content, "low" if minimal info
+}
+
+IMPORTANT:
+- Extract SPECIFIC details from the website content (names, dates, places, products)
+- If the about page mentions founders, include their names
+- If a location is mentioned, include the city and state
+- Do NOT say "limited information" if website content is provided
+- Do NOT make up facts - only use what's in the content above`;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 800,
+                // NO tools - just text analysis
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('Claude API error:', response.status, error);
+            return { summary: null, confidence: 'low' };
+        }
+
+        const result = await response.json();
+        const textContent = result.content?.find(b => b.type === 'text')?.text || '';
+
+        try {
+            const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (e) {
+            console.error('Failed to parse Claude response:', e);
+        }
+
+        return { summary: null, confidence: 'low' };
+    } catch (e) {
+        console.error('Claude API call failed:', e);
+        return { summary: null, confidence: 'low' };
+    }
+}
+
+// Get industry hint from category codes
+function getIndustryHint(categories) {
+    const cats = categories || '';
+    if (cats.includes('WHISKY') || cats.includes('BOURBON')) return 'distillery whiskey bourbon';
+    if (cats.includes('WINE') || cats.includes('TABLE')) return 'winery wine';
+    if (cats.includes('BEER') || cats.includes('ALE') || cats.includes('MALT')) return 'brewery craft beer';
+    if (cats.includes('VODKA') || cats.includes('GIN')) return 'distillery spirits';
+    if (cats.includes('TEQUILA') || cats.includes('MEZCAL')) return 'tequila mezcal distillery';
+    if (cats.includes('RUM')) return 'rum distillery';
+    if (cats.includes('BRANDY') || cats.includes('COGNAC')) return 'brandy cognac distillery';
+    return 'beverage alcohol';
+}
+
+// ============================================================================
+// OLD ENHANCEMENT FUNCTION (kept for rollback - now commented out)
+// ============================================================================
+
+/*
 async function callClaudeWithSearch(companyName, data, env) {
     // Build context about what type of company this is
     const categories = data.categories || '';
@@ -4427,6 +4906,7 @@ DO NOT say "limited information" unless you've tried at least 4 different search
 
     return { website: null, summary: null, news: [] };
 }
+*/
 
 async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
     const now = new Date().toISOString();
