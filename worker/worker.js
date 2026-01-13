@@ -3219,6 +3219,26 @@ async function handleCompanyPage(path, env, headers) {
         primaryLocation = locationResult?.state || null;
     }
 
+    // Get earliest filing year for this company
+    let earliestYear = null;
+    if (hasCompanyId) {
+        const yearResult = await env.DB.prepare(`
+            SELECT MIN(year) as earliest_year
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ? AND year IS NOT NULL
+        `).bind(company.id).first();
+        earliestYear = yearResult?.earliest_year || null;
+    } else {
+        const yearResult = await env.DB.prepare(`
+            SELECT MIN(year) as earliest_year
+            FROM colas
+            WHERE company_name = ? AND year IS NOT NULL
+        `).bind(company.canonical_name).first();
+        earliestYear = yearResult?.earliest_year || null;
+    }
+    company.first_filing = earliestYear;
+
     // Get related companies (same top category)
     const topCategory = categories[0]?.class_type_code;
     let relatedCompanies = [];
@@ -3259,14 +3279,33 @@ async function handleCompanyPage(path, env, headers) {
         : '';
 
     const title = `${company.display_name} Brands & Portfolio`;
-    const description = `Explore ${company.display_name}'s beverage portfolio including ${brandListText}. ${formatNumber(company.total_filings)} TTB COLA filings across ${formatNumber(brands.length)}+ brands.`;
 
+    // SEO-optimized meta description (max 155 chars)
+    // Template: "[Company Name]: [X] product filings since [earliest year], [Y] brands, based in [City, State]. See their full portfolio and latest launches."
+    let metaDesc = `${company.display_name}: ${formatNumber(company.total_filings)} product filings`;
+    if (earliestYear) metaDesc += ` since ${earliestYear}`;
+    metaDesc += `, ${formatNumber(brands.length)}+ brands`;
+    if (primaryLocation) metaDesc += `, based in ${primaryLocation}`;
+    metaDesc += `. See their full portfolio and latest launches.`;
+    // Truncate intelligently if over 155 chars
+    if (metaDesc.length > 155) {
+        metaDesc = `${company.display_name}: ${formatNumber(company.total_filings)} filings, ${formatNumber(brands.length)}+ brands. See their full portfolio.`;
+    }
+    const description = metaDesc;
+
+    // Schema markup with address if available
     const jsonLd = {
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": company.canonical_name,
-        "description": description,
         "url": `${BASE_URL}/company/${slug}`,
+        "description": `Beverage alcohol company with ${formatNumber(company.total_filings)} product filings and ${formatNumber(brands.length)}+ brands`,
+        ...(primaryLocation && {
+            "address": {
+                "@type": "PostalAddress",
+                "addressRegion": primaryLocation
+            }
+        }),
         "brand": brands.slice(0, 10).map(b => ({
             "@type": "Brand",
             "name": b.brand_name
