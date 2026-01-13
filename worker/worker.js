@@ -2627,6 +2627,10 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     <title>${escapeHtml(title)} | BevAlc Intelligence</title>
     <meta name="description" content="${escapeHtml(description)}">
     <link rel="canonical" href="${canonical || BASE_URL}">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
