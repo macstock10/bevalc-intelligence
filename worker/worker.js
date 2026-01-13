@@ -2956,6 +2956,9 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                 document.querySelectorAll('.pro-overlay').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.pro-locked').forEach(el => el.classList.remove('pro-locked'));
                 document.querySelectorAll('.page-paywall').forEach(el => el.classList.remove('page-paywall'));
+                // Remove email gate on company/brand pages for Pro users
+                document.querySelectorAll('.gate-overlay').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.gated-table').forEach(el => el.classList.remove('gated-table'));
             }
 
             try {
