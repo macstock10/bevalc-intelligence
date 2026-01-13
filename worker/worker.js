@@ -2795,11 +2795,13 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
 
         /* Email gate blur styles */
         .gated-table { position: relative; min-height: 280px; }
-        .gated-table tbody tr:nth-child(n+4) { filter: blur(4px); user-select: none; }
+        .gated-table tbody tr:nth-child(n+4) { filter: blur(4px); user-select: none; pointer-events: none; }
         .gated-table tbody tr:nth-child(n+6) { filter: blur(6px); }
         .gated-table tbody tr:nth-child(n+8) { filter: blur(8px); }
-        .gate-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 200px; background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.95) 40%, white 100%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 24px; }
-        .gate-content { text-align: center; padding: 24px 32px; }
+        .gated-table tbody tr a { pointer-events: auto; }
+        .gated-table tbody tr:nth-child(n+4) a { pointer-events: none; }
+        .gate-overlay { position: absolute; top: 50px; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.95) 30%, white 100%); display: flex; align-items: flex-start; justify-content: center; padding-top: 24px; }
+        .gate-content { text-align: center; padding: 24px 40px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
         .gate-content h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #1e293b; }
         .gate-content p { margin: 0 0 16px 0; color: #64748b; font-size: 0.9rem; }
         .gate-content .btn { background: #0d9488; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; }
