@@ -2363,6 +2363,7 @@ async function handleExport(url, env) {
     const status = params.get('status');
     const dateFrom = params.get('date_from');
     const dateTo = params.get('date_to');
+    const signal = params.get('signal');
 
     // Category Pro users can only export within their category
     if (userTier === 'category_pro' && userTierCategory) {
@@ -2426,6 +2427,17 @@ async function handleExport(url, env) {
     if (status) {
         whereClause += ' AND status = ?';
         queryParams.push(status);
+    }
+
+    // Signal filter: NEW_BRAND, NEW_SKU, NEW_COMPANY, REFILE
+    if (signal) {
+        const validSignals = ['NEW_BRAND', 'NEW_SKU', 'NEW_COMPANY', 'REFILE'];
+        const signals = signal.split(',').map(s => s.trim().toUpperCase()).filter(s => validSignals.includes(s));
+        if (signals.length > 0) {
+            const placeholders = signals.map(() => '?').join(',');
+            whereClause += ` AND signal IN (${placeholders})`;
+            signals.forEach(s => queryParams.push(s));
+        }
     }
 
     if (dateFrom) {

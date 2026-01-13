@@ -100,10 +100,14 @@ function applyUrlFilters() {
         elements.filterDateTo.value = dateTo;
     }
 
-    // Signal filter (stored in state for API call, no UI element)
+    // Signal filter (stored in state for API call, and populate dropdown if Pro)
     const signal = urlParams.get('signal');
     if (signal) {
         state.signalFilter = signal;
+        // If dropdown exists (Pro user), set its value
+        if (elements.filterSignal) {
+            elements.filterSignal.value = signal;
+        }
     }
 }
 
@@ -134,6 +138,8 @@ function cacheElements() {
     elements.filterCategory = document.getElementById('filter-category');
     elements.filterClass = document.getElementById('filter-class');
     elements.filterStatus = document.getElementById('filter-status');
+    elements.filterSignal = document.getElementById('filter-signal');
+    elements.signalFilterGroup = document.getElementById('signal-filter-group');
     elements.filterDateFrom = document.getElementById('filter-date-from');
     elements.filterDateTo = document.getElementById('filter-date-to');
     elements.clearFilters = document.getElementById('clear-filters');
@@ -249,6 +255,11 @@ async function checkProStatus(email) {
             // Unlock CSV export button for Pro users
             updateCSVButtonState(true);
 
+            // Show signal filter for Pro users
+            if (elements.signalFilterGroup) {
+                elements.signalFilterGroup.style.display = 'block';
+            }
+
             // Fetch tier info from preferences API
             try {
                 const prefsResponse = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(email)}`);
@@ -277,6 +288,10 @@ async function checkProStatus(email) {
         } else {
             // Lock CSV export button for non-Pro users
             updateCSVButtonState(false);
+            // Hide signal filter for non-Pro users
+            if (elements.signalFilterGroup) {
+                elements.signalFilterGroup.style.display = 'none';
+            }
         }
     } catch (e) {
         console.log('Could not check Pro status');
@@ -331,7 +346,14 @@ function setupEventListeners() {
         state.currentPage = 1;
         performSearch();
     });
-    
+
+    if (elements.filterSignal) {
+        elements.filterSignal.addEventListener('change', () => {
+            state.currentPage = 1;
+            performSearch();
+        });
+    }
+
     elements.filterDateFrom.addEventListener('change', () => {
         state.currentPage = 1;
         performSearch();
@@ -469,14 +491,15 @@ async function performSearch() {
         const status = elements.filterStatus.value;
         if (status) params.append('status', status);
 
+        // Signal filter - from dropdown or URL parameter
+        const signal = elements.filterSignal?.value || state.signalFilter;
+        if (signal) params.append('signal', signal);
+
         const dateFrom = elements.filterDateFrom.value;
         if (dateFrom) params.append('date_from', dateFrom);
 
         const dateTo = elements.filterDateTo.value;
         if (dateTo) params.append('date_to', dateTo);
-
-        // Signal filter from URL parameter (e.g., NEW_BRAND,NEW_SKU)
-        if (state.signalFilter) params.append('signal', state.signalFilter);
 
         const response = await fetch(`${API_BASE}/api/search?${params}`);
         const data = await response.json();
@@ -2090,6 +2113,7 @@ function clearAllFilters() {
     // Reset subcategory dropdown (cascading - will be empty until category selected)
     elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
     elements.filterStatus.value = '';
+    if (elements.filterSignal) elements.filterSignal.value = '';
     elements.filterDateFrom.value = '';
     elements.filterDateTo.value = '';
     state.signalFilter = null;  // Clear signal filter too
@@ -2198,6 +2222,10 @@ async function exportCSV() {
 
         const status = elements.filterStatus.value;
         if (status) params.append('status', status);
+
+        // Signal filter
+        const signal = elements.filterSignal?.value || state.signalFilter;
+        if (signal) params.append('signal', signal);
 
         const dateFrom = elements.filterDateFrom.value;
         if (dateFrom) params.append('date_from', dateFrom);
