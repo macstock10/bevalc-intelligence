@@ -3413,7 +3413,11 @@ async function handleCompanyPage(path, env, headers) {
                             </tbody>
                         </table>
                     </div>
-                    <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a></p>
+                    <p style="margin-top: 16px; text-align: center;">
+                        <a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a>
+                        <span style="margin: 0 12px; color: #cbd5e1;">|</span>
+                        <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
+                    </p>
                 </div>
 
                 <div class="related-links">
@@ -3624,7 +3628,11 @@ async function handleBrandPage(path, env, headers) {
                             </tbody>
                         </table>
                     </div>
-                    <p style="margin-top: 16px; text-align: center;"><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a></p>
+                    <p style="margin-top: 16px; text-align: center;">
+                        <a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a>
+                        <span style="margin: 0 12px; color: #cbd5e1;">|</span>
+                        <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
+                    </p>
                 </div>
 
                 <div class="related-links">
