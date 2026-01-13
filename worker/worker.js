@@ -2913,6 +2913,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                 <a href="/" class="nav-home">Home</a>
                 <a href="/database.html">Database</a>
                 <a href="/#pricing">Pricing</a>
+                <a href="/glossary.html">Glossary</a>
                 <a href="/account.html">Account</a>
             </div>
             <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
@@ -2925,6 +2926,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             <a class="mobile-menu-link" href="/">Home</a>
             <a class="mobile-menu-link" href="/database.html">Database</a>
             <a class="mobile-menu-link" href="/#pricing">Pricing</a>
+            <a class="mobile-menu-link" href="/glossary.html">Glossary</a>
             <a class="mobile-menu-link" href="/account.html">Account</a>
         </div>
     </nav>
@@ -3341,6 +3343,7 @@ async function handleCompanyPage(path, env, headers) {
                     ${dbaNames.length > 0 ? `<p class="meta-line"><span class="meta-icon">🏢</span> Also operates as: ${dbaNames.slice(0, 3).map(n => escapeHtml(n)).join(', ')}${dbaNames.length > 3 ? '...' : ''}</p>` : ''}
                 </div>
             </div>
+            <p style="margin-top: 12px;"><a href="/glossary.html#signals" style="color: #0d9488; font-weight: 500; text-decoration: none;">How to use our data →</a></p>
         </header>
 
         <div>
@@ -3584,6 +3587,7 @@ async function handleBrandPage(path, env, headers) {
                     <span class="category-badge">${escapeHtml(primaryCategory)}</span>
                     <span><strong>${formatNumber(brand.cnt)}</strong> Filings</span>
                 </div>
+                <p style="margin-top: 12px;"><a href="/glossary.html#signals" style="color: #0d9488; font-weight: 500; text-decoration: none;">How to use our data →</a></p>
             </div>
         </header>
 
