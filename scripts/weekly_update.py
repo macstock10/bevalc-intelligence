@@ -71,7 +71,7 @@ LOG_FILE = str(LOGS_DIR / "weekly_update.log")
 ENV_FILE = str(BASE_DIR / ".env")
 
 # Default lookback period (days)
-DEFAULT_LOOKBACK_DAYS = 14
+DEFAULT_LOOKBACK_DAYS = 7
 
 # Load environment variables from .env file
 def load_env():
@@ -441,52 +441,80 @@ def merge_new_data(temp_db: str) -> Dict:
     Returns stats dict INCLUDING the actual new records for D1 sync.
     """
     logger.info(f"Merging new data into {DB_PATH}...")
-    
+
     if not os.path.exists(temp_db):
         return {'success': False, 'error': 'Temp database not found'}
-    
+
     try:
         # Connect to both databases
         src = sqlite3.connect(temp_db)
         src.row_factory = sqlite3.Row
         dst = sqlite3.connect(DB_PATH)
-        
-        # Get column names from source
-        src_cols = [desc[0] for desc in src.execute("SELECT * FROM colas LIMIT 1").description]
-        
+
+        # Get column names from destination to handle schema differences
+        dst_cols = set(row[1] for row in dst.execute("PRAGMA table_info(colas)").fetchall())
+        has_day_column = 'day' in dst_cols
+
         # Merge COLAs
         rows = src.execute("SELECT * FROM colas").fetchall()
-        
+
         added = 0
         new_records = []  # Track the actual records that were added
-        
+
         for row in rows:
             r = dict(row)
             try:
-                dst.execute("""
-                    INSERT OR IGNORE INTO colas
-                    (ttb_id, status, vendor_code, serial_number, class_type_code,
-                     origin_code, brand_name, fanciful_name, type_of_application,
-                     for_sale_in, total_bottle_capacity, formula, approval_date,
-                     qualifications, grape_varietal, wine_vintage, appellation,
-                     alcohol_content, ph_level, plant_registry, company_name,
-                     street, state, contact_person, phone_number, year, month, day)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    r.get('ttb_id'), r.get('status'), r.get('vendor_code'),
-                    r.get('serial_number'), r.get('class_type_code'),
-                    r.get('origin_code'), r.get('brand_name'),
-                    r.get('fanciful_name'), r.get('type_of_application'),
-                    r.get('for_sale_in'), r.get('total_bottle_capacity'),
-                    r.get('formula'), r.get('approval_date'),
-                    r.get('qualifications'), r.get('grape_varietal'),
-                    r.get('wine_vintage'), r.get('appellation'),
-                    r.get('alcohol_content'), r.get('ph_level'),
-                    r.get('plant_registry'), r.get('company_name'),
-                    r.get('street'), r.get('state'),
-                    r.get('contact_person'), r.get('phone_number'),
-                    r.get('year'), r.get('month'), r.get('day')
-                ))
+                if has_day_column:
+                    dst.execute("""
+                        INSERT OR IGNORE INTO colas
+                        (ttb_id, status, vendor_code, serial_number, class_type_code,
+                         origin_code, brand_name, fanciful_name, type_of_application,
+                         for_sale_in, total_bottle_capacity, formula, approval_date,
+                         qualifications, grape_varietal, wine_vintage, appellation,
+                         alcohol_content, ph_level, plant_registry, company_name,
+                         street, state, contact_person, phone_number, year, month, day)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        r.get('ttb_id'), r.get('status'), r.get('vendor_code'),
+                        r.get('serial_number'), r.get('class_type_code'),
+                        r.get('origin_code'), r.get('brand_name'),
+                        r.get('fanciful_name'), r.get('type_of_application'),
+                        r.get('for_sale_in'), r.get('total_bottle_capacity'),
+                        r.get('formula'), r.get('approval_date'),
+                        r.get('qualifications'), r.get('grape_varietal'),
+                        r.get('wine_vintage'), r.get('appellation'),
+                        r.get('alcohol_content'), r.get('ph_level'),
+                        r.get('plant_registry'), r.get('company_name'),
+                        r.get('street'), r.get('state'),
+                        r.get('contact_person'), r.get('phone_number'),
+                        r.get('year'), r.get('month'), r.get('day')
+                    ))
+                else:
+                    # Local DB doesn't have 'day' column - skip it
+                    dst.execute("""
+                        INSERT OR IGNORE INTO colas
+                        (ttb_id, status, vendor_code, serial_number, class_type_code,
+                         origin_code, brand_name, fanciful_name, type_of_application,
+                         for_sale_in, total_bottle_capacity, formula, approval_date,
+                         qualifications, grape_varietal, wine_vintage, appellation,
+                         alcohol_content, ph_level, plant_registry, company_name,
+                         street, state, contact_person, phone_number, year, month)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        r.get('ttb_id'), r.get('status'), r.get('vendor_code'),
+                        r.get('serial_number'), r.get('class_type_code'),
+                        r.get('origin_code'), r.get('brand_name'),
+                        r.get('fanciful_name'), r.get('type_of_application'),
+                        r.get('for_sale_in'), r.get('total_bottle_capacity'),
+                        r.get('formula'), r.get('approval_date'),
+                        r.get('qualifications'), r.get('grape_varietal'),
+                        r.get('wine_vintage'), r.get('appellation'),
+                        r.get('alcohol_content'), r.get('ph_level'),
+                        r.get('plant_registry'), r.get('company_name'),
+                        r.get('street'), r.get('state'),
+                        r.get('contact_person'), r.get('phone_number'),
+                        r.get('year'), r.get('month')
+                    ))
                 if dst.execute("SELECT changes()").fetchone()[0] > 0:
                     added += 1
                     new_records.append(r)  # Save the record that was actually added

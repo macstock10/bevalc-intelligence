@@ -12,29 +12,37 @@ This is the most important section. Read this first to understand how the system
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         DAILY SYNC                                      │
+│                         DAILY SCRAPE (9pm ET)                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  DAILY 2am UTC / 9pm ET (GitHub Actions: daily-sync.yml)                │
-│  └─► weekly_update.py --days 1                                          │
-│       ├─► 1. Scrape previous day's filings from TTB website             │
-│       ├─► 2. Insert records to D1 (colas table)                         │
-│       ├─► 3. Classify: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE       │
-│       └─► 4. Check watchlists → send real-time alerts via Resend        │
+│  DAILY 9pm ET / 2am UTC (GitHub Actions: daily-sync.yml)                │
+│  └─► weekly_update.py --days 7                                          │
+│       ├─► 1. Scrape trailing 7 days from TTB website (rolling window)   │
+│       ├─► 2. Insert records to D1 (INSERT OR IGNORE handles duplicates) │
+│       ├─► 3. Add new brands to brand_slugs (for SEO pages)              │
+│       ├─► 4. Add new companies to companies/company_aliases             │
+│       └─► 5. Classify: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE       │
+│                                                                         │
+│  Uses ColaWorker for robust scraping (3 retries, CAPTCHA handling)      │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         WEEKLY CYCLE                                    │
+│                         DAILY ALERTS (11:30am ET next day)              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  FRIDAY 9pm ET (GitHub Actions: weekly-update.yml)                      │
-│  └─► weekly_update.py                                                   │
-│       ├─► 1. Scrape last 14 days from TTB website                       │
-│       ├─► 2. Insert records to D1 (colas table)                         │
-│       ├─► 3. Add new brands to brand_slugs (for SEO pages)              │
-│       ├─► 4. Add new companies to companies/company_aliases             │
-│       └─► 5. Classify: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE       │
+│  DAILY 11:30am ET (GitHub Actions: watchlist-alerts.yml)                │
+│  └─► send_watchlist_alerts.py --days 3                                  │
+│       ├─► 1. Query D1 for records from last 3 days                      │
+│       ├─► 2. Match against user watchlists (brands + companies)         │
+│       ├─► 3. Filter out already-alerted (watchlist_alert_log table)     │
+│       └─► 4. Send email alerts via Resend                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         WEEKLY REPORT (Saturday 9am ET)                 │
+├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  SATURDAY 9am ET (GitHub Actions: weekly-report.yml)                    │
 │  └─► send_weekly_report.py                                              │
