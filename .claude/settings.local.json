@@ -34,7 +34,8 @@
       "Bash(python send_weekly_report.py:*)",
       "Bash(python:*)",
       "Bash(RESEND_API_KEY=re_YwFHB3eZ_7DcEz7eWMQ2fTu7zWkfMmFqe npx tsx send.js watchlist-alert --to mac.rowan@outlook.com)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx wrangler secret list:*)"
     ]
   }
 }

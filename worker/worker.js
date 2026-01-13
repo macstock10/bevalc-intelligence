@@ -4293,9 +4293,16 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
             console.error('ANTHROPIC_API_KEY not set');
         }
 
-        // Use discovered social and news
+        // Step 4: Validate news articles with Claude to filter out irrelevant results
+        if (discoveredUrls.news && discoveredUrls.news.length > 0) {
+            console.log(`[Enhancement] Validating ${discoveredUrls.news.length} news candidates...`);
+            news = await validateNewsArticles(companyName, primaryBrand, discoveredUrls.news, env);
+        } else {
+            news = [];
+        }
+
+        // Use discovered social
         social = discoveredUrls.social || null;
-        news = discoveredUrls.news || [];
 
     } catch (e) {
         console.error('[Enhancement] Error in new flow:', e);
@@ -4396,8 +4403,8 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
     const [companyResults, brandResults, socialResults, newsResults] = await Promise.all([
         googleSearch(`"${cleanCompanyName}"`, env),
         googleSearch(`${brandName} official website ${industryHint}`, env),
-        googleSearch(`${cleanCompanyName} OR ${brandName} facebook instagram`, env),
-        googleSearch(`"${cleanCompanyName}" OR "${brandName}" news 2024 2025`, env)
+        googleSearch(`${cleanCompanyName} OR ${brandName} facebook instagram youtube`, env),
+        googleSearch(`"${cleanCompanyName}" OR "${brandName}" news`, env)
     ]);
 
     // Extract official website (first non-retailer result)
@@ -4427,6 +4434,7 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
     // Extract social media URLs
     let facebookUrl = null;
     let instagramUrl = null;
+    let youtubeUrl = null;
 
     for (const result of [...socialResults, ...companyResults, ...brandResults]) {
         const url = result.link;
@@ -4435,6 +4443,10 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
         }
         if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) {
             instagramUrl = url;
+        }
+        if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) {
+            // Get channel/user pages, not individual videos
+            youtubeUrl = url;
         }
     }
 
@@ -4472,7 +4484,8 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
         website: websiteUrl,
         social: {
             facebook: facebookUrl,
-            instagram: instagramUrl
+            instagram: instagramUrl,
+            youtube: youtubeUrl
         },
         news: newsArticles
     };
@@ -4636,6 +4649,79 @@ async function crawlWebsite(websiteUrl) {
         console.error('Website crawl failed:', e);
         return null;
     }
+}
+
+// Validate news articles using Claude to filter out irrelevant results
+async function validateNewsArticles(companyName, brandName, candidateNews, env) {
+    if (!candidateNews || candidateNews.length === 0) {
+        return [];
+    }
+
+    if (!env.ANTHROPIC_API_KEY) {
+        console.error('ANTHROPIC_API_KEY not set for news validation');
+        return candidateNews; // Return unfiltered if no API key
+    }
+
+    const newsListText = candidateNews.map((n, i) =>
+        `${i + 1}. Title: "${n.title}"\n   Source: ${n.source}\n   Snippet: ${n.snippet || 'N/A'}`
+    ).join('\n\n');
+
+    const prompt = `Filter news articles to only those relevant to the target company.
+
+TARGET: "${companyName}" (brand: "${brandName}")
+
+ARTICLES:
+${newsListText}
+
+KEEP articles that are about the target company or brand.
+REJECT articles about DIFFERENT companies (e.g. if target is "Binary Barrel" but article is about "Big Grove Distillery", reject it).
+
+Return JSON only: {"relevant": [1, 2]} or {"relevant": []}`;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 100,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            console.error('News validation API error:', response.status);
+            return candidateNews; // Return unfiltered on error
+        }
+
+        const result = await response.json();
+        const textContent = result.content?.[0]?.text || '';
+
+        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            const relevantIndices = parsed.relevant || [];
+
+            // Filter to only relevant articles
+            const validatedNews = candidateNews.filter((_, i) =>
+                relevantIndices.includes(i + 1)
+            );
+
+            console.log(`[News Validation] ${candidateNews.length} candidates -> ${validatedNews.length} validated`);
+            return validatedNews;
+        }
+    } catch (e) {
+        console.error('News validation failed:', e);
+    }
+
+    return candidateNews; // Return unfiltered on parse error
 }
 
 // Generate summary using Claude (no web_search - just text analysis)
@@ -4915,8 +5001,8 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
     await env.DB.prepare(`
         INSERT OR REPLACE INTO company_enhancements
         (company_id, company_name, website_url, website_confidence, filing_stats,
-         distribution_states, brand_portfolio, category_breakdown, summary, news, enhanced_at, enhanced_by, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         distribution_states, brand_portfolio, category_breakdown, summary, news, social_links, enhanced_at, enhanced_by, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         companyId,
         companyName,
@@ -4928,6 +5014,7 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
         JSON.stringify(tearsheet.categories),
         tearsheet.summary || null,
         JSON.stringify(tearsheet.news || []),
+        JSON.stringify(tearsheet.social || null),
         now,
         email,
         expiresAt
