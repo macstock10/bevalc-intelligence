@@ -3523,9 +3523,21 @@ async function handleBrandPage(path, env, headers) {
     const relatedBrands = [];
 
     const maxTimeline = Math.max(...timeline.map(t => t.cnt), 1);
+    const earliestYear = timeline.length > 0 ? Math.min(...timeline.map(t => t.year).filter(y => y)) : null;
 
     const title = `${brand.brand_name} Brand Filings & Portfolio`;
-    const description = `${brand.brand_name} has ${formatNumber(brand.cnt)} TTB COLA filings. View product timeline, new SKUs, and filing history.`;
+
+    // SEO-optimized meta description (max 155 chars)
+    // Template: "[Brand]: X product filings since [year], [category]. By [company]. See product timeline and latest launches."
+    let metaDesc = `${brand.brand_name}: ${formatNumber(brand.cnt)} product ${brand.cnt === 1 ? 'filing' : 'filings'}`;
+    if (earliestYear) metaDesc += ` since ${earliestYear}`;
+    metaDesc += `, ${primaryCategory}`;
+    if (companyResult?.canonical_name) metaDesc += `. By ${companyResult.canonical_name}`;
+    metaDesc += `. See product timeline and latest launches.`;
+    if (metaDesc.length > 155) {
+        metaDesc = `${brand.brand_name}: ${formatNumber(brand.cnt)} ${primaryCategory} ${brand.cnt === 1 ? 'filing' : 'filings'}. See product timeline.`;
+    }
+    const description = metaDesc;
 
     const jsonLd = {
         "@context": "https://schema.org",
