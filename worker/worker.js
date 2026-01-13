@@ -3407,7 +3407,7 @@ async function handleCompanyPage(path, env, headers) {
                                         <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                         <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                         <td>${escapeHtml(f.approval_date)}</td>
-                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace('_', '-')}">${f.signal.replace('_', ' ')}</span>` : '-'}</td>
+                                        <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
                                     </tr>
                                 `}).join('')}
                             </tbody>
@@ -3618,7 +3618,7 @@ async function handleBrandPage(path, env, headers) {
                                         <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
-                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace('_', '-')}">${p.signal.replace('_', ' ')}</span>` : '-'}</td>
+                                        <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
