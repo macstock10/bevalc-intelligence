@@ -3601,7 +3601,7 @@ async function handleBrandPage(path, env, headers) {
                                         <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
-                                        <td><a href="/database.html?q=${encodeURIComponent(brandName)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
+                                        <td><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
