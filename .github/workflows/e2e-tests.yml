@@ -1,25 +1,28 @@
 name: E2E Tests
 
+# DISABLED - tests not fully configured yet
+# Re-enable by uncommenting the triggers below
+
 on:
-  # Run on pushes to main
-  push:
-    branches: [main]
-    paths:
-      - 'web/**'
-      - 'worker/**'
-      - 'tests/**'
-      - 'playwright.config.js'
+  # # Run on pushes to main
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'web/**'
+  #     - 'worker/**'
+  #     - 'tests/**'
+  #     - 'playwright.config.js'
 
-  # Run on PRs
-  pull_request:
-    branches: [main]
-    paths:
-      - 'web/**'
-      - 'worker/**'
-      - 'tests/**'
-      - 'playwright.config.js'
+  # # Run on PRs
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - 'web/**'
+  #     - 'worker/**'
+  #     - 'tests/**'
+  #     - 'playwright.config.js'
 
-  # Allow manual trigger
+  # Manual trigger only for now
   workflow_dispatch:
     inputs:
       base_url:
