@@ -2088,15 +2088,20 @@ async function handleSearch(url, env) {
 
     const offset = (page - 1) * limit;
 
-    // Check for Category Pro user restrictions
+    // Check for user tier restrictions
     const email = params.get('email');
     let userAllowedCategory = null;  // For Category Pro users, which category they have access to
+    let isPro = false;  // Whether user has Pro access (any tier)
 
     if (email) {
         try {
             const user = await env.DB.prepare(
-                'SELECT tier, tier_category FROM user_preferences WHERE email = ?'
+                'SELECT is_pro, tier, tier_category FROM user_preferences WHERE email = ?'
             ).bind(email.toLowerCase()).first();
+
+            if (user?.is_pro === 1) {
+                isPro = true;
+            }
 
             if (user?.tier === 'category_pro') {
                 if (!user.tier_category) {
@@ -2203,6 +2208,18 @@ async function handleSearch(url, env) {
         }
     }
 
+    // Free users: 2-month delay on data (can only see data older than 2 months)
+    if (!isPro) {
+        const twoMonthsAgo = new Date();
+        twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+        const maxYear = twoMonthsAgo.getFullYear();
+        const maxMonth = twoMonthsAgo.getMonth() + 1;  // JS months are 0-indexed
+        const maxDay = twoMonthsAgo.getDate();
+        // Restrict to data older than 2 months
+        whereClause += ' AND (year < ? OR (year = ? AND month < ?) OR (year = ? AND month = ? AND day <= ?))';
+        queryParams.push(maxYear, maxYear, maxMonth, maxYear, maxMonth, maxDay);
+    }
+
     // Signal filter: NEW_BRAND, NEW_SKU, REFILE, or comma-separated (e.g., "NEW_BRAND,NEW_SKU")
     if (signal) {
         const validSignals = ['NEW_BRAND', 'NEW_SKU', 'NEW_COMPANY', 'REFILE'];
@@ -2253,6 +2270,11 @@ async function handleSearch(url, env) {
     // Include allowed category for Category Pro users (front-end will blur other categories)
     if (userAllowedCategory) {
         response.userAllowedCategory = userAllowedCategory;
+    }
+
+    // Indicate data lag for free users
+    if (!isPro) {
+        response.dataLagMonths = 2;
     }
 
     return response;
@@ -4224,6 +4246,7 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         }
         summary = claudeResult.summary;
         news = claudeResult.news || [];
+        var social = claudeResult.social || null;
     } else {
         console.error('ANTHROPIC_API_KEY not set');
     }
@@ -4250,7 +4273,7 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         }, {}) || {},
         contacts: [],
         news,
-        social: null,
+        social: social || null,
         summary,
         recent_filings: recentFilings?.results?.map(f => ({
             brand: f.brand_name,
@@ -4291,17 +4314,22 @@ Search strategy (try ALL of these):
 3. "${companyName} ${industryHint}" - company + industry terms
 4. "${topBrand} distillery" or "${topBrand} winery" - brand + facility type
 5. If still not found, try variations: remove "LLC", "Inc", try just the first word of the company name
+6. "${companyName} facebook" OR "${topBrand} facebook" - find their Facebook page for business updates, grand openings, events
 
 IMPORTANT:
 - The official website is almost always a .com domain matching the company or brand name
 - IGNORE retailers: Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar, Caskers, wine.com
-- IGNORE social media as the primary website (but note them for reference)
+- IGNORE social media as the primary website (but DO search Facebook/Instagram for business news like grand openings, events, new releases)
 - Most legitimate beverage companies HAVE a website - keep searching if you don't find it immediately
 
 After thorough searching, provide this JSON:
 {
   "website": "https://example.com" or null ONLY if truly not found after multiple searches,
-  "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Be specific with facts you found.",
+  "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Include recent business updates from Facebook/Instagram like grand openings, events, new releases if found. Be specific with facts you found.",
+  "social": {
+    "facebook": "https://facebook.com/companypage" or null,
+    "instagram": "https://instagram.com/companypage" or null
+  },
   "news": [
     {"title": "Actual article headline", "date": "2024-01", "source": "Publication Name", "url": "https://actual-article-url.com/full/path"}
   ]

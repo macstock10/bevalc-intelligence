@@ -507,9 +507,11 @@ async function performSearch() {
         if (data.success) {
             state.currentResults = data.data;  // Store for CSV export
             state.userAllowedCategory = data.userAllowedCategory || null;  // For Category Pro users
+            state.dataLagMonths = data.dataLagMonths || null;  // For free users
             renderResults(data.data, data.userAllowedCategory);
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
+            showDataLagBanner(data.dataLagMonths);
         } else if (data.error === 'category_required') {
             // Category Pro user hasn't selected their category yet
             showCategoryRequiredMessage();
@@ -579,6 +581,33 @@ function showCategoryRequiredMessage() {
     `;
     elements.pagination.innerHTML = '';
     elements.resultsCount.textContent = '';
+}
+
+function showDataLagBanner(lagMonths) {
+    // Remove any existing banner
+    const existingBanner = document.querySelector('.data-lag-banner');
+    if (existingBanner) {
+        existingBanner.remove();
+    }
+
+    // Only show banner for free users with data lag
+    if (!lagMonths) return;
+
+    const banner = document.createElement('div');
+    banner.className = 'data-lag-banner';
+    banner.innerHTML = `
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6v6l4 2"></path>
+        </svg>
+        <span>Free accounts see data with a ${lagMonths}-month delay. <a href="#pricing">Upgrade to Pro</a> for real-time access.</span>
+    `;
+
+    // Insert before the results table
+    const resultsTable = document.querySelector('.results-table');
+    if (resultsTable) {
+        resultsTable.parentNode.insertBefore(banner, resultsTable);
+    }
 }
 
 function renderResults(data, userAllowedCategory = null) {
