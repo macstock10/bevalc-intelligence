@@ -1621,14 +1621,11 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
         logger.info(f"No new records to classify (dry_run={dry_run}, records={len(new_records) if new_records else 0})")
         results['classify'] = {'total': 0, 'new_companies': 0, 'new_brands': 0, 'refiles': 0}
 
-    # Step 5: Check watchlists and send alerts
-    logger.info("\n[STEP 5/5] Checking watchlists and sending alerts...")
-    if new_records:
-        alert_result = check_watchlist_and_alert(new_records, dry_run=dry_run)
-        results['alerts'] = alert_result
-    else:
-        logger.info("No new records to check against watchlists")
-        results['alerts'] = {'matches': 0, 'alerts_sent': 0}
+    # Step 5: Watchlist alerts (now handled by separate workflow at 11:30am ET)
+    # See: .github/workflows/watchlist-alerts.yml and scripts/send_watchlist_alerts.py
+    logger.info("\n[STEP 5/5] Watchlist alerts...")
+    logger.info("Skipped - alerts sent by separate workflow at 11:30am ET")
+    results['alerts'] = {'matches': 0, 'alerts_sent': 0, 'note': 'Handled by watchlist-alerts.yml'}
     
     # Summary
     logger.info("\n" + "=" * 60)
@@ -1658,11 +1655,7 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
         logger.warning(f"Sync errors: {sync_result['errors']}")
 
     # Alert summary
-    a = results.get('alerts', {})
-    if a.get('matches', 0) > 0:
-        logger.info(f"Watchlist Alerts:")
-        logger.info(f"  Matches found: {a.get('matches', 0)}")
-        logger.info(f"  Alerts sent: {a.get('alerts_sent', 0)}")
+    logger.info("Watchlist Alerts: Sent separately at 11:30am ET")
 
     logger.info(f"Completed: {datetime.now()}")
     logger.info("=" * 60)
