@@ -257,7 +257,7 @@ async function checkProStatus(email) {
 
             // Show signal filter for Pro users
             if (elements.signalFilterGroup) {
-                elements.signalFilterGroup.style.display = 'block';
+                elements.signalFilterGroup.style.display = 'flex';
             }
 
             // Fetch tier info from preferences API
