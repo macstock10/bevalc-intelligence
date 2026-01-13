@@ -3338,8 +3338,8 @@ async function handleCompanyPage(path, env, headers) {
             </div>
         </header>
 
-        <div class="page-paywall pro-locked">
-            <div class="seo-blur">
+        <div>
+            <div>
                 <section class="seo-card" style="margin-bottom: 32px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
                     <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
                         ${escapeHtml(company.display_name)} is a beverage alcohol company with <strong>${formatNumber(company.total_filings)}</strong> TTB COLA filings.
@@ -3420,12 +3420,6 @@ async function handleCompanyPage(path, env, headers) {
                     <h3>Related Companies</h3>
                     ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
                 </div>
-            </div>
-            <div class="pro-overlay page-overlay">
-                <h3>Unlock Company Insights</h3>
-                <p>Get full access to ${escapeHtml(company.display_name)}'s brand portfolio, filing history, and detailed analytics.</p>
-                <a href="/#pricing" class="btn">Upgrade to Pro</a>
-                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $49/month</p>
             </div>
         </div>
     `;
@@ -3577,8 +3571,8 @@ async function handleBrandPage(path, env, headers) {
             </div>
         </header>
 
-        <div class="page-paywall pro-locked">
-            <div class="seo-blur">
+        <div>
+            <div>
                 <div class="seo-grid">
                     <div class="seo-card">
                         <h2>Total Filings</h2>
@@ -3637,12 +3631,6 @@ async function handleBrandPage(path, env, headers) {
                     <h3>More ${primaryCategory} Brands</h3>
                     ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
                 </div>
-            </div>
-            <div class="pro-overlay page-overlay">
-                <h3>Unlock Brand Insights</h3>
-                <p>Get full access to ${escapeHtml(brand.brand_name)}'s product catalog, filing history, and detailed analytics.</p>
-                <a href="/#pricing" class="btn">Upgrade to Pro</a>
-                <p style="margin-top: 12px; font-size: 0.85rem; color: var(--color-text-secondary);">Starting at $49/month</p>
             </div>
         </div>
     `;
