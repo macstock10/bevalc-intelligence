@@ -145,20 +145,6 @@
         .filter-help-link:hover {
             text-decoration: underline;
         }
-
-        /* Pro badge for filter labels */
-        .pro-badge-tiny {
-            display: inline-block;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-            font-size: 0.5rem;
-            font-weight: 700;
-            padding: 0.1rem 0.25rem;
-            border-radius: 3px;
-            letter-spacing: 0.03em;
-            vertical-align: middle;
-            margin-left: 0.25rem;
-        }
     </style>
 </head>
 <body>
@@ -263,8 +249,8 @@
                         </select>
                     </div>
 
-                    <div class="filter-group filter-pro-only" id="signal-filter-group" style="display: none;">
-                        <label for="filter-signal">Signal <span class="pro-badge-tiny">PRO</span></label>
+                    <div class="filter-group" id="signal-filter-group" style="display: none;">
+                        <label for="filter-signal">Signal</label>
                         <select id="filter-signal" class="filter-select">
                             <option value="">All Signals</option>
                             <option value="NEW_COMPANY">New Company</option>
