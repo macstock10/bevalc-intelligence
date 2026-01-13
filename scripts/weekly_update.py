@@ -291,577 +291,25 @@ def sync_to_d1(local_db_path: str, dry_run: bool = False, records_to_sync: List[
         return {"success": False, "error": str(e)}
 
 # ============================================================================
-# SCRAPING - Direct Date Range (Optimized)
+# SCRAPING - Using ColaWorker
 # ============================================================================
 
-import re
-import time
-from calendar import monthrange
-from bs4 import BeautifulSoup
-
-# Selenium imports
+# Import ColaWorker for scraping (consolidated, robust scraper)
 try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.firefox.service import Service as FirefoxService
-    from selenium.common.exceptions import TimeoutException, WebDriverException
-    from webdriver_manager.firefox import GeckoDriverManager
-    SELENIUM_AVAILABLE = True
+    from cola_worker import ColaWorker
+    SCRAPER_AVAILABLE = True
 except ImportError:
-    SELENIUM_AVAILABLE = False
-    logger.warning("Selenium not available - scraping disabled")
-
-TTB_BASE_URL = "https://ttbonline.gov"
-TTB_SEARCH_URL = f"{TTB_BASE_URL}/colasonline/publicSearchColasBasic.do"
-TTB_ID_PATTERN = re.compile(r'ttbid=(\d{14})')
-MAX_RESULTS_PER_QUERY = 1000
+    SCRAPER_AVAILABLE = False
+    logger.warning("ColaWorker not available - scraping disabled")
 
 
-class DateRangeScraper:
+def scrape_recent_days(days: int = 7) -> Dict:
     """
-    Optimized scraper that only fetches a specific date range (not full months).
+    Scrape the last N days of COLAs using ColaWorker.
+    Returns stats dict with temp_db path for further processing.
     """
-    
-    def __init__(self, db_path: str, headless: bool = True):
-        self.db_path = db_path
-        self.headless = headless
-        self.driver = None
-        self.conn = None
-        self.request_delay = 1.5
-        self.page_timeout = 30
-        self.max_retries = 3
-        
-        self._init_database()
-    
-    def _init_database(self):
-        """Initialize SQLite database."""
-        os.makedirs(os.path.dirname(self.db_path) or '.', exist_ok=True)
-        
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row
-        
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS collected_links (
-                id INTEGER PRIMARY KEY,
-                ttb_id TEXT UNIQUE NOT NULL,
-                detail_url TEXT NOT NULL,
-                year INTEGER NOT NULL,
-                month INTEGER NOT NULL,
-                scraped INTEGER DEFAULT 0,
-                collected_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            CREATE TABLE IF NOT EXISTS colas (
-                id INTEGER PRIMARY KEY,
-                ttb_id TEXT UNIQUE NOT NULL,
-                status TEXT,
-                vendor_code TEXT,
-                serial_number TEXT,
-                class_type_code TEXT,
-                origin_code TEXT,
-                brand_name TEXT,
-                fanciful_name TEXT,
-                type_of_application TEXT,
-                for_sale_in TEXT,
-                total_bottle_capacity TEXT,
-                formula TEXT,
-                approval_date TEXT,
-                qualifications TEXT,
-                grape_varietal TEXT,
-                wine_vintage TEXT,
-                appellation TEXT,
-                alcohol_content TEXT,
-                ph_level TEXT,
-                plant_registry TEXT,
-                company_name TEXT,
-                street TEXT,
-                state TEXT,
-                contact_person TEXT,
-                phone_number TEXT,
-                year INTEGER,
-                month INTEGER,
-                day INTEGER,
-                scraped_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            CREATE INDEX IF NOT EXISTS idx_links_ttb ON collected_links(ttb_id);
-            CREATE INDEX IF NOT EXISTS idx_colas_ttb ON colas(ttb_id);
-        """)
-        self.conn.commit()
-    
-    def _init_driver(self):
-        """Initialize Selenium WebDriver."""
-        if self.driver:
-            try:
-                self.driver.quit()
-            except:
-                pass
-        
-        options = webdriver.FirefoxOptions()
-        if self.headless:
-            options.add_argument('--headless')
-        
-        logger.info("Starting Firefox browser...")
-        self.driver = webdriver.Firefox(
-            service=FirefoxService(GeckoDriverManager().install()),
-            options=options
-        )
-        self.driver.set_page_load_timeout(self.page_timeout)
-    
-    def _ensure_driver(self):
-        """Ensure browser is running."""
-        if not self.driver:
-            self._init_driver()
-    
-    def close(self):
-        """Clean up resources."""
-        if self.driver:
-            try:
-                self.driver.quit()
-            except:
-                pass
-            self.driver = None
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-    
-    def _delay(self, multiplier: float = 1.0):
-        """Wait between requests."""
-        time.sleep(self.request_delay * multiplier)
-    
-    def _detect_captcha(self) -> bool:
-        """Check if CAPTCHA is present."""
-        try:
-            html = self.driver.page_source.lower()
-            indicators = ['captcha', 'what code is in the image', 'g-recaptcha',
-                         'access denied', 'support id']
-            return any(ind in html for ind in indicators)
-        except:
-            return False
-    
-    def _handle_captcha(self) -> bool:
-        """Handle CAPTCHA if present."""
-        if not self._detect_captcha():
-            return True
-        
-        logger.warning("CAPTCHA detected! Waiting 30 seconds...")
-        time.sleep(30)
-        return not self._detect_captcha()
-    
-    def _search_ttb(self, start_date: datetime, end_date: datetime) -> int:
-        """Execute TTB search and return total matching records."""
-        self._ensure_driver()
-        
-        self.driver.get(TTB_SEARCH_URL)
-        self._delay()
-        
-        if not self._handle_captcha():
-            raise Exception("CAPTCHA not solved")
-        
-        wait = WebDriverWait(self.driver, self.page_timeout)
-        wait.until(EC.presence_of_element_located((By.NAME, 'searchCriteria.dateCompletedFrom')))
-        
-        # Fill date fields
-        date_from = self.driver.find_element(By.NAME, 'searchCriteria.dateCompletedFrom')
-        date_from.clear()
-        date_from.send_keys(start_date.strftime('%m/%d/%Y'))
-        
-        date_to = self.driver.find_element(By.NAME, 'searchCriteria.dateCompletedTo')
-        date_to.clear()
-        date_to.send_keys(end_date.strftime('%m/%d/%Y'))
-        
-        # Submit
-        submit = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, '//input[@type="submit" and @value="Search"]')
-        ))
-        submit.click()
-        
-        self._delay()
-        
-        if not self._handle_captcha():
-            raise Exception("CAPTCHA not solved")
-        
-        # Get total count
-        html = self.driver.page_source
-        match = re.search(r'Total Matching Records[:\s]*([\d,]+)', html)
-        if match:
-            return int(match.group(1).replace(',', ''))
-        
-        match = re.search(r'(\d+)\s+to\s+(\d+)\s+of\s+([\d,]+)', html)
-        if match:
-            return int(match.group(3).replace(',', ''))
-        
-        return 0
-    
-    def _collect_links_from_page(self) -> List[str]:
-        """Extract TTB IDs from current search results page."""
-        html = self.driver.page_source
-        return TTB_ID_PATTERN.findall(html)
-    
-    def _go_to_next_page(self) -> bool:
-        """Navigate to next page of results. Returns False if no more pages."""
-        try:
-            next_link = self.driver.find_element(By.XPATH, '//a[contains(text(), "Next")]')
-            next_link.click()
-            self._delay()
-            return True
-        except:
-            return False
-    
-    def _collect_date_range(self, start_date: datetime, end_date: datetime) -> tuple:
-        """
-        Collect all links for a date range.
-        Uses binary split if results exceed 1000.
-        Returns (expected, collected) counts.
-        """
-        total = self._search_ttb(start_date, end_date)
-        
-        logger.info(f"  Searching: {start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')}")
-        logger.info(f"    TTB reports: {total:,} records")
-        
-        if total == 0:
-            return 0, 0
-        
-        # If too many results, split the date range
-        if total > MAX_RESULTS_PER_QUERY:
-            mid_date = start_date + (end_date - start_date) // 2
-            logger.info(f"    Splitting: {start_date.date()} to {mid_date.date()} | {(mid_date + timedelta(days=1)).date()} to {end_date.date()}")
-            
-            exp1, col1 = self._collect_date_range(start_date, mid_date)
-            exp2, col2 = self._collect_date_range(mid_date + timedelta(days=1), end_date)
-            return exp1 + exp2, col1 + col2
-        
-        # Collect links from all pages
-        collected = 0
-        page = 1
-        
-        while True:
-            ttb_ids = self._collect_links_from_page()
-            
-            for ttb_id in ttb_ids:
-                # Parse the date from ttb_id to get year/month
-                # TTB ID format: YYDDD... where YY=year, DDD=julian day
-                try:
-                    year_prefix = int(ttb_id[:2])
-                    year = 2000 + year_prefix if year_prefix < 50 else 1900 + year_prefix
-                    julian_day = int(ttb_id[2:5])
-                    record_date = datetime(year, 1, 1) + timedelta(days=julian_day - 1)
-                    month = record_date.month
-                except:
-                    year = start_date.year
-                    month = start_date.month
-                
-                detail_url = f"{TTB_BASE_URL}/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid={ttb_id}"
-                
-                try:
-                    self.conn.execute("""
-                        INSERT OR IGNORE INTO collected_links (ttb_id, detail_url, year, month)
-                        VALUES (?, ?, ?, ?)
-                    """, (ttb_id, detail_url, year, month))
-                    if self.conn.execute("SELECT changes()").fetchone()[0] > 0:
-                        collected += 1
-                except:
-                    pass
-            
-            self.conn.commit()
-            
-            if not self._go_to_next_page():
-                break
-            page += 1
-        
-        logger.info(f"    Collected: {collected:,} new links (page {page})")
-        return total, collected
-    
-    def _extract_field(self, soup, label: str) -> Optional[str]:
-        """
-        Extract a field value by its label.
-        Handles TTB's HTML structure where labels are in <strong> tags.
-        """
-        try:
-            # Method 1: Find exact match in strong tag
-            strong = soup.find('strong', string=lambda t: t and label in t)
-            
-            # Method 2: Try partial match if exact not found
-            if not strong:
-                label_lower = label.rstrip(':').lower()
-                for s in soup.find_all('strong'):
-                    s_text = s.get_text() if s else ''
-                    if label_lower in s_text.lower():
-                        strong = s
-                        break
-            
-            if not strong:
-                return None
-            
-            # Get parent td and extract text after the label
-            td = strong.find_parent('td')
-            if not td:
-                return None
-            
-            full_text = td.get_text(strip=True)
-            
-            # Remove the label from the text
-            # Try various label formats
-            for possible_label in [label, label.rstrip(':') + ':', label.rstrip(':')]:
-                if full_text.startswith(possible_label):
-                    full_text = full_text[len(possible_label):].strip()
-                    break
-                # Also try case-insensitive
-                if full_text.lower().startswith(possible_label.lower()):
-                    full_text = full_text[len(possible_label):].strip()
-                    break
-            
-            return full_text if full_text else None
-            
-        except Exception as e:
-            return None
-    
-    def _extract_company_details(self, soup) -> Dict:
-        """Extract company details from the second info box."""
-        data = {}
-        
-        try:
-            boxes = soup.find_all('div', class_='box')
-            if len(boxes) < 2:
-                return data
-            
-            box = boxes[1]
-            rows = box.find_all('tr')
-            
-            if len(rows) > 5:
-                data['plant_registry'] = rows[2].find('td').get_text(strip=True) if rows[2].find('td') else None
-                data['company_name'] = rows[3].find('td').get_text(strip=True) if rows[3].find('td') else None
-                data['street'] = rows[4].find('td').get_text(strip=True) if rows[4].find('td') else None
-                data['state'] = rows[5].find('td').get_text(strip=True) if rows[5].find('td') else None
-            
-            # Contact info
-            for i, row in enumerate(rows):
-                if 'Contact Information:' in row.get_text():
-                    if i + 1 < len(rows):
-                        td = rows[i + 1].find('td')
-                        if td:
-                            data['contact_person'] = ' '.join(td.get_text(strip=True).split())
-                    if i + 2 < len(rows):
-                        td = rows[i + 2].find('td')
-                        if td:
-                            text = td.get_text(separator=' ').strip()
-                            data['phone_number'] = re.sub(r'^Phone Number:\s*', '', text).strip()
-                    break
-        except:
-            pass
-        
-        return data
-    
-    def _scrape_detail_page(self, ttb_id: str, url: str) -> Optional[Dict]:
-        """Scrape a single COLA detail page with ALL fields."""
-        for attempt in range(self.max_retries):
-            try:
-                self.driver.get(url)
-                WebDriverWait(self.driver, self.page_timeout).until(
-                    lambda d: d.execute_script('return document.readyState') == 'complete'
-                )
-                
-                if not self._handle_captcha():
-                    return None
-                
-                soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-                
-                # Core fields - using EXACT labels from TTB website
-                data = {
-                    'ttb_id': ttb_id,
-                    'status': self._extract_field(soup, 'Status:'),
-                    'vendor_code': self._extract_field(soup, 'Vendor Code:'),
-                    'serial_number': self._extract_field(soup, 'Serial #:'),
-                    'class_type_code': self._extract_field(soup, 'Class/Type Code:'),
-                    'origin_code': self._extract_field(soup, 'Origin Code:'),
-                    'brand_name': self._extract_field(soup, 'Brand Name:'),
-                    'fanciful_name': self._extract_field(soup, 'Fanciful Name:'),
-                    'type_of_application': self._extract_field(soup, 'Type of Application:'),
-                    'for_sale_in': self._extract_field(soup, 'For Sale In:'),
-                    'total_bottle_capacity': self._extract_field(soup, 'Total Bottle Capacity:'),
-                    'formula': self._extract_field(soup, 'Formula :'),  # TTB has space before colon
-                    'approval_date': self._extract_field(soup, 'Approval Date:'),
-                    'qualifications': self._extract_field(soup, 'Qualifications:'),
-                }
-                
-                # Wine-specific fields - try multiple label variations
-                data['grape_varietal'] = self._extract_field(soup, 'Grape Varietal(s):')
-                if not data['grape_varietal']:
-                    data['grape_varietal'] = self._extract_field(soup, 'Grape Varietal:')
-                
-                data['wine_vintage'] = self._extract_field(soup, 'Vintage Date:')
-                if not data['wine_vintage']:
-                    data['wine_vintage'] = self._extract_field(soup, 'Wine Vintage:')
-                
-                data['appellation'] = self._extract_field(soup, 'Appellation:')
-                
-                # Other product-specific fields
-                data['alcohol_content'] = self._extract_field(soup, 'Alcohol Content:')
-                data['ph_level'] = self._extract_field(soup, 'pH Level:')
-                
-                # Add company details
-                data.update(self._extract_company_details(soup))
-                
-                # Extract year/month/day from approval_date for indexing
-                # Format: MM/DD/YYYY
-                if data.get('approval_date'):
-                    try:
-                        parts = data['approval_date'].split('/')
-                        if len(parts) == 3:
-                            data['month'] = int(parts[0])
-                            data['day'] = int(parts[1])
-                            data['year'] = int(parts[2])
-                    except:
-                        data['year'] = None
-                        data['month'] = None
-                        data['day'] = None
-                else:
-                    data['year'] = None
-                    data['month'] = None
-                    data['day'] = None
-                
-                return data
-                
-            except Exception as e:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"  Retry {attempt + 1} for {ttb_id}: {e}")
-                    self._delay(2)
-                else:
-                    logger.error(f"  Failed to scrape {ttb_id}: {e}")
-                    return None
-        
-        return None
-    
-    def scrape_date_range(self, start_date: datetime, end_date: datetime) -> Dict:
-        """
-        Main method: Scrape all COLAs in a specific date range.
-        """
-        logger.info(f"Scraping date range: {start_date.date()} to {end_date.date()}")
-        
-        self._ensure_driver()
-        
-        # Phase 1: Collect links
-        logger.info("Phase 1: Collecting links...")
-        expected, collected = self._collect_date_range(start_date, end_date)
-        
-        total_links = self.conn.execute("SELECT COUNT(*) FROM collected_links").fetchone()[0]
-        logger.info(f"Total links in database: {total_links:,}")
-        
-        # Phase 2: Scrape details for unscraped links
-        logger.info("Phase 2: Scraping details...")
-        unscraped = self.conn.execute("""
-            SELECT ttb_id, detail_url FROM collected_links WHERE scraped = 0
-        """).fetchall()
-        
-        logger.info(f"Links to scrape: {len(unscraped):,}")
-        
-        scraped_count = 0
-        for i, (ttb_id, url) in enumerate(unscraped):
-            if (i + 1) % 50 == 0:
-                logger.info(f"  Progress: {i + 1}/{len(unscraped)}")
-            
-            data = self._scrape_detail_page(ttb_id, url)
-            
-            if data:
-                try:
-                    self.conn.execute("""
-                        INSERT OR IGNORE INTO colas
-                        (ttb_id, status, vendor_code, serial_number, class_type_code,
-                         origin_code, brand_name, fanciful_name, type_of_application,
-                         for_sale_in, total_bottle_capacity, formula, approval_date,
-                         qualifications, grape_varietal, wine_vintage, appellation,
-                         alcohol_content, ph_level, plant_registry, company_name,
-                         street, state, contact_person, phone_number, year, month, day)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        data.get('ttb_id'), data.get('status'), data.get('vendor_code'),
-                        data.get('serial_number'), data.get('class_type_code'),
-                        data.get('origin_code'), data.get('brand_name'),
-                        data.get('fanciful_name'), data.get('type_of_application'),
-                        data.get('for_sale_in'), data.get('total_bottle_capacity'),
-                        data.get('formula'), data.get('approval_date'),
-                        data.get('qualifications'), data.get('grape_varietal'),
-                        data.get('wine_vintage'), data.get('appellation'),
-                        data.get('alcohol_content'), data.get('ph_level'),
-                        data.get('plant_registry'), data.get('company_name'),
-                        data.get('street'), data.get('state'),
-                        data.get('contact_person'), data.get('phone_number'),
-                        data.get('year'), data.get('month'), data.get('day')
-                    ))
-                    
-                    self.conn.execute(
-                        "UPDATE collected_links SET scraped = 1 WHERE ttb_id = ?",
-                        (ttb_id,)
-                    )
-                    self.conn.commit()
-                    scraped_count += 1
-                except Exception as e:
-                    logger.warning(f"  Failed to save {ttb_id}: {e}")
-            
-            self._delay(0.5)
-        
-        total_colas = self.conn.execute("SELECT COUNT(*) FROM colas").fetchone()[0]
-        
-        return {
-            'expected_links': expected,
-            'collected_links': collected,
-            'scraped_details': scraped_count,
-            'total_colas': total_colas
-        }
-
-
-def scrape_date_range(start_date: datetime, end_date: datetime) -> Dict:
-    """
-    Scrape COLAs for a specific date range.
-    Returns stats dict.
-    """
-    if not SELENIUM_AVAILABLE:
-        return {'success': False, 'error': 'Selenium not available'}
-
-    logger.info(f"Scraping date range: {start_date.date()} to {end_date.date()}")
-
-    # Create a temporary database
-    temp_db = os.path.join(os.path.dirname(DB_PATH), "weekly_temp.db")
-
-    # Remove old temp db if exists
-    if os.path.exists(temp_db):
-        os.remove(temp_db)
-
-    try:
-        scraper = DateRangeScraper(db_path=temp_db, headless=True)
-
-        result = scraper.scrape_date_range(start_date, end_date)
-
-        scraper.close()
-
-        return {
-            'success': True,
-            'temp_db': temp_db,
-            'links': result['collected_links'],
-            'colas': result['total_colas'],
-            'start_date': start_date.date().isoformat(),
-            'end_date': end_date.date().isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Scraping failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-
-def scrape_recent_days(days: int = 14) -> Dict:
-    """
-    Scrape the last N days of COLAs using exact date range (not full months).
-    Returns stats dict.
-    """
-    if not SELENIUM_AVAILABLE:
-        return {'success': False, 'error': 'Selenium not available'}
+    if not SCRAPER_AVAILABLE:
+        return {'success': False, 'error': 'ColaWorker not available'}
 
     logger.info(f"Scraping last {days} days from TTB...")
 
@@ -870,38 +318,118 @@ def scrape_recent_days(days: int = 14) -> Dict:
     start_date = end_date - timedelta(days=days)
 
     logger.info(f"Date range: {start_date.date()} to {end_date.date()}")
-    
-    # Create a temporary database
+
+    # Create a temporary database for this scrape
     temp_db = os.path.join(os.path.dirname(DB_PATH), "weekly_temp.db")
-    
+
     # Remove old temp db if exists
     if os.path.exists(temp_db):
         os.remove(temp_db)
-    
+
+    worker = None
     try:
-        scraper = DateRangeScraper(db_path=temp_db, headless=True)
-        
-        result = scraper.scrape_date_range(start_date, end_date)
-        
-        scraper.close()
-        
+        # Use ColaWorker with robust retry logic
+        worker = ColaWorker(
+            name="weekly_update",
+            db_path=temp_db,
+            headless=True,
+            request_delay=1.5,
+            page_timeout=30,
+            max_retries=3
+        )
+
+        # Process the date range
+        result = worker.process_date_range(start_date, end_date)
+
+        # Get total COLAs from the temp database
+        conn = sqlite3.connect(temp_db)
+        total_colas = conn.execute("SELECT COUNT(*) FROM colas").fetchone()[0]
+        conn.close()
+
+        worker.close()
+
         return {
             'success': True,
             'temp_db': temp_db,
-            'links': result['collected_links'],
-            'colas': result['total_colas'],
+            'links': result.get('collected_links', 0),
+            'colas': total_colas,
             'start_date': start_date.date().isoformat(),
             'end_date': end_date.date().isoformat(),
+            'verified': result.get('details_verified', False),
         }
-        
+
     except Exception as e:
         logger.error(f"Scraping failed: {e}")
         import traceback
         traceback.print_exc()
+        if worker:
+            worker.close()
         return {
             'success': False,
             'error': str(e)
         }
+
+
+def scrape_date_range(start_date: datetime, end_date: datetime) -> Dict:
+    """
+    Scrape COLAs for a specific date range using ColaWorker.
+    Returns stats dict with temp_db path for further processing.
+    """
+    if not SCRAPER_AVAILABLE:
+        return {'success': False, 'error': 'ColaWorker not available'}
+
+    logger.info(f"Scraping date range: {start_date.date()} to {end_date.date()}")
+
+    # Create a temporary database for this scrape
+    temp_db = os.path.join(os.path.dirname(DB_PATH), "weekly_temp.db")
+
+    # Remove old temp db if exists
+    if os.path.exists(temp_db):
+        os.remove(temp_db)
+
+    worker = None
+    try:
+        # Use ColaWorker with robust retry logic
+        worker = ColaWorker(
+            name="weekly_update",
+            db_path=temp_db,
+            headless=True,
+            request_delay=1.5,
+            page_timeout=30,
+            max_retries=3
+        )
+
+        # Process the date range
+        result = worker.process_date_range(start_date, end_date)
+
+        # Get total COLAs from the temp database
+        conn = sqlite3.connect(temp_db)
+        total_colas = conn.execute("SELECT COUNT(*) FROM colas").fetchone()[0]
+        conn.close()
+
+        worker.close()
+
+        return {
+            'success': True,
+            'temp_db': temp_db,
+            'links': result.get('collected_links', 0),
+            'colas': total_colas,
+            'start_date': start_date.date().isoformat(),
+            'end_date': end_date.date().isoformat(),
+            'verified': result.get('details_verified', False),
+        }
+
+    except Exception as e:
+        logger.error(f"Scraping failed: {e}")
+        import traceback
+        traceback.print_exc()
+        if worker:
+            worker.close()
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
 
 # ============================================================================
 # MERGING

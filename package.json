@@ -1,0 +1,34 @@
+{
+  "name": "bevalc-intelligence",
+  "version": "1.0.0",
+  "description": "A robust, resumable scraper for the TTB Public COLA Registry. Collects Certificate of Label Approval (COLA) data for all beverage alcohol products approved in the United States.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug",
+    "test:chrome": "npx playwright test --project=chromium",
+    "test:mobile": "npx playwright test --project=mobile-chrome",
+    "test:report": "npx playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/macstock10/bevalc-intelligence.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/macstock10/bevalc-intelligence/issues"
+  },
+  "homepage": "https://github.com/macstock10/bevalc-intelligence#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
