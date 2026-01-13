@@ -2642,6 +2642,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .nav-links { display: flex; gap: 24px; }
         .nav-links a { color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; }
         .nav-links a:hover { color: var(--color-primary); }
+        .nav-home { color: #0d9488 !important; font-weight: 600; }
 
         .seo-page { padding-top: 80px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-bottom: 48px; }
 
@@ -2904,6 +2905,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         <div class="nav-container">
             <a href="/" class="nav-logo">BevAlc Intelligence</a>
             <div class="nav-links">
+                <a href="/" class="nav-home">Home</a>
                 <a href="/database.html">Database</a>
                 <a href="/#pricing">Pricing</a>
                 <a href="/account.html">Account</a>
@@ -3011,6 +3013,7 @@ async function handleCompanyPage(path, env, headers) {
         return new Response('Not Found', { status: 404 });
     }
 
+    try {
     // Get company by slug (try direct match first)
     let company = await env.DB.prepare(`
         SELECT * FROM companies WHERE slug = ? AND total_filings >= 1
@@ -3272,7 +3275,7 @@ async function handleCompanyPage(path, env, headers) {
         }
     }
     const categoryBars = Array.from(categoryMap.values())
-        .map(c => ({ ...c, pct: Math.round((c.count / totalCatFilings) * 100) }))
+        .map(c => ({ ...c, pct: totalCatFilings > 0 ? Math.round((c.count / totalCatFilings) * 100) : 0 }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 6);
 
@@ -3392,7 +3395,7 @@ async function handleCompanyPage(path, env, headers) {
                                     <th>Product</th>
                                     <th>Filing Entity</th>
                                     <th>Approved</th>
-                                    <th>Status</th>
+                                    <th>Signal</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3404,7 +3407,7 @@ async function handleCompanyPage(path, env, headers) {
                                         <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                         <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                         <td>${escapeHtml(f.approval_date)}</td>
-                                        <td><a href="/database.html?q=${encodeURIComponent(f.brand_name)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
+                                        <td>${f.signal ? `<span class="signal-badge signal-${f.signal.toLowerCase().replace('_', '-')}">${f.signal.replace('_', ' ')}</span>` : '-'}</td>
                                     </tr>
                                 `}).join('')}
                             </tbody>
@@ -3434,6 +3437,13 @@ async function handleCompanyPage(path, env, headers) {
             ...headers
         }
     });
+    } catch (error) {
+        console.error(`Company page error for ${slug}:`, error.message);
+        return new Response(`Error loading company page: ${error.message}`, {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain', ...headers }
+        });
+    }
 }
 
 // Brand Page Handler
@@ -3444,6 +3454,7 @@ async function handleBrandPage(path, env, headers) {
         return new Response('Not Found', { status: 404 });
     }
 
+    try {
     // Fast lookup via brand_slugs table
     const brandResult = await env.DB.prepare(`
         SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?
@@ -3513,7 +3524,7 @@ async function handleBrandPage(path, env, headers) {
 
     const maxTimeline = Math.max(...timeline.map(t => t.cnt), 1);
 
-    const title = brand.brand_name;
+    const title = `${brand.brand_name} Brand Filings & Portfolio`;
     const description = `${brand.brand_name} has ${formatNumber(brand.cnt)} TTB COLA filings. View product timeline, new SKUs, and filing history.`;
 
     const jsonLd = {
@@ -3591,7 +3602,7 @@ async function handleBrandPage(path, env, headers) {
                                     <th>Fanciful Name</th>
                                     <th>Type</th>
                                     <th>Approved</th>
-                                    <th>Status</th>
+                                    <th>Signal</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3601,7 +3612,7 @@ async function handleBrandPage(path, env, headers) {
                                         <td>${escapeHtml(p.fanciful_name || '—')}</td>
                                         <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                         <td>${escapeHtml(p.approval_date)}</td>
-                                        <td><a href="/database.html?q=${encodeURIComponent(brand.brand_name)}" class="signal-badge" style="background: #f1f5f9; color: #64748b; text-decoration: none;">View Signal</a></td>
+                                        <td>${p.signal ? `<span class="signal-badge signal-${p.signal.toLowerCase().replace('_', '-')}">${p.signal.replace('_', ' ')}</span>` : '-'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3631,6 +3642,13 @@ async function handleBrandPage(path, env, headers) {
             ...headers
         }
     });
+    } catch (error) {
+        console.error(`Brand page error for ${slug}:`, error.message);
+        return new Response(`Error loading brand page: ${error.message}`, {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain', ...headers }
+        });
+    }
 }
 
 // Category Page Handler
@@ -3652,6 +3670,7 @@ async function handleCategoryPage(path, env, headers) {
         return new Response('Category not found', { status: 404 });
     }
 
+    try {
     // Get patterns for this category
     const categoryPatterns = {
         'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
@@ -3767,8 +3786,8 @@ async function handleCategoryPage(path, env, headers) {
                 <div class="bar-chart">
                     ${monthly.map(m => `
                         <div class="bar-row">
-                            <div class="bar-label">${monthNames[m.month - 1]}</div>
-                            <div class="bar-container"><div class="bar-fill" style="width: ${Math.round((m.cnt / maxMonthly) * 100)}%"></div></div>
+                            <div class="bar-label">${monthNames[(m.month || 1) - 1] || 'Unknown'}</div>
+                            <div class="bar-container"><div class="bar-fill" style="width: ${maxMonthly > 0 ? Math.round((m.cnt / maxMonthly) * 100) : 0}%"></div></div>
                             <div class="bar-value">${m.cnt}</div>
                         </div>
                     `).join('')}
@@ -3822,6 +3841,13 @@ async function handleCategoryPage(path, env, headers) {
             ...headers
         }
     });
+    } catch (error) {
+        console.error(`Category page error for ${categorySlug}/${year}:`, error.message);
+        return new Response(`Error loading category page: ${error.message}`, {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain', ...headers }
+        });
+    }
 }
 
 // Sitemap Handler - serves pre-generated sitemaps from R2
