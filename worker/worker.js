@@ -2793,14 +2793,17 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .breadcrumb a { color: #64748b; text-decoration: none; }
         .breadcrumb a:hover { color: #0d9488; }
 
-        /* Pro blur styles */
-        .seo-blur { filter: blur(8px) !important; user-select: none !important; pointer-events: none !important; }
-        .pro-locked { position: relative; }
-        .pro-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 24px 32px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; }
-        .pro-overlay h3 { margin: 0 0 8px 0; font-size: 1.1rem; }
-        .pro-overlay p { margin: 0 0 16px 0; color: var(--color-text-secondary); font-size: 0.9rem; }
-        .pro-overlay .btn { background: var(--color-primary); color: white; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
-        .pro-overlay .btn:hover { background: var(--color-primary-dark, #0a7c72); }
+        /* Email gate blur styles */
+        .gated-table { position: relative; min-height: 280px; }
+        .gated-table tbody tr:nth-child(n+4) { filter: blur(4px); user-select: none; }
+        .gated-table tbody tr:nth-child(n+6) { filter: blur(6px); }
+        .gated-table tbody tr:nth-child(n+8) { filter: blur(8px); }
+        .gate-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 200px; background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.95) 40%, white 100%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 24px; }
+        .gate-content { text-align: center; padding: 24px 32px; }
+        .gate-content h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #1e293b; }
+        .gate-content p { margin: 0 0 16px 0; color: #64748b; font-size: 0.9rem; }
+        .gate-content .btn { background: #0d9488; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; }
+        .gate-content .btn:hover { background: #0a7c72; }
 
         /* Full page paywall */
         .page-paywall { min-height: 400px; position: relative; }
@@ -3387,35 +3390,42 @@ async function handleCompanyPage(path, env, headers) {
 
                 <div class="seo-card">
                     <h2>Recent Filings${recentFilings.length === 10 ? ' (Latest 10)' : ''}</h2>
-                    <div class="table-wrapper">
-                        <table class="filings-table">
-                            <thead>
-                                <tr>
-                                    <th>Brand</th>
-                                    <th>Product</th>
-                                    <th>Filing Entity</th>
-                                    <th>Approved</th>
-                                    <th>Signal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${recentFilings.map(f => {
-                                    const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
-                                    return `
+                    <div class="gated-table">
+                        <div class="table-wrapper">
+                            <table class="filings-table">
+                                <thead>
                                     <tr>
-                                        <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
-                                        <td>${escapeHtml(f.fanciful_name || '-')}</td>
-                                        <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
-                                        <td>${escapeHtml(f.approval_date)}</td>
-                                        <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                        <th>Brand</th>
+                                        <th>Product</th>
+                                        <th>Filing Entity</th>
+                                        <th>Approved</th>
+                                        <th>Signal</th>
                                     </tr>
-                                `}).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    ${recentFilings.map(f => {
+                                        const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
+                                        return `
+                                        <tr>
+                                            <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
+                                            <td>${escapeHtml(f.fanciful_name || '-')}</td>
+                                            <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
+                                            <td>${escapeHtml(f.approval_date)}</td>
+                                            <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                        </tr>
+                                    `}).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="gate-overlay">
+                            <div class="gate-content">
+                                <h3>Sign Up to View All Filings</h3>
+                                <p>Get free access to ${escapeHtml(company.display_name)}'s complete filing history</p>
+                                <a href="/#signup" class="btn">Get Free Access</a>
+                            </div>
+                        </div>
                     </div>
                     <p style="margin-top: 16px; text-align: center;">
-                        <a href="/database.html?q=${encodeURIComponent(company.canonical_name)}">View all filings →</a>
-                        <span style="margin: 0 12px; color: #cbd5e1;">|</span>
                         <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
                     </p>
                 </div>
@@ -3604,33 +3614,40 @@ async function handleBrandPage(path, env, headers) {
 
                 <div class="seo-card">
                     <h2>Recent Products${products.length === 15 ? ' (showing 15)' : ` (${products.length})`}</h2>
-                    <div class="table-wrapper">
-                        <table class="filings-table">
-                            <thead>
-                                <tr>
-                                    <th>Brand Name</th>
-                                    <th>Fanciful Name</th>
-                                    <th>Type</th>
-                                    <th>Approved</th>
-                                    <th>Signal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${products.map(p => `
+                    <div class="gated-table">
+                        <div class="table-wrapper">
+                            <table class="filings-table">
+                                <thead>
                                     <tr>
-                                        <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
-                                        <td>${escapeHtml(p.fanciful_name || '—')}</td>
-                                        <td>${escapeHtml(getCategory(p.class_type_code))}</td>
-                                        <td>${escapeHtml(p.approval_date)}</td>
-                                        <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                        <th>Brand Name</th>
+                                        <th>Fanciful Name</th>
+                                        <th>Type</th>
+                                        <th>Approved</th>
+                                        <th>Signal</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    ${products.map(p => `
+                                        <tr>
+                                            <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
+                                            <td>${escapeHtml(p.fanciful_name || '—')}</td>
+                                            <td>${escapeHtml(getCategory(p.class_type_code))}</td>
+                                            <td>${escapeHtml(p.approval_date)}</td>
+                                            <td><a href="/#pricing" class="signal-badge" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="gate-overlay">
+                            <div class="gate-content">
+                                <h3>Sign Up to View All Products</h3>
+                                <p>Get free access to ${escapeHtml(brand.brand_name)}'s complete product history</p>
+                                <a href="/#signup" class="btn">Get Free Access</a>
+                            </div>
+                        </div>
                     </div>
                     <p style="margin-top: 16px; text-align: center;">
-                        <a href="/database.html?q=${encodeURIComponent(brand.brand_name)}">View all products →</a>
-                        <span style="margin: 0 12px; color: #cbd5e1;">|</span>
                         <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
                     </p>
                 </div>
