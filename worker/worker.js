@@ -3430,9 +3430,6 @@ async function handleCompanyPage(path, env, headers) {
                             </div>
                         </div>
                     </div>
-                    <p style="margin-top: 16px; text-align: center;">
-                        <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
-                    </p>
                 </div>
 
                 <div class="related-links">
@@ -3653,9 +3650,6 @@ async function handleBrandPage(path, env, headers) {
                             </div>
                         </div>
                     </div>
-                    <p style="margin-top: 16px; text-align: center;">
-                        <a href="/glossary.html#signal" style="color: #0d9488;">How to interpret the Signal column →</a>
-                    </p>
                 </div>
 
                 <div class="related-links">
