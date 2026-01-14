@@ -717,11 +717,8 @@ def fetch_category_report(category: str, this_week_sql: str, last_week_sql: str)
     }
 
 
-def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categories: List[str] = None, tier: str = None) -> Dict:
-    """Fetch metrics for a PRO user including watchlist matches, spikes, and category reports.
-
-    For category_pro users, watchlist matches are filtered to only include filings within their tier_category.
-    """
+def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categories: List[str] = None) -> Dict:
+    """Fetch metrics for a PRO user including watchlist matches, spikes, and category reports."""
     this_week_start, this_week_end, last_week_start, last_week_end = get_week_dates()
     this_week_sql = date_range_sql(this_week_start, this_week_end)
     last_week_sql = date_range_sql(last_week_start, last_week_end)
@@ -735,8 +732,7 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     if subscribed_categories:
         category_conditions = [get_category_sql_filter(cat) for cat in subscribed_categories]
         category_filter_sql = f"AND ({' OR '.join(category_conditions)})"
-        tier_label = f" ({tier})" if tier else ""
-        logger.info(f"Filtering by categories{tier_label}: {', '.join(subscribed_categories)}")
+        logger.info(f"Filtering by categories: {', '.join(subscribed_categories)}")
 
     # Fetch category-specific reports for user's subscribed categories
     category_reports = []
@@ -754,10 +750,8 @@ def fetch_pro_metrics(user_email: str, watchlist: List[Dict], subscribed_categor
     watched_brands = [w["value"] for w in watchlist if w.get("type") == "brand"]
     watched_companies = [w["value"] for w in watchlist if w.get("type") == "company"]
 
-    # For category_pro users, watchlist matches must be filtered by their category
+    # No category filter for watchlist matches - Pro users have full access
     watchlist_category_filter = ""
-    if tier == "category_pro" and subscribed_categories:
-        watchlist_category_filter = category_filter_sql
 
     # 1. Watchlist matches - filings from watched brands/companies
     watchlist_matches = []
@@ -1043,9 +1037,9 @@ def get_free_subscribers() -> List[str]:
 
 def get_pro_subscribers() -> List[Dict]:
     """Get Pro subscribers with their watchlist and subscribed categories."""
-    # Get Pro users with their category subscriptions and tier info
+    # Get Pro users with their category subscriptions
     pro_users = d1_query("""
-        SELECT email, stripe_customer_id, categories, tier, tier_category FROM user_preferences
+        SELECT email, stripe_customer_id, categories FROM user_preferences
         WHERE is_pro = 1
     """)
 
@@ -1055,20 +1049,12 @@ def get_pro_subscribers() -> List[Dict]:
         if not email:
             continue
 
-        tier = user.get("tier")
-        tier_category = user.get("tier_category")
-
-        # Determine subscribed categories based on tier
-        if tier == "category_pro" and tier_category:
-            # Category Pro users get their single tier_category
-            subscribed_categories = [tier_category]
-        else:
-            # Premier users use the categories array
-            categories_json = user.get("categories") or "[]"
-            try:
-                subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
-            except json.JSONDecodeError:
-                subscribed_categories = []
+        # Pro users use the categories array for report preferences
+        categories_json = user.get("categories") or "[]"
+        try:
+            subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
+        except json.JSONDecodeError:
+            subscribed_categories = []
 
         # Get their watchlist
         watchlist = d1_query(f"""
@@ -1078,8 +1064,6 @@ def get_pro_subscribers() -> List[Dict]:
 
         pro_subscribers.append({
             "email": email,
-            "tier": tier,
-            "tier_category": tier_category,
             "watchlist": watchlist,
             "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
             "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
@@ -1194,24 +1178,17 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
     if single_email:
         # Check if single email is a Pro user
         pro_check = d1_query(f"""
-            SELECT is_pro, categories, tier, tier_category FROM user_preferences
+            SELECT is_pro, categories FROM user_preferences
             WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
         """)
         is_pro = pro_check[0].get("is_pro", 0) if pro_check else 0
 
         if is_pro:
-            tier = pro_check[0].get("tier") if pro_check else None
-            tier_category = pro_check[0].get("tier_category") if pro_check else None
-
-            # Determine subscribed categories based on tier
-            if tier == "category_pro" and tier_category:
-                subscribed_categories = [tier_category]
-            else:
-                categories_json = pro_check[0].get("categories") or "[]" if pro_check else "[]"
-                try:
-                    subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
-                except json.JSONDecodeError:
-                    subscribed_categories = []
+            categories_json = pro_check[0].get("categories") or "[]" if pro_check else "[]"
+            try:
+                subscribed_categories = json.loads(categories_json) if isinstance(categories_json, str) else categories_json
+            except json.JSONDecodeError:
+                subscribed_categories = []
 
             watchlist = d1_query(f"""
                 SELECT type, value FROM watchlist
@@ -1219,14 +1196,12 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
             """)
             pro_subscribers = [{
                 "email": single_email,
-                "tier": tier,
-                "tier_category": tier_category,
                 "watchlist": watchlist,
                 "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
                 "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
                 "subscribedCategories": subscribed_categories,
             }]
-            logger.info(f"Sending Pro report to: {single_email} (tier: {tier or 'premier'})")
+            logger.info(f"Sending Pro report to: {single_email}")
             if subscribed_categories:
                 logger.info(f"  Subscribed categories: {', '.join(subscribed_categories)}")
         else:
@@ -1271,20 +1246,16 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
             email = subscriber["email"]
             watchlist = subscriber.get("watchlist", [])
             subscribed_categories = subscriber.get("subscribedCategories", [])
-            tier = subscriber.get("tier")
 
             try:
                 # Fetch Pro-specific metrics for this user
-                pro_metrics = fetch_pro_metrics(email, watchlist, subscribed_categories, tier)
+                pro_metrics = fetch_pro_metrics(email, watchlist, subscribed_categories)
                 pro_metrics["firstName"] = ""  # Could extract from email or store in DB
                 pro_metrics["watchedCompaniesCount"] = subscriber["watchedCompaniesCount"]
                 pro_metrics["watchedBrandsCount"] = subscriber["watchedBrandsCount"]
-                pro_metrics["tier"] = tier or "premier"
-                pro_metrics["tierCategory"] = subscriber.get("tier_category")
 
                 if dry_run:
-                    tier_label = tier or "premier"
-                    logger.info(f"  [DRY RUN] Would send Pro report to: {email} (tier: {tier_label})")
+                    logger.info(f"  [DRY RUN] Would send Pro report to: {email}")
                     logger.info(f"    - Watchlist matches: {len(pro_metrics.get('watchlistMatches', []))}")
                     logger.info(f"    - Filing spikes: {len(pro_metrics.get('filingSpikes', []))}")
                     logger.info(f"    - Category reports: {len(pro_metrics.get('categoryReports', []))} ({', '.join(subscribed_categories) or 'none'})")

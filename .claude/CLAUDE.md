@@ -165,9 +165,8 @@ BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage a
 **Live Site**: https://bevalcintel.com
 
 **Pricing Tiers:**
-- **Free**: Basic search, blurred signals, locked Pro features
-- **Category Pro** ($29/month): Full access to ONE selected category
-- **Premier** ($79/month): Full access to ALL categories
+- **Free**: Basic search, blurred signals, 2-month data delay
+- **Pro** ($99/month): Full access to all categories, real-time data, CSV exports, watchlists
 
 ---
 
@@ -175,33 +174,23 @@ BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage a
 
 ### Tier Behavior
 
-| Feature | Free | Category Pro | Premier |
-|---------|------|--------------|---------|
-| Search database | Yes | Yes | Yes |
-| View signals | No (blurred) | Own category only | All |
-| CSV export | No | Own category only | All |
-| Watchlist | No | Own category only | All |
-| Company Intelligence | No | Own category only | All |
-| Weekly email reports | Basic summary | Own category | All subscribed |
-
-### Category Pro Specifics
-- User selects ONE category (Whiskey, Vodka, Tequila, etc.)
-- Can change category once per week (7-day cooldown)
-- When category changes, watchlist is automatically cleared
-- Signals/exports outside their category show same as Free tier
-- Mobile badge shows "Pro", Premier shows "Premier"
+| Feature | Free | Pro |
+|---------|------|-----|
+| Search database | Yes | Yes |
+| View signals | No (blurred) | All |
+| CSV export | No | Unlimited |
+| Watchlist | No | Yes |
+| Company Intelligence | No | Yes |
+| Weekly email reports | Basic summary | Full reports |
+| Data access | 2-month delay | Real-time |
 
 ### Tier Detection Flow
 ```
 1. Frontend fetches /api/user/preferences?email=...
-2. Response includes: { tier: "category_pro" | "premier", tier_category: "Whiskey" | null }
-3. Frontend uses tier to show correct badge and unlock features
-4. For Category Pro, hasRecordAccess checks if record's category matches tier_category
+2. Response includes: { is_pro: true/false, tier: "pro" | null }
+3. Frontend uses is_pro to show "Pro" badge and unlock features
+4. Pro users have full access to all categories and features
 ```
-
-### Upgrade Path
-- Category Pro → Premier: Uses /api/stripe/upgrade-subscription with prorated billing
-- Stripe webhook updates tier in D1 database
 
 ---
 
@@ -226,8 +215,7 @@ bevalc-intelligence/
 │   └── templates/
 │       ├── Welcome.jsx              # Signup confirmation
 │       ├── WeeklyReport.jsx         # Free users
-│       ├── ProWeeklyReport.jsx      # Premier users (all categories)
-│       ├── CategoryProWeeklyReport.jsx  # Category Pro users (single category)
+│       ├── ProWeeklyReport.jsx      # Pro users (all categories)
 │       └── WatchlistAlert.jsx       # Watchlist match notifications
 ├── scripts/
 │   ├── lib/
@@ -339,10 +327,8 @@ Core scraping class used by weekly_update.py:
 | email | TEXT | Primary key |
 | stripe_customer_id | TEXT | Stripe customer ID |
 | is_pro | INT | 1 if active subscription |
-| tier | TEXT | "category_pro" or "premier" |
-| tier_category | TEXT | Selected category for Category Pro users |
-| category_changed_at | TEXT | ISO timestamp of last category change |
-| categories | TEXT | JSON array of report categories (Premier) |
+| tier | TEXT | "pro" for paid users |
+| categories | TEXT | JSON array of report categories |
 | receive_free_report | INT | 1 to receive free weekly summary |
 | enhancement_credits | INT | Purchased credits balance |
 | preferences_token | TEXT | Unique token for settings access |
@@ -426,14 +412,11 @@ python batch_classify.py
 # Add enhancement credits to a user
 npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET enhancement_credits = enhancement_credits + 10 WHERE email = 'user@example.com'"
 
-# Check user's subscription and tier
-npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, is_pro, tier, tier_category, category_changed_at, enhancement_credits FROM user_preferences WHERE email = 'user@example.com'"
+# Check user's subscription
+npx wrangler d1 execute bevalc-colas --remote --command "SELECT email, is_pro, tier, enhancement_credits FROM user_preferences WHERE email = 'user@example.com'"
 
-# Reset category change cooldown (allow immediate category switch)
-npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET category_changed_at = NULL WHERE email = 'user@example.com'"
-
-# Upgrade user to Premier tier
-npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET tier = 'premier' WHERE email = 'user@example.com'"
+# Grant Pro access to a user
+npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences SET is_pro = 1, tier = 'pro' WHERE email = 'user@example.com'"
 
 # Clear user's watchlist
 npx wrangler d1 execute bevalc-colas --remote --command "DELETE FROM watchlist WHERE email = 'user@example.com'"
@@ -513,12 +496,7 @@ A single wrong number destroys credibility. See `content-writer.md` for detailed
 
 **Company Normalization:** Raw company names are mapped to normalized `company_id` via `company_aliases` table. This handles "ABC Inc" vs "ABC Inc." as the same company.
 
-**Tier Badge Display:** All pages (index.html, database.js, account.html, glossary.html, legal.html, success.html) check `data.tier` from the preferences API and show "Premier" or "Pro" badge accordingly. The comparison uses `.toLowerCase()` for case-insensitive matching.
-
-**Category Change Behavior:** When a Category Pro user changes their selected category:
-1. The `category_changed_at` timestamp is set (starts 7-day cooldown)
-2. The user's watchlist is automatically cleared (old items aren't relevant)
-3. The weekly report email will use the new category
+**Tier Badge Display:** All pages (index.html, database.js, account.html, glossary.html, legal.html, success.html) check `data.is_pro` from the preferences API and show "Pro" badge for paid users.
 
 **PDF Generation:** Company reports use jsPDF for precise control. The report uses coordinate-based positioning with:
 - `textWithLink()` for clickable URLs (website, news articles)

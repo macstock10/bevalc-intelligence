@@ -107,8 +107,8 @@ function groupByCategory(filings) {
   return { grouped, sortedCategories };
 }
 
-// Premier Badge Component
-function PremierBadge() {
+// Pro Badge Component
+function ProBadge() {
   return (
     <span
       style={{
@@ -125,7 +125,7 @@ function PremierBadge() {
         verticalAlign: "middle",
       }}
     >
-      Premier
+      Pro
     </span>
   );
 }
@@ -721,7 +721,7 @@ export function ProWeeklyReport({
     <Html>
       <Head />
       <Preview>
-        Premier Report: {totalFilings} filings, {newBrands} new brands
+        Pro Report: {totalFilings} filings, {newBrands} new brands
         {hasWatchlistMatches
           ? ` + ${watchlistMatches.length} watchlist matches`
           : ""}{" "}
@@ -756,7 +756,7 @@ export function ProWeeklyReport({
             >
               BevAlc Intelligence
             </Link>
-            <PremierBadge />
+            <ProBadge />
             <Text
               style={{
                 fontSize: "13px",
@@ -764,7 +764,7 @@ export function ProWeeklyReport({
                 margin: "4px 0 0 0",
               }}
             >
-              Weekly Premier Report
+              Weekly Pro Report
             </Text>
             <Text
               style={{
@@ -1627,7 +1627,7 @@ export function ProWeeklyReport({
                 margin: "0 0 8px 0",
               }}
             >
-              You're receiving this because you have an active Premier subscription.
+              You're receiving this because you have an active Pro subscription.
             </Text>
             <Text
               style={{

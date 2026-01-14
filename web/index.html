@@ -542,53 +542,28 @@
                 <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
             </div>
 
-            <!-- Paid Tiers - Two Columns -->
-            <div class="pricing-grid">
-                <!-- Category Pro Tier -->
-                <div class="pricing-card">
-                    <div class="pricing-header">
-                        <h3>Category Pro</h3>
-                        <div class="pricing-price">
-                            <span class="price-amount">$79</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                    </div>
-                    <ul class="pricing-features">
-                        <li><strong>One category, fully unlocked:</strong></li>
-                        <li>Real-time data access (no delay)</li>
-                        <li>Weekly report for your category</li>
-                        <li>New company, brand & SKU signals</li>
-                        <li>Daily watchlist alerts</li>
-                        <li>CSV exports</li>
-                        <li>Direct TTB filing links</li>
-                        <li>Top filers & filing velocity</li>
-                    </ul>
-                    <button class="btn btn-secondary-dark" id="category-pro-cta" data-tier="category_pro">Get Category Pro</button>
-                    <p class="pricing-note">Best for brands or specialists in one category.</p>
-                </div>
-
-                <!-- Premier Tier -->
+            <!-- Pro Tier -->
+            <div class="pricing-grid pricing-single">
                 <div class="pricing-card featured">
-                    <div class="pricing-badge">Recommended</div>
                     <div class="pricing-header">
-                        <h3>Premier</h3>
+                        <h3>Pro</h3>
                         <div class="pricing-price">
-                            <span class="price-amount">$149</span>
+                            <span class="price-amount">$99</span>
                             <span class="price-period">/month</span>
                         </div>
                     </div>
                     <ul class="pricing-features">
-                        <li><strong>All 14 categories unlocked:</strong></li>
+                        <li><strong>Full access to everything:</strong></li>
                         <li>Real-time data access (no delay)</li>
-                        <li>Weekly reports for every category</li>
+                        <li>Weekly reports for all categories</li>
                         <li>New company, brand & SKU signals</li>
                         <li>Daily watchlist alerts</li>
                         <li>Unlimited CSV exports</li>
                         <li>Direct TTB filing links</li>
                         <li>Full cross-category intelligence</li>
                     </ul>
-                    <button class="btn btn-glow" id="premier-cta" data-tier="premier">Get Premier</button>
-                    <p class="pricing-note">Best for service providers & multi-category operators.</p>
+                    <button class="btn btn-glow" id="pro-cta" data-tier="pro">Get Pro</button>
+                    <p class="pricing-note">Best for service providers, brands & multi-category operators.</p>
                 </div>
             </div>
         </div>
@@ -754,23 +729,14 @@
             const hasAccess = BevAlcAuth.hasAccess();
             const user = BevAlcAuth.getUser();
             
-            // Setup tier CTA buttons
-            const categoryProCta = document.getElementById('category-pro-cta');
-            const premierCta = document.getElementById('premier-cta');
-            if (categoryProCta) {
-                categoryProCta.addEventListener('click', () => handleTierUpgrade('category_pro', categoryProCta));
+            // Setup tier CTA button
+            const proCta = document.getElementById('pro-cta');
+            if (proCta) {
+                proCta.addEventListener('click', () => handleTierUpgrade('pro', proCta));
                 // Reset if stuck in loading state (back button from checkout)
-                if (categoryProCta.textContent === 'Loading...') {
-                    categoryProCta.disabled = false;
-                    categoryProCta.textContent = 'Get Category Pro';
-                }
-            }
-            if (premierCta) {
-                premierCta.addEventListener('click', () => handleTierUpgrade('premier', premierCta));
-                // Reset if stuck in loading state (back button from checkout)
-                if (premierCta.textContent === 'Loading...') {
-                    premierCta.disabled = false;
-                    premierCta.textContent = 'Get Premier';
+                if (proCta.textContent === 'Loading...') {
+                    proCta.disabled = false;
+                    proCta.textContent = 'Get Pro';
                 }
             }
 
@@ -816,60 +782,30 @@
                         if (isPro) {
                             const userStatus = document.getElementById('user-status');
                             const userStatusMobile = document.getElementById('user-status-mobile');
-                            const userTier = (data.tier || 'category_pro').toLowerCase();
 
-                            // Show tier badge - Premier shows "Premier", Category Pro shows "Pro"
-                            const tierLabel = userTier === 'premier' ? 'Premier' : 'Pro';
+                            // Show Pro badge
                             if (userStatus) {
-                                userStatus.textContent = tierLabel;
+                                userStatus.textContent = 'Pro';
                                 userStatus.style.display = 'inline';
                                 userStatus.className = 'user-status pro';
                             }
                             if (userStatusMobile) {
-                                userStatusMobile.textContent = tierLabel;
+                                userStatusMobile.textContent = 'Pro';
                                 userStatusMobile.style.display = 'inline';
                                 userStatusMobile.className = 'user-status user-status-mobile pro';
                             }
 
-                            // Update tier buttons based on user's current tier
-                            if (userTier === 'premier') {
-                                // Premier user - disable both buttons
-                                if (categoryProCta) {
-                                    categoryProCta.textContent = 'You\'re Subscribed';
-                                    categoryProCta.disabled = true;
-                                    categoryProCta.style.cursor = 'default';
-                                    categoryProCta.style.pointerEvents = 'none';
-                                    categoryProCta.style.opacity = '0.7';
-                                }
-                                if (premierCta) {
-                                    premierCta.textContent = 'You\'re Subscribed';
-                                    premierCta.disabled = true;
-                                    premierCta.style.cursor = 'default';
-                                    premierCta.style.pointerEvents = 'none';
-                                    premierCta.style.opacity = '0.7';
-                                }
-                            } else {
-                                // Category Pro user - show upgrade option on Premier
-                                if (categoryProCta) {
-                                    categoryProCta.textContent = 'You\'re Subscribed';
-                                    categoryProCta.disabled = true;
-                                    categoryProCta.style.cursor = 'default';
-                                    categoryProCta.style.pointerEvents = 'none';
-                                    categoryProCta.style.opacity = '0.7';
-                                }
-                                if (premierCta) {
-                                    premierCta.textContent = 'Upgrade to Premier';
-                                    premierCta.disabled = false;
-                                    premierCta.style.cursor = 'pointer';
-                                    premierCta.style.pointerEvents = 'auto';
-                                    premierCta.style.opacity = '1';
-                                    // Store user tier for upgrade handler
-                                    premierCta.dataset.userTier = 'category_pro';
-                                }
+                            // Disable Pro button since user is already subscribed
+                            if (proCta) {
+                                proCta.textContent = 'You\'re Subscribed';
+                                proCta.disabled = true;
+                                proCta.style.cursor = 'default';
+                                proCta.style.pointerEvents = 'none';
+                                proCta.style.opacity = '0.7';
                             }
 
                             user.isPro = true;
-                            user.tier = userTier;
+                            user.tier = 'pro';
                             BevAlcAuth.setUser(user);
                         } else {
                             // User is not Pro - clear Pro status from localStorage
@@ -884,58 +820,21 @@
             }
         });
         
-        // Handle tier upgrade - go directly to Stripe Checkout or upgrade subscription
+        // Handle Pro subscription checkout
         async function handleTierUpgrade(tier, button) {
             const user = BevAlcAuth.getUser();
 
-            // Check if this is an upgrade from Category Pro to Premier
-            const isUpgrade = button.dataset.userTier === 'category_pro' && tier === 'premier';
-
-            // If user is already Premier, do nothing
-            if (user && user.tier === 'premier') return;
+            // If user is already Pro, do nothing
+            if (user && user.isPro) return;
 
             const originalText = button.textContent;
             button.disabled = true;
             button.textContent = 'Loading...';
 
             try {
-                // If upgrading from Category Pro, use upgrade endpoint
-                if (isUpgrade && user && user.email) {
-                    const response = await fetch(`${API_BASE}/api/stripe/upgrade-subscription`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: user.email })
-                    });
-
-                    const data = await response.json();
-
-                    if (data.success) {
-                        // Update local user state
-                        user.tier = 'premier';
-                        BevAlcAuth.setUser(user);
-
-                        // Show success and update UI
-                        alert('Successfully upgraded to Premier! You now have access to all categories.');
-                        button.textContent = 'You\'re Subscribed';
-                        button.disabled = true;
-                        button.style.cursor = 'default';
-
-                        // Update status badge
-                        const userStatus = document.getElementById('user-status');
-                        const userStatusMobile = document.getElementById('user-status-mobile');
-                        if (userStatus) userStatus.textContent = 'Premier';
-                        if (userStatusMobile) userStatusMobile.textContent = 'Premier';
-                    } else {
-                        alert(data.error || 'Upgrade failed. Please try again.');
-                        button.disabled = false;
-                        button.textContent = originalText;
-                    }
-                    return;
-                }
-
                 // Create checkout session for new subscription
                 const body = {
-                    tier: tier,
+                    tier: 'pro',
                     successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
                     cancelUrl: window.location.origin + '/#pricing'
                 };
@@ -967,23 +866,18 @@
             }
         }
 
-        // Reset tier buttons when returning via back button (from Stripe checkout)
+        // Reset tier button when returning via back button (from Stripe checkout)
         window.addEventListener('pageshow', function(event) {
             if (event.persisted) {
                 // Page was restored from bfcache (back button)
-                const categoryProCta = document.getElementById('category-pro-cta');
-                const premierCta = document.getElementById('premier-cta');
+                const proCta = document.getElementById('pro-cta');
                 const user = BevAlcAuth.getUser();
 
                 // Only reset if user is not already Pro
                 if (!user || !user.isPro) {
-                    if (categoryProCta && categoryProCta.textContent === 'Loading...') {
-                        categoryProCta.disabled = false;
-                        categoryProCta.textContent = 'Get Category Pro';
-                    }
-                    if (premierCta && premierCta.textContent === 'Loading...') {
-                        premierCta.disabled = false;
-                        premierCta.textContent = 'Get Premier';
+                    if (proCta && proCta.textContent === 'Loading...') {
+                        proCta.disabled = false;
+                        proCta.textContent = 'Get Pro';
                     }
                 }
             }

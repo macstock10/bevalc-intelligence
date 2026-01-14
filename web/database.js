@@ -268,15 +268,13 @@ async function checkProStatus(email) {
                     const userInfo = localStorage.getItem('bevalc_user');
                     if (userInfo) {
                         const user = JSON.parse(userInfo);
-                        user.tier = prefsData.tier || 'premier';
-                        user.tierCategory = prefsData.tier_category || null;
+                        user.tier = prefsData.tier || 'pro';
                         localStorage.setItem('bevalc_user', JSON.stringify(user));
 
-                        // Update mobile badge with correct tier
+                        // Update mobile badge with Pro
                         const mobileBadge = document.getElementById('user-status-mobile');
                         if (mobileBadge) {
-                            const tierLabel = user.tier === 'premier' ? 'Premier' : 'Pro';
-                            mobileBadge.textContent = tierLabel;
+                            mobileBadge.textContent = 'Pro';
                             mobileBadge.style.display = 'inline-flex';
                             mobileBadge.classList.add('pro');
                         }
@@ -779,29 +777,16 @@ function openModal(record) {
     const userInfo = localStorage.getItem('bevalc_user');
     let userEmail = null;
     let isPro = false;
-    let userTier = null;
-    let userTierCategory = null;
-
     if (userInfo) {
         try {
             const user = JSON.parse(userInfo);
             userEmail = user.email;
             isPro = user.isPro || false;
-            userTier = user.tier || null;
-            userTierCategory = user.tierCategory || null;
         } catch (e) {}
     }
 
-    // Check if user has access to this specific record based on tier
-    // Premier users: full access to everything
-    // Category Pro users: full access only to their category
-    // Free users: no Pro access
+    // Pro users have full access to everything
     let hasRecordAccess = isPro;
-    if (isPro && userTier === 'category_pro' && userTierCategory) {
-        // Check if record's category matches user's tier category
-        const recordCategory = getCategory(record.class_type_code).category;
-        hasRecordAccess = (recordCategory === userTierCategory);
-    }
 
     // Signal badge - only show actual signal if user has access
     let signalBadge = '';
@@ -1236,24 +1221,14 @@ function showProUpgradePrompt() {
     const existingPrompt = document.getElementById('pro-upgrade-prompt');
     if (existingPrompt) existingPrompt.remove();
 
-    // Check user's current tier to show appropriate upgrade message
-    const user = typeof BevAlcAuth !== 'undefined' ? BevAlcAuth.getUser() : null;
-    const userTier = user?.tier || null;
-    const isPro = user?.isPro === true;
-
-    // Category Pro users (isPro but not premier) should upgrade to Premier
-    // Free users should upgrade to Pro
-    const isCategoryPro = isPro && userTier !== 'premier';
-    const upgradeText = isCategoryPro ? 'Upgrade to Premier' : 'Upgrade to Pro';
-
     const prompt = document.createElement('div');
     prompt.id = 'pro-upgrade-prompt';
     prompt.innerHTML = `
         <div class="pro-prompt-overlay">
             <div class="pro-prompt-content">
                 <button class="pro-prompt-close" onclick="this.closest('#pro-upgrade-prompt').remove()">&times;</button>
-                <h3>${isCategoryPro ? 'Premier Feature' : 'Pro Feature'}</h3>
-                <a href="/#pricing" class="btn btn-primary" onclick="this.closest('#pro-upgrade-prompt').remove()">${upgradeText}</a>
+                <h3>Pro Feature</h3>
+                <a href="/#pricing" class="btn btn-primary" onclick="this.closest('#pro-upgrade-prompt').remove()">Upgrade to Pro</a>
             </div>
         </div>
     `;
@@ -2181,20 +2156,16 @@ function showError(message) {
 // ============================================
 
 async function exportCSV() {
-    // Check if user is Pro and get tier info
+    // Check if user is Pro
     const userInfo = localStorage.getItem('bevalc_user');
     let isPro = false;
     let userEmail = '';
-    let userTier = null;
-    let userTierCategory = null;
 
     if (userInfo) {
         try {
             const user = JSON.parse(userInfo);
             isPro = user.isPro === true;
             userEmail = user.email || '';
-            userTier = user.tier || null;
-            userTierCategory = user.tierCategory || null;
         } catch (e) {}
     }
 
@@ -2203,15 +2174,6 @@ async function exportCSV() {
         return;
     }
 
-    // Category Pro users can only export their selected category
-    if (userTier === 'category_pro' && userTierCategory) {
-        const currentCategory = elements.categorySelect?.value;
-        if (currentCategory && currentCategory !== userTierCategory) {
-            showProUpgradePrompt();
-            return;
-        }
-    }
-    
     if (!userEmail) {
         alert('Please log in to export data.');
         return;

@@ -994,24 +994,7 @@ export function WeeklyReport({
               Ready for More?
             </Text>
 
-            {/* Category Pro */}
-            <Section
-              style={{
-                backgroundColor: colors.bgSecondary,
-                borderRadius: "8px",
-                padding: "16px",
-                marginBottom: "12px",
-              }}
-            >
-              <Text style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: colors.text }}>
-                Category Pro — $79/mo
-              </Text>
-              <Text style={{ margin: 0, fontSize: "13px", color: colors.textSecondary, lineHeight: "1.5" }}>
-                Pick one category to track. Get full signals, new brand alerts, CSV exports, and competitor watchlists for your focus area.
-              </Text>
-            </Section>
-
-            {/* Premier */}
+            {/* Pro */}
             <Section
               style={{
                 backgroundColor: colors.primaryLight,
@@ -1021,10 +1004,10 @@ export function WeeklyReport({
               }}
             >
               <Text style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: colors.primaryDark }}>
-                Premier — $149/mo
+                Pro — $99/mo
               </Text>
               <Text style={{ margin: 0, fontSize: "13px", color: colors.textSecondary, lineHeight: "1.5" }}>
-                Full access to all categories. Multi-category reports, unlimited exports, and complete market intelligence across the entire industry.
+                Full access to all categories. Real-time data, signal alerts, CSV exports, watchlists, and complete market intelligence across the entire industry.
               </Text>
             </Section>
 

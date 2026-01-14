@@ -293,8 +293,6 @@ export default {
                 response = await handleVerifySession(url, env);
             } else if (path === '/api/stripe/create-portal-session' && request.method === 'POST') {
                 response = await handleCreatePortalSession(request, env);
-            } else if (path === '/api/stripe/upgrade-subscription' && request.method === 'POST') {
-                response = await handleUpgradeSubscription(request, env);
             }
             // User preferences endpoints
             else if (path === '/api/user/preferences' && request.method === 'GET') {
@@ -378,21 +376,10 @@ export default {
 
 async function handleCreateCheckout(request, env) {
     const body = await request.json();
-    const { email, successUrl, cancelUrl, tier } = body;
+    const { email, successUrl, cancelUrl } = body;
 
     const stripeSecretKey = env.STRIPE_SECRET_KEY;
-
-    // Determine price ID based on tier
-    let priceId;
-    let tierName;
-    if (tier === 'premier') {
-        priceId = env.STRIPE_PREMIER_PRICE_ID;
-        tierName = 'premier';
-    } else {
-        // Default to category_pro for backwards compatibility
-        priceId = env.STRIPE_CATEGORY_PRO_PRICE_ID || env.STRIPE_PRICE_ID;
-        tierName = 'category_pro';
-    }
+    const priceId = env.STRIPE_PRO_PRICE_ID;
 
     if (!stripeSecretKey || !priceId) {
         return { success: false, error: 'Stripe not configured' };
@@ -405,7 +392,7 @@ async function handleCreateCheckout(request, env) {
         'line_items[0][quantity]': '1',
         'success_url': successUrl || 'https://bevalcintel.com/success.html?session_id={CHECKOUT_SESSION_ID}',
         'cancel_url': cancelUrl || 'https://bevalcintel.com/#pricing',
-        'metadata[tier]': tierName,
+        'metadata[tier]': 'pro',
         'metadata[product]': 'bevalc_intelligence'
     };
 
@@ -505,28 +492,26 @@ async function handleStripeWebhook(request, env, headers) {
                 }
             } else {
                 // Handle subscription checkout
-                const tier = session.metadata?.tier || 'category_pro';
-
                 if (customerEmail) {
-                    console.log(`Subscription activated for: ${customerEmail}, tier: ${tier}`);
+                    console.log(`Subscription activated for: ${customerEmail}`);
 
                     // Generate unique preferences token
                     const preferencesToken = generateToken();
 
-                    // Create or update user_preferences record with tier
+                    // Create or update user_preferences record
                     try {
                         await env.DB.prepare(`
                             INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
-                            VALUES (?, ?, 1, ?, ?, '[]', datetime('now'))
+                            VALUES (?, ?, 1, 'pro', ?, '[]', datetime('now'))
                             ON CONFLICT(email) DO UPDATE SET
                                 stripe_customer_id = excluded.stripe_customer_id,
                                 is_pro = 1,
-                                tier = excluded.tier,
+                                tier = 'pro',
                                 preferences_token = COALESCE(user_preferences.preferences_token, excluded.preferences_token),
                                 updated_at = datetime('now')
-                        `).bind(customerEmail.toLowerCase(), customerId, tier, preferencesToken).run();
+                        `).bind(customerEmail.toLowerCase(), customerId, preferencesToken).run();
 
-                        console.log(`User preferences record created/updated for: ${customerEmail}, tier: ${tier}`);
+                        console.log(`User preferences record created/updated for: ${customerEmail}`);
 
                         // Sync to Loops - mark as Pro with no categories selected yet
                         await syncToLoops(customerEmail, [], true, true, env);
@@ -559,7 +544,7 @@ async function handleStripeWebhook(request, env, headers) {
                 
                 await env.DB.prepare(`
                     UPDATE user_preferences
-                    SET is_pro = 0, tier = NULL, tier_category = NULL, categories = '[]', updated_at = datetime('now')
+                    SET is_pro = 0, tier = NULL, categories = '[]', updated_at = datetime('now')
                     WHERE stripe_customer_id = ?
                 `).bind(customerId).run();
                 console.log(`User marked as non-Pro for customer: ${customerId}`);
@@ -645,10 +630,7 @@ async function handleCustomerStatus(url, env) {
     const subsData = await subsResponse.json();
 
     if (subsData.data && subsData.data.length > 0) {
-        // Determine tier from subscription price
         const subscription = subsData.data[0];
-        const priceId = subscription.items?.data?.[0]?.price?.id;
-        const tier = priceId === env.STRIPE_PREMIER_PRICE_ID ? 'premier' : 'category_pro';
 
         return {
             success: true,
@@ -656,7 +638,7 @@ async function handleCustomerStatus(url, env) {
             email,
             customerId: customer.id,
             subscriptionId: subscription.id,
-            tier: tier
+            tier: 'pro'
         };
     }
 
@@ -765,126 +747,7 @@ async function handleCreatePortalSession(request, env) {
     };
 }
 
-async function handleUpgradeSubscription(request, env) {
-    let body;
-    try {
-        body = await request.json();
-    } catch (e) {
-        return { success: false, error: 'Invalid JSON' };
-    }
-
-    const { email } = body;
-
-    if (!email) {
-        return { success: false, error: 'Email required' };
-    }
-
-    const stripeSecretKey = env.STRIPE_SECRET_KEY;
-    const premierPriceId = env.STRIPE_PREMIER_PRICE_ID;
-
-    if (!stripeSecretKey || !premierPriceId) {
-        return { success: false, error: 'Stripe not configured' };
-    }
-
-    // Get stripe_customer_id from database first (more reliable than Stripe search)
-    const userResult = await env.DB.prepare(`
-        SELECT stripe_customer_id FROM user_preferences WHERE email = ?
-    `).bind(email.toLowerCase()).first();
-
-    let customerId = userResult?.stripe_customer_id;
-
-    // Fallback to Stripe search if not in database
-    if (!customerId) {
-        const searchResponse = await fetch(
-            `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${stripeSecretKey}`
-                }
-            }
-        );
-
-        const searchData = await searchResponse.json();
-
-        if (!searchData.data || searchData.data.length === 0) {
-            return { success: false, error: 'No customer found' };
-        }
-
-        customerId = searchData.data[0].id;
-    }
-
-    // Get current subscription
-    const subsResponse = await fetch(
-        `https://api.stripe.com/v1/subscriptions?customer=${customerId}&status=active`,
-        {
-            headers: {
-                'Authorization': `Bearer ${stripeSecretKey}`
-            }
-        }
-    );
-
-    const subsData = await subsResponse.json();
-
-    if (!subsData.data || subsData.data.length === 0) {
-        return { success: false, error: 'No active subscription found' };
-    }
-
-    const subscription = subsData.data[0];
-    const subscriptionItemId = subscription.items?.data?.[0]?.id;
-    const currentPriceId = subscription.items?.data?.[0]?.price?.id;
-
-    // Check if already on Premier
-    if (currentPriceId === premierPriceId) {
-        return { success: false, error: 'Already on Premier plan' };
-    }
-
-    if (!subscriptionItemId) {
-        return { success: false, error: 'Could not find subscription item' };
-    }
-
-    // Update subscription with proration
-    // proration_behavior: 'create_prorations' will credit unused time from old plan
-    // and charge prorated amount for new plan
-    const updateResponse = await fetch(
-        `https://api.stripe.com/v1/subscriptions/${subscription.id}`,
-        {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${stripeSecretKey}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({
-                'items[0][id]': subscriptionItemId,
-                'items[0][price]': premierPriceId,
-                'proration_behavior': 'create_prorations',
-                'metadata[tier]': 'premier'
-            })
-        }
-    );
-
-    const updateData = await updateResponse.json();
-
-    if (updateData.error) {
-        return { success: false, error: updateData.error.message };
-    }
-
-    // Update tier in D1
-    try {
-        await env.DB.prepare(`
-            UPDATE user_preferences SET tier = 'premier', updated_at = datetime('now')
-            WHERE email = ?
-        `).bind(email.toLowerCase()).run();
-    } catch (e) {
-        console.error('Failed to update tier in D1:', e);
-        // Don't fail the request - Stripe update succeeded
-    }
-
-    return {
-        success: true,
-        message: 'Subscription upgraded to Premier',
-        subscriptionId: subscription.id
-    };
-}
+// handleUpgradeSubscription removed - only one Pro tier now
 
 // ==========================================
 // CREDIT PURCHASE HANDLERS
@@ -1072,31 +935,22 @@ async function handleGetPreferences(url, env) {
                     const subsData = await subsResponse.json();
                     
                     if (subsData.data && subsData.data.length > 0) {
-                        // Determine tier from subscription price
-                        const subscription = subsData.data[0];
-                        const priceId = subscription.items?.data?.[0]?.price?.id;
-                        let tier = 'category_pro'; // default
-                        if (priceId === env.STRIPE_PREMIER_PRICE_ID) {
-                            tier = 'premier';
-                        }
-
                         // User is Pro in Stripe but missing D1 record - create it
                         const newToken = generateToken();
                         await env.DB.prepare(`
                             INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
-                            VALUES (?, ?, 1, ?, ?, '[]', datetime('now'))
-                        `).bind(email.toLowerCase(), customerId, tier, newToken).run();
+                            VALUES (?, ?, 1, 'pro', ?, '[]', datetime('now'))
+                        `).bind(email.toLowerCase(), customerId, newToken).run();
 
                         user = {
                             email: email.toLowerCase(),
                             is_pro: 1,
-                            tier: tier,
-                            tier_category: null,
+                            tier: 'pro',
                             preferences_token: newToken,
                             categories: '[]',
                             receive_free_report: 1
                         };
-                        console.log(`Created missing user_preferences record for Pro user: ${email}, tier: ${tier}`);
+                        console.log(`Created missing user_preferences record for Pro user: ${email}`);
                     }
                 }
             }
@@ -1113,26 +967,11 @@ async function handleGetPreferences(url, env) {
             categories = [];
         }
 
-        // Check if category can be changed (1-week cooldown)
-        let canChangeCategory = true;
-        let categoryChangeCooldownEnds = null;
-        if (user.category_changed_at) {
-            const changedAt = new Date(user.category_changed_at);
-            const cooldownEnd = new Date(changedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-            if (new Date() < cooldownEnd) {
-                canChangeCategory = false;
-                categoryChangeCooldownEnds = cooldownEnd.toISOString();
-            }
-        }
-
         return {
             success: true,
             email: user.email,
             is_pro: user.is_pro === 1,
-            tier: user.tier || null,
-            tier_category: user.tier_category || null,
-            can_change_category: canChangeCategory,
-            category_change_cooldown_ends: categoryChangeCooldownEnds,
+            tier: user.tier || 'pro',
             categories: categories,
             receive_free_report: user.receive_free_report === 1,
             available_categories: AVAILABLE_CATEGORIES
@@ -1150,16 +989,16 @@ async function handleSavePreferences(request, env) {
         return { success: false, error: 'Invalid JSON' };
     }
 
-    const { token, categories, tier_category, receive_free_report, confirm_category_change } = body;
+    const { token, categories, receive_free_report } = body;
 
     if (!token) {
         return { success: false, error: 'Token required' };
     }
 
     try {
-        // Get user with tier info
+        // Get user
         const user = await env.DB.prepare(
-            'SELECT email, is_pro, tier, tier_category, category_changed_at FROM user_preferences WHERE preferences_token = ?'
+            'SELECT email, is_pro FROM user_preferences WHERE preferences_token = ?'
         ).bind(token).first();
 
         if (!user) {
@@ -1172,82 +1011,7 @@ async function handleSavePreferences(request, env) {
 
         const receiveFreeReport = receive_free_report !== false;
 
-        // Handle Category Pro tier (single category)
-        if (user.tier === 'category_pro') {
-            if (tier_category !== undefined) {
-                // Validate category
-                if (!AVAILABLE_CATEGORIES.includes(tier_category)) {
-                    return { success: false, error: 'Invalid category' };
-                }
-
-                // Check if this is a category change (not initial selection)
-                const isInitialSelection = !user.tier_category;
-                const isCategoryChange = user.tier_category && user.tier_category !== tier_category;
-
-                if (isCategoryChange) {
-                    // Check cooldown (1 week)
-                    if (user.category_changed_at) {
-                        const changedAt = new Date(user.category_changed_at);
-                        const cooldownEnd = new Date(changedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-                        if (new Date() < cooldownEnd) {
-                            return {
-                                success: false,
-                                error: 'Category change on cooldown',
-                                cooldown_ends: cooldownEnd.toISOString()
-                            };
-                        }
-                    }
-
-                    // Require confirmation for category changes
-                    if (!confirm_category_change) {
-                        return {
-                            success: false,
-                            error: 'Confirmation required for category change',
-                            requires_confirmation: true,
-                            current_category: user.tier_category,
-                            new_category: tier_category
-                        };
-                    }
-                }
-
-                // Update tier_category
-                const setCooldown = isCategoryChange ? ", category_changed_at = datetime('now')" : (isInitialSelection ? ", category_changed_at = NULL" : "");
-                await env.DB.prepare(`
-                    UPDATE user_preferences
-                    SET tier_category = ?, receive_free_report = ?, updated_at = datetime('now')${setCooldown}
-                    WHERE preferences_token = ?
-                `).bind(tier_category, receiveFreeReport ? 1 : 0, token).run();
-
-                // Clear watchlist when category changes (old watchlist items aren't relevant to new category)
-                if (isCategoryChange) {
-                    await env.DB.prepare(`
-                        DELETE FROM watchlist WHERE email = ?
-                    `).bind(user.email.toLowerCase()).run();
-                    console.log(`Cleared watchlist for ${user.email} after category change from ${user.tier_category} to ${tier_category}`);
-                }
-
-                // Sync to Loops
-                await syncToLoops(user.email, [tier_category], true, receiveFreeReport, env);
-
-                return {
-                    success: true,
-                    message: isInitialSelection ? 'Category selected' : 'Category updated',
-                    tier_category: tier_category,
-                    category_changed: isCategoryChange
-                };
-            }
-
-            // Just updating receive_free_report
-            await env.DB.prepare(`
-                UPDATE user_preferences
-                SET receive_free_report = ?, updated_at = datetime('now')
-                WHERE preferences_token = ?
-            `).bind(receiveFreeReport ? 1 : 0, token).run();
-
-            return { success: true, message: 'Preferences saved' };
-        }
-
-        // Handle Premier tier (multiple categories) - existing logic
+        // Pro users can select multiple categories for their reports
         if (!Array.isArray(categories)) {
             return { success: false, error: 'Categories must be an array' };
         }
@@ -2088,31 +1852,18 @@ async function handleSearch(url, env) {
 
     const offset = (page - 1) * limit;
 
-    // Check for user tier restrictions
+    // Check for Pro access
     const email = params.get('email');
-    let userAllowedCategory = null;  // For Category Pro users, which category they have access to
-    let isPro = false;  // Whether user has Pro access (any tier)
+    let isPro = false;
 
     if (email) {
         try {
             const user = await env.DB.prepare(
-                'SELECT is_pro, tier, tier_category FROM user_preferences WHERE email = ?'
+                'SELECT is_pro FROM user_preferences WHERE email = ?'
             ).bind(email.toLowerCase()).first();
 
             if (user?.is_pro === 1) {
                 isPro = true;
-            }
-
-            if (user?.tier === 'category_pro') {
-                if (!user.tier_category) {
-                    return {
-                        success: false,
-                        error: 'category_required',
-                        message: 'Please select your category in account settings to access the database.'
-                    };
-                }
-                // Don't force filter - just track which category they have access to
-                userAllowedCategory = user.tier_category;
             }
         } catch (e) {
             console.error('Error checking user tier:', e);
@@ -2267,11 +2018,6 @@ async function handleSearch(url, env) {
         }
     };
 
-    // Include allowed category for Category Pro users (front-end will blur other categories)
-    if (userAllowedCategory) {
-        response.userAllowedCategory = userAllowedCategory;
-    }
-
     // Indicate data lag for free users
     if (!isPro) {
         response.dataLagMonths = 2;
@@ -2290,13 +2036,9 @@ async function handleExport(url, env) {
         return { success: false, error: 'Email required for export' };
     }
 
-    // Check if user is Pro and get tier info
-    let userTier = null;
-    let userTierCategory = null;
-
     try {
         let user = await env.DB.prepare(
-            'SELECT is_pro, tier, tier_category, preferences_token FROM user_preferences WHERE email = ?'
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
 
         // If token is provided, verify it matches
@@ -2330,23 +2072,15 @@ async function handleExport(url, env) {
                     const subsData = await subsResponse.json();
 
                     if (subsData.data && subsData.data.length > 0) {
-                        // Determine tier from subscription price
-                        const subscription = subsData.data[0];
-                        const priceId = subscription.items?.data?.[0]?.price?.id;
-                        let tier = 'category_pro';
-                        if (priceId === env.STRIPE_PREMIER_PRICE_ID) {
-                            tier = 'premier';
-                        }
-
                         // User is Pro in Stripe but missing D1 record - create it
                         const newToken = generateToken();
                         await env.DB.prepare(`
                             INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
-                            VALUES (?, ?, 1, ?, ?, '[]', datetime('now'))
-                        `).bind(email.toLowerCase(), customerId, tier, newToken).run();
+                            VALUES (?, ?, 1, 'pro', ?, '[]', datetime('now'))
+                        `).bind(email.toLowerCase(), customerId, newToken).run();
 
-                        user = { is_pro: 1, tier: tier, tier_category: null };
-                        console.log(`Created missing user_preferences record for Pro user: ${email}, tier: ${tier}`);
+                        user = { is_pro: 1 };
+                        console.log(`Created missing user_preferences record for Pro user: ${email}`);
                     }
                 }
             }
@@ -2354,14 +2088,6 @@ async function handleExport(url, env) {
 
         if (!user || user.is_pro !== 1) {
             return { success: false, error: 'Pro subscription required for export' };
-        }
-
-        userTier = user.tier;
-        userTierCategory = user.tier_category;
-
-        // Category Pro users must have selected a category to export
-        if (userTier === 'category_pro' && !userTierCategory) {
-            return { success: false, error: 'Please select your category in account settings before exporting' };
         }
     } catch (e) {
         console.error('Error checking Pro status:', e);
@@ -2380,17 +2106,12 @@ async function handleExport(url, env) {
     const query = params.get('q')?.trim();
     const origin = params.get('origin');
     const classType = params.get('class_type');
-    let category = params.get('category');
+    const category = params.get('category');
     const subcategory = params.get('subcategory');
     const status = params.get('status');
     const dateFrom = params.get('date_from');
     const dateTo = params.get('date_to');
     const signal = params.get('signal');
-
-    // Category Pro users can only export within their category
-    if (userTier === 'category_pro' && userTierCategory) {
-        category = userTierCategory; // Force category filter
-    }
 
     let whereClause = '1=1';
     const queryParams = [];

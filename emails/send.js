@@ -13,7 +13,6 @@ import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import { WeeklyReport } from './templates/WeeklyReport.jsx';
 import { ProWeeklyReport } from './templates/ProWeeklyReport.jsx';
-import { CategoryProWeeklyReport } from './templates/CategoryProWeeklyReport.jsx';
 import { Welcome } from './templates/Welcome.jsx';
 import { WatchlistAlert } from './templates/WatchlistAlert.jsx';
 
@@ -137,64 +136,7 @@ export async function sendProWeeklyReport({
   const result = await getResend().emails.send({
     from: getFromEmail(),
     to,
-    subject: `Your Premier Intel Report - ${weekEnding}`,
-    html,
-  });
-
-  return result;
-}
-
-/**
- * Send the Category Pro weekly report email
- */
-export async function sendCategoryProWeeklyReport({
-  to,
-  tierCategory,
-  weekEnding,
-  categoryFilings,
-  categoryNewBrands,
-  categoryNewSkus,
-  categoryNewCompanies,
-  weekOverWeekChange,
-  watchedCompaniesCount,
-  watchedBrandsCount,
-  watchlistMatches,
-  topCompaniesList,
-  filingSpikes,
-  newBrands,
-  newSkus,
-  weekStartDate,
-  weekEndDate,
-  databaseUrl,
-  accountUrl,
-}) {
-  const html = await render(
-    CategoryProWeeklyReport({
-      tierCategory,
-      weekEnding,
-      categoryFilings,
-      categoryNewBrands,
-      categoryNewSkus,
-      categoryNewCompanies,
-      weekOverWeekChange,
-      watchedCompaniesCount,
-      watchedBrandsCount,
-      watchlistMatches,
-      topCompaniesList,
-      filingSpikes,
-      newBrands,
-      newSkus,
-      weekStartDate,
-      weekEndDate,
-      databaseUrl,
-      accountUrl,
-    })
-  );
-
-  const result = await getResend().emails.send({
-    from: getFromEmail(),
-    to,
-    subject: `Your ${tierCategory} Weekly Report - ${weekEnding}`,
+    subject: `Your Pro Intel Report - ${weekEnding}`,
     html,
   });
 
@@ -273,13 +215,8 @@ export async function sendTestEmail({
       subject = `[TEST] Weekly Report - ${props.weekEnding || 'Preview'}`;
       break;
     case 'pro-weekly-report':
-    case 'premier-weekly-report':
       Component = ProWeeklyReport;
-      subject = `[TEST] Premier Weekly Report - ${props.weekEnding || 'Preview'}`;
-      break;
-    case 'category-pro-weekly-report':
-      Component = CategoryProWeeklyReport;
-      subject = `[TEST] ${props.tierCategory || 'Category'} Weekly Report - ${props.weekEnding || 'Preview'}`;
+      subject = `[TEST] Pro Weekly Report - ${props.weekEnding || 'Preview'}`;
       break;
     case 'welcome':
       Component = Welcome;
