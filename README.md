@@ -8,7 +8,7 @@ A B2B SaaS platform for beverage alcohol industry intelligence, powered by TTB C
 
 BevAlc Intelligence tracks all TTB (Alcohol and Tobacco Tax and Trade Bureau) label approvals for alcoholic beverages in the United States. We provide:
 
-- **Searchable database** of 1.9M+ COLA records
+- **Searchable database** of 2.4M+ COLA records
 - **Competitive intelligence signals** (new companies, new brands, filing velocity)
 - **Email alerts** when watched brands or companies file new labels
 - **AI-powered company enhancement** with website discovery and news
@@ -19,7 +19,7 @@ BevAlc Intelligence tracks all TTB (Alcohol and Tobacco Tax and Trade Bureau) la
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   Netlify   │────▶│ Cloudflare Worker│────▶│  Cloudflare D1  │
-│   (web/)    │     │   (worker.js)    │     │  (1.9M+ COLAs)  │
+│   (web/)    │     │   (worker.js)    │     │  (2.4M+ COLAs)  │
 └─────────────┘     └────────┬─────────┘     └─────────────────┘
                              │
               ┌──────────────┼──────────────┐

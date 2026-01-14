@@ -61,7 +61,7 @@ USER REQUEST
      ▼
 ┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  Netlify    │───▶│ Cloudflare Worker│───▶│  Cloudflare D1  │
-│  (web/)     │    │  (worker.js)     │    │  (1.9M+ COLAs)  │
+│  (web/)     │    │  (worker.js)     │    │  (2.4M+ COLAs)  │
 └─────────────┘    └────────┬─────────┘    └─────────────────┘
                            │
                            ▼
@@ -160,7 +160,7 @@ FOR EACH NEW RECORD:
 
 ## Project Overview
 
-BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 1.9M+ records with weekly email reports for subscribers.
+BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 2.4M+ records with weekly email reports for subscribers.
 
 **Live Site**: https://bevalcintel.com
 
@@ -293,7 +293,7 @@ Core scraping class used by weekly_update.py:
 
 ## Database Schema (Cloudflare D1)
 
-### `colas` - 1.9M+ COLA records
+### `colas` - 2.4M+ COLA records
 | Column | Type | Notes |
 |--------|------|-------|
 | ttb_id | TEXT | Primary key (unique TTB ID) |
@@ -310,7 +310,7 @@ Core scraping class used by weekly_update.py:
 | signal | TEXT | NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE |
 | refile_count | INT | Number of refiles for this SKU |
 
-### `companies` - Normalized company entities (~25K)
+### `companies` - Normalized company entities (~31K)
 | Column | Type | Notes |
 |--------|------|-------|
 | id | INT | Primary key |
@@ -326,7 +326,7 @@ Core scraping class used by weekly_update.py:
 | raw_name | TEXT | Exact name from TTB (unique) |
 | company_id | INT | FK to companies.id |
 
-### `brand_slugs` - Fast lookup for SEO pages (~240K)
+### `brand_slugs` - Fast lookup for SEO pages (~350K)
 | Column | Type | Notes |
 |--------|------|-------|
 | slug | TEXT | Primary key |
