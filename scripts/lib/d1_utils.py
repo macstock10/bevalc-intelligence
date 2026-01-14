@@ -294,6 +294,32 @@ def get_company_id(company_name: str) -> Optional[int]:
     return None
 
 
+def normalize_company_name(company_name: str) -> str:
+    """
+    Normalize company name to canonical form.
+
+    Handles cases like "Tank Space, Tank Space" → "Tank Space"
+    where the TTB filing has the same name repeated in DBA format.
+    """
+    if not company_name:
+        return company_name
+
+    name = company_name.strip()
+
+    # Check for "Name, Name" pattern (exact duplicate)
+    if ', ' in name:
+        parts = [p.strip() for p in name.split(', ', 1)]
+        if len(parts) == 2:
+            # Compare normalized versions (case-insensitive, ignore minor differences)
+            part1_norm = parts[0].upper().replace('LLC', '').replace('INC', '').strip()
+            part2_norm = parts[1].upper().replace('LLC', '').replace('INC', '').strip()
+            if part1_norm == part2_norm:
+                # Names are duplicates, use the first one
+                return parts[0]
+
+    return name
+
+
 def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     """
     Add new companies to companies and company_aliases tables.
@@ -353,6 +379,25 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     total_inserted = 0
     next_id = max_id + 1
 
+    # Build mapping of normalized names to check for existing companies
+    raw_to_normalized = {}
+    normalized_names = set()
+    for company_name in new_companies:
+        normalized = normalize_company_name(company_name)
+        raw_to_normalized[company_name] = normalized
+        normalized_names.add(normalized)
+
+    # Check which normalized names already exist in companies table
+    existing_normalized = {}  # normalized_name -> company_id
+    for i in range(0, len(normalized_names), 100):
+        batch = list(normalized_names)[i:i + 100]
+        placeholders = ','.join([escape_sql_value(n.upper()) for n in batch])
+        result = d1_execute(f"SELECT id, canonical_name FROM companies WHERE match_key IN ({placeholders})")
+        if result.get("success") and result.get("result"):
+            for res in result.get("result", []):
+                for row in res.get("results", []):
+                    existing_normalized[row.get("canonical_name", "").upper()] = row.get("id")
+
     # Insert in batches
     for i in range(0, len(new_companies), 100):
         batch = list(new_companies)[i:i + 100]
@@ -360,22 +405,43 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
         # Build companies insert values
         company_values = []
         alias_values = []
+        seen_normalized = set()  # Track normalized names we're adding in this batch
 
         for company_name in batch:
-            company_id = next_id
-            next_id += 1
-            slug = make_slug(company_name)
+            normalized = raw_to_normalized[company_name]
+            normalized_upper = normalized.upper()
 
-            # Insert into companies table
-            company_values.append(
-                f"({company_id}, {escape_sql_value(company_name)}, {escape_sql_value(company_name)}, "
-                f"{escape_sql_value(slug)}, {escape_sql_value(company_name.upper())}, 1, 1, NULL, NULL)"
-            )
+            # Check if normalized company already exists (either in DB or in this batch)
+            if normalized_upper in existing_normalized:
+                # Link alias to existing company
+                existing_id = existing_normalized[normalized_upper]
+                alias_values.append(
+                    f"({escape_sql_value(company_name)}, {existing_id})"
+                )
+            elif normalized_upper in seen_normalized:
+                # Already adding this normalized company in this batch, just add alias
+                # We need to find the ID we assigned
+                pass  # The alias will be added when we process the main entry
+            else:
+                # New company - create it
+                company_id = next_id
+                next_id += 1
+                slug = make_slug(normalized)
+                seen_normalized.add(normalized_upper)
 
-            # Insert into company_aliases table
-            alias_values.append(
-                f"({escape_sql_value(company_name)}, {company_id})"
-            )
+                # Insert into companies table with normalized name
+                company_values.append(
+                    f"({company_id}, {escape_sql_value(normalized)}, {escape_sql_value(normalized)}, "
+                    f"{escape_sql_value(slug)}, {escape_sql_value(normalized_upper)}, 1, 1, NULL, NULL)"
+                )
+
+                # Insert alias for raw name -> new company
+                alias_values.append(
+                    f"({escape_sql_value(company_name)}, {company_id})"
+                )
+
+                # Track for subsequent raw names that normalize to the same thing
+                existing_normalized[normalized_upper] = company_id
 
         # Execute companies insert
         if company_values:

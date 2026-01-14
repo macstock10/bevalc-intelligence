@@ -2658,7 +2658,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
     <style>
         /* Navigation styles */
-        .nav { background: white; border-bottom: 1px solid var(--color-border); position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+        .nav { background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0,0,0,0.06); position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
         .nav-container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
         .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--color-text); text-decoration: none; }
         .nav-links { display: flex; gap: 24px; }
@@ -2666,154 +2666,221 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .nav-links a:hover { color: var(--color-primary); }
         .nav-home { color: #0d9488 !important; font-weight: 600; }
 
-        .seo-page { padding-top: 80px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-bottom: 48px; }
+        .seo-page { padding-top: 80px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-bottom: 64px; }
 
-        /* Improved header with hero styling */
+        /* Modern hero header */
         .seo-header {
-            background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 50%, #f0f9ff 100%);
-            margin: 0 -24px 40px -24px;
-            padding: 48px 24px 40px;
-            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            margin: 0 -24px 48px -24px;
+            padding: 56px 24px 48px;
+            position: relative;
+            overflow: hidden;
         }
-        .seo-header-inner { max-width: 1200px; margin: 0 auto; }
+        .seo-header::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+        .seo-header::after {
+            content: '';
+            position: absolute;
+            top: -50%; right: -20%;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(13,148,136,0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .seo-header-inner { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
         .seo-header h1 {
             font-family: var(--font-display);
-            font-size: 2.25rem;
-            margin-bottom: 16px;
-            color: #0f172a;
-            line-height: 1.2;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ffffff;
+            line-height: 1.15;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
         .seo-header .meta {
-            color: #64748b;
+            color: rgba(255,255,255,0.7);
             font-size: 1rem;
             display: flex;
             flex-wrap: wrap;
-            gap: 8px 16px;
+            gap: 12px 20px;
             align-items: center;
         }
-        .seo-header .meta a { color: #0d9488; font-weight: 500; }
-        .seo-header .meta a:hover { text-decoration: underline; }
+        .seo-header .meta a { color: #5eead4; font-weight: 500; text-decoration: none; }
+        .seo-header .meta a:hover { color: #99f6e4; text-decoration: underline; }
+        .seo-header .meta strong { color: #fff; }
         .category-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            padding: 6px 14px;
-            border-radius: 20px;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 8px 16px;
+            border-radius: 24px;
             font-size: 0.875rem;
             font-weight: 500;
-            color: #334155;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            color: #fff;
         }
-        .category-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #0d9488; }
-        .meta-stats { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-        .meta-line { margin: 0; color: #64748b; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
-        .meta-line strong { color: #1e293b; font-weight: 600; }
-        .meta-icon { font-size: 1rem; opacity: 0.7; }
+        .category-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 8px rgba(45,212,191,0.5); }
+        .meta-stats { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+        .meta-line { margin: 0; color: rgba(255,255,255,0.6); font-size: 0.9rem; display: flex; align-items: center; gap: 10px; }
+        .meta-line strong { color: #fff; font-weight: 600; }
+        .meta-icon { font-size: 1rem; opacity: 0.8; }
 
-        /* Improved cards */
-        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 32px; }
+        /* Sleek stat cards */
+        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 40px; }
         .seo-card {
-            background: white;
+            background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            transition: box-shadow 0.2s, border-color 0.2s;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02);
+            transition: all 0.25s ease;
+            position: relative;
         }
-        .seo-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #cbd5e1; }
+        .seo-card:hover {
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+            transform: translateY(-2px);
+            border-color: #cbd5e1;
+        }
         .seo-card h2 {
-            font-size: 0.75rem;
-            color: #64748b;
-            margin-bottom: 12px;
+            font-size: 0.7rem;
+            color: #0d9488;
+            margin-bottom: 16px;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-weight: 600;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .stat-value { font-size: 2.25rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
-        .stat-label { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
-        .stat-label a { color: #0d9488; font-weight: 500; }
+        .seo-card h2::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: linear-gradient(180deg, #0d9488, #14b8a6);
+            border-radius: 2px;
+        }
+        .stat-value {
+            font-size: 2.75rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-label { font-size: 0.875rem; color: #64748b; margin-top: 8px; }
+        .stat-label a { color: #0d9488; font-weight: 600; text-decoration: none; }
+        .stat-label a:hover { text-decoration: underline; }
 
-        /* Brand chips */
-        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        /* Modern brand chips */
+        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
         .brand-chip {
-            background: white;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
             border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px 14px;
+            border-radius: 10px;
+            padding: 14px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: all 0.15s ease;
+            transition: all 0.2s ease;
             text-decoration: none;
         }
-        .brand-chip:hover { border-color: #0d9488; background: #f0fdfa; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(13,148,136,0.1); }
-        .brand-chip a { color: #1e293b; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; text-decoration: none; }
-        .brand-chip .count { color: #94a3b8; font-size: 0.8rem; flex-shrink: 0; margin-left: 8px; font-weight: 500; }
+        .brand-chip:hover {
+            border-color: #0d9488;
+            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13,148,136,0.15);
+        }
+        .brand-chip a { color: #1e293b; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; text-decoration: none; font-size: 0.9rem; }
+        .brand-chip .count {
+            color: #0d9488;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+            margin-left: 12px;
+            font-weight: 700;
+            background: #f0fdfa;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
 
-        /* Tables */
+        /* Clean tables */
         .filings-table { width: 100%; border-collapse: separate; border-spacing: 0; }
         .filings-table th {
-            background: #f8fafc;
-            font-weight: 600;
-            font-size: 0.75rem;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            font-weight: 700;
+            font-size: 0.7rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #64748b;
-            padding: 14px 16px;
+            letter-spacing: 0.08em;
+            color: #475569;
+            padding: 16px 18px;
             text-align: left;
             border-bottom: 2px solid #e2e8f0;
         }
+        .filings-table th:first-child { border-radius: 8px 0 0 0; }
+        .filings-table th:last-child { border-radius: 0 8px 0 0; }
         .filings-table td {
-            padding: 14px 16px;
+            padding: 16px 18px;
             border-bottom: 1px solid #f1f5f9;
             color: #334155;
             font-size: 0.9rem;
         }
-        .filings-table tbody tr { transition: background 0.15s; }
-        .filings-table tbody tr:hover { background: #f8fafc; }
-        .filings-table tbody tr:nth-child(even) { background: #fafbfc; }
-        .filings-table tbody tr:nth-child(even):hover { background: #f1f5f9; }
-        .filings-table a { color: #0d9488; font-weight: 500; text-decoration: none; }
+        .filings-table tbody tr { transition: all 0.15s ease; }
+        .filings-table tbody tr:hover { background: #f0fdfa; }
+        .filings-table a { color: #0d9488; font-weight: 600; text-decoration: none; }
         .filings-table a:hover { text-decoration: underline; }
 
         /* Signal badges */
-        .signal-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; }
-        .signal-new-company { background: #f3e8ff; color: #7c3aed; }
-        .signal-new-brand { background: #dcfce7; color: #15803d; }
-        .signal-new-sku { background: #dbeafe; color: #1d4ed8; }
+        .signal-badge { display: inline-block; padding: 5px 12px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; }
+        .signal-new-company { background: linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%); color: #7c3aed; }
+        .signal-new-brand { background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); color: #059669; }
+        .signal-new-sku { background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); color: #4f46e5; }
         .signal-refile { background: #f1f5f9; color: #64748b; }
 
-        /* Bar charts */
-        .bar-chart { margin: 8px 0; }
-        .bar-row { display: flex; align-items: center; margin-bottom: 10px; }
-        .bar-label { width: 60px; font-size: 0.875rem; color: #64748b; font-weight: 500; }
-        .bar-container { flex: 1; height: 28px; background: #f1f5f9; border-radius: 6px; overflow: hidden; margin: 0 12px; }
-        .bar-fill { height: 100%; background: linear-gradient(90deg, #0d9488, #14b8a6); border-radius: 6px; min-width: 4px; transition: width 0.4s ease; }
-        .bar-value { width: 50px; text-align: right; font-size: 0.875rem; font-weight: 600; color: #1e293b; }
+        /* Modern bar charts */
+        .bar-chart { margin: 12px 0; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 12px; }
+        .bar-label { width: 70px; font-size: 0.8rem; color: #64748b; font-weight: 600; }
+        .bar-container { flex: 1; height: 32px; background: linear-gradient(90deg, #f1f5f9, #f8fafc); border-radius: 8px; overflow: hidden; margin: 0 14px; position: relative; }
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
+            border-radius: 8px;
+            min-width: 8px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(13,148,136,0.3);
+        }
+        .bar-value { width: 50px; text-align: right; font-size: 0.85rem; font-weight: 700; color: #0f172a; }
 
         /* Related links */
-        .related-links { margin-top: 48px; padding-top: 32px; border-top: 1px solid #e2e8f0; }
-        .related-links h3 { margin-bottom: 16px; font-size: 1.1rem; color: #1e293b; }
+        .related-links { margin-top: 56px; padding-top: 40px; border-top: 2px solid #f1f5f9; }
+        .related-links h3 { margin-bottom: 20px; font-size: 1.1rem; color: #1e293b; font-weight: 700; }
         .related-links a {
             display: inline-block;
-            margin-right: 12px;
+            margin-right: 10px;
             margin-bottom: 10px;
             color: #0d9488;
-            background: #f0fdfa;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            transition: background 0.15s;
+            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
-        .related-links a:hover { background: #ccfbf1; text-decoration: none; }
+        .related-links a:hover { background: #ccfbf1; border-color: #5eead4; text-decoration: none; transform: translateY(-1px); }
 
         /* Breadcrumb */
-        .breadcrumb { margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
-        .breadcrumb a { color: #64748b; text-decoration: none; }
-        .breadcrumb a:hover { color: #0d9488; }
+        .breadcrumb { margin-bottom: 12px; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+        .breadcrumb a { color: rgba(255,255,255,0.6); text-decoration: none; transition: color 0.15s; }
+        .breadcrumb a:hover { color: #5eead4; }
 
         /* Email gate blur styles */
         .gated-table { position: relative; min-height: 280px; }
@@ -2822,12 +2889,37 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .gated-table tbody tr:nth-child(n+8) { filter: blur(8px); }
         .gated-table tbody tr a { pointer-events: auto; }
         .gated-table tbody tr:nth-child(n+4) a { pointer-events: none; }
-        .gate-overlay { position: absolute; top: 50px; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.95) 30%, white 100%); display: flex; align-items: flex-start; justify-content: center; padding-top: 24px; }
-        .gate-content { text-align: center; padding: 24px 40px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        .gate-content h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #1e293b; }
-        .gate-content p { margin: 0 0 16px 0; color: #64748b; font-size: 0.9rem; }
-        .gate-content .btn { background: #0d9488; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; }
-        .gate-content .btn:hover { background: #0a7c72; }
+        .gate-overlay {
+            position: absolute;
+            top: 80px; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.98) 40%, white 100%);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 32px;
+        }
+        .gate-content {
+            text-align: center;
+            padding: 32px 48px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .gate-content h3 { margin: 0 0 10px 0; font-size: 1.2rem; color: #0f172a; font-weight: 700; }
+        .gate-content p { margin: 0 0 20px 0; color: #64748b; font-size: 0.95rem; }
+        .gate-content .btn {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            display: inline-block;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(13,148,136,0.3);
+        }
+        .gate-content .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13,148,136,0.4); }
 
         /* Full page paywall */
         .page-paywall { min-height: 400px; position: relative; }
@@ -2898,32 +2990,39 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         .mobile-menu-link:hover { color: var(--color-primary); }
 
         @media (max-width: 768px) {
-            .seo-page { padding-left: 16px; padding-right: 16px; }
-            .seo-header { margin: 0 -16px 32px -16px; padding: 32px 16px 28px; }
-            .seo-header h1 { font-size: 1.5rem; }
-            .seo-header .meta { font-size: 0.9rem; gap: 6px 12px; }
-            .category-badge { padding: 5px 12px; font-size: 0.8rem; }
+            .seo-page { padding-left: 16px; padding-right: 16px; padding-bottom: 48px; }
+            .seo-header { margin: 0 -16px 36px -16px; padding: 40px 16px 32px; }
+            .seo-header h1 { font-size: 1.75rem; }
+            .seo-header .meta { font-size: 0.9rem; gap: 10px 14px; }
+            .category-badge { padding: 6px 14px; font-size: 0.8rem; }
             .seo-grid { grid-template-columns: 1fr; gap: 16px; }
-            .seo-card { padding: 20px; overflow: hidden; }
-            .stat-value { font-size: 1.75rem; }
-            .brand-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-            .brand-chip { padding: 10px 12px; }
+            .seo-card { padding: 22px; overflow: hidden; border-radius: 14px; }
+            .stat-value { font-size: 2.25rem; }
+            .brand-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .brand-chip { padding: 12px 14px; border-radius: 8px; }
             .filings-table { min-width: 550px; }
-            .filings-table th, .filings-table td { padding: 10px 12px; font-size: 0.8rem; }
-            .bar-label { width: 50px; font-size: 0.8rem; }
-            .bar-container { height: 24px; margin: 0 8px; }
-            .bar-value { width: 40px; font-size: 0.8rem; }
-            .related-links { margin-top: 32px; padding-top: 24px; }
-            .related-links a { padding: 5px 12px; font-size: 0.8rem; margin-right: 8px; }
+            .filings-table th, .filings-table td { padding: 12px 14px; font-size: 0.85rem; }
+            .bar-label { width: 55px; font-size: 0.75rem; }
+            .bar-container { height: 28px; margin: 0 10px; }
+            .bar-value { width: 45px; font-size: 0.8rem; }
+            .related-links { margin-top: 40px; padding-top: 28px; }
+            .related-links a { padding: 7px 14px; font-size: 0.8rem; margin-right: 8px; }
             .nav-links { display: none; }
             .mobile-menu-btn { display: flex; }
+            .gate-content { padding: 24px 28px; margin: 0 16px; }
+            .gate-content h3 { font-size: 1.1rem; }
+            .gate-content .btn { padding: 12px 24px; font-size: 0.9rem; }
         }
         @media (max-width: 480px) {
-            .seo-header h1 { font-size: 1.35rem; }
+            .seo-header h1 { font-size: 1.5rem; }
+            .seo-header .meta { gap: 8px 12px; }
             .brand-grid { grid-template-columns: 1fr; }
-            .brand-chip { padding: 10px 12px; }
-            .meta-stats { gap: 4px; }
+            .brand-chip { padding: 12px 14px; }
+            .brand-chip .count { padding: 3px 8px; }
+            .meta-stats { gap: 6px; }
             .meta-line { font-size: 0.85rem; }
+            .seo-card h2 { font-size: 0.65rem; }
+            .stat-value { font-size: 2rem; }
         }
     </style>
 </head>
@@ -3390,7 +3489,7 @@ async function handleCompanyPage(path, env, headers) {
                     ${dbaNames.length > 0 ? `<p class="meta-line"><span class="meta-icon">🏢</span> Also operates as: ${dbaNames.slice(0, 3).map(n => escapeHtml(n)).join(', ')}${dbaNames.length > 3 ? '...' : ''}</p>` : ''}
                 </div>
             </div>
-            <p style="margin-top: 12px;"><a href="/glossary.html#signals" style="color: #0d9488; font-weight: 500; text-decoration: none;">How to use our data →</a></p>
+            <p style="margin-top: 16px;"><a href="/glossary.html#signals" style="color: #5eead4; font-weight: 500; text-decoration: none; font-size: 0.9rem;">Learn how to use our data →</a></p>
         </header>
 
         <div>
@@ -3631,7 +3730,7 @@ async function handleBrandPage(path, env, headers) {
                     <span class="category-badge">${escapeHtml(primaryCategory)}</span>
                     <span><strong>${formatNumber(brand.cnt)}</strong> Filings</span>
                 </div>
-                <p style="margin-top: 12px;"><a href="/glossary.html#signals" style="color: #0d9488; font-weight: 500; text-decoration: none;">How to use our data →</a></p>
+                <p style="margin-top: 16px;"><a href="/glossary.html#signals" style="color: #5eead4; font-weight: 500; text-decoration: none; font-size: 0.9rem;">Learn how to use our data →</a></p>
             </div>
         </header>
 
@@ -4264,12 +4363,30 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         }
         console.log(`[Enhancement] Website found: ${websiteUrl || 'none'}`);
 
-        // Step 2: Deep crawl the website for content
+        // Step 2: Transform scraped pages into format expected by summary generator
         let websiteContent = null;
-        if (websiteUrl) {
-            console.log(`[Enhancement] Crawling website: ${websiteUrl}`);
-            websiteContent = await crawlWebsite(websiteUrl);
-            console.log(`[Enhancement] Crawled pages: homepage=${!!websiteContent?.homepage}, about=${!!websiteContent?.aboutPage}, contact=${!!websiteContent?.contactPage}`);
+        if (discoveredUrls.scrapedPages && discoveredUrls.scrapedPages.length > 0) {
+            const pages = discoveredUrls.scrapedPages;
+            websiteContent = {
+                homepage: null,
+                aboutPage: null,
+                contactPage: null,
+                otherPages: []
+            };
+
+            for (const page of pages) {
+                const urlLower = page.url.toLowerCase();
+                if (urlLower === websiteUrl?.toLowerCase() || urlLower.endsWith('/') && urlLower.slice(0, -1) === websiteUrl?.toLowerCase()) {
+                    websiteContent.homepage = page.content;
+                } else if (urlLower.includes('/about') || urlLower.includes('/our-story') || urlLower.includes('/history')) {
+                    websiteContent.aboutPage = page.content;
+                } else if (urlLower.includes('/contact')) {
+                    websiteContent.contactPage = page.content;
+                } else {
+                    websiteContent.otherPages.push(page.content);
+                }
+            }
+            console.log(`[Enhancement] Website content: homepage=${!!websiteContent.homepage}, about=${!!websiteContent.aboutPage}, contact=${!!websiteContent.contactPage}, other=${websiteContent.otherPages.length}`);
         }
 
         // Step 3: Generate summary using Claude (no web_search - just text analysis)
@@ -4347,14 +4464,25 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
 // NEW ENHANCEMENT FUNCTIONS (Google CSE + Deep Crawl)
 // ============================================================================
 
-// Single Google Custom Search query
-async function googleSearch(query, env) {
+// Rate limiting helper
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Single Google Custom Search query with rate limiting and retry
+async function googleSearch(query, env, retryCount = 0) {
     if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
         console.error('Google CSE credentials not configured');
         return [];
     }
 
+    const maxRetries = 2;
+    const baseDelay = 1500; // 1.5s between requests
+
     try {
+        // Rate limit: wait before making request (longer delay on retries)
+        const waitTime = baseDelay * (retryCount + 1);
+        await delay(waitTime);
+
+        console.log(`[Google] Searching: "${query}"${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
         const url = new URL('https://www.googleapis.com/customsearch/v1');
         url.searchParams.set('key', env.GOOGLE_CSE_API_KEY);
         url.searchParams.set('cx', env.GOOGLE_CSE_ID);
@@ -4362,12 +4490,21 @@ async function googleSearch(query, env) {
         url.searchParams.set('num', '5');
 
         const response = await fetch(url.toString());
+
+        // Retry on rate limit
+        if (response.status === 429 && retryCount < maxRetries) {
+            console.log(`[Google] Rate limited, retrying in ${(retryCount + 2) * 2}s...`);
+            await delay((retryCount + 2) * 2000);
+            return googleSearch(query, env, retryCount + 1);
+        }
+
         if (!response.ok) {
-            console.error('Google CSE error:', response.status, await response.text());
+            console.error('Google CSE error:', response.status);
             return [];
         }
 
         const data = await response.json();
+        console.log(`[Google] Found ${data.items?.length || 0} results`);
         return data.items || [];
     } catch (e) {
         console.error('Google search failed:', e);
@@ -4375,68 +4512,339 @@ async function googleSearch(query, env) {
     }
 }
 
+// ============================================================================
+// WEBSITE DISCOVERY - Fetch actual page content for Claude to evaluate
+// ============================================================================
+
+// Fetch a webpage and extract text content (with retry for timeouts)
+async function fetchPageContent(url, timeout = 10000, retryCount = 0) {
+    const maxRetries = 1; // One retry for timeouts
+    try {
+        // Rate limit
+        await delay(500);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        console.log(`[Fetch] Fetching: ${url}${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml'
+            },
+            redirect: 'follow'
+        });
+        clearTimeout(timeoutId);
+
+        // Handle common errors
+        if (response.status === 403 || response.status === 404 || response.status === 503) {
+            console.log(`[Fetch] ${url} returned ${response.status}, skipping`);
+            return null;
+        }
+        if (!response.ok) {
+            console.log(`[Fetch] ${url} returned ${response.status}`);
+            return null;
+        }
+
+        const html = await response.text();
+
+        // Extract text content (strip HTML tags, scripts, styles)
+        let text = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&[a-z]+;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        console.log(`[Fetch] Got ${text.length} chars from ${url}`);
+        return text.substring(0, 4000);
+    } catch (e) {
+        // Retry on timeout (aborted)
+        if (e.name === 'AbortError' && retryCount < maxRetries) {
+            console.log(`[Fetch] Timeout on ${url}, retrying with longer timeout...`);
+            await delay(1000);
+            return fetchPageContent(url, timeout + 5000, retryCount + 1);
+        }
+        console.log(`[Fetch] Failed ${url}: ${e.message}`);
+        return null;
+    }
+}
+
+// Scrape multiple pages from a confirmed website
+async function scrapeWebsitePages(baseUrl, maxPages = 5) {
+    try {
+        const baseDomain = new URL(baseUrl).hostname;
+        const results = [];
+
+        // Fetch homepage first
+        const homeContent = await fetchPageContent(baseUrl);
+        if (homeContent) {
+            results.push({ url: baseUrl, content: homeContent });
+        }
+
+        // Priority pages to try
+        const priorityPaths = [
+            '/about', '/about-us', '/about-us/', '/our-story',
+            '/contact', '/contact-us',
+            '/products', '/our-products', '/brands', '/our-brands',
+            '/team', '/leadership', '/history'
+        ];
+
+        for (const path of priorityPaths) {
+            if (results.length >= maxPages) break;
+
+            try {
+                const pageUrl = new URL(path, baseUrl).toString();
+                const content = await fetchPageContent(pageUrl, 3000);
+                if (content && content.length > 200) {
+                    results.push({ url: pageUrl, content });
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        console.log(`[Scrape] Got ${results.length} pages from ${baseDomain}`);
+        return results;
+    } catch (e) {
+        console.error(`[Scrape] Error: ${e.message}`);
+        return [];
+    }
+}
+
+// Have Claude parse company info from website content
+async function parseCompanyInfo(companyName, websiteUrl, pageContents, env) {
+    if (!env.ANTHROPIC_API_KEY || pageContents.length === 0) return null;
+
+    const combinedContent = pageContents
+        .map(p => `=== PAGE: ${p.url} ===\n${p.content}`)
+        .join('\n\n')
+        .substring(0, 12000);
+
+    const prompt = `Extract company information from this website content for "${companyName}".
+
+WEBSITE: ${websiteUrl}
+
+CONTENT:
+${combinedContent}
+
+Extract the following (use null if not found, do not guess):
+- Official company name
+- Founded year
+- Location/address
+- Key people (founders, CEO, etc.)
+- Product types/brands mentioned
+- Company description (2-3 sentences)
+- Contact email
+- Phone number
+
+Return JSON only:
+{
+  "company_name": "...",
+  "founded": "...",
+  "location": "...",
+  "key_people": ["..."],
+  "products": ["..."],
+  "description": "...",
+  "email": "...",
+  "phone": "..."
+}`;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        if (!response.ok) return null;
+
+        const result = await response.json();
+        const text = result.content?.[0]?.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+    } catch (e) {
+        console.error('[Parse] Error:', e);
+    }
+    return null;
+}
+
 // Run multiple Google searches to discover company URLs
 async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
-    // Retailer domains to skip
-    const retailerDomains = [
+    // Domains to always skip
+    const skipDomains = [
+        // Social media
+        'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
+        // Directories, reviews, and data aggregators
+        'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com', 'untappd.com',
+        'ratebeer.com', 'beeradvocate.com', 'whiskybase.com', 'distiller.com',
+        'importgenius.com', 'importyeti.com', 'panjiva.com', 'dnb.com', 'zoominfo.com',
+        // Retailers
         'drizly.com', 'totalwine.com', 'vivino.com', 'wine-searcher.com',
         'reservebar.com', 'caskers.com', 'wine.com', 'thewhiskyexchange.com',
-        'masterofmalt.com', 'klwines.com', 'astorwines.com', 'bevmo.com',
-        'liquor.com', 'thewhiskyworld.com', 'flaviar.com'
+        'masterofmalt.com', 'klwines.com', 'amazon.com', 'walmart.com', 'target.com',
+        'maverickbevil.com', 'specsonline.com', 'goodygoody.com',
+        // News/media
+        'forbes.com', 'bloomberg.com', 'nytimes.com', 'washingtonpost.com',
+        'cnn.com', 'foxnews.com', 'usatoday.com',
+        // Blogs/aggregators
+        'medium.com', 'wordpress.com', 'blogspot.com', 'tumblr.com',
+        'pinterest.com', 'reddit.com', 'quora.com', 'youtube.com',
+        'thrillist.com', 'eater.com', 'vinepair.com', 'winemag.com',
+        // Our own site
+        'bevalcintel.com'
     ];
 
-    // Review/listing sites to skip
-    const skipDomains = [
-        'yelp.com', 'tripadvisor.com', 'untappd.com', 'ratebeer.com',
-        'beeradvocate.com', 'whiskybase.com', 'distiller.com',
-        'linkedin.com', 'twitter.com', 'x.com', 'youtube.com',
-        'amazon.com', 'walmart.com', 'target.com'
-    ];
+    // Also skip domains starting with "shop."
+    const isShopSubdomain = (domain) => domain.startsWith('shop.');
 
-    // Clean company name for searching (remove LLC, Inc, etc.)
-    const cleanCompanyName = companyName
-        .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.L\.C\.|INC\.|CORP\.)\b\.?/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    // Clean company name for searching - extract BOTH parts if comma-separated
+    const nameParts = companyName.split(',').map(p =>
+        p.replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.L\.C\.|INC\.|CORP\.)\b\.?/gi, '')
+         .replace(/\s+/g, ' ')
+         .trim()
+    ).filter(p => p.length >= 3);
 
-    // Run 4 searches in parallel
-    const [companyResults, brandResults, socialResults, newsResults] = await Promise.all([
-        googleSearch(`"${cleanCompanyName}"`, env),
-        googleSearch(`${brandName} official website ${industryHint}`, env),
-        googleSearch(`${cleanCompanyName} OR ${brandName} facebook instagram youtube`, env),
-        googleSearch(`"${cleanCompanyName}" OR "${brandName}" news`, env)
-    ]);
+    // Primary name is first part, but also keep second part for searching
+    let cleanCompanyName = nameParts[0] || companyName;
+    let altCompanyName = nameParts.length > 1 ? nameParts[1] : null;
 
-    // Extract official website (first non-retailer result)
-    let websiteUrl = null;
-    const allResults = [...companyResults, ...brandResults];
+    // If primary name is too short, use both parts combined
+    if (cleanCompanyName.length < 5) {
+        cleanCompanyName = nameParts.join(' ');
+    }
+
+    console.log(`[Enhancement] Searching for: "${cleanCompanyName}"${altCompanyName ? ` (alt: "${altCompanyName}")` : ''} (brand: "${brandName}")`);
+
+    // Also try without hyphens/special chars for better Google matching
+    const searchName = cleanCompanyName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const altSearchName = altCompanyName ? altCompanyName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim() : null;
+
+    // STEP 1: Google Search for Candidates - multiple strategies
+    // Build search queries - mix of exact and broad, prioritize alt name
+    const searchQueries = [];
+    const seenQueries = new Set();
+
+    const addQuery = (q) => {
+        const normalized = q.toLowerCase().trim();
+        if (!seenQueries.has(normalized)) {
+            seenQueries.add(normalized);
+            searchQueries.push(q);
+        }
+    };
+
+    // If we have an alt name (like "Helmsman Imports"), search it FIRST
+    if (altSearchName) {
+        addQuery(altSearchName);  // Broad search (no quotes)
+    }
+
+    // Primary name - both exact and broad
+    addQuery(cleanCompanyName);  // Broad search
+    if (searchName !== cleanCompanyName) {
+        addQuery(searchName);
+    }
+
+    const allResults = [];
+    for (const query of searchQueries) {
+        const results = await googleSearch(query, env);
+        allResults.push(...results);
+        // Stop if we have enough results
+        if (allResults.length >= 15) break;
+    }
+
+    // STEP 2: Filter Obvious Non-Matches
+    const candidates = [];
+    const seenDomains = new Set();
 
     for (const result of allResults) {
+        if (candidates.length >= 5) break;
+
         try {
             const url = result.link;
             const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
 
-            // Skip retailers
-            if (retailerDomains.some(r => domain.includes(r))) continue;
-            // Skip review/listing sites
-            if (skipDomains.some(r => domain.includes(r))) continue;
-            // Skip social media as primary website
-            if (domain.includes('facebook.com') || domain.includes('instagram.com')) continue;
+            // Skip if already seen this domain
+            if (seenDomains.has(domain)) continue;
+            seenDomains.add(domain);
 
-            // Found likely official website
-            websiteUrl = url;
-            break;
+            // Skip blocked domains
+            if (skipDomains.some(d => domain.includes(d))) continue;
+
+            // Skip shop.* subdomains (retailer storefronts)
+            if (isShopSubdomain(domain)) continue;
+
+            // Skip .gov sites
+            if (domain.endsWith('.gov')) continue;
+
+            // Skip URLs that look like articles/news
+            if (url.includes('/article/') || url.includes('/news/') || url.includes('/press/')) continue;
+
+            // Skip non-HTML files
+            if (url.endsWith('.pdf') || url.endsWith('.txt') || url.endsWith('.doc')) continue;
+
+            candidates.push({
+                url: url,
+                domain: domain,
+                title: result.title || '',
+                snippet: result.snippet || ''
+            });
         } catch (e) {
             continue;
         }
     }
 
-    // Extract social media URLs
+    console.log(`[Enhancement] Found ${candidates.length} candidates after filtering:`);
+    candidates.forEach((c, i) => console.log(`  ${i + 1}. ${c.domain} - ${c.url}`));
+
+    // STEP 3: Claude Evaluates Candidates by FETCHING PAGE CONTENT
+    let websiteUrl = null;
+
+    if (candidates.length > 0 && env.ANTHROPIC_API_KEY) {
+        // Fetch actual page content for each candidate (in parallel, with timeout)
+        const fetchPromises = candidates.map(async (c) => {
+            const content = await fetchPageContent(c.url);
+            console.log(`[Enhancement] Fetched ${c.domain}: ${content ? content.length + ' chars' : 'FAILED'}`);
+            return { ...c, content };
+        });
+
+        const candidatesWithContent = await Promise.all(fetchPromises);
+        const validCandidates = candidatesWithContent.filter(c => c.content);
+
+        console.log(`[Enhancement] ${validCandidates.length} of ${candidates.length} candidates have content`);
+
+        if (validCandidates.length > 0) {
+            websiteUrl = await claudeSelectWebsite(cleanCompanyName, brandName, validCandidates, env);
+        } else {
+            console.log('[Enhancement] No candidates with fetchable content');
+        }
+    } else if (candidates.length === 0) {
+        console.log('[Enhancement] No candidates found from Google search');
+    }
+
+    // STEP 4: Extract social media from search results
     let facebookUrl = null;
     let instagramUrl = null;
     let youtubeUrl = null;
 
-    for (const result of [...socialResults, ...companyResults, ...brandResults]) {
+    // Search specifically for social
+    const socialResults = await googleSearch(`${cleanCompanyName} facebook OR instagram OR youtube`, env);
+
+    for (const result of [...socialResults, ...allResults]) {
         const url = result.link;
         if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) {
             facebookUrl = url;
@@ -4445,39 +4853,59 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
             instagramUrl = url;
         }
         if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) {
-            // Get channel/user pages, not individual videos
             youtubeUrl = url;
         }
     }
 
-    // Extract news articles
+    // STEP 5: Search for news articles
     const newsArticles = [];
+    const newsResults = await googleSearch(`"${cleanCompanyName}" news`, env);
     const seenUrls = new Set();
 
     for (const result of newsResults) {
+        if (newsArticles.length >= 3) break;
+
         try {
             const url = result.link;
             const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
 
             // Skip company's own site
             if (websiteUrl && url.includes(new URL(websiteUrl).hostname)) continue;
-            // Skip retailers
-            if (retailerDomains.some(r => domain.includes(r))) continue;
             // Skip duplicates
             if (seenUrls.has(url)) continue;
-
             seenUrls.add(url);
+
+            // Extract date
+            let articleDate = null;
+            const metatags = result.pagemap?.metatags?.[0];
+            if (metatags) {
+                articleDate = metatags['article:published_time'] ||
+                              metatags['og:updated_time'] ||
+                              metatags['datePublished'];
+            }
+            if (!articleDate && result.snippet) {
+                const dateMatch = result.snippet.match(/(\w{3}\s+\d{1,2},?\s+\d{4})|(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) articleDate = dateMatch[0];
+            }
+
             newsArticles.push({
                 title: result.title,
                 url: url,
                 source: domain.replace('.com', '').replace('.org', ''),
-                snippet: result.snippet
+                snippet: result.snippet,
+                date: articleDate
             });
-
-            if (newsArticles.length >= 3) break;
         } catch (e) {
             continue;
         }
+    }
+
+    // STEP 6: If we found a website, scrape it for content
+    let scrapedPages = [];
+    if (websiteUrl) {
+        console.log(`[Enhancement] Scraping confirmed website: ${websiteUrl}`);
+        scrapedPages = await scrapeWebsitePages(websiteUrl, 5);
+        console.log(`[Enhancement] Scraped ${scrapedPages.length} pages from ${websiteUrl}`);
     }
 
     return {
@@ -4487,45 +4915,115 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
             instagram: instagramUrl,
             youtube: youtubeUrl
         },
-        news: newsArticles
+        news: newsArticles,
+        scrapedPages: scrapedPages
     };
 }
 
-// Deep crawl a website - homepage + relevant internal pages
-async function crawlWebsite(websiteUrl) {
-    if (!websiteUrl) return null;
+// Claude evaluates candidates by reading actual page content
+async function claudeSelectWebsite(companyName, brandName, candidates, env) {
+    if (!candidates || candidates.length === 0) return null;
+    if (!env.ANTHROPIC_API_KEY) return null;
 
-    const results = {
-        homepage: null,
-        aboutPage: null,
-        contactPage: null,
-        otherPages: []
-    };
+    // Format candidates with actual page content
+    const candidateList = candidates.map((c, i) =>
+        `CANDIDATE ${i + 1}:
+URL: ${c.url}
+Domain: ${c.domain}
+Page Title: ${c.title}
+Page Content Preview:
+${c.content}
+---`
+    ).join('\n\n');
 
-    // Keywords that indicate valuable pages
-    const relevantKeywords = [
-        'about', 'story', 'history', 'heritage', 'tradition', 'our-story',
-        'team', 'people', 'founder', 'family', 'who-we-are',
-        'contact', 'visit', 'location', 'find-us', 'hours',
-        'distillery', 'winery', 'brewery', 'cellar', 'tasting'
-    ];
+    const prompt = `You are identifying the OFFICIAL company website for "${companyName}"${brandName ? ` (brand: "${brandName}")` : ''}.
 
-    // Common paths to try as fallback
-    const commonPaths = [
-        '/about', '/about-us', '/our-story', '/story', '/history',
-        '/contact', '/contact-us', '/visit', '/location',
-        '/team', '/our-team'
-    ];
+I have fetched the actual content from several candidate websites. Review each one and determine which (if any) is the company's official website.
 
-    // Clean HTML content
-    function cleanHtml(html) {
-        return html
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
-            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+${candidateList}
+
+CRITICAL - COMPANY NAMING CONVENTION:
+Company names often contain MULTIPLE names separated by commas. These are ALL valid names for the SAME company:
+- "Blue Meranti, Helmsman Imports, LLC" means "Helmsman Imports" IS the company
+- "XYZ Trading, ABC Distributors, Inc" means "ABC Distributors" IS the company
+A website matching ANY part of the comma-separated name is a CORRECT MATCH.
+
+EVALUATION CRITERIA:
+1. Does the domain match ANY part of the company name? (helmsmanimports.com matches "Blue Meranti, Helmsman Imports, LLC")
+2. Does the page content describe a wine/spirits/beer business?
+3. Does it look like a company homepage with products, about info, or contact details?
+4. Is it NOT a directory, review site, retailer, or news article?
+
+RESPOND WITH JSON ONLY:
+- If you find a likely match: {"url": "https://...", "confidence": "high", "evidence": "brief reason"}
+- If you find a possible match: {"url": "https://...", "confidence": "medium", "evidence": "brief reason"}
+- If none match: {"url": null, "confidence": "low", "evidence": "why none match"}`;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 200,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        if (!response.ok) {
+            console.error('[Website Selection] Claude API error:', response.status);
+            return null;
+        }
+
+        const result = await response.json();
+        const text = result.content?.[0]?.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            console.log(`[Website Selection] Claude result: ${JSON.stringify(parsed)}`);
+
+            // Return URL if confidence is high or medium
+            if (parsed.url && (parsed.confidence === 'high' || parsed.confidence === 'medium')) {
+                return parsed.url;
+            }
+        }
+        console.log('[Website Selection] No website selected by Claude');
+        return null;
+    } catch (e) {
+        console.error('[Website Selection] Error:', e);
+        return null;
+    }
+}
+
+// Fetch and clean article content for validation
+async function fetchArticleContent(url) {
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; BevAlcIntelBot/1.0; +https://bevalcintel.com)'
+            },
+            redirect: 'follow'
+        });
+
+        if (!response.ok) return null;
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html')) return null;
+
+        const html = await response.text();
+
+        // Clean HTML - remove scripts, styles, nav, footer
+        let text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+            .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+            .replace(/<header[\s\S]*?<\/header>/gi, '')
             .replace(/<!--[\s\S]*?-->/g, '')
             .replace(/<[^>]+>/g, ' ')
             .replace(/&nbsp;/g, ' ')
@@ -4536,122 +5034,16 @@ async function crawlWebsite(websiteUrl) {
             .replace(/&#39;/g, "'")
             .replace(/\s+/g, ' ')
             .trim();
-    }
 
-    // Fetch a single page
-    async function fetchPage(url) {
-        try {
-            const response = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; BevAlcIntelBot/1.0; +https://bevalcintel.com)'
-                },
-                redirect: 'follow'
-            });
-
-            if (!response.ok) return null;
-
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('text/html')) return null;
-
-            const html = await response.text();
-            return {
-                html,
-                text: cleanHtml(html)
-            };
-        } catch (e) {
-            console.error(`Failed to fetch ${url}:`, e.message);
-            return null;
-        }
-    }
-
-    // Extract internal links from HTML
-    function extractInternalLinks(html, baseUrl) {
-        const baseDomain = new URL(baseUrl).hostname;
-        const linkRegex = /href=["']([^"']+)["']/gi;
-        const links = [];
-        let match;
-
-        while ((match = linkRegex.exec(html)) !== null) {
-            let href = match[1];
-
-            // Skip anchors, javascript, mailto, tel
-            if (href.startsWith('#') || href.startsWith('javascript:') ||
-                href.startsWith('mailto:') || href.startsWith('tel:')) continue;
-
-            // Convert relative to absolute
-            try {
-                const absoluteUrl = new URL(href, baseUrl).href;
-                const urlDomain = new URL(absoluteUrl).hostname;
-
-                // Only include internal links
-                if (urlDomain === baseDomain || urlDomain === 'www.' + baseDomain ||
-                    'www.' + urlDomain === baseDomain) {
-                    links.push(absoluteUrl);
-                }
-            } catch (e) {
-                continue;
-            }
-        }
-
-        return [...new Set(links)]; // Dedupe
-    }
-
-    try {
-        // Step 1: Fetch homepage
-        const homepage = await fetchPage(websiteUrl);
-        if (!homepage) return null;
-
-        results.homepage = homepage.text.substring(0, 3500);
-
-        // Step 2: Extract and filter internal links
-        const internalLinks = extractInternalLinks(homepage.html, websiteUrl);
-        const relevantLinks = internalLinks.filter(link => {
-            const path = new URL(link).pathname.toLowerCase();
-            return relevantKeywords.some(kw => path.includes(kw));
-        });
-
-        // Step 3: Fetch relevant pages (max 3)
-        const pagesToFetch = relevantLinks.slice(0, 3);
-
-        // Step 4: If no relevant links found, try common paths
-        if (pagesToFetch.length === 0) {
-            const baseUrl = new URL(websiteUrl).origin;
-            for (const path of commonPaths) {
-                pagesToFetch.push(baseUrl + path);
-                if (pagesToFetch.length >= 3) break;
-            }
-        }
-
-        // Fetch additional pages in parallel
-        const additionalPages = await Promise.all(
-            pagesToFetch.map(url => fetchPage(url))
-        );
-
-        // Categorize fetched pages
-        for (let i = 0; i < pagesToFetch.length; i++) {
-            const page = additionalPages[i];
-            if (!page) continue;
-
-            const path = new URL(pagesToFetch[i]).pathname.toLowerCase();
-            const content = page.text.substring(0, 2500);
-
-            if (path.includes('about') || path.includes('story') || path.includes('history')) {
-                results.aboutPage = content;
-            } else if (path.includes('contact') || path.includes('visit') || path.includes('location')) {
-                results.contactPage = content;
-            } else {
-                results.otherPages.push(content);
-            }
-        }
-
-        return results;
+        // Return first 1500 chars (enough to validate relevance)
+        return text.substring(0, 1500);
     } catch (e) {
-        console.error('Website crawl failed:', e);
+        console.error(`Failed to fetch article ${url}:`, e.message);
         return null;
     }
 }
 
-// Validate news articles using Claude to filter out irrelevant results
+// Validate news articles using Claude - fetches actual content for accurate validation
 async function validateNewsArticles(companyName, brandName, candidateNews, env) {
     if (!candidateNews || candidateNews.length === 0) {
         return [];
@@ -4659,24 +5051,49 @@ async function validateNewsArticles(companyName, brandName, candidateNews, env) 
 
     if (!env.ANTHROPIC_API_KEY) {
         console.error('ANTHROPIC_API_KEY not set for news validation');
-        return candidateNews; // Return unfiltered if no API key
+        return [];
     }
 
-    const newsListText = candidateNews.map((n, i) =>
-        `${i + 1}. Title: "${n.title}"\n   Source: ${n.source}\n   Snippet: ${n.snippet || 'N/A'}`
-    ).join('\n\n');
+    // Fetch actual article content in parallel
+    console.log(`[News Validation] Fetching content for ${candidateNews.length} articles...`);
+    const articleContents = await Promise.all(
+        candidateNews.map(n => fetchArticleContent(n.url))
+    );
 
-    const prompt = `Filter news articles to only those relevant to the target company.
+    // Build detailed article list with actual content
+    const newsListText = candidateNews.map((n, i) => {
+        const content = articleContents[i];
+        return `ARTICLE ${i + 1}:
+Title: "${n.title}"
+Source: ${n.source}
+URL: ${n.url}
+Content Preview: ${content || 'Could not fetch content'}
+---`;
+    }).join('\n\n');
 
-TARGET: "${companyName}" (brand: "${brandName}")
+    const prompt = `You are a strict news article validator. Your job is to REJECT articles that are NOT about the target company, and extract publication dates from valid articles.
 
-ARTICLES:
+TARGET COMPANY: "${companyName}"
+TARGET BRAND: "${brandName}"
+
+I have fetched the actual content of these articles. Review each one carefully:
+
 ${newsListText}
 
-KEEP articles that are about the target company or brand.
-REJECT articles about DIFFERENT companies (e.g. if target is "Binary Barrel" but article is about "Big Grove Distillery", reject it).
+STRICT VALIDATION RULES:
+1. The article must EXPLICITLY mention "${companyName}" or "${brandName}" in the content
+2. REJECT if the article is about a DIFFERENT company (e.g., "Big Grove Brewery" is NOT "Binary Barrel Distillery")
+3. REJECT if only generic industry terms match (distillery, brewery, spirits, etc.)
+4. REJECT if the company name is similar but not exact
+5. REJECT if content could not be fetched
+6. When in doubt, REJECT - it's better to show no news than wrong news
 
-Return JSON only: {"relevant": [1, 2]} or {"relevant": []}`;
+For each VALID article, extract the publication date from the content if possible (look for dates like "January 5, 2026", "Jan 5, 2026", "2026-01-05", etc.).
+
+Return JSON only with this format:
+{"relevant": [{"index": 1, "date": "2026-01-05"}, {"index": 2, "date": "2025-12-15"}]}
+
+Use format YYYY-MM-DD for dates. If date cannot be determined, use null for date. If no articles are relevant, return {"relevant": []}.`;
 
     try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -4698,7 +5115,7 @@ Return JSON only: {"relevant": [1, 2]} or {"relevant": []}`;
 
         if (!response.ok) {
             console.error('News validation API error:', response.status);
-            return candidateNews; // Return unfiltered on error
+            return []; // Return empty on error - don't show potentially wrong news
         }
 
         const result = await response.json();
@@ -4707,12 +5124,41 @@ Return JSON only: {"relevant": [1, 2]} or {"relevant": []}`;
         const jsonMatch = textContent.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            const relevantIndices = parsed.relevant || [];
+            const relevantItems = parsed.relevant || [];
 
-            // Filter to only relevant articles
-            const validatedNews = candidateNews.filter((_, i) =>
-                relevantIndices.includes(i + 1)
-            );
+            // Handle both old format (array of numbers) and new format (array of objects with index and date)
+            let validatedNews = [];
+
+            if (relevantItems.length > 0) {
+                if (typeof relevantItems[0] === 'number') {
+                    // Old format: array of indices
+                    validatedNews = candidateNews.filter((_, i) => relevantItems.includes(i + 1));
+                } else {
+                    // New format: array of {index, date} objects
+                    validatedNews = relevantItems.map(item => {
+                        const article = candidateNews[item.index - 1];
+                        if (article) {
+                            // Use Claude-extracted date if available, otherwise keep original
+                            return {
+                                ...article,
+                                date: item.date || article.date || null
+                            };
+                        }
+                        return null;
+                    }).filter(Boolean);
+                }
+            }
+
+            // Sort by date, newest first (articles without dates go to the end)
+            validatedNews.sort((a, b) => {
+                if (!a.date && !b.date) return 0;
+                if (!a.date) return 1;  // No date goes to end
+                if (!b.date) return -1;
+                // Parse dates and compare (newer first)
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateB - dateA;  // Descending order (newest first)
+            });
 
             console.log(`[News Validation] ${candidateNews.length} candidates -> ${validatedNews.length} validated`);
             return validatedNews;
@@ -4721,7 +5167,7 @@ Return JSON only: {"relevant": [1, 2]} or {"relevant": []}`;
         console.error('News validation failed:', e);
     }
 
-    return candidateNews; // Return unfiltered on parse error
+    return []; // Return empty on error - don't show potentially wrong news
 }
 
 // Generate summary using Claude (no web_search - just text analysis)
