@@ -1,8 +1,10 @@
 name: Weekly Report - Generate and Send
 
+# Sends weekly email reports to subscribers every Friday afternoon.
+
 on:
   schedule:
-    # Runs every Friday at 7 PM UTC (2 PM ET) - deadline for enrichment
+    # Runs every Friday at 7 PM UTC (2 PM ET)
     - cron: '0 19 * * 5'
   workflow_dispatch:  # Manual trigger button in GitHub UI
 

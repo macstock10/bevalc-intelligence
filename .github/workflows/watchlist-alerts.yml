@@ -1,6 +1,6 @@
 name: Watchlist Alerts
 
-# Sends watchlist alerts at 11:30am ET, after the 9pm ET sync completes.
+# Sends watchlist alerts daily at 11:30am ET, after the 9pm ET sync completes.
 # Checks records from the last 3 days against user watchlists.
 
 on:

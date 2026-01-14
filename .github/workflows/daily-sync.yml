@@ -1,6 +1,6 @@
 name: Daily TTB Sync
 
-# Scrapes a rolling 7-day window each day.
+# Scrapes a rolling 7-day window each day at 9pm ET (2am UTC).
 # Recent days may have incomplete data initially, but subsequent runs
 # fill in gaps as TTB publishes delayed records. INSERT OR IGNORE
 # handles duplicates, so re-scraping the same dates is harmless.
