@@ -44,3 +44,12 @@ playwright-report/
 test-results/
 tests/screenshots/
 tests/videos/
+
+# Claude temp files
+tmpclaude-*
+nul
+
+# Backup folders
+web/old/
+web/save*/
+web/*Starting*/

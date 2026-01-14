@@ -68,46 +68,85 @@ Content includes:
 
 **IMPORTANT:** All statistics MUST come from actual D1 queries. NEVER fabricate numbers.
 
-**Execute these queries via wrangler:**
+**Execute ALL these queries BEFORE writing any content:**
 
 ```bash
-# Total filings for the week (adjust year/month as needed)
-cd worker && npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) FROM colas WHERE year = 2026 AND month = 1"
+# 1. Total filings for current period
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) as total FROM colas WHERE year = 2026 AND month = 1"
 
-# Signal breakdown
-npx wrangler d1 execute bevalc-colas --remote --command="SELECT signal, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY signal"
+# 2. Signal breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT signal, COUNT(*) as count FROM colas WHERE year = 2026 AND month = 1 GROUP BY signal ORDER BY count DESC"
 
-# Top filers
+# 3. Top filers
 npx wrangler d1 execute bevalc-colas --remote --command="SELECT company_name, COUNT(*) as filings FROM colas WHERE year = 2026 AND month = 1 GROUP BY company_name ORDER BY filings DESC LIMIT 10"
 
-# Category breakdown
-npx wrangler d1 execute bevalc-colas --remote --command="SELECT class_type_code, COUNT(*) FROM colas WHERE year = 2026 AND month = 1 GROUP BY class_type_code ORDER BY COUNT(*) DESC LIMIT 15"
+# 4. Category breakdown (get 25 for aggregations)
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT class_type_code, COUNT(*) as count FROM colas WHERE year = 2026 AND month = 1 GROUP BY class_type_code ORDER BY count DESC LIMIT 25"
 
-# New companies
-npx wrangler d1 execute bevalc-colas --remote --command="SELECT brand_name, company_name, class_type_code FROM colas WHERE year = 2026 AND month = 1 AND signal = 'NEW_COMPANY' LIMIT 10"
+# 5. Historical comparison - same month last year
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) as total FROM colas WHERE year = 2025 AND month = 1"
+
+# 6. Historical new companies - same month last year
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) as count FROM colas WHERE year = 2025 AND month = 1 AND signal = 'NEW_COMPANY'"
+
+# 7. New company trend by month (for averages)
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT year, month, COUNT(*) as count FROM colas WHERE signal = 'NEW_COMPANY' AND year >= 2025 GROUP BY year, month ORDER BY year DESC, month DESC"
+
+# 8. Top filers for comparison periods
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT company_name, COUNT(*) as filings FROM colas WHERE year = 2025 AND month = 1 GROUP BY company_name ORDER BY filings DESC LIMIT 5"
+
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT company_name, COUNT(*) as filings FROM colas WHERE year = 2025 AND month = 12 GROUP BY company_name ORDER BY filings DESC LIMIT 5"
 ```
 
-**Or run the PowerShell script:**
-```powershell
-.\scripts\content-automation\query-weekly-data.ps1 -WeekEnding "2026-01-10"
+### 2. Calculate and Document All Math
+
+**Before writing ANY content**, calculate and document:
+
+```
+Days elapsed: [X]
+MTD total: [from query 1]
+Run rate: [total] ÷ [days] × [days_in_month] = [result]
+
+YoY comparison:
+- Current run rate: [X]
+- Same month last year: [from query 5]
+- Change: ([current] - [last_year]) ÷ [last_year] = [X]%
+
+New company analysis:
+- MTD new companies: [from query 2]
+- Run rate: [mtd] ÷ [days] × [days_in_month] = [result]
+- Same month last year: [from query 6]
+- YoY change: ([pace] - [last_year]) ÷ [last_year] = [X]%
+
+Category shares:
+- Wine total: [sum wine categories from query 4]
+- Wine %: [total] ÷ [grand_total] = [X]%
 ```
 
-**Output:** `scripts/content-queue/weekly-data-{date}.json`
-
-### 2. Content Generation
+### 3. Content Generation
 **For each content type:**
 - Apply template from `/templates/linkedin-*.md`
-- Insert data into template structure
+- Insert ONLY verified data from queries
+- Show calculation for every percentage/comparison
 - Generate analysis section
 - Add CTA to bevalcintel.com
 
 **Output:** `scripts/content-queue/linkedin-drafts-{date}.md`
 
-### 3. Review Assembly
-**Combine into:**
-- All four LinkedIn posts in markdown format
-- Ready for copy-paste to LinkedIn
-- Includes posting schedule
+### 4. Add Raw Data Reference Section (MANDATORY)
+
+Every content file MUST end with:
+1. **All SQL queries** - Exact SQL executed
+2. **All query results** - Exact results returned
+3. **Calculation block** - Every formula with inputs/outputs
+4. **Verification checksums** - List confirming each claim traces to data
+
+### 5. Cross-Reference Before Saving
+
+Audit every number in the content:
+- If any claim cannot trace to a query result → FIX IT
+- If any calculation is wrong → FIX IT
+- One wrong number destroys credibility
 
 ## Output Files
 

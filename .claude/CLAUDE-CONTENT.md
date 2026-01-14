@@ -156,9 +156,63 @@ Generates all four content types from current D1 data.
 | Thursday | Intent Signals (if notable) | 10am ET |
 | Friday | Category Analysis | 10am ET |
 
-## Data Requirements
+## Data Verification Process (MANDATORY)
 
-All content pulls from D1 using these core queries:
+**Every content file must be bulletproof. A single wrong number destroys credibility.**
+
+### Step 1: Run Queries FIRST
+
+Execute ALL queries and record results BEFORE writing any content:
+
+```bash
+# 1. Total filings for current period
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) as total FROM colas WHERE year = [YEAR] AND month = [MONTH]"
+
+# 2. Signal breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT signal, COUNT(*) as count FROM colas WHERE year = [YEAR] AND month = [MONTH] GROUP BY signal ORDER BY count DESC"
+
+# 3. Top filers
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT company_name, COUNT(*) as filings FROM colas WHERE year = [YEAR] AND month = [MONTH] GROUP BY company_name ORDER BY filings DESC LIMIT 10"
+
+# 4. Category breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT class_type_code, COUNT(*) as count FROM colas WHERE year = [YEAR] AND month = [MONTH] GROUP BY class_type_code ORDER BY count DESC LIMIT 25"
+
+# 5. Historical comparison (same month last year)
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT COUNT(*) as total FROM colas WHERE year = [YEAR-1] AND month = [MONTH]"
+
+# 6. New company historical data
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT year, month, COUNT(*) as count FROM colas WHERE signal = 'NEW_COMPANY' AND year >= [YEAR-1] GROUP BY year, month ORDER BY year DESC, month DESC"
+```
+
+### Step 2: Document All Calculations
+
+For EVERY percentage or comparison in content, show the math:
+
+```
+Run rate: [total] ÷ [days_elapsed] × [days_in_month] = [result]
+YoY change: ([current] - [prior_year]) ÷ [prior_year] = [X]%
+Category share: [category_count] ÷ [total] = [X]%
+```
+
+### Step 3: Include Raw Data Reference
+
+Every content file MUST end with a "Raw Data Reference" section containing:
+1. All SQL queries executed
+2. All query results
+3. All calculation formulas with inputs/outputs
+4. Verification checksum list
+
+### Step 4: Cross-Reference Before Publishing
+
+Audit every number in the content against the Raw Data Reference:
+- If a claim can't be traced to a query result → DO NOT PUBLISH
+- If a calculation is wrong → FIX IT
+
+See `.claude/agents/content-writer.md` for detailed verification procedures.
+
+---
+
+## Core Queries Reference
 
 ```sql
 -- Weekly totals

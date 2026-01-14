@@ -93,20 +93,6 @@ python cola_worker.py --name worker_1 --year 2014
 python cola_worker.py --name worker_1 --status
 ```
 
-### Pre-built 2014 Scrapers
-12 batch files for scraping each month of 2014:
-```
-scripts/scrape_2014_01.bat through scrape_2014_12.bat
-```
-
-Run in parallel (4 terminals recommended):
-- Terminal 1: Jan, Feb, Mar
-- Terminal 2: Apr, May, Jun
-- Terminal 3: Jul, Aug, Sep
-- Terminal 4: Oct, Nov, Dec
-
-Each creates its own database in `data/2014_XX.db`.
-
 ## Reclassifying Historical Records
 
 ### When to Reclassify
