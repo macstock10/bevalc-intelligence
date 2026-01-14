@@ -6,7 +6,7 @@
 |------|------------------|
 | Deploy frontend | Push to main ? Netlify auto-deploys |
 | Deploy worker | `cd worker && npx wrangler deploy` |
-| Run scraper manually | GitHub Actions ? Weekly COLA Update ? Run workflow |
+| Run scraper manually | GitHub Actions ? Daily TTB Sync: Daily 9pm ET (2am UTC)
 | Run report manually | GitHub Actions ? Weekly Report ? Run workflow |
 | Regenerate sitemaps | `cd scripts && python generate_sitemaps.py` |
 | Check logs | GitHub Actions ? click workflow run ? view logs |
@@ -26,8 +26,8 @@
 - **Note**: Worker code in `worker/worker.js` - do NOT edit in Cloudflare dashboard
 
 ### GitHub Actions (Scheduled)
-- **Weekly COLA Update**: Fridays 9pm ET (Saturday 2am UTC)
-- **Weekly Report**: Saturdays 9am ET (2pm UTC)
+- **Daily TTB Sync**: Daily 9pm ET (2am UTC)
+- **Weekly Report**: Fridays 2pm ET (7pm UTC)
 - **Manual trigger**: Actions tab → select workflow → Run workflow
 
 ## Rollback Procedures
@@ -58,7 +58,7 @@
 ## Monitoring
 
 ### Check if scraper ran
-1. GitHub Actions ? Weekly COLA Update
+1. GitHub Actions ? Daily TTB Sync: Daily 9pm ET (2am UTC)
 2. Look for recent successful run
 3. Check logs for "Synced to D1: X new COLAs"
 

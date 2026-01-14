@@ -9,9 +9,9 @@ This skill defines the end-to-end process for creating BevAlc Intelligence conte
 
 | Day | Time | Activity |
 |-----|------|----------|
-| Friday | 9:00 PM | Weekly Update runs (GitHub Action) |
-| Saturday | 2:00 AM | Weekly Update completes, sitemaps regenerated |
-| Saturday | 9:00 AM | Weekly Report emails sent |
+| Friday | 2:00 PM | Weekly Report emails sent (GitHub Action) |
+| Saturday | - | Content planning for next week |
+| Saturday | 10:00 AM | /weekly-content pipeline runs |
 | Saturday | 10:00 AM | `/weekly-content` pipeline runs |
 | Saturday | 12:00 PM | Content review and editing |
 | Sunday | - | Buffer for additional content if needed |

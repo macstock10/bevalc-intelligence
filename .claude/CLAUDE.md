@@ -41,11 +41,11 @@ This is the most important section. Read this first to understand how the system
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         WEEKLY REPORT (Saturday 9am ET)                 │
+│                         WEEKLY REPORT (Friday 2pm ET)                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  SATURDAY 9am ET (GitHub Actions: weekly-report.yml)                    │
-│  └─► send_weekly_report.py                                              │
+│  FRIDAY 2pm ET / 7pm UTC (GitHub Actions: weekly-report.yml)                    │
+│  └─► weekly_report.py → send_weekly_report.py                                              │
 │       ├─► 1. Query D1 for week's stats                                  │
 │       ├─► 2. Build email data (top filers, new brands, etc.)            │
 │       └─► 3. Send emails via Resend (free + pro users)                  │
@@ -215,9 +215,10 @@ bevalc-intelligence/
 │   ├── agents/                # Content subagents
 │   └── commands/              # Custom slash commands
 ├── .github/workflows/
-│   ├── daily-sync.yml         # Daily 2am UTC: scrape + sync + watchlist alerts
-│   ├── weekly-update.yml      # Friday 9pm: scrape + sync + classify
-│   └── weekly-report.yml      # Saturday 9am: send emails
+│   ├── daily-sync.yml         # Daily 9pm ET: scrape TTB, sync to D1
+│   ├── watchlist-alerts.yml    # Daily 11:30am ET: send watchlist alerts
+│   ├── weekly-report.yml      # Friday 2pm ET: send weekly report emails
+│   └── e2e-tests.yml          # Manual: Playwright E2E tests
 ├── emails/
 │   ├── send.js                # Send email via Resend
 │   ├── test-email.js          # Test email tool
@@ -233,7 +234,7 @@ bevalc-intelligence/
 │   │   ├── __init__.py
 │   │   └── d1_utils.py        # SHARED: D1 operations (d1_execute, insert, etc.)
 │   ├── weekly_update.py       # Main weekly scraper + D1 sync
-│   ├── send_weekly_report.py  # Query D1 + send emails
+│   ├── send_weekly_report.py  # Query D1 + send weekly emails\n│   ├── send_watchlist_alerts.py # Match watchlists + send alerts\n│   ├── weekly_report.py       # Generate weekly report data
 │   ├── cola_worker.py         # Core scraping logic (Selenium)
 │   ├── batch_classify.py      # Reclassify historical records
 │   ├── normalize_companies.py # One-time: fuzzy match company names
@@ -243,7 +244,7 @@ bevalc-intelligence/
 ├── web/
 │   ├── index.html             # Landing page
 │   ├── database.html          # Search page
-│   ├── account.html           # User account/settings
+│   ├── account.html           # User account/settings\n│   ├── preferences.html       # Email preferences page
 │   ├── database.js            # Search UI logic
 │   ├── auth.js                # Authentication
 │   ├── ttb-categories.js      # Category dropdown data
@@ -455,6 +456,7 @@ npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, comp
 ## Content Automation
 
 See `CLAUDE-CONTENT.md` for full documentation.
+See `.claude/agents/content-writer.md` for voice guide and verification procedures.
 
 **Main Command:** `/weekly-content` - Generates 4 LinkedIn posts from D1 data
 
@@ -467,6 +469,17 @@ See `CLAUDE-CONTENT.md` for full documentation.
 **Output:** `scripts/content-queue/linkedin-drafts-YYYY-MM-DD.md`
 
 **Tone:** Professional, data-forward, no emojis
+
+**MANDATORY: Data Verification Process**
+
+Every content file must include verified data. The process:
+
+1. **Run D1 queries FIRST** - Execute all required queries before writing
+2. **Document calculations** - Show math for every percentage/comparison
+3. **Include Raw Data Reference** - End every content file with queries + results
+4. **Cross-reference claims** - Every number must trace to a query result
+
+A single wrong number destroys credibility. See `content-writer.md` for detailed procedures.
 
 ---
 
