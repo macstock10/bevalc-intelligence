@@ -96,8 +96,8 @@ USER CLICKS "ENHANCE"
 │  2. Check cache (90-day TTL on enhancements)                           │
 │  3. If not cached, run enhancement:                                     │
 │     ├─► Query D1 for filing stats, brands, categories, recent filings   │
-│     ├─► Call Claude Sonnet 4 with web_search tool (max 5 searches)      │
-│     │   └─► Multi-strategy search: company name, brand name, industry   │
+│     ├─► Google CSE for website discovery + deep crawl for social links      │
+│     │   └─► Claude Sonnet 4 for summary generation + news validation   │
 │     └─► Returns: website, summary, news (with URLs)                     │
 │  4. Cache result in company_enhancements table                          │
 │  5. Deduct 1 credit from user                                           │
