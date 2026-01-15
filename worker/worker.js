@@ -5049,66 +5049,72 @@ async function deductCredit(email, companyId, env) {
 }
 
 async function runEnhancement(companyId, companyName, clickedBrandName, env) {
-    // Run D1 queries in parallel for speed
+    // Get current date parts for comparison
+    const now = new Date();
+    const oneYearAgo = new Date(now);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneMonthAgo = new Date(now);
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    // Run D1 queries in parallel for speed - use JOINs instead of subqueries for performance
     const [stats, states, categories, brands, recentFilings, existingWebsite] = await Promise.all([
-        // Filing statistics - convert MM/DD/YYYY to sortable format for proper MIN/MAX
+        // Filing statistics - use indexed year/month/day columns
         env.DB.prepare(`
             SELECT
                 COUNT(*) as total_filings,
-                MIN(substr(approval_date, 7, 4) || '-' || substr(approval_date, 1, 2) || '-' || substr(approval_date, 4, 2)) as first_filing_sort,
-                MAX(substr(approval_date, 7, 4) || '-' || substr(approval_date, 1, 2) || '-' || substr(approval_date, 4, 2)) as last_filing_sort,
-                COUNT(CASE WHEN substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) >= strftime('%Y%m%d', 'now', '-12 months') THEN 1 END) as last_12_months,
-                COUNT(CASE WHEN substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) >= strftime('%Y%m%d', 'now', '-1 month') THEN 1 END) as last_month
-            FROM colas
-            WHERE company_name IN (
-                SELECT raw_name FROM company_aliases WHERE company_id = ?
-            )
-        `).bind(companyId).first(),
+                MIN(co.year * 10000 + co.month * 100 + COALESCE(co.day, 1)) as first_filing_sort,
+                MAX(co.year * 10000 + co.month * 100 + COALESCE(co.day, 1)) as last_filing_sort,
+                COUNT(CASE WHEN co.year > ? OR (co.year = ? AND co.month >= ?) THEN 1 END) as last_12_months,
+                COUNT(CASE WHEN co.year > ? OR (co.year = ? AND co.month >= ?) THEN 1 END) as last_month
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+        `).bind(
+            oneYearAgo.getFullYear(), oneYearAgo.getFullYear(), oneYearAgo.getMonth() + 1,
+            oneMonthAgo.getFullYear(), oneMonthAgo.getFullYear(), oneMonthAgo.getMonth() + 1,
+            companyId
+        ).first(),
 
         // State distribution - only get 2-letter state codes
         env.DB.prepare(`
-            SELECT DISTINCT UPPER(TRIM(state)) as state
-            FROM colas
-            WHERE company_name IN (
-                SELECT raw_name FROM company_aliases WHERE company_id = ?
-            )
-            AND state IS NOT NULL
-            AND LENGTH(TRIM(state)) = 2
+            SELECT DISTINCT UPPER(TRIM(co.state)) as state
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+            AND co.state IS NOT NULL
+            AND LENGTH(TRIM(co.state)) = 2
             ORDER BY state
         `).bind(companyId).all(),
 
         // Category breakdown
         env.DB.prepare(`
-            SELECT class_type_code, COUNT(*) as count
-            FROM colas
-            WHERE company_name IN (
-                SELECT raw_name FROM company_aliases WHERE company_id = ?
-            )
-            GROUP BY class_type_code
+            SELECT co.class_type_code, COUNT(*) as count
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+            GROUP BY co.class_type_code
             ORDER BY count DESC
             LIMIT 5
         `).bind(companyId).all(),
 
         // Brand portfolio
         env.DB.prepare(`
-            SELECT brand_name, COUNT(*) as filings
-            FROM colas
-            WHERE company_name IN (
-                SELECT raw_name FROM company_aliases WHERE company_id = ?
-            )
-            GROUP BY brand_name
+            SELECT co.brand_name, COUNT(*) as filings
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+            GROUP BY co.brand_name
             ORDER BY filings DESC
             LIMIT 10
         `).bind(companyId).all(),
 
-        // Recent filings for PDF report
+        // Recent filings for PDF report - use indexed columns
         env.DB.prepare(`
-            SELECT brand_name, fanciful_name, approval_date, status, signal
-            FROM colas
-            WHERE company_name IN (
-                SELECT raw_name FROM company_aliases WHERE company_id = ?
-            )
-            ORDER BY substr(approval_date, 7, 4) || substr(approval_date, 1, 2) || substr(approval_date, 4, 2) DESC
+            SELECT co.brand_name, co.fanciful_name, co.approval_date, co.status, co.signal
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ?
+            ORDER BY co.year DESC, co.month DESC, COALESCE(co.day, 1) DESC
             LIMIT 10
         `).bind(companyId).all(),
 
