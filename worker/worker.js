@@ -2411,6 +2411,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             top: 0; right: 0; bottom: 0; left: 0;
             background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
             opacity: 0.5;
+            pointer-events: none;
         }
         .seo-header::after {
             content: '';
@@ -3339,8 +3340,8 @@ async function handleCompanyPage(path, env, headers) {
                     ${primaryLocation ? `<p class="meta-line"><span class="meta-icon">📍</span> ${escapeHtml(primaryLocation)}</p>` : ''}
                     ${dbaNames.length > 0 ? `<p class="meta-line"><span class="meta-icon">🏢</span> Also operates as: ${dbaNames.slice(0, 3).map(n => escapeHtml(n)).join(', ')}${dbaNames.length > 3 ? '...' : ''}</p>` : ''}
                 </div>
+                <p style="margin-top: 16px;"><a href="/glossary.html#signals" style="color: #5eead4; font-weight: 500; text-decoration: none; font-size: 0.9rem;">Learn how to use our data →</a></p>
             </div>
-            <p style="margin-top: 16px;"><a href="/glossary.html#signals" style="color: #5eead4; font-weight: 500; text-decoration: none; font-size: 0.9rem;">Learn how to use our data →</a></p>
         </header>
 
         <div>
@@ -3462,19 +3463,44 @@ async function handleBrandPage(path, env, headers) {
     }
 
     try {
-    // Fast lookup via brand_slugs table
-    const brandResult = await env.DB.prepare(`
+    // Fast lookup via brand_slugs table with fallback for slug variations
+    let brandResult = await env.DB.prepare(`
         SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?
     `).bind(slug).first();
+
+    // Fallback: try alternate slug formats for "&" brands
+    // New format uses "and" (oak-and-eden), old format used hyphen (oak-eden)
+    if (!brandResult && slug.includes('-and-')) {
+        const altSlug = slug.replace(/-and-/g, '-');
+        brandResult = await env.DB.prepare(`
+            SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?
+        `).bind(altSlug).first();
+    }
 
     if (!brandResult) {
         return new Response('Brand not found', { status: 404 });
     }
 
-    // Get actual filing count from colas (brand_slugs.filing_count may be stale)
+    // Find ALL brand_name variations that normalize to the same slug
+    // This handles cases like "BURIAL BEER CO" vs "BURIAL BEER CO." vs "BURIAL BEER CO., LLC"
+    const baseName = brandResult.brand_name.replace(/[.,]+$/, ''); // Remove trailing . or ,
+    const brandVariantsResult = await env.DB.prepare(`
+        SELECT DISTINCT brand_name FROM colas
+        WHERE brand_name = ?
+           OR brand_name LIKE ? || '.%'
+           OR brand_name LIKE ? || ',%'
+           OR brand_name = ? || '.'
+           OR brand_name = ? || ','
+        LIMIT 50
+    `).bind(baseName, baseName, baseName, baseName, baseName).all();
+
+    const brandVariants = brandVariantsResult.results?.map(r => r.brand_name) || [brandResult.brand_name];
+    const placeholders = brandVariants.map(() => '?').join(',');
+
+    // Get actual filing count from colas for ALL variants
     const actualCount = await env.DB.prepare(`
-        SELECT COUNT(*) as cnt FROM colas WHERE brand_name = ?
-    `).bind(brandResult.brand_name).first();
+        SELECT COUNT(*) as cnt FROM colas WHERE brand_name IN (${placeholders})
+    `).bind(...brandVariants).first();
 
     const brand = {
         brand_name: brandResult.brand_name,
@@ -3487,43 +3513,43 @@ async function handleBrandPage(path, env, headers) {
         FROM colas co
         LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
         LEFT JOIN companies c ON ca.company_id = c.id
-        WHERE co.brand_name = ?
+        WHERE co.brand_name IN (${placeholders})
         GROUP BY COALESCE(c.id, co.company_name)
         ORDER BY COUNT(*) DESC
         LIMIT 10
-    `).bind(brand.brand_name).all();
+    `).bind(...brandVariants).all();
     const companies = companiesResult.results || [];
     const companyResult = companies.length > 0 ? companies[0] : null;
 
     // Get category for this brand
     const categoryResult = await env.DB.prepare(`
         SELECT class_type_code, COUNT(*) as cnt
-        FROM colas WHERE brand_name = ?
+        FROM colas WHERE brand_name IN (${placeholders})
         GROUP BY class_type_code
         ORDER BY cnt DESC
         LIMIT 1
-    `).bind(brand.brand_name).first();
+    `).bind(...brandVariants).first();
     const primaryCategory = categoryResult ? getCategory(categoryResult.class_type_code) : 'Other';
 
     // Get filing timeline by year
     const timelineResult = await env.DB.prepare(`
         SELECT year, COUNT(*) as cnt,
                SUM(CASE WHEN signal = 'NEW_SKU' THEN 1 ELSE 0 END) as new_skus
-        FROM colas WHERE brand_name = ?
+        FROM colas WHERE brand_name IN (${placeholders})
         GROUP BY year
         ORDER BY year DESC
         LIMIT 5
-    `).bind(brand.brand_name).all();
+    `).bind(...brandVariants).all();
     const timeline = timelineResult.results || [];
 
     // Get recent products
     // Use year/month/day for proper chronological sorting (newest first)
     const productsResult = await env.DB.prepare(`
         SELECT ttb_id, fanciful_name, class_type_code, approval_date, signal
-        FROM colas WHERE brand_name = ?
+        FROM colas WHERE brand_name IN (${placeholders})
         ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id DESC
         LIMIT 15
-    `).bind(brand.brand_name).all();
+    `).bind(...brandVariants).all();
     const products = productsResult.results || [];
 
     // Skip related brands query for performance - would require precomputed table
@@ -3693,62 +3719,69 @@ async function handleHubPage(categorySlug, env, headers) {
 
     // Category-specific intro copy with internal links
     const introCopy = {
-        'Whiskey': 'Track American whiskey, <a href="/database?category=Whiskey&type=bourbon" class="intro-link">bourbon</a>, <a href="/database?category=Whiskey&type=rye" class="intro-link">rye</a>, and <a href="/database?category=Whiskey&type=scotch" class="intro-link">scotch</a> labels filed with the TTB. We index every COLA filing weekly. Find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
-        'Tequila': 'Monitor <a href="/database?category=Tequila" class="intro-link">tequila</a> and <a href="/database?category=Tequila&type=mezcal" class="intro-link">mezcal</a> labels from the TTB database. New agave brands are launching faster than ever. See who\'s filing, what they\'re releasing, and which producers are scaling up.',
-        'Vodka': 'Search <a href="/database?category=Vodka" class="intro-link">vodka</a> label approvals including <a href="/database?category=Vodka&type=flavored" class="intro-link">flavored</a> varieties. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
-        'Gin': 'Browse <a href="/database?category=Gin" class="intro-link">gin</a> label filings including <a href="/database?category=Gin&type=flavored" class="intro-link">flavored</a> styles. The craft gin boom continues. Find new producers, track botanical innovations, and monitor market entrants.',
-        'Rum': 'Track <a href="/database?category=Rum" class="intro-link">rum</a> labels including <a href="/database?category=Rum&type=flavored" class="intro-link">flavored</a> varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
-        'Brandy': 'Search brandy filings including <a href="/database?category=Brandy&type=cognac" class="intro-link">cognac</a>, <a href="/database?category=Brandy&type=armagnac" class="intro-link">armagnac</a>, and <a href="/database?category=Brandy&type=pisco" class="intro-link">pisco</a>. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
-        'Wine': 'Search <a href="/database?category=Wine" class="intro-link">wine</a> label approvals spanning domestic and imported wines, <a href="/database?category=Wine&type=sparkling" class="intro-link">sparkling</a>, and <a href="/database?category=Wine&type=vermouth" class="intro-link">vermouth</a>. Track new wineries entering the US market and monitor competitor releases.',
+        'Whiskey': 'Track American whiskey, <a href="/database?category=Whiskey&subcategory=Bourbon" class="intro-link">bourbon</a>, <a href="/database?category=Whiskey&subcategory=Rye" class="intro-link">rye</a>, and <a href="/database?category=Whiskey&subcategory=Scotch" class="intro-link">scotch</a> labels filed with the TTB. We index every COLA filing weekly. Find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
+        'Tequila': 'Monitor <a href="/database?category=Tequila" class="intro-link">tequila</a> and <a href="/database?category=Tequila&subcategory=Mezcal" class="intro-link">mezcal</a> labels from the TTB database. New agave brands are launching faster than ever. See who\'s filing, what they\'re releasing, and which producers are scaling up.',
+        'Vodka': 'Search <a href="/database?category=Vodka" class="intro-link">vodka</a> label approvals including <a href="/database?category=Vodka&subcategory=Flavored%20Vodka" class="intro-link">flavored</a> varieties. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
+        'Gin': 'Browse <a href="/database?category=Gin" class="intro-link">gin</a> label filings including <a href="/database?category=Gin&subcategory=Flavored%20Gin" class="intro-link">flavored</a> styles. The craft gin boom continues. Find new producers, track botanical innovations, and monitor market entrants.',
+        'Rum': 'Track <a href="/database?category=Rum" class="intro-link">rum</a> labels including <a href="/database?category=Rum&subcategory=Flavored%20Rum" class="intro-link">flavored</a> varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
+        'Brandy': 'Search brandy filings including <a href="/database?category=Brandy&subcategory=Cognac" class="intro-link">cognac</a>, <a href="/database?category=Brandy&subcategory=Armagnac" class="intro-link">armagnac</a>, and <a href="/database?category=Brandy&subcategory=Grappa%20%26%20Pisco" class="intro-link">pisco</a>. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
+        'Wine': 'Search <a href="/database?category=Wine" class="intro-link">wine</a> label approvals spanning domestic and imported wines, <a href="/database?category=Wine&subcategory=Sparkling%20Wine" class="intro-link">sparkling</a>, and <a href="/database?category=Wine&subcategory=Fortified%20Wine" class="intro-link">vermouth</a>. Track new wineries entering the US market and monitor competitor releases.',
         'Beer': 'Browse <a href="/database?category=Beer" class="intro-link">beer</a> label filings from craft breweries to major producers. Track new brewery launches, monitor seasonal releases, and discover emerging brands.',
         'Liqueur': 'Track <a href="/database?category=Liqueur" class="intro-link">liqueur</a> and cordial label filings. Monitor new product launches and discover trending flavor profiles.',
         'Cocktails': 'Monitor <a href="/database?category=Cocktails" class="intro-link">ready-to-drink cocktail</a> and RTD filings, the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
         'Other': 'Browse specialty spirit filings including neutral spirits, grain spirits, and unique products that don\'t fit standard categories. Find niche producers and specialty products.'
     };
 
-    // Subcategory links - only include types that map to actual TTB codes
+    // Subcategory links - use exact subcategory names from ttb-categories.json
     const subcategories = {
         'Whiskey': [
-            { name: 'Bourbon', type: 'bourbon' },
-            { name: 'Rye', type: 'rye' },
-            { name: 'Scotch', type: 'scotch' },
-            { name: 'Irish', type: 'irish' },
-            { name: 'Canadian', type: 'canadian' },
-            { name: 'Corn Whiskey', type: 'corn' },
-            { name: 'Blended', type: 'blended' }
+            { name: 'Bourbon', subcategory: 'Bourbon' },
+            { name: 'Rye', subcategory: 'Rye' },
+            { name: 'Scotch', subcategory: 'Scotch' },
+            { name: 'Irish', subcategory: 'Irish Whiskey' },
+            { name: 'Canadian', subcategory: 'Canadian Whisky' },
+            { name: 'Blended', subcategory: 'Blended Whiskey' },
+            { name: 'Flavored', subcategory: 'Flavored Whiskey' }
         ],
         'Tequila': [
-            { name: 'Mezcal', type: 'mezcal' }
+            { name: 'Mezcal', subcategory: 'Mezcal' }
         ],
         'Vodka': [
-            { name: 'Flavored', type: 'flavored' }
+            { name: 'Flavored', subcategory: 'Flavored Vodka' },
+            { name: 'Unflavored', subcategory: 'Unflavored Vodka' }
         ],
         'Gin': [
-            { name: 'Flavored', type: 'flavored' }
+            { name: 'London Dry', subcategory: 'London Dry Gin' },
+            { name: 'Flavored', subcategory: 'Flavored Gin' }
         ],
         'Rum': [
-            { name: 'Flavored', type: 'flavored' }
+            { name: 'White', subcategory: 'White Rum' },
+            { name: 'Gold/Aged', subcategory: 'Gold/Aged Rum' },
+            { name: 'Flavored', subcategory: 'Flavored Rum' }
         ],
         'Brandy': [
-            { name: 'Cognac', type: 'cognac' },
-            { name: 'Armagnac', type: 'armagnac' },
-            { name: 'Pisco', type: 'pisco' },
-            { name: 'Grappa', type: 'grappa' }
+            { name: 'Cognac', subcategory: 'Cognac' },
+            { name: 'Armagnac', subcategory: 'Armagnac' },
+            { name: 'American', subcategory: 'American Brandy' },
+            { name: 'Fruit', subcategory: 'Fruit Brandy' }
         ],
         'Wine': [
-            { name: 'Sparkling', type: 'sparkling' },
-            { name: 'Vermouth', type: 'vermouth' },
-            { name: 'Sake', type: 'sake' },
-            { name: 'Cider', type: 'cider' }
+            { name: 'Sparkling', subcategory: 'Sparkling Wine' },
+            { name: 'Fortified', subcategory: 'Fortified Wine' },
+            { name: 'Sake', subcategory: 'Sake' },
+            { name: 'Fruit', subcategory: 'Fruit Wine' }
         ],
         'Beer': [
-            { name: 'Ale', type: 'ale' },
-            { name: 'Lager', type: 'lager' },
-            { name: 'Malt Beverage', type: 'malt' }
+            { name: 'Ale', subcategory: 'Ale' },
+            { name: 'Lager', subcategory: 'Lager/Beer' },
+            { name: 'Stout', subcategory: 'Stout' },
+            { name: 'Malt Liquor', subcategory: 'Malt Liquor' }
         ],
         'Liqueur': [
-            { name: 'Cordial', type: 'cordial' },
-            { name: 'Schnapps', type: 'schnapps' }
+            { name: 'Cream', subcategory: 'Cream Liqueurs' },
+            { name: 'Herbal', subcategory: 'Herbal Liqueurs' },
+            { name: 'Coffee', subcategory: 'Coffee Liqueurs' },
+            { name: 'Schnapps', subcategory: 'Schnapps' }
         ],
         'Cocktails': [],
         'Other': []
@@ -3912,7 +3945,7 @@ async function handleHubPage(categorySlug, env, headers) {
                             <div class="hub-subcategories">
                                 <span class="subcategory-label">Browse by type:</span>
                                 ${subcategories[category].map(sub =>
-                                    `<a href="/database?category=${encodeURIComponent(category)}&type=${encodeURIComponent(sub.type)}">${sub.name}</a>`
+                                    `<a href="/database?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(sub.subcategory)}">${sub.name}</a>`
                                 ).join(' <span class="subcategory-sep">|</span> ')}
                             </div>
                         ` : ''}
@@ -4551,7 +4584,7 @@ async function handleHubPage(categorySlug, env, headers) {
         return new Response(getPageLayout(title, description, fullContent, jsonLd, canonicalUrl), {
             headers: {
                 'Content-Type': 'text/html',
-                'Cache-Control': 'public, max-age=3600',
+                'Cache-Control': 'public, max-age=300',  // 5 min cache - stats update after precompute
                 'Vary': 'Cookie'
             }
         });

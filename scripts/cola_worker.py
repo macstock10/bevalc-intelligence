@@ -732,7 +732,18 @@ class ColaWorker:
                 
                 # Add company details
                 data.update(self._extract_company_details(soup))
-                
+
+                # Parse approval_date into year, month, day for indexed queries
+                if data.get('approval_date'):
+                    parts = data['approval_date'].split('/')
+                    if len(parts) == 3:
+                        try:
+                            data['month'] = int(parts[0])
+                            data['day'] = int(parts[1])
+                            data['year'] = int(parts[2])
+                        except ValueError:
+                            pass  # Leave as None if parsing fails
+
                 return data
                 
             except TimeoutException:

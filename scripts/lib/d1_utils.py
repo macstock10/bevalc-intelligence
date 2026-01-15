@@ -249,6 +249,7 @@ def make_slug(text: str) -> str:
     if not text:
         return ''
     text = text.lower()
+    text = text.replace('&', ' and ')  # Convert & to "and" for better SEO/readability
     text = re.sub(r"[''']", '', text)  # Remove apostrophes
     text = re.sub(r'[^a-z0-9]+', '-', text)  # Replace non-alphanumeric with hyphen
     text = text.strip('-')

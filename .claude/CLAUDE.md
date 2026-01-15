@@ -64,7 +64,7 @@ USER REQUEST
      ▼
 ┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  Netlify    │───▶│ Cloudflare Worker│───▶│  Cloudflare D1  │
-│  (web/)     │    │  (worker.js)     │    │  (2.4M+ COLAs)  │
+│  (web/)     │    │  (worker.js)     │    │  (2.6M+ COLAs)  │
 └─────────────┘    └────────┬─────────┘    └─────────────────┘
                            │
                            ▼
@@ -159,11 +159,13 @@ FOR EACH NEW RECORD:
       └─► signal = REFILE
 ```
 
+**KNOWN ISSUE:** Classification happens at scrape time, not by chronological approval_date order. If records are scraped out of order, earlier filings may get wrong signals (e.g., 08/01 = NEW_SKU, 08/06 = NEW_BRAND when it should be reversed). Also, if a brand changes companies, it's marked NEW_BRAND again for the new company. **FIX PLANNED:** Bottom-up reclassification after full backfill to sort by approval_date first.
+
 ---
 
 ## Project Overview
 
-BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 2.4M+ records with weekly email reports for subscribers.
+BevAlc Intelligence is a B2B SaaS platform tracking TTB COLA filings (beverage alcohol label approvals). It provides a searchable database of 2.6M+ records with weekly email reports for subscribers.
 
 **Live Site**: https://bevalcintel.com
 
@@ -291,7 +293,7 @@ Precomputes hub page stats to avoid slow GROUP BY queries on large categories:
 
 ## Database Schema (Cloudflare D1)
 
-### `colas` - 2.4M+ COLA records
+### `colas` - 2.6M+ COLA records
 | Column | Type | Notes |
 |--------|------|-------|
 | ttb_id | TEXT | Primary key (unique TTB ID) |
@@ -530,6 +532,10 @@ A single wrong number destroys credibility. See `content-writer.md` for detailed
 - The clicked brand name is passed to `/api/enhance` (not just top-filing brand)
 - Claude uses this brand name in search queries for better relevance
 - Rate limit retry: 10s, 30s, 60s delays (max 3 attempts) for Claude API 429 errors
+
+**Hub Page Caching:** Hub pages (e.g., /whiskey, /wine) are cached for 5 minutes (`max-age=300`). Stats come from `category_stats` table, updated by `precompute_category_stats.py` after each daily sync. If hub pages show stale data, wait 5 min or check if precompute ran.
+
+**Date Parsing:** The `cola_worker.py` scraper parses `approval_date` (MM/DD/YYYY) into separate `year`, `month`, `day` columns for indexed date queries. All three must be populated for date-range queries to work.
 
 ---
 

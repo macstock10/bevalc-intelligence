@@ -257,6 +257,8 @@ def make_slug(name: str) -> str:
         return ""
     import re
     slug = name.lower()
+    slug = slug.replace('&', ' and ')  # Convert & to "and" for better SEO/readability
+    slug = re.sub(r"[''']", '', slug)  # Remove apostrophes
     slug = re.sub(r'[^a-z0-9]+', '-', slug)
     slug = slug.strip('-')
     return slug

@@ -15,10 +15,21 @@ import os
 import sys
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add lib to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib.d1_utils import d1_execute, init_d1_config
+
+# Load .env file
+env_file = Path(__file__).parent.parent / ".env"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
 
 # Setup logging
 logging.basicConfig(
