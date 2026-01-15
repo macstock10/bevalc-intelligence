@@ -5221,16 +5221,16 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
 
             summary = claudeResult.summary;
             console.log(`[Enhancement] Summary generated, confidence: ${claudeResult.confidence}`);
+
+            // Use Claude's relevant_news indexes to build news array (validates during summary generation)
+            if (claudeResult.relevant_news && Array.isArray(claudeResult.relevant_news) && discoveredUrls.news) {
+                news = claudeResult.relevant_news
+                    .filter(idx => idx >= 0 && idx < discoveredUrls.news.length)
+                    .map(idx => discoveredUrls.news[idx]);
+                console.log(`[Enhancement] Claude identified ${news.length} relevant news articles`);
+            }
         } else {
             console.error('ANTHROPIC_API_KEY not set');
-        }
-
-        // Step 4: Validate news articles with Claude to filter out irrelevant results
-        if (discoveredUrls.news && discoveredUrls.news.length > 0) {
-            console.log(`[Enhancement] Validating ${discoveredUrls.news.length} news candidates...`);
-            news = await validateNewsArticles(companyName, primaryBrand, discoveredUrls.news, env);
-        } else {
-            news = [];
         }
 
         // Use discovered social
@@ -6039,7 +6039,8 @@ ${newsText}
 Based on ALL the information above, write a JSON response:
 {
     "summary": "Write 3-5 detailed sentences about this company. Include: 1) What they are and where located, 2) Founding story/history if mentioned, 3) Their flagship products or what they're known for, 4) Any awards, recognition, or unique facts, 5) Recent developments if found in news. Use SPECIFIC facts from the website content - founding year, city/state, founder names, product names, etc. Do NOT be generic.",
-    "confidence": "high" if website content was available and informative, "medium" if limited content, "low" if minimal info
+    "confidence": "high" if website content was available and informative, "medium" if limited content, "low" if minimal info,
+    "relevant_news": [0, 2] // Array of 0-based indexes of news articles that are ACTUALLY about this company (not a different company with similar name). Only include if you reference them in the summary. Empty array if none are relevant.
 }
 
 IMPORTANT:
@@ -6047,7 +6048,8 @@ IMPORTANT:
 - If the about page mentions founders, include their names
 - If a location is mentioned, include the city and state
 - Do NOT say "limited information" if website content is provided
-- Do NOT make up facts - only use what's in the content above`;
+- Do NOT make up facts - only use what's in the content above
+- For news: ONLY include indexes where the article is DEFINITELY about "${companyName}" - reject if it's about a different company`;
 
     try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -6071,7 +6073,7 @@ IMPORTANT:
         if (!response.ok) {
             const error = await response.text();
             console.error('Claude API error:', response.status, error);
-            return { summary: null, confidence: 'low' };
+            return { summary: null, confidence: 'low', relevant_news: [] };
         }
 
         const result = await response.json();
@@ -6086,10 +6088,10 @@ IMPORTANT:
             console.error('Failed to parse Claude response:', e);
         }
 
-        return { summary: null, confidence: 'low' };
+        return { summary: null, confidence: 'low', relevant_news: [] };
     } catch (e) {
         console.error('Claude API call failed:', e);
-        return { summary: null, confidence: 'low' };
+        return { summary: null, confidence: 'low', relevant_news: [] };
     }
 }
 
