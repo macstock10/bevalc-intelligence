@@ -2717,6 +2717,38 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
         }
         .mobile-menu-link:last-child { border-bottom: none; }
         .mobile-menu-link:hover { color: var(--color-primary); }
+        .mobile-menu-section { padding: 12px 0 6px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+        .mobile-menu-divider { height: 1px; background: var(--color-border); margin: 8px 0; }
+
+        /* Nav Dropdown */
+        .nav-dropdown { position: relative; }
+        .nav-dropdown-toggle { display: flex; align-items: center; gap: 0.375rem; font-size: 0.9rem; color: var(--color-text-secondary); background: none; border: none; cursor: pointer; padding: 0; }
+        .nav-dropdown-toggle:hover { color: var(--color-primary); }
+        .nav-dropdown-toggle svg { width: 14px; height: 14px; transition: transform 0.2s ease; }
+        .nav-dropdown.open .nav-dropdown-toggle svg { transform: rotate(180deg); }
+        .nav-dropdown-menu { position: absolute; top: calc(100% + 0.75rem); left: 50%; transform: translateX(-50%); min-width: 180px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); padding: 0.5rem 0; opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease; z-index: 1000; }
+        .nav-dropdown.open .nav-dropdown-menu { opacity: 1; visibility: visible; }
+        .nav-dropdown-menu a { display: block; padding: 0.625rem 1rem; color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; transition: background 0.15s ease, color 0.15s ease; }
+        .nav-dropdown-menu a:hover { background: #f8fafc; color: var(--color-text); }
+        .nav-dropdown-more { position: relative; }
+        .nav-dropdown-more > a { display: flex; align-items: center; justify-content: space-between; }
+        .nav-dropdown-more > a svg { width: 12px; height: 12px; }
+        .nav-dropdown-submenu { position: absolute; left: 100%; top: 0; min-width: 160px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); padding: 0.5rem 0; opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease; }
+        .nav-dropdown-more:hover .nav-dropdown-submenu { opacity: 1; visibility: visible; }
+
+        /* Footer */
+        .site-footer { padding: 48px 24px; border-top: 1px solid var(--color-border); background: #fff; }
+        .site-footer .footer-container { max-width: 1200px; margin: 0 auto; }
+        .site-footer .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 32px; }
+        .site-footer .footer-brand { }
+        .site-footer .footer-brand-name { font-weight: 700; font-size: 1.125rem; color: var(--color-text); margin-bottom: 8px; }
+        .site-footer .footer-tagline { font-size: 0.875rem; color: var(--color-text-secondary); line-height: 1.5; }
+        .site-footer .footer-column h4 { font-size: 0.75rem; font-weight: 600; color: var(--color-text); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .site-footer .footer-column ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+        .site-footer .footer-column a { font-size: 0.875rem; color: var(--color-text-secondary); text-decoration: none; }
+        .site-footer .footer-column a:hover { color: var(--color-primary); }
+        .site-footer .footer-bottom { padding-top: 24px; border-top: 1px solid var(--color-border); text-align: center; }
+        .site-footer .footer-bottom p { font-size: 0.75rem; color: var(--color-text-tertiary); margin: 0; }
 
         @media (max-width: 768px) {
             .seo-page { padding-left: 16px; padding-right: 16px; padding-bottom: 48px; }
@@ -2741,6 +2773,8 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             .gate-content { padding: 24px 28px; margin: 0 16px; }
             .gate-content h3 { font-size: 1.1rem; }
             .gate-content .btn { padding: 12px 24px; font-size: 0.9rem; }
+            .site-footer .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+            .site-footer .footer-brand { grid-column: 1 / -1; text-align: center; }
         }
         @media (max-width: 480px) {
             .seo-header h1 { font-size: 1.5rem; }
@@ -2762,8 +2796,31 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             <div class="nav-links">
                 <a href="/" class="nav-home">Home</a>
                 <a href="/database.html">Database</a>
+                <div class="nav-dropdown" id="browse-dropdown">
+                    <button class="nav-dropdown-toggle" onclick="toggleDropdown('browse-dropdown')">
+                        Browse
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="/whiskey/">Whiskey</a>
+                        <a href="/tequila/">Tequila</a>
+                        <a href="/vodka/">Vodka</a>
+                        <a href="/gin/">Gin</a>
+                        <a href="/rum/">Rum</a>
+                        <a href="/wine/">Wine</a>
+                        <a href="/beer/">Beer</a>
+                        <div class="nav-dropdown-more">
+                            <a href="#">More <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></a>
+                            <div class="nav-dropdown-submenu">
+                                <a href="/brandy/">Brandy</a>
+                                <a href="/liqueur/">Liqueur</a>
+                                <a href="/cocktails/">Cocktails</a>
+                                <a href="/other/">Other</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <a href="/#pricing">Pricing</a>
-                <a href="/glossary.html">Glossary</a>
                 <a href="/account.html">Account</a>
             </div>
             <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
@@ -2776,16 +2833,68 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             <a class="mobile-menu-link" href="/">Home</a>
             <a class="mobile-menu-link" href="/database.html">Database</a>
             <a class="mobile-menu-link" href="/#pricing">Pricing</a>
-            <a class="mobile-menu-link" href="/glossary.html">Glossary</a>
             <a class="mobile-menu-link" href="/account.html">Account</a>
+            <div class="mobile-menu-divider"></div>
+            <span class="mobile-menu-section">Browse Categories</span>
+            <a class="mobile-menu-link" href="/whiskey/">Whiskey</a>
+            <a class="mobile-menu-link" href="/tequila/">Tequila</a>
+            <a class="mobile-menu-link" href="/vodka/">Vodka</a>
+            <a class="mobile-menu-link" href="/gin/">Gin</a>
+            <a class="mobile-menu-link" href="/rum/">Rum</a>
+            <a class="mobile-menu-link" href="/wine/">Wine</a>
+            <a class="mobile-menu-link" href="/beer/">Beer</a>
+            <a class="mobile-menu-link" href="/brandy/">Brandy</a>
+            <a class="mobile-menu-link" href="/liqueur/">Liqueur</a>
+            <a class="mobile-menu-link" href="/cocktails/">Cocktails</a>
+            <a class="mobile-menu-link" href="/other/">Other</a>
         </div>
     </nav>
     <main class="seo-page">
         ${content}
     </main>
-    <footer style="padding: 48px 24px; text-align: center; color: var(--color-text-secondary); border-top: 1px solid var(--color-border); margin-top: 64px;">
-        <p>&copy; ${new Date().getFullYear()} BevAlc Intelligence. TTB COLA data updated weekly.</p>
-        <p style="margin-top: 8px;"><a href="/database.html">Search Database</a> · <a href="/#pricing">Pricing</a></p>
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-brand-name">BevAlc Intelligence</div>
+                    <p class="footer-tagline">Track every TTB label approval. The industry's most comprehensive COLA database.</p>
+                </div>
+                <div class="footer-column">
+                    <h4>Categories</h4>
+                    <ul>
+                        <li><a href="/whiskey/">Whiskey</a></li>
+                        <li><a href="/tequila/">Tequila</a></li>
+                        <li><a href="/vodka/">Vodka</a></li>
+                        <li><a href="/gin/">Gin</a></li>
+                        <li><a href="/rum/">Rum</a></li>
+                        <li><a href="/wine/">Wine</a></li>
+                        <li><a href="/beer/">Beer</a></li>
+                        <li><a href="/brandy/">Brandy</a></li>
+                        <li><a href="/liqueur/">Liqueur</a></li>
+                        <li><a href="/cocktails/">Cocktails</a></li>
+                        <li><a href="/other/">Other</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="/database.html">Search Database</a></li>
+                        <li><a href="/glossary.html">Glossary</a></li>
+                        <li><a href="/#pricing">Pricing</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/legal.html#terms">Terms of Service</a></li>
+                        <li><a href="/legal.html#privacy">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; ${new Date().getFullYear()} BevAlc Intelligence. All rights reserved.</p>
+            </div>
+        </div>
     </footer>
     <script>
         // Mobile menu toggle
@@ -2798,6 +2907,19 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                 });
             }
         })();
+
+        // Dropdown toggle
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            if (!isOpen) dropdown.classList.add('open');
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.nav-dropdown')) {
+                document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            }
+        });
 
         // Check Pro status and unlock content
         (function() {
@@ -3565,117 +3687,70 @@ async function handleHubPage(categorySlug, env, headers) {
         return new Response('Category not found', { status: 404 });
     }
 
-    // Category-specific intro copy
+    // Category-specific intro copy with internal links
     const introCopy = {
-        'Whiskey': 'Track American whiskey, bourbon, rye, and scotch labels filed with the TTB. We index every COLA filing weekly—find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
-        'Tequila': 'Monitor tequila and mezcal labels from the TTB database. New agave brands are launching faster than ever—see who\'s filing, what they\'re releasing, and which producers are scaling up.',
-        'Vodka': 'Search vodka label approvals including flavored and craft vodkas. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
-        'Gin': 'Browse gin label filings from London Dry to New American styles. The craft gin boom continues—find new producers, track botanical innovations, and monitor market entrants.',
-        'Rum': 'Track rum labels including white, aged, spiced, and flavored varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
-        'Brandy': 'Search brandy filings including cognac, armagnac, pisco, and fruit brandies. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
-        'Wine': 'Search wine label approvals spanning domestic and imported wines, champagne, vermouth, and sake. Track new wineries entering the US market and monitor competitor releases across every varietal.',
-        'Beer': 'Browse beer label filings from craft breweries to major producers. Track new brewery launches, monitor seasonal releases, and discover emerging brands in ales, lagers, and specialty styles.',
-        'Liqueur': 'Track liqueur and cordial label filings including cream liqueurs, herbal spirits, and specialty cordials. Monitor new product launches and discover trending flavor profiles.',
-        'Cocktails': 'Monitor ready-to-drink cocktail and RTD filings—the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
+        'Whiskey': 'Track American whiskey, <a href="/database?category=Whiskey&type=bourbon" class="intro-link">bourbon</a>, <a href="/database?category=Whiskey&type=rye" class="intro-link">rye</a>, and <a href="/database?category=Whiskey&type=scotch" class="intro-link">scotch</a> labels filed with the TTB. We index every COLA filing weekly—find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
+        'Tequila': 'Monitor <a href="/database?category=Tequila" class="intro-link">tequila</a> and <a href="/database?category=Tequila&type=mezcal" class="intro-link">mezcal</a> labels from the TTB database. New agave brands are launching faster than ever—see who\'s filing, what they\'re releasing, and which producers are scaling up.',
+        'Vodka': 'Search <a href="/database?category=Vodka" class="intro-link">vodka</a> label approvals including <a href="/database?category=Vodka&type=flavored" class="intro-link">flavored</a> varieties. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
+        'Gin': 'Browse <a href="/database?category=Gin" class="intro-link">gin</a> label filings including <a href="/database?category=Gin&type=flavored" class="intro-link">flavored</a> styles. The craft gin boom continues—find new producers, track botanical innovations, and monitor market entrants.',
+        'Rum': 'Track <a href="/database?category=Rum" class="intro-link">rum</a> labels including <a href="/database?category=Rum&type=flavored" class="intro-link">flavored</a> varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
+        'Brandy': 'Search brandy filings including <a href="/database?category=Brandy&type=cognac" class="intro-link">cognac</a>, <a href="/database?category=Brandy&type=armagnac" class="intro-link">armagnac</a>, and <a href="/database?category=Brandy&type=pisco" class="intro-link">pisco</a>. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
+        'Wine': 'Search <a href="/database?category=Wine" class="intro-link">wine</a> label approvals spanning domestic and imported wines, <a href="/database?category=Wine&type=sparkling" class="intro-link">sparkling</a>, and <a href="/database?category=Wine&type=vermouth" class="intro-link">vermouth</a>. Track new wineries entering the US market and monitor competitor releases.',
+        'Beer': 'Browse <a href="/database?category=Beer" class="intro-link">beer</a> label filings from craft breweries to major producers. Track new brewery launches, monitor seasonal releases, and discover emerging brands.',
+        'Liqueur': 'Track <a href="/database?category=Liqueur" class="intro-link">liqueur</a> and cordial label filings. Monitor new product launches and discover trending flavor profiles.',
+        'Cocktails': 'Monitor <a href="/database?category=Cocktails" class="intro-link">ready-to-drink cocktail</a> and RTD filings—the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
         'Other': 'Browse specialty spirit filings including neutral spirits, grain spirits, and unique products that don\'t fit standard categories. Find niche producers and specialty products.'
     };
 
-    // Subcategory links for each category
+    // Subcategory links - only include types that map to actual TTB codes
     const subcategories = {
         'Whiskey': [
-            { name: 'Bourbon', slug: 'bourbon' },
-            { name: 'Rye', slug: 'rye' },
-            { name: 'Scotch', slug: 'scotch' },
-            { name: 'Irish', slug: 'irish' },
-            { name: 'Canadian', slug: 'canadian' },
-            { name: 'Japanese', slug: 'japanese' },
-            { name: 'American Single Malt', slug: 'american-single-malt' }
+            { name: 'Bourbon', type: 'bourbon' },
+            { name: 'Rye', type: 'rye' },
+            { name: 'Scotch', type: 'scotch' },
+            { name: 'Irish', type: 'irish' },
+            { name: 'Canadian', type: 'canadian' },
+            { name: 'Corn Whiskey', type: 'corn' },
+            { name: 'Blended', type: 'blended' }
         ],
         'Tequila': [
-            { name: 'Blanco', slug: 'blanco' },
-            { name: 'Reposado', slug: 'reposado' },
-            { name: 'Añejo', slug: 'anejo' },
-            { name: 'Extra Añejo', slug: 'extra-anejo' },
-            { name: 'Mezcal', slug: 'mezcal' },
-            { name: 'Cristalino', slug: 'cristalino' }
+            { name: 'Mezcal', type: 'mezcal' }
         ],
         'Vodka': [
-            { name: 'Plain', slug: 'plain' },
-            { name: 'Flavored', slug: 'flavored' },
-            { name: 'Craft', slug: 'craft' }
+            { name: 'Flavored', type: 'flavored' }
         ],
         'Gin': [
-            { name: 'London Dry', slug: 'london-dry' },
-            { name: 'New American', slug: 'new-american' },
-            { name: 'Flavored', slug: 'flavored' },
-            { name: 'Old Tom', slug: 'old-tom' }
+            { name: 'Flavored', type: 'flavored' }
         ],
         'Rum': [
-            { name: 'White', slug: 'white' },
-            { name: 'Gold', slug: 'gold' },
-            { name: 'Dark', slug: 'dark' },
-            { name: 'Spiced', slug: 'spiced' },
-            { name: 'Flavored', slug: 'flavored' },
-            { name: 'Agricole', slug: 'agricole' }
+            { name: 'Flavored', type: 'flavored' }
         ],
         'Brandy': [
-            { name: 'Cognac', slug: 'cognac' },
-            { name: 'Armagnac', slug: 'armagnac' },
-            { name: 'Pisco', slug: 'pisco' },
-            { name: 'Fruit Brandy', slug: 'fruit' },
-            { name: 'American', slug: 'american' }
+            { name: 'Cognac', type: 'cognac' },
+            { name: 'Armagnac', type: 'armagnac' },
+            { name: 'Pisco', type: 'pisco' },
+            { name: 'Grappa', type: 'grappa' }
         ],
         'Wine': [
-            { name: 'Red', slug: 'red' },
-            { name: 'White', slug: 'white' },
-            { name: 'Rosé', slug: 'rose' },
-            { name: 'Sparkling', slug: 'sparkling' },
-            { name: 'Dessert', slug: 'dessert' },
-            { name: 'Vermouth', slug: 'vermouth' }
+            { name: 'Sparkling', type: 'sparkling' },
+            { name: 'Vermouth', type: 'vermouth' },
+            { name: 'Sake', type: 'sake' },
+            { name: 'Cider', type: 'cider' }
         ],
         'Beer': [
-            { name: 'Ale', slug: 'ale' },
-            { name: 'Lager', slug: 'lager' },
-            { name: 'IPA', slug: 'ipa' },
-            { name: 'Stout', slug: 'stout' },
-            { name: 'Craft', slug: 'craft' }
+            { name: 'Ale', type: 'ale' },
+            { name: 'Lager', type: 'lager' },
+            { name: 'Malt Beverage', type: 'malt' }
         ],
         'Liqueur': [
-            { name: 'Fruit', slug: 'fruit' },
-            { name: 'Cream', slug: 'cream' },
-            { name: 'Herbal', slug: 'herbal' },
-            { name: 'Coffee', slug: 'coffee' },
-            { name: 'Nut', slug: 'nut' }
+            { name: 'Cordial', type: 'cordial' },
+            { name: 'Schnapps', type: 'schnapps' }
         ],
-        'Cocktails': [
-            { name: 'Vodka-Based', slug: 'vodka-based' },
-            { name: 'Tequila-Based', slug: 'tequila-based' },
-            { name: 'Whiskey-Based', slug: 'whiskey-based' },
-            { name: 'Malt-Based', slug: 'malt-based' }
-        ],
-        'Other': [
-            { name: 'Neutral Spirits', slug: 'neutral-spirits' },
-            { name: 'Specialty', slug: 'specialty' }
-        ]
+        'Cocktails': [],
+        'Other': []
     };
 
-    // Query patterns
-    const categoryPatterns = {
-        'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
-        'Vodka': ['%VODKA%'],
-        'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
-        'Rum': ['%RUM%', '%CACHACA%'],
-        'Gin': ['%GIN%'],
-        'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-        'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-        'Beer': ['%BEER%', '%ALE%', '%MALT BEVERAGE%', '%STOUT%', '%PORTER%', '%LAGER%'],
-        'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%'],
-        'Cocktails': ['%COCKTAIL%', '%RTD%', '%READY TO DRINK%', '%HARD SELTZER%', '%SELTZER%'],
-        'Other': ['%NEUTRAL%', '%GRAIN SPIRIT%', '%OTHER SPIRIT%', '%SPECIALTY%']
-    };
-
-    const patterns = categoryPatterns[category] || [`%${category.toUpperCase()}%`];
-    const patternCondition = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
+    // Use indexed category column for fast queries (no more LIKE with leading wildcards)
 
     try {
         // Calculate date ranges
@@ -3683,24 +3758,24 @@ async function handleHubPage(categorySlug, env, headers) {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // Run all queries in parallel
+        // Run all queries in parallel using indexed category column
         const [totalResult, weekResult, newCompaniesResult, recentFilings, topCompaniesResult, topBrandsResult] = await Promise.all([
             // Total filings
-            env.DB.prepare(`SELECT COUNT(*) as cnt FROM colas WHERE ${patternCondition}`).bind(...patterns).first(),
+            env.DB.prepare(`SELECT COUNT(*) as cnt FROM colas WHERE category = ?`).bind(category).first(),
 
             // New filings this week
             env.DB.prepare(`
                 SELECT COUNT(*) as cnt FROM colas
-                WHERE (${patternCondition})
+                WHERE category = ?
                 AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))
-            `).bind(...patterns, weekAgo.getFullYear(), weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getDate()).first(),
+            `).bind(category, weekAgo.getFullYear(), weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getDate()).first(),
 
             // New companies this month
             env.DB.prepare(`
                 SELECT COUNT(DISTINCT company_name) as cnt FROM colas
-                WHERE signal = 'NEW_COMPANY' AND (${patternCondition})
+                WHERE signal = 'NEW_COMPANY' AND category = ?
                 AND (year > ? OR (year = ? AND month >= ?))
-            `).bind(...patterns, monthAgo.getFullYear(), monthAgo.getFullYear(), monthAgo.getMonth() + 1).first(),
+            `).bind(category, monthAgo.getFullYear(), monthAgo.getFullYear(), monthAgo.getMonth() + 1).first(),
 
             // Recent filings (25)
             env.DB.prepare(`
@@ -3709,10 +3784,10 @@ async function handleHubPage(categorySlug, env, headers) {
                 FROM colas co
                 LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
                 LEFT JOIN companies c ON ca.company_id = c.id
-                WHERE (${patternCondition})
+                WHERE co.category = ?
                 ORDER BY co.year DESC, co.month DESC, co.day DESC
                 LIMIT 25
-            `).bind(...patterns).all(),
+            `).bind(category).all(),
 
             // Top companies (20)
             env.DB.prepare(`
@@ -3721,21 +3796,21 @@ async function handleHubPage(categorySlug, env, headers) {
                 FROM colas co
                 JOIN company_aliases ca ON co.company_name = ca.raw_name
                 JOIN companies c ON ca.company_id = c.id
-                WHERE (${patternCondition})
+                WHERE co.category = ?
                 GROUP BY c.id
                 ORDER BY cnt DESC
                 LIMIT 20
-            `).bind(...patterns).all(),
+            `).bind(category).all(),
 
             // Top brands (20)
             env.DB.prepare(`
                 SELECT brand_name, COUNT(*) as cnt
                 FROM colas
-                WHERE (${patternCondition})
+                WHERE category = ?
                 GROUP BY brand_name
                 ORDER BY cnt DESC
                 LIMIT 20
-            `).bind(...patterns).all()
+            `).bind(category).all()
         ]);
 
         const totalFilings = totalResult?.cnt || 0;
@@ -3745,15 +3820,21 @@ async function handleHubPage(categorySlug, env, headers) {
         const topCompanies = topCompaniesResult?.results || [];
         const topBrands = topBrandsResult?.results || [];
 
-        // Signal badge helper
+        // Signal badge helper - renders both states, JS will show correct one
         const getSignalBadge = (signal) => {
             const badges = {
-                'NEW_COMPANY': '<span class="signal-badge signal-new-company">New Company</span>',
-                'NEW_BRAND': '<span class="signal-badge signal-new-brand">New Brand</span>',
-                'NEW_SKU': '<span class="signal-badge signal-new-sku">New SKU</span>',
-                'REFILE': '<span class="signal-badge signal-refile">Refile</span>'
+                'NEW_COMPANY': { class: 'signal-new-company', label: 'New Company' },
+                'NEW_BRAND': { class: 'signal-new-brand', label: 'New Brand' },
+                'NEW_SKU': { class: 'signal-new-sku', label: 'New SKU' },
+                'REFILE': { class: 'signal-refile', label: 'Refile' }
             };
-            return badges[signal] || '<span class="signal-badge">—</span>';
+            const badge = badges[signal];
+            if (!badge) return '<span class="signal-badge">—</span>';
+            // Render both locked (free) and unlocked (pro) states
+            return `<span class="signal-badge-wrapper" data-signal="${signal}">
+                <span class="signal-badge ${badge.class} signal-unlocked" style="display:none;">${badge.label}</span>
+                <span class="signal-badge signal-locked" onclick="showUpgradeModal()">PRO</span>
+            </span>`;
         };
 
         // Format last filing date from numeric
@@ -3787,13 +3868,18 @@ async function handleHubPage(categorySlug, env, headers) {
             <div class="hub-page">
                 <header class="hub-header">
                     <div class="hub-header-inner">
+                        <nav class="hub-breadcrumb">
+                            <a href="/">Home</a>
+                            <span class="breadcrumb-sep">/</span>
+                            <span>${category}</span>
+                        </nav>
                         <h1>${category} Brands & Companies</h1>
                         <p class="hub-intro">${introCopy[category]}</p>
                         ${subcategories[category]?.length ? `
                             <div class="hub-subcategories">
                                 <span class="subcategory-label">Browse by type:</span>
                                 ${subcategories[category].map(sub =>
-                                    `<a href="/database?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(sub.name)}">${sub.name}</a>`
+                                    `<a href="/database?category=${encodeURIComponent(category)}&type=${encodeURIComponent(sub.type)}">${sub.name}</a>`
                                 ).join(' <span class="subcategory-sep">|</span> ')}
                             </div>
                         ` : ''}
@@ -3801,18 +3887,25 @@ async function handleHubPage(categorySlug, env, headers) {
                 </header>
 
                 <div class="hub-stats">
-                    <div class="hub-stat">
+                    <a href="/database?category=${encodeURIComponent(category)}" class="hub-stat hub-stat-link">
                         <div class="hub-stat-value">${formatNumber(totalFilings)}</div>
                         <div class="hub-stat-label">Total Filings</div>
-                    </div>
-                    <div class="hub-stat">
+                    </a>
+                    <a href="/database?category=${encodeURIComponent(category)}&period=7d" class="hub-stat hub-stat-link">
                         <div class="hub-stat-value">${formatNumber(newThisWeek)}</div>
                         <div class="hub-stat-label">New This Week</div>
-                    </div>
-                    <div class="hub-stat">
+                    </a>
+                    <a href="/database?category=${encodeURIComponent(category)}&signal=NEW_COMPANY" class="hub-stat hub-stat-link">
                         <div class="hub-stat-value">${formatNumber(newCompaniesMonth)}</div>
                         <div class="hub-stat-label">New Companies (30d)</div>
-                    </div>
+                    </a>
+                </div>
+                <div class="hub-data-updated">Data updated: ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+
+                <div class="hub-upgrade-banner" id="upgrade-banner">
+                    <span class="upgrade-icon">🔔</span>
+                    <span>Get alerts when new ${category.toLowerCase()} brands file.</span>
+                    <a href="/#pricing" class="upgrade-link">Upgrade to Pro →</a>
                 </div>
 
                 <section class="hub-section">
@@ -3843,6 +3936,14 @@ async function handleHubPage(categorySlug, env, headers) {
                                 `).join('')}
                             </tbody>
                         </table>
+                    </div>
+                    <div class="hub-export-row">
+                        <button class="btn-export locked" id="export-csv-btn" onclick="handleExportClick()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                            </svg>
+                            Export CSV<span class="pro-tag" id="export-pro-tag">PRO</span>
+                        </button>
                     </div>
                     <div class="hub-table-cta">
                         <a href="/database?category=${encodeURIComponent(category)}" class="btn-secondary">View All ${category} Filings →</a>
@@ -3914,11 +4015,122 @@ async function handleHubPage(categorySlug, env, headers) {
                     </div>
                 </nav>
             </div>
+
+            <!-- Upgrade Modal -->
+            <div class="upgrade-modal-overlay" id="upgrade-modal">
+                <div class="upgrade-modal">
+                    <h3>Unlock Pro Features</h3>
+                    <p>Get full access to signal data, CSV exports, watchlist alerts, and more. See which brands are NEW vs refiles at a glance.</p>
+                    <a href="/#pricing" class="btn-primary">View Pro Plans</a>
+                    <button class="btn-close" onclick="closeUpgradeModal()">Maybe later</button>
+                </div>
+            </div>
+
+            <script>
+                // Unlock Pro content
+                function unlockProContent() {
+                    // Show real signals, hide locked badges
+                    document.querySelectorAll('.signal-unlocked').forEach(el => el.style.display = 'inline-block');
+                    document.querySelectorAll('.signal-locked').forEach(el => el.style.display = 'none');
+
+                    // Update export button
+                    const exportBtn = document.getElementById('export-csv-btn');
+                    if (exportBtn) {
+                        exportBtn.classList.remove('locked');
+                        const proTag = document.getElementById('export-pro-tag');
+                        if (proTag) proTag.style.display = 'none';
+                    }
+
+                    // Hide upgrade banner
+                    const banner = document.getElementById('upgrade-banner');
+                    if (banner) banner.classList.add('hidden');
+                }
+
+                // Check Pro status and update UI
+                (function() {
+                    // Check cookie first (fastest)
+                    if (document.cookie.includes('bevalc_pro=1')) {
+                        unlockProContent();
+                        return;
+                    }
+
+                    // Check localStorage for user data
+                    try {
+                        const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                        if (user.isPro || user.is_pro) {
+                            unlockProContent();
+                            // Set cookie for future visits
+                            document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
+                            return;
+                        }
+
+                        // If we have an email, verify Pro status via API
+                        if (user.email) {
+                            fetch('https://bevalc-api.mac-rowan.workers.dev/api/stripe/customer-status?email=' + encodeURIComponent(user.email))
+                                .then(r => r.json())
+                                .then(data => {
+                                    if (data.is_pro) {
+                                        // Update localStorage
+                                        user.isPro = true;
+                                        user.is_pro = true;
+                                        localStorage.setItem('bevalc_user', JSON.stringify(user));
+                                        // Set cookie
+                                        document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
+                                        // Unlock content
+                                        unlockProContent();
+                                    }
+                                })
+                                .catch(() => {});
+                        }
+                    } catch (e) {}
+                })();
+
+                function showUpgradeModal() {
+                    document.getElementById('upgrade-modal').classList.add('active');
+                }
+
+                function closeUpgradeModal() {
+                    document.getElementById('upgrade-modal').classList.remove('active');
+                }
+
+                function handleExportClick() {
+                    const isPro = document.cookie.includes('bevalc_pro=1');
+                    if (isPro) {
+                        // Redirect to database with export params
+                        window.location.href = '/database?category=${encodeURIComponent(category)}&export=csv';
+                    } else {
+                        showUpgradeModal();
+                    }
+                }
+
+                // Close modal on overlay click
+                document.getElementById('upgrade-modal').addEventListener('click', function(e) {
+                    if (e.target === this) closeUpgradeModal();
+                });
+            </script>
         `;
 
         // Custom styles for hub pages
         const hubStyles = `
             .hub-page { padding-bottom: 48px; }
+
+            .hub-breadcrumb {
+                margin-bottom: 16px;
+                font-size: 0.875rem;
+                color: rgba(255,255,255,0.6);
+            }
+            .hub-breadcrumb a {
+                color: rgba(255,255,255,0.7);
+                text-decoration: none;
+                transition: color 0.15s ease;
+            }
+            .hub-breadcrumb a:hover {
+                color: #5eead4;
+            }
+            .hub-breadcrumb .breadcrumb-sep {
+                margin: 0 8px;
+                color: rgba(255,255,255,0.4);
+            }
 
             .hub-header {
                 background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -4129,6 +4341,148 @@ async function handleHubPage(categorySlug, env, headers) {
                 font-weight: 500;
             }
 
+            /* Stat links */
+            .hub-stat-link {
+                text-decoration: none;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .hub-stat-link:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            }
+
+            /* Data updated timestamp */
+            .hub-data-updated {
+                text-align: center;
+                color: #64748b;
+                font-size: 0.85rem;
+                margin-bottom: 24px;
+            }
+
+            /* Upgrade banner */
+            .hub-upgrade-banner {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                background: linear-gradient(90deg, #fef3c7 0%, #fef9c3 100%);
+                border: 1px solid #fbbf24;
+                border-radius: 8px;
+                padding: 16px 24px;
+                margin-bottom: 32px;
+                font-size: 0.95rem;
+                color: #92400e;
+            }
+            .hub-upgrade-banner.hidden { display: none; }
+            .upgrade-icon { font-size: 1.2rem; }
+            .upgrade-link {
+                color: #d97706;
+                font-weight: 600;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+            .upgrade-link:hover { text-decoration: underline; }
+
+            /* Intro links */
+            .intro-link {
+                color: #5eead4;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .intro-link:hover { color: #99f6e4; text-decoration: underline; }
+
+            /* Signal badge locked state */
+            .signal-locked {
+                background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+                color: #fff;
+                cursor: pointer;
+                transition: transform 0.15s, box-shadow 0.15s;
+            }
+            .signal-locked:hover {
+                transform: scale(1.05);
+                box-shadow: 0 2px 8px rgba(13, 148, 136, 0.4);
+            }
+
+            /* Export CSV button */
+            .hub-export-row {
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 16px;
+                gap: 12px;
+            }
+            .btn-export {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 8px 16px;
+                background: #0d9488;
+                color: #fff;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 0.85rem;
+                cursor: pointer;
+                border: none;
+                transition: background 0.2s;
+            }
+            .btn-export:hover { background: #0f766e; }
+            .btn-export.locked {
+                background: #64748b;
+            }
+            .btn-export.locked:hover { background: #475569; }
+            .pro-tag {
+                background: #fbbf24;
+                color: #78350f;
+                font-size: 0.65rem;
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-weight: 700;
+                margin-left: 4px;
+            }
+
+            /* Upgrade modal */
+            .upgrade-modal-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.6);
+                z-index: 1000;
+                align-items: center;
+                justify-content: center;
+            }
+            .upgrade-modal-overlay.active { display: flex; }
+            .upgrade-modal {
+                background: #fff;
+                border-radius: 12px;
+                padding: 32px;
+                max-width: 420px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            }
+            .upgrade-modal h3 {
+                font-size: 1.5rem;
+                color: #0f172a;
+                margin-bottom: 12px;
+            }
+            .upgrade-modal p {
+                color: #64748b;
+                margin-bottom: 24px;
+                line-height: 1.5;
+            }
+            .upgrade-modal .btn-primary {
+                width: 100%;
+                margin-bottom: 12px;
+            }
+            .upgrade-modal .btn-close {
+                background: transparent;
+                border: none;
+                color: #64748b;
+                cursor: pointer;
+                font-size: 0.9rem;
+            }
+            .upgrade-modal .btn-close:hover { color: #0f172a; }
+
             @media (max-width: 768px) {
                 .hub-header h1 { font-size: 1.75rem; }
                 .hub-intro { font-size: 1rem; }
@@ -4139,6 +4493,12 @@ async function handleHubPage(categorySlug, env, headers) {
                 .hub-table { font-size: 0.8rem; }
                 .hub-table th, .hub-table td { padding: 10px 12px; }
                 .signal-badge { padding: 3px 8px; font-size: 0.7rem; }
+                .hub-upgrade-banner {
+                    flex-direction: column;
+                    text-align: center;
+                    gap: 8px;
+                }
+                .hub-export-row { justify-content: center; }
             }
         `;
 

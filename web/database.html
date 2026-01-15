@@ -161,9 +161,33 @@
             </a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
+                <div class="nav-dropdown" id="browse-dropdown">
+                    <button class="nav-dropdown-toggle" onclick="toggleDropdown('browse-dropdown')">
+                        Browse
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="/whiskey/">Whiskey</a>
+                        <a href="/tequila/">Tequila</a>
+                        <a href="/vodka/">Vodka</a>
+                        <a href="/gin/">Gin</a>
+                        <a href="/rum/">Rum</a>
+                        <a href="/wine/">Wine</a>
+                        <a href="/beer/">Beer</a>
+                        <div class="nav-dropdown-divider"></div>
+                        <div class="nav-dropdown-more">
+                            <a href="#">More <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg></a>
+                            <div class="nav-dropdown-submenu">
+                                <a href="/brandy/">Brandy</a>
+                                <a href="/liqueur/">Liqueur</a>
+                                <a href="/cocktails/">Cocktails</a>
+                                <a href="/other/">Other</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <a href="database.html" class="nav-link active">Database</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
-                <a href="glossary.html" class="nav-link">Glossary</a>
                 <a href="account.html" class="nav-link">Account</a>
             </div>
             <div class="nav-user" id="nav-user">
@@ -182,8 +206,19 @@
             <a href="index.html" class="mobile-menu-link">Home</a>
             <a href="database.html" class="mobile-menu-link">Database</a>
             <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
-            <a href="glossary.html" class="mobile-menu-link">Glossary</a>
             <a href="account.html" class="mobile-menu-link">Account</a>
+            <div class="mobile-menu-divider"></div>
+            <span class="mobile-menu-section">Browse Categories</span>
+            <a href="/whiskey/" class="mobile-menu-link">Whiskey</a>
+            <a href="/tequila/" class="mobile-menu-link">Tequila</a>
+            <a href="/vodka/" class="mobile-menu-link">Vodka</a>
+            <a href="/gin/" class="mobile-menu-link">Gin</a>
+            <a href="/rum/" class="mobile-menu-link">Rum</a>
+            <a href="/wine/" class="mobile-menu-link">Wine</a>
+            <a href="/beer/" class="mobile-menu-link">Beer</a>
+            <a href="/brandy/" class="mobile-menu-link">Brandy</a>
+            <a href="/liqueur/" class="mobile-menu-link">Liqueur</a>
+            <a href="/cocktails/" class="mobile-menu-link">Cocktails</a>
         </div>
     </nav>
 
@@ -366,13 +401,46 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="footer-container">
-            <div class="footer-links">
-                <a href="legal.html#privacy">Privacy Policy</a>
-                <a href="legal.html#terms">Terms of Service</a>
-                <a href="glossary.html">Glossary</a>
-                <a href="mailto:hello@bevalcintel.com">Contact</a>
+            <div class="footer-grid">
+                <div class="footer-brand-section">
+                    <div class="footer-brand">
+                        <span class="logo-icon">◆</span>
+                        <span class="logo-text">BevAlc Intelligence</span>
+                    </div>
+                    <p class="footer-tagline">TTB COLA database and competitive intelligence for beverage alcohol.</p>
+                </div>
+                <div class="footer-nav-section">
+                    <h4>Categories</h4>
+                    <div class="footer-category-links">
+                        <a href="/whiskey/">Whiskey</a>
+                        <a href="/tequila/">Tequila</a>
+                        <a href="/vodka/">Vodka</a>
+                        <a href="/gin/">Gin</a>
+                        <a href="/rum/">Rum</a>
+                        <a href="/wine/">Wine</a>
+                        <a href="/beer/">Beer</a>
+                        <a href="/brandy/">Brandy</a>
+                        <a href="/liqueur/">Liqueur</a>
+                        <a href="/cocktails/">Cocktails</a>
+                        <a href="/other/">Other</a>
+                    </div>
+                </div>
+                <div class="footer-nav-section">
+                    <h4>Resources</h4>
+                    <a href="database.html">Database</a>
+                    <a href="glossary.html">Glossary</a>
+                    <a href="account.html">Account</a>
+                </div>
+                <div class="footer-nav-section">
+                    <h4>Legal</h4>
+                    <a href="legal.html#privacy">Privacy Policy</a>
+                    <a href="legal.html#terms">Terms of Service</a>
+                    <a href="mailto:hello@bevalcintel.com">Contact</a>
+                </div>
             </div>
-            <p class="footer-copyright">© 2026 BevAlc Intelligence. All rights reserved.</p>
+            <div class="footer-bottom">
+                <p class="footer-copyright">© 2026 BevAlc Intelligence. All rights reserved.</p>
+            </div>
         </div>
     </footer>
 
@@ -398,7 +466,19 @@
 
         document.getElementById('mobile-menu-btn')?.addEventListener('click', toggleMobileMenu);
 
+        // Nav dropdown toggle
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            if (!isOpen) dropdown.classList.add('open');
+        }
+
+        // Close dropdowns when clicking outside
         document.addEventListener('click', function(e) {
+            if (!e.target.closest('.nav-dropdown')) {
+                document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            }
             const menu = document.getElementById('mobile-menu');
             const btn = document.getElementById('mobile-menu-btn');
             if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
