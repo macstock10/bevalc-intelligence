@@ -85,6 +85,16 @@ jobs:
             python weekly_update.py --days $DAYS
           fi
 
+      - name: Precompute category stats for hub pages
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+          python precompute_category_stats.py
+
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4

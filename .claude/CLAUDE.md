@@ -25,6 +25,9 @@ This is the most important section. Read this first to understand how the system
 │                                                                         │
 │  Uses ColaWorker for robust scraping (3 retries, CAPTCHA handling)      │
 │                                                                         │
+│  THEN: precompute_category_stats.py (refreshes hub page cache)          │
+│       └─► Updates category_stats table with totals, top companies/brands│
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -277,6 +280,13 @@ Core scraping class used by weekly_update.py:
 - `ColaWorker` - Handles browser, CAPTCHA, pagination
 - `process_date_range(start, end)` - Scrape a date range
 
+### `scripts/precompute_category_stats.py`
+Precomputes hub page stats to avoid slow GROUP BY queries on large categories:
+- Runs after daily-sync in GitHub Actions
+- Caches total filings, top 20 companies, top 20 brands per category
+- Wine (1.88M records) and Beer (470K) were taking 13-17 seconds without cache
+- With cache, all hub pages load in <1 second
+
 ---
 
 ## Database Schema (Cloudflare D1)
@@ -297,6 +307,7 @@ Core scraping class used by weekly_update.py:
 | month | INT | From approval_date |
 | signal | TEXT | NEW_COMPANY, NEW_BRAND, NEW_SKU, REFILE |
 | refile_count | INT | Number of refiles for this SKU |
+| category | TEXT | Indexed: Whiskey, Vodka, Tequila, Rum, Gin, Brandy, Wine, Beer, Liqueur, Cocktails, Other |
 
 ### `companies` - Normalized company entities (~31K)
 | Column | Type | Notes |
@@ -361,6 +372,17 @@ Core scraping class used by weekly_update.py:
 | stripe_payment_id | TEXT | For purchases |
 | company_id | INT | For usage (which company was enhanced) |
 | created_at | TEXT | ISO timestamp |
+
+### `category_stats` - Precomputed hub page stats
+| Column | Type | Notes |
+|--------|------|-------|
+| category | TEXT | Primary key (Whiskey, Wine, etc.) |
+| total_filings | INT | Total COLA count for category |
+| week_filings | INT | Filings in last 7 days |
+| month_new_companies | INT | New companies in last 30 days |
+| top_companies | TEXT | JSON array of top 20 companies |
+| top_brands | TEXT | JSON array of top 20 brands |
+| updated_at | TEXT | ISO timestamp of last refresh |
 
 ### `watchlist` - Pro user tracked items
 | Column | Type | Notes |

@@ -143,6 +143,46 @@ def escape_sql_value(value) -> str:
     return f"'{s}'"
 
 
+def classify_category(class_type_code: str) -> str:
+    """
+    Classify a class_type_code into a category for indexed queries.
+
+    Args:
+        class_type_code: The TTB class type code
+
+    Returns:
+        Category name (Whiskey, Vodka, etc.) or 'Other'
+    """
+    if not class_type_code:
+        return 'Other'
+
+    code = class_type_code.upper()
+
+    # Check patterns in order (more specific first)
+    if any(p in code for p in ['WHISK', 'BOURBON', 'SCOTCH', 'RYE']):
+        return 'Whiskey'
+    if 'VODKA' in code:
+        return 'Vodka'
+    if any(p in code for p in ['TEQUILA', 'MEZCAL', 'AGAVE']):
+        return 'Tequila'
+    if any(p in code for p in ['RUM', 'CACHACA']):
+        return 'Rum'
+    if 'GIN' in code:
+        return 'Gin'
+    if any(p in code for p in ['BRANDY', 'COGNAC', 'ARMAGNAC', 'GRAPPA', 'PISCO']):
+        return 'Brandy'
+    if any(p in code for p in ['WINE', 'CHAMPAGNE', 'SAKE', 'CIDER', 'MEAD']):
+        return 'Wine'
+    if any(p in code for p in ['BEER', 'ALE', 'MALT BEVERAGE', 'STOUT', 'PORTER', 'LAGER']):
+        return 'Beer'
+    if any(p in code for p in ['LIQUEUR', 'CORDIAL', 'SCHNAPPS', 'AMARETTO', 'CREME DE']):
+        return 'Liqueur'
+    if any(p in code for p in ['COCKTAIL', 'RTD', 'READY TO DRINK', 'HARD SELTZER', 'SELTZER']):
+        return 'Cocktails'
+
+    return 'Other'
+
+
 def d1_insert_batch(records: List[Dict]) -> Dict:
     """
     Insert a batch of COLA records into D1 using bulk INSERT OR IGNORE.
@@ -164,14 +204,19 @@ def d1_insert_batch(records: List[Dict]) -> Dict:
         'for_sale_in', 'total_bottle_capacity', 'formula', 'approval_date',
         'qualifications', 'grape_varietal', 'wine_vintage', 'appellation',
         'alcohol_content', 'ph_level', 'plant_registry', 'company_name',
-        'street', 'state', 'contact_person', 'phone_number', 'year', 'month', 'day'
+        'street', 'state', 'contact_person', 'phone_number', 'year', 'month', 'day',
+        'category'
     ]
 
     columns_str = ', '.join(columns)
 
     statements = []
     for record in records:
-        values = [escape_sql_value(record.get(col)) for col in columns]
+        # Get values for all columns except category (which we compute)
+        values = [escape_sql_value(record.get(col)) for col in columns[:-1]]
+        # Add category based on class_type_code
+        category = classify_category(record.get('class_type_code', ''))
+        values.append(escape_sql_value(category))
         values_str = ', '.join(values)
         statements.append(f"INSERT OR IGNORE INTO colas ({columns_str}) VALUES ({values_str});")
 

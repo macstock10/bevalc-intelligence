@@ -3750,7 +3750,7 @@ async function handleHubPage(categorySlug, env, headers) {
         'Other': []
     };
 
-    // Use indexed category column for fast queries (no more LIKE with leading wildcards)
+    // Use indexed category column for fast queries + cached stats for slow aggregations
 
     try {
         // Calculate date ranges
@@ -3758,67 +3758,75 @@ async function handleHubPage(categorySlug, env, headers) {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // Run all queries in parallel using indexed category column
-        const [totalResult, weekResult, newCompaniesResult, recentFilings, topCompaniesResult, topBrandsResult] = await Promise.all([
-            // Total filings
-            env.DB.prepare(`SELECT COUNT(*) as cnt FROM colas WHERE category = ?`).bind(category).first(),
+        // First, check for cached stats (precomputed daily for heavy categories like Wine/Beer)
+        const cachedStats = await env.DB.prepare(
+            `SELECT total_filings, week_filings, month_new_companies, top_companies, top_brands, updated_at
+             FROM category_stats WHERE category = ?`
+        ).bind(category).first();
 
-            // New filings this week
-            env.DB.prepare(`
-                SELECT COUNT(*) as cnt FROM colas
-                WHERE category = ?
-                AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))
-            `).bind(category, weekAgo.getFullYear(), weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getDate()).first(),
+        let totalFilings, newThisWeek, newCompaniesMonth, topCompanies, topBrands;
 
-            // New companies this month
-            env.DB.prepare(`
-                SELECT COUNT(DISTINCT company_name) as cnt FROM colas
-                WHERE signal = 'NEW_COMPANY' AND category = ?
-                AND (year > ? OR (year = ? AND month >= ?))
-            `).bind(category, monthAgo.getFullYear(), monthAgo.getFullYear(), monthAgo.getMonth() + 1).first(),
+        if (cachedStats) {
+            // Use cached stats for the slow aggregations
+            totalFilings = cachedStats.total_filings || 0;
+            newThisWeek = cachedStats.week_filings || 0;
+            newCompaniesMonth = cachedStats.month_new_companies || 0;
+            topCompanies = JSON.parse(cachedStats.top_companies || '[]');
+            topBrands = JSON.parse(cachedStats.top_brands || '[]');
+        } else {
+            // No cache - run live queries (slower for large categories)
+            const [totalResult, weekResult, newCompaniesResult, topCompaniesResult, topBrandsResult] = await Promise.all([
+                env.DB.prepare(`SELECT COUNT(*) as cnt FROM colas WHERE category = ?`).bind(category).first(),
+                env.DB.prepare(`
+                    SELECT COUNT(*) as cnt FROM colas
+                    WHERE category = ?
+                    AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))
+                `).bind(category, weekAgo.getFullYear(), weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getDate()).first(),
+                env.DB.prepare(`
+                    SELECT COUNT(DISTINCT company_name) as cnt FROM colas
+                    WHERE signal = 'NEW_COMPANY' AND category = ?
+                    AND (year > ? OR (year = ? AND month >= ?))
+                `).bind(category, monthAgo.getFullYear(), monthAgo.getFullYear(), monthAgo.getMonth() + 1).first(),
+                env.DB.prepare(`
+                    SELECT c.canonical_name, c.slug, COUNT(*) as cnt,
+                           MAX(co.year * 10000 + co.month * 100 + co.day) as last_filing
+                    FROM colas co
+                    JOIN company_aliases ca ON co.company_name = ca.raw_name
+                    JOIN companies c ON ca.company_id = c.id
+                    WHERE co.category = ?
+                    GROUP BY c.id
+                    ORDER BY cnt DESC
+                    LIMIT 20
+                `).bind(category).all(),
+                env.DB.prepare(`
+                    SELECT brand_name, COUNT(*) as cnt
+                    FROM colas
+                    WHERE category = ?
+                    GROUP BY brand_name
+                    ORDER BY cnt DESC
+                    LIMIT 20
+                `).bind(category).all()
+            ]);
+            totalFilings = totalResult?.cnt || 0;
+            newThisWeek = weekResult?.cnt || 0;
+            newCompaniesMonth = newCompaniesResult?.cnt || 0;
+            topCompanies = topCompaniesResult?.results || [];
+            topBrands = topBrandsResult?.results || [];
+        }
 
-            // Recent filings (25)
-            env.DB.prepare(`
-                SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
-                       c.slug as company_slug, c.canonical_name
-                FROM colas co
-                LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
-                LEFT JOIN companies c ON ca.company_id = c.id
-                WHERE co.category = ?
-                ORDER BY co.year DESC, co.month DESC, co.day DESC
-                LIMIT 25
-            `).bind(category).all(),
+        // Recent filings - always live (fast with composite index)
+        const recentFilings = await env.DB.prepare(`
+            SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
+                   c.slug as company_slug, c.canonical_name
+            FROM colas co
+            LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
+            LEFT JOIN companies c ON ca.company_id = c.id
+            WHERE co.category = ?
+            ORDER BY co.year DESC, co.month DESC, co.day DESC
+            LIMIT 25
+        `).bind(category).all();
 
-            // Top companies (20)
-            env.DB.prepare(`
-                SELECT c.canonical_name, c.slug, COUNT(*) as cnt,
-                       MAX(co.year * 10000 + co.month * 100 + co.day) as last_filing
-                FROM colas co
-                JOIN company_aliases ca ON co.company_name = ca.raw_name
-                JOIN companies c ON ca.company_id = c.id
-                WHERE co.category = ?
-                GROUP BY c.id
-                ORDER BY cnt DESC
-                LIMIT 20
-            `).bind(category).all(),
-
-            // Top brands (20)
-            env.DB.prepare(`
-                SELECT brand_name, COUNT(*) as cnt
-                FROM colas
-                WHERE category = ?
-                GROUP BY brand_name
-                ORDER BY cnt DESC
-                LIMIT 20
-            `).bind(category).all()
-        ]);
-
-        const totalFilings = totalResult?.cnt || 0;
-        const newThisWeek = weekResult?.cnt || 0;
-        const newCompaniesMonth = newCompaniesResult?.cnt || 0;
         const filings = recentFilings?.results || [];
-        const topCompanies = topCompaniesResult?.results || [];
-        const topBrands = topBrandsResult?.results || [];
 
         // Signal badge helper - renders both states, JS will show correct one
         const getSignalBadge = (signal) => {
