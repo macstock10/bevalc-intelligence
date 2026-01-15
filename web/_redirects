@@ -11,6 +11,30 @@
 /company/*  https://bevalc-api.mac-rowan.workers.dev/company/:splat  200
 /brand/*    https://bevalc-api.mac-rowan.workers.dev/brand/:splat    200
 /category/* https://bevalc-api.mac-rowan.workers.dev/category/:splat 200
+
+# Hub pages (category landing pages)
+/whiskey/   https://bevalc-api.mac-rowan.workers.dev/whiskey/   200
+/whiskey    https://bevalc-api.mac-rowan.workers.dev/whiskey/   200
+/tequila/   https://bevalc-api.mac-rowan.workers.dev/tequila/   200
+/tequila    https://bevalc-api.mac-rowan.workers.dev/tequila/   200
+/vodka/     https://bevalc-api.mac-rowan.workers.dev/vodka/     200
+/vodka      https://bevalc-api.mac-rowan.workers.dev/vodka/     200
+/gin/       https://bevalc-api.mac-rowan.workers.dev/gin/       200
+/gin        https://bevalc-api.mac-rowan.workers.dev/gin/       200
+/rum/       https://bevalc-api.mac-rowan.workers.dev/rum/       200
+/rum        https://bevalc-api.mac-rowan.workers.dev/rum/       200
+/brandy/    https://bevalc-api.mac-rowan.workers.dev/brandy/    200
+/brandy     https://bevalc-api.mac-rowan.workers.dev/brandy/    200
+/wine/      https://bevalc-api.mac-rowan.workers.dev/wine/      200
+/wine       https://bevalc-api.mac-rowan.workers.dev/wine/      200
+/beer/      https://bevalc-api.mac-rowan.workers.dev/beer/      200
+/beer       https://bevalc-api.mac-rowan.workers.dev/beer/      200
+/liqueur/   https://bevalc-api.mac-rowan.workers.dev/liqueur/   200
+/liqueur    https://bevalc-api.mac-rowan.workers.dev/liqueur/   200
+/cocktails/ https://bevalc-api.mac-rowan.workers.dev/cocktails/ 200
+/cocktails  https://bevalc-api.mac-rowan.workers.dev/cocktails/ 200
+/other/     https://bevalc-api.mac-rowan.workers.dev/other/     200
+/other      https://bevalc-api.mac-rowan.workers.dev/other/     200
 /sitemap.xml https://bevalc-api.mac-rowan.workers.dev/sitemap.xml   200
 /sitemap-static.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-static.xml 200
 /sitemap-companies.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-companies.xml 200
