@@ -762,6 +762,27 @@ a:hover {
     line-height: 1.6;
 }
 
+/* 6-card compact grid variant */
+.use-cases-grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+}
+
+.use-case-compact {
+    padding: var(--space-xl);
+    text-align: left;
+}
+
+.use-case-compact h3 {
+    font-size: 1.1rem;
+    margin-bottom: var(--space-sm);
+}
+
+.use-case-compact .use-case-benefit {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
 /* ==========================================
    FIND MORE CUSTOMERS / LEAD SIGNALS SECTION
    ========================================== */
@@ -1486,6 +1507,17 @@ a:hover {
     margin-top: var(--space-sm);
 }
 
+.pricing-urgency {
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    margin-top: var(--space-2xl);
+    font-style: italic;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 /* ==========================================
    FINAL CTA SECTION
    ========================================== */
@@ -1631,6 +1663,11 @@ a:hover {
         max-width: 500px;
         margin-left: auto;
         margin-right: auto;
+    }
+
+    .use-cases-grid-6 {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
     }
     
     .social-proof-container {
