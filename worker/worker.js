@@ -916,7 +916,7 @@ async function handleGetPreferences(url, env) {
         query = 'SELECT * FROM user_preferences WHERE preferences_token = ?';
         param = token;
     } else {
-        query = 'SELECT * FROM user_preferences WHERE email = ?';
+        query = 'SELECT * FROM user_preferences WHERE LOWER(email) = ?';
         param = email.toLowerCase();
     }
     
@@ -2365,6 +2365,25 @@ function makeSlug(name) {
         .replace(/-+/g, '-');
 }
 
+function getCategorySlug(category) {
+    if (!category) return 'other';
+    const slugMap = {
+        'RTD/Cocktails': 'cocktails',
+        'Cocktails': 'cocktails',
+        'Whiskey': 'whiskey',
+        'Vodka': 'vodka',
+        'Tequila': 'tequila',
+        'Rum': 'rum',
+        'Gin': 'gin',
+        'Brandy': 'brandy',
+        'Wine': 'wine',
+        'Beer': 'beer',
+        'Liqueur': 'liqueur',
+        'Other': 'other'
+    };
+    return slugMap[category] || makeSlug(category);
+}
+
 function formatNumber(num) {
     return new Intl.NumberFormat().format(num || 0);
 }
@@ -2707,19 +2726,23 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             flex-direction: column;
             background: white;
             border-top: 1px solid var(--color-border);
-            padding: 16px 24px;
+            padding: 12px 20px;
         }
         .mobile-menu.active { display: flex; }
         .mobile-menu-link {
-            padding: 12px 0;
+            padding: 10px 0;
             color: var(--color-text);
             text-decoration: none;
             border-bottom: 1px solid var(--color-border);
+            font-size: 0.95rem;
         }
         .mobile-menu-link:last-child { border-bottom: none; }
         .mobile-menu-link:hover { color: var(--color-primary); }
-        .mobile-menu-section { padding: 12px 0 6px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
-        .mobile-menu-divider { height: 1px; background: var(--color-border); margin: 8px 0; }
+        .mobile-menu-section { padding: 10px 0 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+        .mobile-menu-divider { height: 1px; background: var(--color-border); margin: 6px 0; }
+        .mobile-menu-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+        .mobile-menu-categories a { padding: 8px 0; color: var(--color-text); text-decoration: none; font-size: 0.9rem; }
+        .mobile-menu-categories a:hover { color: var(--color-primary); }
 
         /* Nav Dropdown */
         .nav-dropdown { position: relative; }
@@ -2837,17 +2860,18 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             <a class="mobile-menu-link" href="/account.html">Account</a>
             <div class="mobile-menu-divider"></div>
             <span class="mobile-menu-section">Browse Categories</span>
-            <a class="mobile-menu-link" href="/whiskey/">Whiskey</a>
-            <a class="mobile-menu-link" href="/tequila/">Tequila</a>
-            <a class="mobile-menu-link" href="/vodka/">Vodka</a>
-            <a class="mobile-menu-link" href="/gin/">Gin</a>
-            <a class="mobile-menu-link" href="/rum/">Rum</a>
-            <a class="mobile-menu-link" href="/wine/">Wine</a>
-            <a class="mobile-menu-link" href="/beer/">Beer</a>
-            <a class="mobile-menu-link" href="/brandy/">Brandy</a>
-            <a class="mobile-menu-link" href="/liqueur/">Liqueur</a>
-            <a class="mobile-menu-link" href="/cocktails/">Cocktails</a>
-            <a class="mobile-menu-link" href="/other/">Other</a>
+            <div class="mobile-menu-categories">
+                <a href="/whiskey/">Whiskey</a>
+                <a href="/wine/">Wine</a>
+                <a href="/tequila/">Tequila</a>
+                <a href="/beer/">Beer</a>
+                <a href="/vodka/">Vodka</a>
+                <a href="/rum/">Rum</a>
+                <a href="/gin/">Gin</a>
+                <a href="/brandy/">Brandy</a>
+                <a href="/liqueur/">Liqueur</a>
+                <a href="/cocktails/">Cocktails</a>
+            </div>
         </div>
     </nav>
     <main class="seo-page">
@@ -3622,7 +3646,7 @@ async function handleBrandPage(path, env, headers) {
                     <div class="seo-card">
                         <h2>Primary Category</h2>
                         <div class="stat-value" style="font-size: 1.75rem;">${escapeHtml(primaryCategory)}</div>
-                        <div class="stat-label"><a href="/category/${makeSlug(primaryCategory)}/${new Date().getFullYear()}">View ${primaryCategory.toLowerCase()} trends →</a></div>
+                        <div class="stat-label"><a href="/${getCategorySlug(primaryCategory)}/">View ${primaryCategory.toLowerCase()} trends →</a></div>
                     </div>
                     <div class="seo-card">
                         <h2>Filing Activity</h2>
@@ -4124,9 +4148,9 @@ async function handleHubPage(categorySlug, env, headers) {
                     try {
                         const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
                         if (user.isPro || user.is_pro) {
-                            unlockProContent();
-                            // Set cookie for future visits
+                            // Set cookie and reload to get real-time data
                             document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
+                            window.location.reload();
                             return;
                         }
 
@@ -4140,10 +4164,9 @@ async function handleHubPage(categorySlug, env, headers) {
                                         user.isPro = true;
                                         user.is_pro = true;
                                         localStorage.setItem('bevalc_user', JSON.stringify(user));
-                                        // Set cookie
+                                        // Set cookie and reload to get real-time data
                                         document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
-                                        // Unlock content
-                                        unlockProContent();
+                                        window.location.reload();
                                     }
                                 })
                                 .catch(() => {});
@@ -4946,13 +4969,13 @@ async function handleEnhanceStatus(url, env) {
 }
 
 async function handleGetCredits(url, env) {
-    const email = url.searchParams.get('email');
+    const email = url.searchParams.get('email')?.toLowerCase();
     if (!email) {
         return { success: false, error: 'Missing email' };
     }
 
     const user = await env.DB.prepare(
-        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE LOWER(email) = ?'
     ).bind(email).first();
 
     if (!user) {

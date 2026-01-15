@@ -290,7 +290,12 @@ if (result.error) {{
             shell=True
         )
 
-        return result.returncode == 0
+        if result.returncode != 0:
+            logger.error(f"Email send failed for {email}")
+            logger.error(f"stdout: {result.stdout}")
+            logger.error(f"stderr: {result.stderr}")
+            return False
+        return True
 
     except subprocess.TimeoutExpired:
         logger.error(f"Timeout sending to {email}")

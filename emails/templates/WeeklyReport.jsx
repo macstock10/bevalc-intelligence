@@ -67,6 +67,27 @@ function makeSlug(name) {
     .replace(/^-+|-+$/g, "");
 }
 
+// Map category names to URL slugs (handles RTD → cocktails, etc.)
+function getCategorySlug(category) {
+  if (!category) return "other";
+  const slugMap = {
+    "RTD/Cocktails": "cocktails",
+    "RTD": "cocktails",
+    "Cocktails": "cocktails",
+    "Whiskey": "whiskey",
+    "Vodka": "vodka",
+    "Tequila": "tequila",
+    "Rum": "rum",
+    "Gin": "gin",
+    "Brandy": "brandy",
+    "Wine": "wine",
+    "Beer": "beer",
+    "Liqueur": "liqueur",
+    "Other": "other",
+  };
+  return slugMap[category] || makeSlug(category);
+}
+
 // Stat Tile Component
 function StatTile({ label, value, subtext, trend, highlight = false }) {
   return (
@@ -507,7 +528,7 @@ export function WeeklyReport({
                     label={item.label}
                     value={item.value}
                     maxValue={maxCategoryValue}
-                    link={`https://bevalcintel.com/category/${makeSlug(item.label)}/${new Date().getFullYear()}`}
+                    link={`https://bevalcintel.com/${getCategorySlug(item.label)}/`}
                   />
                 ))}
               </tbody>
