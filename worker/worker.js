@@ -5221,19 +5221,12 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
 
             summary = claudeResult.summary;
             console.log(`[Enhancement] Summary generated, confidence: ${claudeResult.confidence}`);
-
-            // Use Claude's relevant_news indexes to build news array (validates during summary generation)
-            if (claudeResult.relevant_news && Array.isArray(claudeResult.relevant_news) && discoveredUrls.news) {
-                news = claudeResult.relevant_news
-                    .filter(idx => idx >= 0 && idx < discoveredUrls.news.length)
-                    .map(idx => discoveredUrls.news[idx]);
-                console.log(`[Enhancement] Claude identified ${news.length} relevant news articles`);
-            }
         } else {
             console.error('ANTHROPIC_API_KEY not set');
         }
 
-        // Use discovered social
+        // Use discovered news and social directly
+        news = discoveredUrls.news || [];
         social = discoveredUrls.social || null;
 
     } catch (e) {
@@ -5499,237 +5492,159 @@ Return JSON only:
     return null;
 }
 
-// Run multiple Google searches to discover company URLs
+// ============================================================================
+// SIMPLE ENHANCEMENT FLOW
+// 1. Google search company names → collect all results
+// 2. Claude picks website from Google results (just URL/title/snippet)
+// 3. Scrape the selected website
+// 4. Claude summarizes from scraped content
+// ============================================================================
+
 async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
-    // Domains to always skip
-    const skipDomains = [
-        // Social media
-        'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
-        // Directories, reviews, and data aggregators
-        'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com', 'untappd.com',
-        'ratebeer.com', 'beeradvocate.com', 'whiskybase.com', 'distiller.com',
-        'importgenius.com', 'importyeti.com', 'panjiva.com', 'dnb.com', 'zoominfo.com',
-        // Retailers
-        'drizly.com', 'totalwine.com', 'vivino.com', 'wine-searcher.com',
-        'reservebar.com', 'caskers.com', 'wine.com', 'thewhiskyexchange.com',
-        'masterofmalt.com', 'klwines.com', 'amazon.com', 'walmart.com', 'target.com',
-        'maverickbevil.com', 'specsonline.com', 'goodygoody.com',
-        // News/media
-        'forbes.com', 'bloomberg.com', 'nytimes.com', 'washingtonpost.com',
-        'cnn.com', 'foxnews.com', 'usatoday.com',
-        // Blogs/aggregators
-        'medium.com', 'wordpress.com', 'blogspot.com', 'tumblr.com',
-        'pinterest.com', 'reddit.com', 'quora.com', 'youtube.com',
-        'thrillist.com', 'eater.com', 'vinepair.com', 'winemag.com',
-        // Our own site
-        'bevalcintel.com'
-    ];
+    // STEP 1: Parse company name into search terms
+    // "Northland Spirits LLC, Pearlhead Distilling LLC" → ["Northland Spirits", "Pearlhead Distilling"]
+    const nameParts = companyName
+        .split(/\s*,\s*|\s+DBA\s+|\s+D\/B\/A\s+/i)
+        .map(p => p
+            .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+        )
+        .filter(p => p.length >= 3);
 
-    // Also skip domains starting with "shop."
-    const isShopSubdomain = (domain) => domain.startsWith('shop.');
+    const searchTerms = [...new Set(nameParts)]; // dedupe
+    console.log(`[Enhancement] Company: "${companyName}"`);
+    console.log(`[Enhancement] Search terms: ${searchTerms.map(t => `"${t}"`).join(', ')}`);
+    console.log(`[Enhancement] Brand: "${brandName}", Industry: "${industryHint}"`);
 
-    // Clean company name for searching - extract BOTH parts if comma-separated
-    const nameParts = companyName.split(',').map(p =>
-        p.replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.L\.C\.|INC\.|CORP\.)\b\.?/gi, '')
-         .replace(/\s+/g, ' ')
-         .trim()
-    ).filter(p => p.length >= 3);
-
-    // Primary name is first part, but also keep second part for searching
-    let cleanCompanyName = nameParts[0] || companyName;
-    let altCompanyName = nameParts.length > 1 ? nameParts[1] : null;
-
-    // If primary name is too short, use both parts combined
-    if (cleanCompanyName.length < 5) {
-        cleanCompanyName = nameParts.join(' ');
-    }
-
-    console.log(`[Enhancement] Searching for: "${cleanCompanyName}"${altCompanyName ? ` (alt: "${altCompanyName}")` : ''} (brand: "${brandName}")`);
-
-    // Also try without hyphens/special chars for better Google matching
-    const searchName = cleanCompanyName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-    const altSearchName = altCompanyName ? altCompanyName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim() : null;
-
-    // STEP 1: Google Search for Candidates - multiple strategies
-    // Build search queries - mix of exact and broad, prioritize alt name
-    const searchQueries = [];
-    const seenQueries = new Set();
-
-    const addQuery = (q) => {
-        const normalized = q.toLowerCase().trim();
-        if (!seenQueries.has(normalized)) {
-            seenQueries.add(normalized);
-            searchQueries.push(q);
-        }
-    };
-
-    // If we have an alt name (like "Helmsman Imports"), search it FIRST
-    if (altSearchName) {
-        addQuery(altSearchName);  // Broad search (no quotes)
-    }
-
-    // Primary name - both exact and broad
-    addQuery(cleanCompanyName);  // Broad search
-    if (searchName !== cleanCompanyName) {
-        addQuery(searchName);
-    }
-
+    // STEP 2: Google search each term, collect all results
     const allResults = [];
-    for (const query of searchQueries) {
-        const results = await googleSearch(query, env);
-        allResults.push(...results);
-        // Stop if we have enough results
-        if (allResults.length >= 15) break;
-    }
-
-    // STEP 2: Filter Obvious Non-Matches
-    const candidates = [];
-    const seenDomains = new Set();
-
-    for (const result of allResults) {
-        if (candidates.length >= 5) break;
-
-        try {
-            const url = result.link;
-            const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
-
-            // Skip if already seen this domain
-            if (seenDomains.has(domain)) continue;
-            seenDomains.add(domain);
-
-            // Skip blocked domains
-            if (skipDomains.some(d => domain.includes(d))) continue;
-
-            // Skip shop.* subdomains (retailer storefronts)
-            if (isShopSubdomain(domain)) continue;
-
-            // Skip .gov sites
-            if (domain.endsWith('.gov')) continue;
-
-            // Skip URLs that look like articles/news
-            if (url.includes('/article/') || url.includes('/news/') || url.includes('/press/')) continue;
-
-            // Skip non-HTML files
-            if (url.endsWith('.pdf') || url.endsWith('.txt') || url.endsWith('.doc')) continue;
-
-            candidates.push({
-                url: url,
-                domain: domain,
-                title: result.title || '',
-                snippet: result.snippet || ''
-            });
-        } catch (e) {
-            continue;
-        }
-    }
-
-    console.log(`[Enhancement] Found ${candidates.length} candidates after filtering:`);
-    candidates.forEach((c, i) => console.log(`  ${i + 1}. ${c.domain} - ${c.url}`));
-
-    // STEP 3: Claude Evaluates Candidates by FETCHING PAGE CONTENT
-    let websiteUrl = null;
-
-    if (candidates.length > 0 && env.ANTHROPIC_API_KEY) {
-        // Fetch actual page content for each candidate (in parallel, with timeout)
-        const fetchPromises = candidates.map(async (c) => {
-            const content = await fetchPageContent(c.url);
-            console.log(`[Enhancement] Fetched ${c.domain}: ${content ? content.length + ' chars' : 'FAILED'}`);
-            return { ...c, content };
-        });
-
-        const candidatesWithContent = await Promise.all(fetchPromises);
-        const validCandidates = candidatesWithContent.filter(c => c.content);
-
-        console.log(`[Enhancement] ${validCandidates.length} of ${candidates.length} candidates have content`);
-
-        if (validCandidates.length > 0) {
-            websiteUrl = await claudeSelectWebsite(cleanCompanyName, brandName, validCandidates, env);
-        } else {
-            console.log('[Enhancement] No candidates with fetchable content');
-        }
-    } else if (candidates.length === 0) {
-        console.log('[Enhancement] No candidates found from Google search');
-    }
-
-    // STEP 4: Extract social media from search results
-    let facebookUrl = null;
-    let instagramUrl = null;
-    let youtubeUrl = null;
-
-    // Search specifically for social
-    const socialResults = await googleSearch(`${cleanCompanyName} facebook OR instagram OR youtube`, env);
-
-    for (const result of [...socialResults, ...allResults]) {
-        const url = result.link;
-        if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) {
-            facebookUrl = url;
-        }
-        if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) {
-            instagramUrl = url;
-        }
-        if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) {
-            youtubeUrl = url;
-        }
-    }
-
-    // STEP 5: Search for news articles
-    const newsArticles = [];
-    const newsResults = await googleSearch(`"${cleanCompanyName}" news`, env);
     const seenUrls = new Set();
 
-    for (const result of newsResults) {
-        if (newsArticles.length >= 3) break;
-
-        try {
-            const url = result.link;
-            const domain = new URL(url).hostname.replace('www.', '').toLowerCase();
-
-            // Skip company's own site
-            if (websiteUrl && url.includes(new URL(websiteUrl).hostname)) continue;
-            // Skip duplicates
-            if (seenUrls.has(url)) continue;
-            seenUrls.add(url);
-
-            // Extract date
-            let articleDate = null;
-            const metatags = result.pagemap?.metatags?.[0];
-            if (metatags) {
-                articleDate = metatags['article:published_time'] ||
-                              metatags['og:updated_time'] ||
-                              metatags['datePublished'];
+    for (const term of searchTerms.slice(0, 2)) { // Max 2 searches
+        const results = await googleSearch(term, env);
+        for (const r of results) {
+            if (!seenUrls.has(r.link)) {
+                seenUrls.add(r.link);
+                allResults.push(r);
             }
-            if (!articleDate && result.snippet) {
-                const dateMatch = result.snippet.match(/(\w{3}\s+\d{1,2},?\s+\d{4})|(\d{4}-\d{2}-\d{2})/);
-                if (dateMatch) articleDate = dateMatch[0];
-            }
-
-            newsArticles.push({
-                title: result.title,
-                url: url,
-                source: domain.replace('.com', '').replace('.org', ''),
-                snippet: result.snippet,
-                date: articleDate
-            });
-        } catch (e) {
-            continue;
         }
     }
 
-    // STEP 6: If we found a website, scrape it for content
+    console.log(`[Enhancement] Google returned ${allResults.length} unique results`);
+
+    // STEP 3: Extract social media URLs from results (no extra API call)
+    let facebookUrl = null, instagramUrl = null, youtubeUrl = null;
+    for (const r of allResults) {
+        const url = r.link;
+        if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) facebookUrl = url;
+        if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) instagramUrl = url;
+        if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) youtubeUrl = url;
+    }
+
+    // STEP 4: Format results for Claude (just URL, title, snippet - NO content fetching yet)
+    const candidateList = allResults
+        .filter(r => {
+            const url = r.link.toLowerCase();
+            // Skip obvious non-company sites
+            if (url.includes('facebook.com') || url.includes('instagram.com') || url.includes('linkedin.com')) return false;
+            if (url.includes('yelp.com') || url.includes('tripadvisor.com') || url.includes('yellowpages.com')) return false;
+            if (url.includes('amazon.com') || url.includes('walmart.com') || url.includes('totalwine.com')) return false;
+            if (url.includes('untappd.com') || url.includes('ratebeer.com') || url.includes('vivino.com')) return false;
+            return true;
+        })
+        .slice(0, 10)
+        .map((r, i) => `${i + 1}. ${r.link}\n   Title: ${r.title || 'No title'}\n   Snippet: ${r.snippet || 'No description'}`)
+        .join('\n\n');
+
+    if (!candidateList) {
+        console.log('[Enhancement] No candidates after filtering');
+        return { website: null, social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl }, news: [], scrapedPages: [] };
+    }
+
+    // STEP 5: Claude picks the website (just from Google metadata, NO fetching)
+    let websiteUrl = null;
+    if (env.ANTHROPIC_API_KEY) {
+        const prompt = `You are identifying the official website for a beverage alcohol company.
+
+COMPANY: ${companyName}
+BRAND: ${brandName}
+INDUSTRY: ${industryHint}
+
+Here are Google search results. Which one is most likely the company's OFFICIAL website?
+
+${candidateList}
+
+INSTRUCTIONS:
+- Pick the URL that looks like the company's own website (not a retailer, directory, or news site)
+- The domain often contains the company name or brand name
+- Distilleries, wineries, breweries usually have their own .com site
+- Importers/distributors may have less obvious domains but still have company sites
+- If none look like an official company website, say "none"
+
+Reply with ONLY the URL (e.g., "https://example.com") or "none". Nothing else.`;
+
+        try {
+            console.log('[Enhancement] Asking Claude to pick website...');
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': env.ANTHROPIC_API_KEY,
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 100,
+                    messages: [{ role: 'user', content: prompt }]
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const text = (result.content?.[0]?.text || '').trim();
+                if (text && text !== 'none' && text.startsWith('http')) {
+                    websiteUrl = text;
+                    console.log(`[Enhancement] Claude picked: ${websiteUrl}`);
+                } else {
+                    console.log(`[Enhancement] Claude said: ${text}`);
+                }
+            }
+        } catch (e) {
+            console.error('[Enhancement] Claude website selection failed:', e.message);
+        }
+    }
+
+    // STEP 6: Scrape the selected website (NOW we fetch content)
     let scrapedPages = [];
     if (websiteUrl) {
-        console.log(`[Enhancement] Scraping confirmed website: ${websiteUrl}`);
-        scrapedPages = await scrapeWebsitePages(websiteUrl, 5);
-        console.log(`[Enhancement] Scraped ${scrapedPages.length} pages from ${websiteUrl}`);
+        console.log(`[Enhancement] Scraping website: ${websiteUrl}`);
+        scrapedPages = await scrapeWebsitePages(websiteUrl, 4);
+        console.log(`[Enhancement] Scraped ${scrapedPages.length} pages`);
     }
+
+    // STEP 7: News - just grab any news-looking results from Google (Claude will filter in summary)
+    const newsArticles = allResults
+        .filter(r => {
+            const url = r.link.toLowerCase();
+            const domain = new URL(r.link).hostname.toLowerCase();
+            // Include news sites
+            if (domain.includes('news') || url.includes('/news/') || url.includes('/article/')) return true;
+            if (domain.includes('patch.com') || domain.includes('bizjournals')) return true;
+            return false;
+        })
+        .slice(0, 3)
+        .map(r => ({
+            title: r.title,
+            url: r.link,
+            source: new URL(r.link).hostname.replace('www.', ''),
+            snippet: r.snippet,
+            date: null
+        }));
 
     return {
         website: websiteUrl,
-        social: {
-            facebook: facebookUrl,
-            instagram: instagramUrl,
-            youtube: youtubeUrl
-        },
+        social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl },
         news: newsArticles,
         scrapedPages: scrapedPages
     };
@@ -6036,20 +5951,17 @@ ${websiteContentText}
 RECENT NEWS:
 ${newsText}
 
-Based on ALL the information above, write a JSON response:
+Write a JSON response:
 {
-    "summary": "Write 3-5 detailed sentences about this company. Include: 1) What they are and where located, 2) Founding story/history if mentioned, 3) Their flagship products or what they're known for, 4) Any awards, recognition, or unique facts, 5) Recent developments if found in news. Use SPECIFIC facts from the website content - founding year, city/state, founder names, product names, etc. Do NOT be generic.",
-    "confidence": "high" if website content was available and informative, "medium" if limited content, "low" if minimal info,
-    "relevant_news": [0, 2] // Array of 0-based indexes of news articles that are ACTUALLY about this company (not a different company with similar name). Only include if you reference them in the summary. Empty array if none are relevant.
+    "summary": "3-5 sentences about this company. Be SPECIFIC - include location (city, state), founding year, founder names, flagship products, awards, or recent news if found. Do not be generic.",
+    "confidence": "high" if website content was informative, "medium" if limited, "low" if minimal
 }
 
-IMPORTANT:
-- Extract SPECIFIC details from the website content (names, dates, places, products)
-- If the about page mentions founders, include their names
-- If a location is mentioned, include the city and state
-- Do NOT say "limited information" if website content is provided
-- Do NOT make up facts - only use what's in the content above
-- For news: ONLY include indexes where the article is DEFINITELY about "${companyName}" - reject if it's about a different company`;
+RULES:
+- Use ONLY facts from the content above - do not make anything up
+- If website content mentions founders, location, or founding year, include those specifics
+- If no website content, summarize based on TTB filing data (what categories they file in, how active they are)
+- Keep it factual and professional`;
 
     try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
