@@ -281,7 +281,7 @@ export default {
             // Hub pages (e.g., /whiskey/, /tequila/)
             const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
             if (hubMatch) {
-                return await handleHubPage(hubMatch[1], env, allHeaders);
+                return await handleHubPage(hubMatch[1], env, request.headers);
             }
 
             if (path === '/sitemap.xml' || path.startsWith('/sitemap-')) {
@@ -3630,7 +3630,7 @@ async function handleBrandPage(path, env, headers) {
                                     ${products.map(p => `
                                         <tr>
                                             <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
-                                            <td>${escapeHtml(p.fanciful_name || '—')}</td>
+                                            <td>${escapeHtml(p.fanciful_name || '-')}</td>
                                             <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                             <td>${escapeHtml(p.approval_date)}</td>
                                             <td data-signal="${p.signal || ''}"><a href="/#pricing" class="signal-badge signal-upgrade" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
@@ -3687,18 +3687,22 @@ async function handleHubPage(categorySlug, env, headers) {
         return new Response('Category not found', { status: 404 });
     }
 
+    // Check Pro status from cookie
+    const cookieHeader = headers.get('cookie') || '';
+    const isPro = cookieHeader.includes('bevalc_pro=1');
+
     // Category-specific intro copy with internal links
     const introCopy = {
-        'Whiskey': 'Track American whiskey, <a href="/database?category=Whiskey&type=bourbon" class="intro-link">bourbon</a>, <a href="/database?category=Whiskey&type=rye" class="intro-link">rye</a>, and <a href="/database?category=Whiskey&type=scotch" class="intro-link">scotch</a> labels filed with the TTB. We index every COLA filing weekly—find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
-        'Tequila': 'Monitor <a href="/database?category=Tequila" class="intro-link">tequila</a> and <a href="/database?category=Tequila&type=mezcal" class="intro-link">mezcal</a> labels from the TTB database. New agave brands are launching faster than ever—see who\'s filing, what they\'re releasing, and which producers are scaling up.',
+        'Whiskey': 'Track American whiskey, <a href="/database?category=Whiskey&type=bourbon" class="intro-link">bourbon</a>, <a href="/database?category=Whiskey&type=rye" class="intro-link">rye</a>, and <a href="/database?category=Whiskey&type=scotch" class="intro-link">scotch</a> labels filed with the TTB. We index every COLA filing weekly. Find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
+        'Tequila': 'Monitor <a href="/database?category=Tequila" class="intro-link">tequila</a> and <a href="/database?category=Tequila&type=mezcal" class="intro-link">mezcal</a> labels from the TTB database. New agave brands are launching faster than ever. See who\'s filing, what they\'re releasing, and which producers are scaling up.',
         'Vodka': 'Search <a href="/database?category=Vodka" class="intro-link">vodka</a> label approvals including <a href="/database?category=Vodka&type=flavored" class="intro-link">flavored</a> varieties. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
-        'Gin': 'Browse <a href="/database?category=Gin" class="intro-link">gin</a> label filings including <a href="/database?category=Gin&type=flavored" class="intro-link">flavored</a> styles. The craft gin boom continues—find new producers, track botanical innovations, and monitor market entrants.',
+        'Gin': 'Browse <a href="/database?category=Gin" class="intro-link">gin</a> label filings including <a href="/database?category=Gin&type=flavored" class="intro-link">flavored</a> styles. The craft gin boom continues. Find new producers, track botanical innovations, and monitor market entrants.',
         'Rum': 'Track <a href="/database?category=Rum" class="intro-link">rum</a> labels including <a href="/database?category=Rum&type=flavored" class="intro-link">flavored</a> varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
         'Brandy': 'Search brandy filings including <a href="/database?category=Brandy&type=cognac" class="intro-link">cognac</a>, <a href="/database?category=Brandy&type=armagnac" class="intro-link">armagnac</a>, and <a href="/database?category=Brandy&type=pisco" class="intro-link">pisco</a>. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
         'Wine': 'Search <a href="/database?category=Wine" class="intro-link">wine</a> label approvals spanning domestic and imported wines, <a href="/database?category=Wine&type=sparkling" class="intro-link">sparkling</a>, and <a href="/database?category=Wine&type=vermouth" class="intro-link">vermouth</a>. Track new wineries entering the US market and monitor competitor releases.',
         'Beer': 'Browse <a href="/database?category=Beer" class="intro-link">beer</a> label filings from craft breweries to major producers. Track new brewery launches, monitor seasonal releases, and discover emerging brands.',
         'Liqueur': 'Track <a href="/database?category=Liqueur" class="intro-link">liqueur</a> and cordial label filings. Monitor new product launches and discover trending flavor profiles.',
-        'Cocktails': 'Monitor <a href="/database?category=Cocktails" class="intro-link">ready-to-drink cocktail</a> and RTD filings—the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
+        'Cocktails': 'Monitor <a href="/database?category=Cocktails" class="intro-link">ready-to-drink cocktail</a> and RTD filings, the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
         'Other': 'Browse specialty spirit filings including neutral spirits, grain spirits, and unique products that don\'t fit standard categories. Find niche producers and specialty products.'
     };
 
@@ -3814,17 +3818,38 @@ async function handleHubPage(categorySlug, env, headers) {
             topBrands = topBrandsResult?.results || [];
         }
 
-        // Recent filings - always live (fast with composite index)
-        const recentFilings = await env.DB.prepare(`
-            SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
-                   c.slug as company_slug, c.canonical_name
-            FROM colas co
-            LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
-            LEFT JOIN companies c ON ca.company_id = c.id
-            WHERE co.category = ?
-            ORDER BY co.year DESC, co.month DESC, co.day DESC
-            LIMIT 25
-        `).bind(category).all();
+        // Recent filings - Pro users see real-time, free users see 60+ day old data
+        let recentFilings;
+        if (isPro) {
+            // Pro users: real-time data
+            recentFilings = await env.DB.prepare(`
+                SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
+                       c.slug as company_slug, c.canonical_name
+                FROM colas co
+                LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
+                LEFT JOIN companies c ON ca.company_id = c.id
+                WHERE co.category = ?
+                ORDER BY co.year DESC, co.month DESC, co.day DESC
+                LIMIT 25
+            `).bind(category).all();
+        } else {
+            // Free users: 60-day delayed data
+            const delayDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+            const delayYear = delayDate.getFullYear();
+            const delayMonth = delayDate.getMonth() + 1;
+            const delayDay = delayDate.getDate();
+            recentFilings = await env.DB.prepare(`
+                SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
+                       c.slug as company_slug, c.canonical_name
+                FROM colas co
+                LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
+                LEFT JOIN companies c ON ca.company_id = c.id
+                WHERE co.category = ?
+                AND (co.year < ? OR (co.year = ? AND co.month < ?) OR (co.year = ? AND co.month = ? AND co.day <= ?))
+                ORDER BY co.year DESC, co.month DESC, co.day DESC
+                LIMIT 25
+            `).bind(category, delayYear, delayYear, delayMonth, delayYear, delayMonth, delayDay).all();
+        }
 
         const filings = recentFilings?.results || [];
 
@@ -3837,7 +3862,7 @@ async function handleHubPage(categorySlug, env, headers) {
                 'REFILE': { class: 'signal-refile', label: 'Refile' }
             };
             const badge = badges[signal];
-            if (!badge) return '<span class="signal-badge">—</span>';
+            if (!badge) return '<span class="signal-badge">-</span>';
             // Render both locked (free) and unlocked (pro) states
             return `<span class="signal-badge-wrapper" data-signal="${signal}">
                 <span class="signal-badge ${badge.class} signal-unlocked" style="display:none;">${badge.label}</span>
@@ -3847,7 +3872,7 @@ async function handleHubPage(categorySlug, env, headers) {
 
         // Format last filing date from numeric
         const formatLastFiling = (num) => {
-            if (!num) return '—';
+            if (!num) return '-';
             const year = Math.floor(num / 10000);
             const month = Math.floor((num % 10000) / 100);
             const day = num % 100;
@@ -3917,7 +3942,7 @@ async function handleHubPage(categorySlug, env, headers) {
                 </div>
 
                 <section class="hub-section">
-                    <h2>Recent ${category} Filings</h2>
+                    <h2>Recent ${category} Filings${isPro ? '' : ' <span class="delay-badge">60-day delay</span>'}</h2>
                     <div class="hub-table-wrapper">
                         <table class="hub-table">
                             <thead>
@@ -3933,13 +3958,13 @@ async function handleHubPage(categorySlug, env, headers) {
                                 ${filings.map(f => `
                                     <tr>
                                         <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
-                                        <td>${escapeHtml(f.fanciful_name || '—')}</td>
+                                        <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                         <td>${f.company_slug
                                             ? `<a href="/company/${f.company_slug}">${escapeHtml(f.canonical_name || f.company_name)}</a>`
                                             : escapeHtml(f.company_name)
                                         }</td>
                                         <td>${getSignalBadge(f.signal)}</td>
-                                        <td>${escapeHtml(f.approval_date || '—')}</td>
+                                        <td>${escapeHtml(f.approval_date || '-')}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -4224,6 +4249,17 @@ async function handleHubPage(categorySlug, env, headers) {
                 margin-bottom: 16px;
                 padding-bottom: 12px;
                 border-bottom: 2px solid #e2e8f0;
+            }
+            .delay-badge {
+                display: inline-block;
+                font-size: 0.7rem;
+                font-weight: 500;
+                color: #d97706;
+                background: #fef3c7;
+                padding: 2px 8px;
+                border-radius: 4px;
+                margin-left: 8px;
+                vertical-align: middle;
             }
 
             .hub-table-wrapper { overflow-x: auto; }
@@ -4516,14 +4552,14 @@ async function handleHubPage(categorySlug, env, headers) {
             headers: {
                 'Content-Type': 'text/html',
                 'Cache-Control': 'public, max-age=3600',
-                ...headers
+                'Vary': 'Cookie'
             }
         });
     } catch (error) {
         console.error(`Hub page error for ${categorySlug}:`, error.message);
         return new Response(`Error loading hub page: ${error.message}`, {
             status: 500,
-            headers: { 'Content-Type': 'text/plain', ...headers }
+            headers: { 'Content-Type': 'text/plain' }
         });
     }
 }
