@@ -5139,11 +5139,15 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         }
     }
 
-    // Convert sorted dates back to readable format (YYYY-MM-DD -> MM/DD/YYYY)
+    // Convert sorted dates back to readable format (YYYYMMDD number -> MM/DD/YYYY)
     const formatDate = (sortDate) => {
         if (!sortDate) return null;
-        const [y, m, d] = sortDate.split('-');
-        return `${m}/${d}/${y}`;
+        const str = String(sortDate);
+        if (str.length < 8) return null;
+        const y = str.substring(0, 4);
+        const m = str.substring(4, 6);
+        const d = str.substring(6, 8);
+        return `${parseInt(m)}/${parseInt(d)}/${y}`;
     };
 
     // Prepare data for enhancement
