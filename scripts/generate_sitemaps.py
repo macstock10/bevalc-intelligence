@@ -80,19 +80,25 @@ def generate_sitemap_index(sitemap_urls):
 </sitemapindex>'''
 
 def generate_static_sitemap():
-    """Generate sitemap for static pages and categories."""
+    """Generate sitemap for static pages, hub pages, and categories."""
     print("  Generating sitemap-static.xml...")
     urls = [
         {'loc': BASE_URL, 'priority': '1.0'},
         {'loc': f'{BASE_URL}/database.html', 'priority': '0.9'},
     ]
 
+    # Hub pages (main category landing pages)
+    hub_categories = ['whiskey', 'vodka', 'tequila', 'rum', 'gin', 'brandy', 'wine', 'beer', 'liqueur', 'cocktails', 'other']
+    for cat in hub_categories:
+        urls.append({'loc': f'{BASE_URL}/{cat}/', 'priority': '0.8'})
+
+    # Category/year pages
     categories = ['whiskey', 'vodka', 'tequila', 'rum', 'gin', 'brandy', 'wine', 'beer', 'liqueur', 'cocktails']
     years = [2026, 2025, 2024, 2023, 2022, 2021]
 
     for cat in categories:
         for year in years:
-            urls.append({'loc': f'{BASE_URL}/category/{cat}/{year}', 'priority': '0.8'})
+            urls.append({'loc': f'{BASE_URL}/category/{cat}/{year}', 'priority': '0.7'})
 
     print(f"    {len(urls)} URLs")
     return generate_urlset_xml(urls)

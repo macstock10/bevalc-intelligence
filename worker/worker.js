@@ -276,7 +276,15 @@ export default {
                 return await handleBrandPage(path, env, allHeaders);
             } else if (path.startsWith('/category/')) {
                 return await handleCategoryPage(path, env, allHeaders);
-            } else if (path === '/sitemap.xml' || path.startsWith('/sitemap-')) {
+            }
+
+            // Hub pages (e.g., /whiskey/, /tequila/)
+            const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
+            if (hubMatch) {
+                return await handleHubPage(hubMatch[1], env, allHeaders);
+            }
+
+            if (path === '/sitemap.xml' || path.startsWith('/sitemap-')) {
                 return await handleSitemap(path, env);
             }
 
@@ -3537,6 +3545,615 @@ async function handleBrandPage(path, env, headers) {
     } catch (error) {
         console.error(`Brand page error for ${slug}:`, error.message);
         return new Response(`Error loading brand page: ${error.message}`, {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain', ...headers }
+        });
+    }
+}
+
+// Hub Page Handler - Main category landing pages for SEO
+async function handleHubPage(categorySlug, env, headers) {
+    const categoryMap = {
+        'whiskey': 'Whiskey', 'vodka': 'Vodka', 'tequila': 'Tequila',
+        'rum': 'Rum', 'gin': 'Gin', 'brandy': 'Brandy',
+        'wine': 'Wine', 'beer': 'Beer', 'liqueur': 'Liqueur',
+        'cocktails': 'Cocktails', 'other': 'Other'
+    };
+
+    const category = categoryMap[categorySlug];
+    if (!category) {
+        return new Response('Category not found', { status: 404 });
+    }
+
+    // Category-specific intro copy
+    const introCopy = {
+        'Whiskey': 'Track American whiskey, bourbon, rye, and scotch labels filed with the TTB. We index every COLA filing weekly—find new distilleries before your competitors, monitor brand launches, and track the fastest-growing producers in the category.',
+        'Tequila': 'Monitor tequila and mezcal labels from the TTB database. New agave brands are launching faster than ever—see who\'s filing, what they\'re releasing, and which producers are scaling up.',
+        'Vodka': 'Search vodka label approvals including flavored and craft vodkas. Track new distilleries entering the market, monitor competitor releases, and discover emerging premium brands.',
+        'Gin': 'Browse gin label filings from London Dry to New American styles. The craft gin boom continues—find new producers, track botanical innovations, and monitor market entrants.',
+        'Rum': 'Track rum labels including white, aged, spiced, and flavored varieties. Monitor Caribbean imports, discover domestic craft distilleries, and follow the growing premium rum segment.',
+        'Brandy': 'Search brandy filings including cognac, armagnac, pisco, and fruit brandies. Track luxury imports, find American craft producers, and monitor the expanding brandy market.',
+        'Wine': 'Search wine label approvals spanning domestic and imported wines, champagne, vermouth, and sake. Track new wineries entering the US market and monitor competitor releases across every varietal.',
+        'Beer': 'Browse beer label filings from craft breweries to major producers. Track new brewery launches, monitor seasonal releases, and discover emerging brands in ales, lagers, and specialty styles.',
+        'Liqueur': 'Track liqueur and cordial label filings including cream liqueurs, herbal spirits, and specialty cordials. Monitor new product launches and discover trending flavor profiles.',
+        'Cocktails': 'Monitor ready-to-drink cocktail and RTD filings—the fastest-growing spirits category. Track new brands, monitor major producer launches, and discover emerging players.',
+        'Other': 'Browse specialty spirit filings including neutral spirits, grain spirits, and unique products that don\'t fit standard categories. Find niche producers and specialty products.'
+    };
+
+    // Subcategory links for each category
+    const subcategories = {
+        'Whiskey': [
+            { name: 'Bourbon', slug: 'bourbon' },
+            { name: 'Rye', slug: 'rye' },
+            { name: 'Scotch', slug: 'scotch' },
+            { name: 'Irish', slug: 'irish' },
+            { name: 'Canadian', slug: 'canadian' },
+            { name: 'Japanese', slug: 'japanese' },
+            { name: 'American Single Malt', slug: 'american-single-malt' }
+        ],
+        'Tequila': [
+            { name: 'Blanco', slug: 'blanco' },
+            { name: 'Reposado', slug: 'reposado' },
+            { name: 'Añejo', slug: 'anejo' },
+            { name: 'Extra Añejo', slug: 'extra-anejo' },
+            { name: 'Mezcal', slug: 'mezcal' },
+            { name: 'Cristalino', slug: 'cristalino' }
+        ],
+        'Vodka': [
+            { name: 'Plain', slug: 'plain' },
+            { name: 'Flavored', slug: 'flavored' },
+            { name: 'Craft', slug: 'craft' }
+        ],
+        'Gin': [
+            { name: 'London Dry', slug: 'london-dry' },
+            { name: 'New American', slug: 'new-american' },
+            { name: 'Flavored', slug: 'flavored' },
+            { name: 'Old Tom', slug: 'old-tom' }
+        ],
+        'Rum': [
+            { name: 'White', slug: 'white' },
+            { name: 'Gold', slug: 'gold' },
+            { name: 'Dark', slug: 'dark' },
+            { name: 'Spiced', slug: 'spiced' },
+            { name: 'Flavored', slug: 'flavored' },
+            { name: 'Agricole', slug: 'agricole' }
+        ],
+        'Brandy': [
+            { name: 'Cognac', slug: 'cognac' },
+            { name: 'Armagnac', slug: 'armagnac' },
+            { name: 'Pisco', slug: 'pisco' },
+            { name: 'Fruit Brandy', slug: 'fruit' },
+            { name: 'American', slug: 'american' }
+        ],
+        'Wine': [
+            { name: 'Red', slug: 'red' },
+            { name: 'White', slug: 'white' },
+            { name: 'Rosé', slug: 'rose' },
+            { name: 'Sparkling', slug: 'sparkling' },
+            { name: 'Dessert', slug: 'dessert' },
+            { name: 'Vermouth', slug: 'vermouth' }
+        ],
+        'Beer': [
+            { name: 'Ale', slug: 'ale' },
+            { name: 'Lager', slug: 'lager' },
+            { name: 'IPA', slug: 'ipa' },
+            { name: 'Stout', slug: 'stout' },
+            { name: 'Craft', slug: 'craft' }
+        ],
+        'Liqueur': [
+            { name: 'Fruit', slug: 'fruit' },
+            { name: 'Cream', slug: 'cream' },
+            { name: 'Herbal', slug: 'herbal' },
+            { name: 'Coffee', slug: 'coffee' },
+            { name: 'Nut', slug: 'nut' }
+        ],
+        'Cocktails': [
+            { name: 'Vodka-Based', slug: 'vodka-based' },
+            { name: 'Tequila-Based', slug: 'tequila-based' },
+            { name: 'Whiskey-Based', slug: 'whiskey-based' },
+            { name: 'Malt-Based', slug: 'malt-based' }
+        ],
+        'Other': [
+            { name: 'Neutral Spirits', slug: 'neutral-spirits' },
+            { name: 'Specialty', slug: 'specialty' }
+        ]
+    };
+
+    // Query patterns
+    const categoryPatterns = {
+        'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
+        'Vodka': ['%VODKA%'],
+        'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
+        'Rum': ['%RUM%', '%CACHACA%'],
+        'Gin': ['%GIN%'],
+        'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
+        'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
+        'Beer': ['%BEER%', '%ALE%', '%MALT BEVERAGE%', '%STOUT%', '%PORTER%', '%LAGER%'],
+        'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%'],
+        'Cocktails': ['%COCKTAIL%', '%RTD%', '%READY TO DRINK%', '%HARD SELTZER%', '%SELTZER%'],
+        'Other': ['%NEUTRAL%', '%GRAIN SPIRIT%', '%OTHER SPIRIT%', '%SPECIALTY%']
+    };
+
+    const patterns = categoryPatterns[category] || [`%${category.toUpperCase()}%`];
+    const patternCondition = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
+
+    try {
+        // Calculate date ranges
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        // Run all queries in parallel
+        const [totalResult, weekResult, newCompaniesResult, recentFilings, topCompaniesResult, topBrandsResult] = await Promise.all([
+            // Total filings
+            env.DB.prepare(`SELECT COUNT(*) as cnt FROM colas WHERE ${patternCondition}`).bind(...patterns).first(),
+
+            // New filings this week
+            env.DB.prepare(`
+                SELECT COUNT(*) as cnt FROM colas
+                WHERE (${patternCondition})
+                AND (year > ? OR (year = ? AND month > ?) OR (year = ? AND month = ? AND day >= ?))
+            `).bind(...patterns, weekAgo.getFullYear(), weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getFullYear(), weekAgo.getMonth() + 1, weekAgo.getDate()).first(),
+
+            // New companies this month
+            env.DB.prepare(`
+                SELECT COUNT(DISTINCT company_name) as cnt FROM colas
+                WHERE signal = 'NEW_COMPANY' AND (${patternCondition})
+                AND (year > ? OR (year = ? AND month >= ?))
+            `).bind(...patterns, monthAgo.getFullYear(), monthAgo.getFullYear(), monthAgo.getMonth() + 1).first(),
+
+            // Recent filings (25)
+            env.DB.prepare(`
+                SELECT co.ttb_id, co.brand_name, co.fanciful_name, co.company_name, co.signal, co.approval_date,
+                       c.slug as company_slug, c.canonical_name
+                FROM colas co
+                LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
+                LEFT JOIN companies c ON ca.company_id = c.id
+                WHERE (${patternCondition})
+                ORDER BY co.year DESC, co.month DESC, co.day DESC
+                LIMIT 25
+            `).bind(...patterns).all(),
+
+            // Top companies (20)
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt,
+                       MAX(co.year * 10000 + co.month * 100 + co.day) as last_filing
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE (${patternCondition})
+                GROUP BY c.id
+                ORDER BY cnt DESC
+                LIMIT 20
+            `).bind(...patterns).all(),
+
+            // Top brands (20)
+            env.DB.prepare(`
+                SELECT brand_name, COUNT(*) as cnt
+                FROM colas
+                WHERE (${patternCondition})
+                GROUP BY brand_name
+                ORDER BY cnt DESC
+                LIMIT 20
+            `).bind(...patterns).all()
+        ]);
+
+        const totalFilings = totalResult?.cnt || 0;
+        const newThisWeek = weekResult?.cnt || 0;
+        const newCompaniesMonth = newCompaniesResult?.cnt || 0;
+        const filings = recentFilings?.results || [];
+        const topCompanies = topCompaniesResult?.results || [];
+        const topBrands = topBrandsResult?.results || [];
+
+        // Signal badge helper
+        const getSignalBadge = (signal) => {
+            const badges = {
+                'NEW_COMPANY': '<span class="signal-badge signal-new-company">New Company</span>',
+                'NEW_BRAND': '<span class="signal-badge signal-new-brand">New Brand</span>',
+                'NEW_SKU': '<span class="signal-badge signal-new-sku">New SKU</span>',
+                'REFILE': '<span class="signal-badge signal-refile">Refile</span>'
+            };
+            return badges[signal] || '<span class="signal-badge">—</span>';
+        };
+
+        // Format last filing date from numeric
+        const formatLastFiling = (num) => {
+            if (!num) return '—';
+            const year = Math.floor(num / 10000);
+            const month = Math.floor((num % 10000) / 100);
+            const day = num % 100;
+            return `${month}/${day}/${year}`;
+        };
+
+        const title = `${category} Brands & Companies`;
+        const description = `Search ${formatNumber(totalFilings)}+ ${category.toLowerCase()} labels in the TTB database. ${newThisWeek} new filings this week. Track new ${category.toLowerCase()} brands, companies, and product launches.`;
+        const canonicalUrl = `${BASE_URL}/${categorySlug}/`;
+
+        const jsonLd = {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": `${category} Brands & Companies | TTB Label Database`,
+            "description": description,
+            "url": canonicalUrl,
+            "numberOfItems": totalFilings,
+            "provider": {
+                "@type": "Organization",
+                "name": "BevAlc Intelligence",
+                "url": BASE_URL
+            }
+        };
+
+        const content = `
+            <div class="hub-page">
+                <header class="hub-header">
+                    <div class="hub-header-inner">
+                        <h1>${category} Brands & Companies</h1>
+                        <p class="hub-intro">${introCopy[category]}</p>
+                        ${subcategories[category]?.length ? `
+                            <div class="hub-subcategories">
+                                <span class="subcategory-label">Browse by type:</span>
+                                ${subcategories[category].map(sub =>
+                                    `<a href="/database?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(sub.name)}">${sub.name}</a>`
+                                ).join(' <span class="subcategory-sep">|</span> ')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </header>
+
+                <div class="hub-stats">
+                    <div class="hub-stat">
+                        <div class="hub-stat-value">${formatNumber(totalFilings)}</div>
+                        <div class="hub-stat-label">Total Filings</div>
+                    </div>
+                    <div class="hub-stat">
+                        <div class="hub-stat-value">${formatNumber(newThisWeek)}</div>
+                        <div class="hub-stat-label">New This Week</div>
+                    </div>
+                    <div class="hub-stat">
+                        <div class="hub-stat-value">${formatNumber(newCompaniesMonth)}</div>
+                        <div class="hub-stat-label">New Companies (30d)</div>
+                    </div>
+                </div>
+
+                <section class="hub-section">
+                    <h2>Recent ${category} Filings</h2>
+                    <div class="hub-table-wrapper">
+                        <table class="hub-table">
+                            <thead>
+                                <tr>
+                                    <th>Brand</th>
+                                    <th>Product</th>
+                                    <th>Company</th>
+                                    <th>Signal</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filings.map(f => `
+                                    <tr>
+                                        <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
+                                        <td>${escapeHtml(f.fanciful_name || '—')}</td>
+                                        <td>${f.company_slug
+                                            ? `<a href="/company/${f.company_slug}">${escapeHtml(f.canonical_name || f.company_name)}</a>`
+                                            : escapeHtml(f.company_name)
+                                        }</td>
+                                        <td>${getSignalBadge(f.signal)}</td>
+                                        <td>${escapeHtml(f.approval_date || '—')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="hub-table-cta">
+                        <a href="/database?category=${encodeURIComponent(category)}" class="btn-secondary">View All ${category} Filings →</a>
+                    </div>
+                </section>
+
+                <div class="hub-grid">
+                    <section class="hub-section">
+                        <h2>Top ${category} Companies</h2>
+                        <table class="hub-table hub-table-compact">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Company</th>
+                                    <th>Filings</th>
+                                    <th>Last Filing</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${topCompanies.map((c, i) => `
+                                    <tr>
+                                        <td>${i + 1}</td>
+                                        <td><a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a></td>
+                                        <td>${formatNumber(c.cnt)}</td>
+                                        <td>${formatLastFiling(c.last_filing)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <section class="hub-section">
+                        <h2>Top ${category} Brands</h2>
+                        <table class="hub-table hub-table-compact">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Brand</th>
+                                    <th>Filings</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${topBrands.map((b, i) => `
+                                    <tr>
+                                        <td>${i + 1}</td>
+                                        <td><a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a></td>
+                                        <td>${formatNumber(b.cnt)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+
+                <section class="hub-cta">
+                    <h2>Track New ${category} Brands Weekly</h2>
+                    <p>Get notified when new distilleries and brands file with the TTB. Free weekly report delivered every Sunday.</p>
+                    <a href="/#hero-email" class="btn-primary">Get Free Weekly Report</a>
+                </section>
+
+                <nav class="hub-category-nav">
+                    <h3>Browse All Categories</h3>
+                    <div class="hub-category-links">
+                        ${Object.entries(categoryMap).map(([slug, name]) =>
+                            slug === categorySlug
+                                ? `<span class="current">${name}</span>`
+                                : `<a href="/${slug}/">${name}</a>`
+                        ).join('')}
+                    </div>
+                </nav>
+            </div>
+        `;
+
+        // Custom styles for hub pages
+        const hubStyles = `
+            .hub-page { padding-bottom: 48px; }
+
+            .hub-header {
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                margin: 0 -24px 0 -24px;
+                padding: 48px 24px 40px;
+                position: relative;
+            }
+            .hub-header::before {
+                content: '';
+                position: absolute;
+                top: 0; right: 0; bottom: 0; left: 0;
+                background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+                opacity: 0.5;
+            }
+            .hub-header-inner { max-width: 900px; margin: 0 auto; position: relative; z-index: 1; text-align: center; }
+            .hub-header h1 {
+                font-family: var(--font-display);
+                font-size: 2.5rem;
+                color: #fff;
+                margin-bottom: 16px;
+                font-weight: 700;
+            }
+            .hub-intro {
+                color: rgba(255,255,255,0.8);
+                font-size: 1.1rem;
+                line-height: 1.6;
+                max-width: 700px;
+                margin: 0 auto 20px;
+            }
+            .hub-subcategories {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+                gap: 8px;
+                margin-top: 16px;
+            }
+            .subcategory-label { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin-right: 8px; }
+            .hub-subcategories a {
+                color: #5eead4;
+                text-decoration: none;
+                font-size: 0.9rem;
+                font-weight: 500;
+            }
+            .hub-subcategories a:hover { color: #99f6e4; text-decoration: underline; }
+            .subcategory-sep { color: rgba(255,255,255,0.3); }
+
+            .hub-stats {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 24px;
+                max-width: 800px;
+                margin: -24px auto 40px;
+                padding: 0 24px;
+                position: relative;
+                z-index: 2;
+            }
+            .hub-stat {
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 24px;
+                text-align: center;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            }
+            .hub-stat-value {
+                font-size: 2rem;
+                font-weight: 700;
+                color: #0f172a;
+                line-height: 1;
+            }
+            .hub-stat-label {
+                font-size: 0.85rem;
+                color: #64748b;
+                margin-top: 8px;
+            }
+
+            .hub-section { margin-bottom: 40px; }
+            .hub-section h2 {
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #0f172a;
+                margin-bottom: 16px;
+                padding-bottom: 12px;
+                border-bottom: 2px solid #e2e8f0;
+            }
+
+            .hub-table-wrapper { overflow-x: auto; }
+            .hub-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9rem;
+            }
+            .hub-table th {
+                text-align: left;
+                padding: 12px 16px;
+                background: #f8fafc;
+                color: #64748b;
+                font-weight: 600;
+                font-size: 0.8rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .hub-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #f1f5f9;
+                color: #334155;
+            }
+            .hub-table tr:hover td { background: #f8fafc; }
+            .hub-table a { color: #0d9488; text-decoration: none; }
+            .hub-table a:hover { text-decoration: underline; }
+            .hub-table strong { color: #0f172a; }
+
+            .hub-table-compact { font-size: 0.85rem; }
+            .hub-table-compact th, .hub-table-compact td { padding: 10px 12px; }
+
+            .hub-table-cta {
+                margin-top: 16px;
+                text-align: center;
+            }
+            .btn-secondary {
+                display: inline-block;
+                padding: 10px 20px;
+                background: #f1f5f9;
+                color: #0f172a;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 500;
+                font-size: 0.9rem;
+                transition: background 0.2s;
+            }
+            .btn-secondary:hover { background: #e2e8f0; }
+
+            .signal-badge {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .signal-new-company { background: #dcfce7; color: #166534; }
+            .signal-new-brand { background: #dbeafe; color: #1e40af; }
+            .signal-new-sku { background: #fef9c3; color: #854d0e; }
+            .signal-refile { background: #f1f5f9; color: #64748b; }
+
+            .hub-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 32px;
+                margin-bottom: 40px;
+            }
+
+            .hub-cta {
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                margin: 48px -24px;
+                padding: 48px 24px;
+                text-align: center;
+                border-radius: 0;
+            }
+            .hub-cta h2 { color: #fff; font-size: 1.5rem; margin-bottom: 12px; border: none; padding: 0; }
+            .hub-cta p { color: rgba(255,255,255,0.7); margin-bottom: 20px; }
+            .btn-primary {
+                display: inline-block;
+                padding: 14px 28px;
+                background: #0d9488;
+                color: #fff;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 1rem;
+                transition: background 0.2s;
+            }
+            .btn-primary:hover { background: #0f766e; }
+
+            .hub-category-nav {
+                padding-top: 32px;
+                border-top: 1px solid #e2e8f0;
+            }
+            .hub-category-nav h3 {
+                font-size: 0.9rem;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 16px;
+            }
+            .hub-category-links {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .hub-category-links a, .hub-category-links .current {
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 0.9rem;
+                text-decoration: none;
+            }
+            .hub-category-links a {
+                background: #f1f5f9;
+                color: #334155;
+            }
+            .hub-category-links a:hover { background: #e2e8f0; }
+            .hub-category-links .current {
+                background: #0d9488;
+                color: #fff;
+                font-weight: 500;
+            }
+
+            @media (max-width: 768px) {
+                .hub-header h1 { font-size: 1.75rem; }
+                .hub-intro { font-size: 1rem; }
+                .hub-stats { grid-template-columns: 1fr; gap: 16px; margin-top: -16px; }
+                .hub-stat { padding: 20px; }
+                .hub-stat-value { font-size: 1.5rem; }
+                .hub-grid { grid-template-columns: 1fr; }
+                .hub-table { font-size: 0.8rem; }
+                .hub-table th, .hub-table td { padding: 10px 12px; }
+                .signal-badge { padding: 3px 8px; font-size: 0.7rem; }
+            }
+        `;
+
+        const fullContent = `<style>${hubStyles}</style>${content}`;
+
+        return new Response(getPageLayout(title, description, fullContent, jsonLd, canonicalUrl), {
+            headers: {
+                'Content-Type': 'text/html',
+                'Cache-Control': 'public, max-age=3600',
+                ...headers
+            }
+        });
+    } catch (error) {
+        console.error(`Hub page error for ${categorySlug}:`, error.message);
+        return new Response(`Error loading hub page: ${error.message}`, {
             status: 500,
             headers: { 'Content-Type': 'text/plain', ...headers }
         });
