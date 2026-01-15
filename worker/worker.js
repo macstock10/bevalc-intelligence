@@ -3152,81 +3152,88 @@ async function handleCompanyPage(path, env, headers) {
 
     if (hasCompanyId) {
         // Normalized company - use company_aliases join
-        const brandsResult = await env.DB.prepare(`
-            SELECT brand_name, COUNT(*) as cnt
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            GROUP BY brand_name
-            ORDER BY cnt DESC
-            LIMIT 20
-        `).bind(company.id).all();
+        // Run queries in parallel for better performance
+        const [brandsResult, categoriesResult, recentResult, dbaResult] = await Promise.all([
+            env.DB.prepare(`
+                SELECT brand_name, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                WHERE ca.company_id = ?
+                GROUP BY brand_name
+                ORDER BY cnt DESC
+                LIMIT 20
+            `).bind(company.id).all(),
+
+            env.DB.prepare(`
+                SELECT class_type_code, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                WHERE ca.company_id = ?
+                GROUP BY class_type_code
+                ORDER BY cnt DESC
+                LIMIT 10
+            `).bind(company.id).all(),
+
+            env.DB.prepare(`
+                SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, state, co.company_name as filing_entity
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                WHERE ca.company_id = ?
+                ORDER BY COALESCE(co.year, 9999) DESC, COALESCE(co.month, 99) DESC, COALESCE(co.day, 99) DESC, CASE co.signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, co.ttb_id DESC
+                LIMIT 10
+            `).bind(company.id).all(),
+
+            env.DB.prepare(`
+                SELECT dba_name FROM (
+                    SELECT TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1)) as dba_name,
+                           ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1))) ORDER BY raw_name) as rn
+                    FROM company_aliases
+                    WHERE company_id = ? AND raw_name LIKE '%,%'
+                ) WHERE rn = 1
+                ORDER BY dba_name
+                LIMIT 10
+            `).bind(company.id).all()
+        ]);
+
         brands = brandsResult.results || [];
-
-        const categoriesResult = await env.DB.prepare(`
-            SELECT class_type_code, COUNT(*) as cnt
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            GROUP BY class_type_code
-            ORDER BY cnt DESC
-            LIMIT 10
-        `).bind(company.id).all();
         categories = categoriesResult.results || [];
-
-        const recentResult = await env.DB.prepare(`
-            SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, state, co.company_name as filing_entity
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            ORDER BY COALESCE(co.year, 9999) DESC, COALESCE(co.month, 99) DESC, CAST(SUBSTR(co.approval_date, 4, 2) AS INTEGER) DESC, CASE co.signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, co.ttb_id DESC
-            LIMIT 10
-        `).bind(company.id).all();
         recentFilings = recentResult.results || [];
-
-        // Get DBA names (compound aliases like "DBA NAME, LEGAL ENTITY")
-        const dbaResult = await env.DB.prepare(`
-            SELECT dba_name FROM (
-                SELECT TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1)) as dba_name,
-                       ROW_NUMBER() OVER (PARTITION BY UPPER(TRIM(SUBSTR(raw_name, 1, INSTR(raw_name, ',') - 1))) ORDER BY raw_name) as rn
-                FROM company_aliases
-                WHERE company_id = ? AND raw_name LIKE '%,%'
-            ) WHERE rn = 1
-            ORDER BY dba_name
-            LIMIT 10
-        `).bind(company.id).all();
         dbaNames = (dbaResult.results || []).map(r => r.dba_name).filter(n => n && n.length > 0);
     } else {
         // Virtual company - search directly by company_name pattern
+        // Run queries in parallel for better performance
         const companyName = company.canonical_name;
 
-        const brandsResult = await env.DB.prepare(`
-            SELECT brand_name, COUNT(*) as cnt
-            FROM colas
-            WHERE company_name = ?
-            GROUP BY brand_name
-            ORDER BY cnt DESC
-            LIMIT 20
-        `).bind(companyName).all();
+        const [brandsResult, categoriesResult, recentResult] = await Promise.all([
+            env.DB.prepare(`
+                SELECT brand_name, COUNT(*) as cnt
+                FROM colas
+                WHERE company_name = ?
+                GROUP BY brand_name
+                ORDER BY cnt DESC
+                LIMIT 20
+            `).bind(companyName).all(),
+
+            env.DB.prepare(`
+                SELECT class_type_code, COUNT(*) as cnt
+                FROM colas
+                WHERE company_name = ?
+                GROUP BY class_type_code
+                ORDER BY cnt DESC
+                LIMIT 10
+            `).bind(companyName).all(),
+
+            env.DB.prepare(`
+                SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, state, company_name as filing_entity
+                FROM colas
+                WHERE company_name = ?
+                ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, COALESCE(day, 99) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id DESC
+                LIMIT 10
+            `).bind(companyName).all()
+        ]);
+
         brands = brandsResult.results || [];
-
-        const categoriesResult = await env.DB.prepare(`
-            SELECT class_type_code, COUNT(*) as cnt
-            FROM colas
-            WHERE company_name = ?
-            GROUP BY class_type_code
-            ORDER BY cnt DESC
-            LIMIT 10
-        `).bind(companyName).all();
         categories = categoriesResult.results || [];
-
-        const recentResult = await env.DB.prepare(`
-            SELECT ttb_id, brand_name, fanciful_name, class_type_code, approval_date, signal, state, company_name as filing_entity
-            FROM colas
-            WHERE company_name = ?
-            ORDER BY COALESCE(year, 9999) DESC, COALESCE(month, 99) DESC, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) DESC, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id DESC
-            LIMIT 10
-        `).bind(companyName).all();
         recentFilings = recentResult.results || [];
     }
 
