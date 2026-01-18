@@ -656,7 +656,7 @@ a:hover {
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-style: italic;
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
     line-height: 1.7;
     margin-bottom: var(--space-md);
 }
@@ -665,7 +665,7 @@ a:hover {
     font-family: var(--font-body);
     font-size: 0.9375rem;
     font-style: normal;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
 }
 
 @media (max-width: 768px) {
