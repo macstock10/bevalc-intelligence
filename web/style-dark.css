@@ -631,6 +631,50 @@ a:hover {
 }
 
 /* ==========================================
+   TESTIMONIAL HIGHLIGHT
+   ========================================== */
+
+.testimonial-highlight {
+    position: relative;
+    z-index: 1;
+    padding: var(--space-2xl) var(--space-xl);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.testimonial-highlight-container {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.testimonial-quote {
+    margin: 0;
+    padding: 0;
+}
+
+.testimonial-quote p {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-style: italic;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+    margin-bottom: var(--space-md);
+}
+
+.testimonial-quote cite {
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    font-style: normal;
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+    .testimonial-quote p {
+        font-size: 1.125rem;
+    }
+}
+
+/* ==========================================
    STATS STRIP
    ========================================== */
 
