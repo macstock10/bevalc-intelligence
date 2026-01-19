@@ -1634,7 +1634,7 @@ export function ProWeeklyReport({
                   textDecoration: "none",
                 }}
               >
-                View all {parseInt(newBrands) + parseInt(newSkus)} new filings in database →
+                View all {parseInt(newBrands) + parseInt(newSkus)} new brands & SKUs in database →
               </Link>
             </Section>
           </Section>

@@ -1,16 +1,12 @@
 """
 send_weekly_report.py - Query D1 metrics and send weekly email via Resend
 
-Runs after weekly_update.py (e.g., Saturday 9am UTC via GitHub Actions):
-1. Queries D1 for the PRIOR week's filing metrics (1-week lag for data accuracy)
+Runs every Friday at 2pm ET via GitHub Actions (weekly-report.yml):
+1. Queries D1 for the most recent 7 days of filing metrics (ending yesterday)
 2. Computes week-over-week trends
 3. Sends HTML email via Resend (React Email templates)
    - Free users get the basic WeeklyReport
    - Pro users get the ProWeeklyReport with watchlist matches, spikes, etc.
-
-NOTE: We use a 1-week lag because TTB data typically takes 5-7 days to fully
-populate in their public database. By reporting on the prior week, we ensure
-maximum data accuracy rather than incomplete "current" data.
 
 USAGE:
     python send_weekly_report.py
@@ -337,31 +333,22 @@ def d1_query(sql: str) -> List[Dict]:
 
 
 def get_week_dates() -> Tuple[datetime, datetime, datetime, datetime]:
-    """Get date ranges for the PRIOR week and week before that (Monday-Sunday).
+    """Get date ranges for the most recent 7 days and the 7 days before that.
 
-    We use a 1-week lag because TTB data typically takes 5-7 days to fully
-    populate. By reporting on the prior week (not the most recent week),
-    we ensure maximum data accuracy.
+    Since we use a daily scraper, data is fresh and we report on the most
+    recent complete days (ending yesterday).
 
-    Example: If today is Saturday Jan 11, 2026
-    - Most recent complete week: Jan 5 (Mon) - Jan 11 (Sun)
-    - We SKIP that and report on: Dec 29 (Mon) - Jan 4 (Sun)
-    - For comparison, we use: Dec 22 (Mon) - Dec 28 (Sun)
+    Example: If today is Friday Jan 16, 2026
+    - This week: Jan 9 - Jan 15 (7 days ending yesterday)
+    - Last week: Jan 2 - Jan 8 (for comparison)
     """
     today = datetime.now()
 
-    # Find last Sunday (end of most recent complete week)
-    days_since_sunday = (today.weekday() + 1) % 7
-    if days_since_sunday == 0:
-        days_since_sunday = 7  # If today is Sunday, go back a week
-
-    most_recent_sunday = today - timedelta(days=days_since_sunday)
-
-    # Apply 1-week lag: go back one more week for data accuracy
-    this_week_end = most_recent_sunday - timedelta(days=7)
+    # End on yesterday (most recent complete day)
+    this_week_end = today - timedelta(days=1)
     this_week_start = this_week_end - timedelta(days=6)
 
-    # "Last week" is now 2 weeks ago (for comparison)
+    # "Last week" is the 7 days before that (for comparison)
     last_week_end = this_week_start - timedelta(days=1)
     last_week_start = last_week_end - timedelta(days=6)
 
