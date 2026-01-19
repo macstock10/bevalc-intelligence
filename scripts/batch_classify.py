@@ -34,7 +34,7 @@ import logging
 import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Set, List, Any, Tuple
+from typing import Dict, Set, List, Any, Tuple, Union
 from collections import defaultdict
 
 # Setup paths
@@ -158,8 +158,10 @@ def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
     logger.info("Fetching all records from D1 (this may take a while)...")
 
     while True:
-        # Order by year, month, then day (extracted from MM/DD/YYYY string)
-        # This ensures proper chronological order even though approval_date is a string
+        # Order chronologically by parsing approval_date (MM/DD/YYYY format)
+        # We parse directly from approval_date rather than year/month/day columns
+        # because some historical records have NULL or incorrect year/month/day values
+        # COALESCE handles 234 records with NULL approval_date by falling back to year/month columns
         # Join with company_aliases to get normalized company_id
         result = d1_execute(f"""
             SELECT c.ttb_id, c.company_name, c.brand_name, c.fanciful_name, c.approval_date,
@@ -167,9 +169,9 @@ def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
             FROM colas c
             LEFT JOIN company_aliases ca ON c.company_name = ca.raw_name
             ORDER BY
-                COALESCE(c.year, 9999) ASC,
-                COALESCE(c.month, 99) ASC,
-                CAST(SUBSTR(c.approval_date, 4, 2) AS INTEGER) ASC,
+                COALESCE(CAST(SUBSTR(c.approval_date, 7, 4) AS INTEGER), c.year, 9999) ASC,
+                COALESCE(CAST(SUBSTR(c.approval_date, 1, 2) AS INTEGER), c.month, 1) ASC,
+                COALESCE(CAST(SUBSTR(c.approval_date, 4, 2) AS INTEGER), c.day, 1) ASC,
                 c.ttb_id ASC
             LIMIT {batch_size} OFFSET {offset}
         """)
@@ -232,13 +234,15 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
 
     # Track what we've seen (in chronological order)
     # Use normalized company_id instead of raw company_name to handle variants
-    seen_companies: Set[int] = set()  # company_id
-    seen_brands: Set[Tuple[int, str]] = set()  # (company_id, brand)
-    seen_skus: Set[Tuple[int, str, str]] = set()  # (company_id, brand, fanciful)
+    # For companies without aliases (company_id = -1), fall back to raw company_name
+    seen_companies: Set[int] = set()  # company_id (for aliased companies)
+    seen_companies_raw: Set[str] = set()  # raw company_name (for orphaned companies)
+    seen_brands: Set[Tuple[Any, str]] = set()  # (company_key, brand) - key can be int or str
+    seen_skus: Set[Tuple[Any, str, str]] = set()  # (company_key, brand, fanciful)
 
     # Track first instances for each SKU (to update refile_count later)
-    # Key: (company_id, brand, fanciful) -> ttb_id of first instance
-    sku_first_instance: Dict[Tuple[int, str, str], str] = {}
+    # Key: (company_key, brand, fanciful) -> ttb_id of first instance
+    sku_first_instance: Dict[Tuple[Any, str, str], str] = {}
 
     # Track classifications
     classifications: Dict[str, str] = {}  # ttb_id -> signal
@@ -247,31 +251,54 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
         'new_companies': 0,
         'new_brands': 0,
         'new_skus': 0,
-        'refiles': 0
+        'refiles': 0,
+        'orphaned_companies': 0,  # Track companies not in aliases
+        'legacy': 0  # Track records with missing company/brand data
     }
 
     for i, record in enumerate(all_records):
         ttb_id = record.get("ttb_id")
         company_id = record.get("company_id", -1)  # Normalized company ID from company_aliases
+        company_name_raw = (record.get("company_name") or "").strip()
         brand = (record.get("brand_name") or "").strip()
         fanciful = (record.get("fanciful_name") or "").strip()
 
-        # Use company_id for company tracking (handles name variants like "Archetype Distillery, LLC" vs "Archetype Distillery, Archetype Distillery, LLC")
-        company_key = company_id
-        brand_key = (company_id, brand.lower())
-        sku_key = (company_id, brand.lower(), fanciful.lower())
-
-        if company_id == -1 or not brand:
-            # No normalized company or no brand - treat as refile
-            classifications[ttb_id] = 'REFILE'
-            stats['refiles'] += 1
+        # Handle records with missing company or brand - mark as LEGACY
+        # These are older TTB records that lack proper company/brand data
+        if not company_name_raw or not brand:
+            classifications[ttb_id] = 'LEGACY'
+            stats['legacy'] += 1
             continue
 
-        if company_key not in seen_companies:
+        # Determine company key: use company_id if available, otherwise raw name
+        # This ensures orphaned companies are still tracked and classified correctly
+        if company_id != -1:
+            company_key = company_id
+            is_orphaned = False
+        else:
+            # Fallback to raw company_name (uppercase for consistency)
+            company_key = company_name_raw.upper()
+            is_orphaned = True
+            stats['orphaned_companies'] += 1
+
+        brand_key = (company_key, brand.lower())
+        sku_key = (company_key, brand.lower(), fanciful.lower())
+
+        # Check if company is new (use appropriate set based on key type)
+        if is_orphaned:
+            company_is_new = company_key not in seen_companies_raw
+        else:
+            company_is_new = company_key not in seen_companies
+
+        if company_is_new:
             # New company
             classifications[ttb_id] = 'NEW_COMPANY'
             stats['new_companies'] += 1
-            seen_companies.add(company_key)
+            # Add to appropriate seen set
+            if is_orphaned:
+                seen_companies_raw.add(company_key)
+            else:
+                seen_companies.add(company_key)
             seen_brands.add(brand_key)
             seen_skus.add(sku_key)
             sku_first_instance[sku_key] = ttb_id
@@ -301,21 +328,33 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     logger.info(f"  NEW_BRAND: {stats['new_brands']:,}")
     logger.info(f"  NEW_SKU: {stats['new_skus']:,}")
     logger.info(f"  REFILE: {stats['refiles']:,}")
+    logger.info(f"  LEGACY: {stats['legacy']:,}")
+    if stats['orphaned_companies'] > 0:
+        logger.warning(f"  Note: {stats['orphaned_companies']:,} records had no company_alias (classified by raw name)")
 
     # ==================== PASS 2: Calculate refile_count ====================
     logger.info("\n[PASS 2] Calculating refile counts...")
 
-    # Count refilings per SKU (using company_id for consistency)
-    sku_counts: Dict[Tuple[int, str, str], int] = defaultdict(int)
+    # Count refilings per SKU (using same company_key logic as Pass 1)
+    sku_counts: Dict[Tuple[Any, str, str], int] = defaultdict(int)
 
     for record in all_records:
         company_id = record.get("company_id", -1)
+        company_name_raw = (record.get("company_name") or "").strip()
         brand = (record.get("brand_name") or "").strip().lower()
         fanciful = (record.get("fanciful_name") or "").strip().lower()
 
-        if company_id != -1 and brand:
-            sku_key = (company_id, brand, fanciful)
-            sku_counts[sku_key] += 1
+        if not brand:
+            continue
+
+        # Use same company_key logic as Pass 1
+        if company_id != -1:
+            company_key = company_id
+        else:
+            company_key = company_name_raw.upper()
+
+        sku_key = (company_key, brand, fanciful)
+        sku_counts[sku_key] += 1
 
     # Calculate refile_count for first instances
     # refile_count = total_filings - 1 (the first one doesn't count as a refiling)
@@ -381,6 +420,7 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     logger.info(f"  NEW_BRAND: {stats['new_brands']:,}")
     logger.info(f"  NEW_SKU: {stats['new_skus']:,}")
     logger.info(f"  REFILE: {stats['refiles']:,}")
+    logger.info(f"  LEGACY: {stats['legacy']:,}")
     logger.info(f"SKUs with future refilings: {skus_with_refilings:,}")
 
     return stats

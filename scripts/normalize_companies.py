@@ -171,6 +171,24 @@ def fetch_all_company_names() -> List[Dict]:
 # NORMALIZATION FUNCTIONS
 # ============================================================================
 
+def parse_date_for_comparison(date_str: str) -> str:
+    """
+    Convert MM/DD/YYYY to YYYY-MM-DD for proper string comparison.
+    Returns empty string if parsing fails.
+    """
+    if not date_str:
+        return ""
+    try:
+        # Handle MM/DD/YYYY format
+        parts = date_str.split('/')
+        if len(parts) == 3:
+            month, day, year = parts
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    except:
+        pass
+    return date_str  # Return original if can't parse
+
+
 def normalize_string(s: str) -> str:
     """Basic string normalization: uppercase, remove extra whitespace."""
     if not s:
@@ -289,11 +307,16 @@ class NormalizedCompany:
         self.variant_count = len(self.variants)
         self.total_filings += filing_count
 
-        # Update date range
-        if not self.first_filing or (first and first < self.first_filing):
-            self.first_filing = first
-        if not self.last_filing or (last and last > self.last_filing):
-            self.last_filing = last
+        # Update date range (convert to YYYY-MM-DD for proper comparison)
+        first_comparable = parse_date_for_comparison(first)
+        last_comparable = parse_date_for_comparison(last)
+        current_first = parse_date_for_comparison(self.first_filing)
+        current_last = parse_date_for_comparison(self.last_filing)
+
+        if not current_first or (first_comparable and first_comparable < current_first):
+            self.first_filing = first  # Store original format
+        if not current_last or (last_comparable and last_comparable > current_last):
+            self.last_filing = last  # Store original format
 
 
 # ============================================================================
@@ -352,7 +375,7 @@ class CompanyNormalizer:
                 canonical_name=canonical,
                 display_name=canonical.title(),  # Title case for display
                 match_key=match_key,
-                confidence="high" if len(group) == 1 else "high",
+                confidence="high",  # All exact key matches are high confidence
             )
 
             for item in group:

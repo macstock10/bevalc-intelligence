@@ -623,6 +623,7 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
     logger.info(f"  Found {len(existing_companies):,} companies with prior filings")
 
     # Step 4: Fetch existing brands (company_id + brand_name pairs that exist BEFORE this batch)
+    # Use .lower() for case-insensitive matching (consistent with batch_classify.py)
     logger.info("  Fetching existing brands...")
     existing_brands = set()
     if batch_company_ids:
@@ -642,10 +643,11 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
                 cid = row.get('company_id')
                 brand = row.get('brand_name', '')
                 if cid and brand:
-                    existing_brands.add((cid, brand))
+                    existing_brands.add((cid, brand.lower()))
     logger.info(f"  Found {len(existing_brands):,} existing company-brand pairs")
 
     # Step 5: Fetch existing SKUs (company_id + brand_name + fanciful_name that exist BEFORE this batch)
+    # Use .lower() for case-insensitive matching (consistent with batch_classify.py)
     logger.info("  Fetching existing SKUs...")
     existing_skus = set()
     if batch_company_ids:
@@ -666,7 +668,7 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
                 brand = row.get('brand_name', '')
                 fanciful = row.get('fanciful_name', '') or ''
                 if cid and brand:
-                    existing_skus.add((cid, brand, fanciful))
+                    existing_skus.add((cid, brand.lower(), fanciful.lower()))
     logger.info(f"  Found {len(existing_skus):,} existing SKUs")
 
     # Step 6: Classify each record (all in memory, no API calls)
@@ -698,28 +700,32 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
         company_id = get_company_id_cached(company_name)
 
         if company_id is None:
-            # Company not in aliases table - track by company_name
-            if company_name not in seen_unknown_companies:
+            # Company not in aliases table - track by normalized company_name (uppercase for consistency)
+            company_key_unknown = company_name.upper()
+            brand_key_unknown = (company_key_unknown, brand_name.lower())
+            sku_key_unknown = (company_key_unknown, brand_name.lower(), fanciful_name.lower())
+
+            if company_key_unknown not in seen_unknown_companies:
                 classifications.append((ttb_id, 'NEW_COMPANY'))
                 stats['new_companies'] += 1
                 if len(stats['new_company_list']) < 20:
                     stats['new_company_list'].append(company_name[:40])
-                seen_unknown_companies.add(company_name)
-                seen_unknown_brands.add((company_name, brand_name))
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
-            elif (company_name, brand_name) not in seen_unknown_brands:
+                seen_unknown_companies.add(company_key_unknown)
+                seen_unknown_brands.add(brand_key_unknown)
+                seen_unknown_skus.add(sku_key_unknown)
+            elif brand_key_unknown not in seen_unknown_brands:
                 classifications.append((ttb_id, 'NEW_BRAND'))
                 stats['new_brands'] += 1
                 if len(stats['new_brand_list']) < 20:
                     stats['new_brand_list'].append(f"{brand_name} ({company_name[:25]})")
-                seen_unknown_brands.add((company_name, brand_name))
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
-            elif (company_name, brand_name, fanciful_name) not in seen_unknown_skus:
+                seen_unknown_brands.add(brand_key_unknown)
+                seen_unknown_skus.add(sku_key_unknown)
+            elif sku_key_unknown not in seen_unknown_skus:
                 classifications.append((ttb_id, 'NEW_SKU'))
                 stats['new_skus'] += 1
                 if len(stats['new_sku_list']) < 20:
                     stats['new_sku_list'].append(f"{brand_name} - {fanciful_name[:30]}")
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
+                seen_unknown_skus.add(sku_key_unknown)
             else:
                 classifications.append((ttb_id, 'REFILE'))
                 stats['refiles'] += 1
@@ -728,20 +734,23 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
         # Check if company existed BEFORE this batch (using pre-fetched data)
         company_existed_before = company_id in existing_companies
 
+        # Use .lower() for brand/sku matching (consistent with existing_brands/existing_skus sets)
+        brand_key = (company_id, brand_name.lower())
+        sku_key = (company_id, brand_name.lower(), fanciful_name.lower())
+
         if not company_existed_before and company_id not in seen_companies:
             classifications.append((ttb_id, 'NEW_COMPANY'))
             stats['new_companies'] += 1
             if len(stats['new_company_list']) < 20:
                 stats['new_company_list'].append(company_name[:40])
             seen_companies.add(company_id)
-            seen_brands.add((company_id, brand_name))
-            seen_skus.add((company_id, brand_name, fanciful_name))
+            seen_brands.add(brand_key)
+            seen_skus.add(sku_key)
             continue
 
         seen_companies.add(company_id)
 
         # Check if brand existed BEFORE this batch
-        brand_key = (company_id, brand_name)
         brand_existed_before = brand_key in existing_brands
 
         if not brand_existed_before and brand_key not in seen_brands:
@@ -750,13 +759,12 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
             if len(stats['new_brand_list']) < 20:
                 stats['new_brand_list'].append(f"{brand_name} ({company_name[:25]})")
             seen_brands.add(brand_key)
-            seen_skus.add((company_id, brand_name, fanciful_name))
+            seen_skus.add(sku_key)
             continue
 
         seen_brands.add(brand_key)
 
         # Check if SKU existed BEFORE this batch
-        sku_key = (company_id, brand_name, fanciful_name)
         sku_existed_before = sku_key in existing_skus
 
         if not sku_existed_before and sku_key not in seen_skus:
