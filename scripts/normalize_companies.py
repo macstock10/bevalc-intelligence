@@ -283,6 +283,25 @@ def create_match_key(s: str) -> str:
     return s
 
 
+def make_slug(s: str) -> str:
+    """Convert a string to a URL-friendly slug."""
+    if not s:
+        return ""
+    # Lowercase
+    s = s.lower()
+    # Replace & with 'and'
+    s = s.replace('&', 'and')
+    # Remove all non-alphanumeric except spaces and hyphens
+    s = re.sub(r'[^\w\s-]', '', s)
+    # Replace spaces with hyphens
+    s = re.sub(r'\s+', '-', s)
+    # Remove multiple hyphens
+    s = re.sub(r'-+', '-', s)
+    # Strip leading/trailing hyphens
+    s = s.strip('-')
+    return s
+
+
 # ============================================================================
 # COMPANY DATA CLASS
 # ============================================================================
@@ -599,6 +618,7 @@ def apply_to_d1(normalizer: CompanyNormalizer) -> None:
             id INTEGER PRIMARY KEY,
             canonical_name TEXT NOT NULL,
             display_name TEXT NOT NULL,
+            slug TEXT,
             match_key TEXT NOT NULL,
             total_filings INTEGER DEFAULT 0,
             variant_count INTEGER DEFAULT 0,
@@ -630,6 +650,7 @@ def apply_to_d1(normalizer: CompanyNormalizer) -> None:
     indexes = [
         "CREATE INDEX idx_companies_match_key ON companies(match_key)",
         "CREATE INDEX idx_companies_canonical ON companies(canonical_name)",
+        "CREATE INDEX idx_companies_slug ON companies(slug)",
         "CREATE INDEX idx_aliases_company_id ON company_aliases(company_id)",
         "CREATE INDEX idx_aliases_raw_name ON company_aliases(raw_name)",
     ]
@@ -649,18 +670,19 @@ def apply_to_d1(normalizer: CompanyNormalizer) -> None:
             # Escape single quotes
             canonical = c.canonical_name.replace("'", "''")
             display = c.display_name.replace("'", "''")
+            slug = make_slug(c.display_name).replace("'", "''")
             match_key = c.match_key.replace("'", "''")
             first = (c.first_filing or "").replace("'", "''")
             last = (c.last_filing or "").replace("'", "''")
 
             values.append(
-                f"({c.id}, '{canonical}', '{display}', '{match_key}', "
+                f"({c.id}, '{canonical}', '{display}', '{slug}', '{match_key}', "
                 f"{c.total_filings}, {c.variant_count}, '{first}', '{last}', '{c.confidence}')"
             )
 
         sql = f"""
             INSERT INTO companies
-            (id, canonical_name, display_name, match_key, total_filings, variant_count, first_filing, last_filing, confidence)
+            (id, canonical_name, display_name, slug, match_key, total_filings, variant_count, first_filing, last_filing, confidence)
             VALUES {', '.join(values)}
         """
         d1_query(sql)
