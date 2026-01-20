@@ -353,6 +353,10 @@ export default {
                 response = await handleCreditCheckout(request, env);
             } else if (path === '/api/company-lookup' && request.method === 'GET') {
                 response = await handleCompanyLookup(url, env);
+            } else if (path === '/api/permits/leads' && request.method === 'GET') {
+                response = await handlePermitLeads(url, env);
+            } else if (path === '/api/permits/stats' && request.method === 'GET') {
+                response = await handlePermitStats(env);
             } else {
                 response = { success: false, error: 'Not found' };
             }
@@ -2313,11 +2317,25 @@ async function handleRecord(url, env) {
         }
     }
 
+    // Get permits for this company
+    let permits = [];
+    if (result.company_name) {
+        const permitsResult = await env.DB.prepare(`
+            SELECT p.permit_number, p.industry_type, p.city, p.state, p.is_new
+            FROM permits p
+            JOIN company_aliases ca ON p.company_id = ca.company_id
+            WHERE ca.raw_name = ?
+            ORDER BY p.industry_type
+        `).bind(result.company_name).all();
+        permits = permitsResult.results || [];
+    }
+
     return {
         success: true,
         data: {
             ...result,
-            website_url: websiteUrl
+            website_url: websiteUrl,
+            permits: permits
         }
     };
 }
@@ -3299,6 +3317,18 @@ async function handleCompanyPage(path, env, headers) {
         relatedCompanies = relatedResult.results || [];
     }
 
+    // Get TTB permits for this company
+    let permits = [];
+    if (hasCompanyId) {
+        const permitsResult = await env.DB.prepare(`
+            SELECT permit_number, industry_type, city, state, is_new
+            FROM permits
+            WHERE company_id = ?
+            ORDER BY industry_type
+        `).bind(company.id).all();
+        permits = permitsResult.results || [];
+    }
+
     // Calculate category percentages (deduplicated by category name)
     const totalCatFilings = categories.reduce((sum, c) => sum + c.cnt, 0);
     const categoryMap = new Map();
@@ -3383,7 +3413,42 @@ async function handleCompanyPage(path, env, headers) {
                         ${brands.length > 0 ? `Their portfolio includes brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and more` : ''}.` : ''}
                         ${categoryBars.length > 0 ? `The company primarily operates in the <strong>${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join('</strong> and <strong>')}</strong> ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
                     </p>
-                </section>
+                    ${permits.length > 0 ? (() => {
+                        // Group permits by type and count
+                        const permitCounts = {};
+                        let hasNew = false;
+                        for (const p of permits) {
+                            if (!permitCounts[p.industry_type]) {
+                                permitCounts[p.industry_type] = { count: 0, hasNew: false };
+                            }
+                            permitCounts[p.industry_type].count++;
+                            if (p.is_new) {
+                                permitCounts[p.industry_type].hasNew = true;
+                                hasNew = true;
+                            }
+                        }
+                        const permitTypes = Object.entries(permitCounts).map(([type, data]) => ({
+                            type,
+                            count: data.count,
+                            hasNew: data.hasNew,
+                            label: type === 'Distilled Spirits Plant' ? 'Distillery' : type === 'Wine Producer' ? 'Winery' : type === 'Importer (Alcohol)' ? 'Importer' : type === 'Wholesaler (Alcohol)' ? 'Wholesaler' : type,
+                            bg: type === 'Distilled Spirits Plant' ? '#fef3c7' : type === 'Wine Producer' ? '#fce7f3' : type === 'Importer (Alcohol)' ? '#dbeafe' : '#e2e8f0',
+                            color: type === 'Distilled Spirits Plant' ? '#92400e' : type === 'Wine Producer' ? '#9d174d' : type === 'Importer (Alcohol)' ? '#1e40af' : '#475569'
+                        }));
+                        return `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: 500;">Federal Permits:</span>
+                            ${permitTypes.map(p => `
+                                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: ${p.bg}; color: ${p.color}; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">
+                                    ${p.label}${p.count > 1 ? ` (${p.count})` : ''}
+                                    ${p.hasNew ? '<span style="margin-left: 4px; padding: 1px 4px; background: #22c55e; color: white; border-radius: 2px; font-size: 0.65rem;">NEW</span>' : ''}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                    `;
+                    })() : ''}
 
                 <div class="seo-grid">
                     <div class="seo-card">

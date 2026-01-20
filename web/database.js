@@ -852,6 +852,7 @@ function openModal(record) {
                 { label: 'State', value: record.state },
                 { label: 'Contact Person', value: record.contact_person, isPro: true },
                 { label: 'Phone Number', value: record.phone_number, isPro: true },
+                { label: 'Federal Permits', value: record.permits, isPermits: true, isPro: true },
             ]
         }
     ];
@@ -935,6 +936,39 @@ function openModal(record) {
                                             <div class="detail-item">
                                                 <span class="detail-label detail-label-pro">${f.label}</span>
                                                 <span class="detail-value" style="color: #94a3b8; font-style: italic;">Data enrichment in progress</span>
+                                            </div>
+                                        `;
+                                    }
+                                }
+                                // Handle permits field
+                                if (f.isPermits) {
+                                    if (f.value && Array.isArray(f.value) && f.value.length > 0) {
+                                        // Group permits by type
+                                        const permitCounts = {};
+                                        for (const p of f.value) {
+                                            if (!permitCounts[p.industry_type]) {
+                                                permitCounts[p.industry_type] = { count: 0, hasNew: false };
+                                            }
+                                            permitCounts[p.industry_type].count++;
+                                            if (p.is_new) permitCounts[p.industry_type].hasNew = true;
+                                        }
+                                        const badges = Object.entries(permitCounts).map(([type, data]) => {
+                                            const label = type === 'Distilled Spirits Plant' ? 'Distillery' : type === 'Wine Producer' ? 'Winery' : type === 'Importer (Alcohol)' ? 'Importer' : type === 'Wholesaler (Alcohol)' ? 'Wholesaler' : type;
+                                            const bg = type === 'Distilled Spirits Plant' ? '#fef3c7' : type === 'Wine Producer' ? '#fce7f3' : type === 'Importer (Alcohol)' ? '#dbeafe' : '#e2e8f0';
+                                            const color = type === 'Distilled Spirits Plant' ? '#92400e' : type === 'Wine Producer' ? '#9d174d' : type === 'Importer (Alcohol)' ? '#1e40af' : '#475569';
+                                            return `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${label}${data.count > 1 ? ` (${data.count})` : ''}${data.hasNew ? '<span style="margin-left: 4px; padding: 1px 3px; background: #22c55e; color: white; border-radius: 2px; font-size: 0.6rem;">NEW</span>' : ''}</span>`;
+                                        }).join(' ');
+                                        return `
+                                            <div class="detail-item">
+                                                <span class="detail-label detail-label-pro">${f.label}</span>
+                                                <span class="detail-value" style="display: flex; flex-wrap: wrap; gap: 6px;">${badges}</span>
+                                            </div>
+                                        `;
+                                    } else {
+                                        return `
+                                            <div class="detail-item">
+                                                <span class="detail-label detail-label-pro">${f.label}</span>
+                                                <span class="detail-value" style="color: #94a3b8;">None on file</span>
                                             </div>
                                         `;
                                     }
