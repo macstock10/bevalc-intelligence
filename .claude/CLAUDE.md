@@ -54,6 +54,22 @@ This is the most important section. Read this first to understand how the system
 │       └─► 3. Send emails via Resend (free + pro users)                  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WEEKLY PERMITS SYNC (Tuesday 6am ET)                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  TUESDAY 6am ET / 11am UTC (GitHub Actions: weekly-permits-sync.yml)    │
+│  └─► sync_permits.py                                                    │
+│       ├─► 1. Download TTB permits JSON (82K+ permits)                   │
+│       ├─► 2. Match permits to existing companies via normalized names   │
+│       ├─► 3. Insert/update permits table in D1                          │
+│       └─► 4. Log stats (matched vs unmatched = potential leads)         │
+│                                                                         │
+│  Data source: https://www.ttb.gov/public-information/foia/list-of-permittees  │
+│  Updated weekly by TTB (usually Mondays)                                │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Live System Architecture
@@ -212,6 +228,7 @@ bevalc-intelligence/
 │   ├── daily-sync.yml         # Daily 9pm ET: scrape TTB, sync to D1
 │   ├── watchlist-alerts.yml    # Daily 11:30am ET: send watchlist alerts
 │   ├── weekly-report.yml      # Friday 2pm ET: send weekly report emails
+│   ├── weekly-permits-sync.yml # Tuesday 6am ET: sync TTB permits
 │   └── e2e-tests.yml          # Manual: Playwright E2E tests
 ├── emails/
 │   ├── send.js                # Send email via Resend
@@ -231,6 +248,7 @@ bevalc-intelligence/
 │   ├── cola_worker.py         # Core scraping logic (Selenium)
 │   ├── batch_classify.py      # Reclassify historical records
 │   ├── normalize_companies.py # One-time: fuzzy match company names
+│   ├── sync_permits.py        # Weekly: sync TTB permits to D1
 │   └── generate_sitemaps.py   # Generate sitemaps → upload to R2
 ├── skills/                    # Claude skill definitions
 ├── templates/                 # LinkedIn post templates
@@ -392,6 +410,31 @@ Precomputes hub page stats to avoid slow GROUP BY queries on large categories:
 | email | TEXT | User email |
 | type | TEXT | "brand" or "company" |
 | value | TEXT | The tracked name |
+
+### `permits` - TTB Federal Permits (~82K)
+| Column | Type | Notes |
+|--------|------|-------|
+| permit_number | TEXT | Primary key (e.g., "CA-I-12345") |
+| owner_name | TEXT | Legal entity name |
+| operating_name | TEXT | DBA name |
+| street | TEXT | Premises address |
+| city | TEXT | City |
+| state | TEXT | State code |
+| zip | TEXT | ZIP code |
+| county | TEXT | County (self-reported) |
+| industry_type | TEXT | Importer, Wholesaler, Wine Producer, Distilled Spirits Plant |
+| is_new | INT | 1 if issued in last 7 days |
+| company_id | INT | FK to companies (matched via name) |
+| first_seen_at | TEXT | When we first saw this permit |
+| updated_at | TEXT | Last sync timestamp |
+
+**Permit Stats (as of Jan 2026):**
+- Total permits: 82,350
+- Matched to COLA companies: 21,591 (26%)
+- Unmatched (potential leads): 60,759 (74%)
+- Importers without COLAs: 13,537
+- Wine Producers without COLAs: 12,740
+- Distilleries without COLAs: 2,963
 
 ---
 

@@ -1,0 +1,41 @@
+name: Weekly TTB Permits Sync
+
+on:
+  schedule:
+    # Run every Tuesday at 6am ET (11am UTC) - after TTB updates on Monday
+    - cron: '0 11 * * 2'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-permits:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Sync TTB Permits
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+          python sync_permits.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: permit-sync-logs
+          path: logs/sync_permits.log
+          retention-days: 30
