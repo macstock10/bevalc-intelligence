@@ -24,6 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from collections import Counter
+from difflib import SequenceMatcher
 
 # ============================================================================
 # CONFIGURATION
@@ -137,7 +138,8 @@ def normalize_name(s: str) -> str:
     s = s.upper().strip()
     # Remove common suffixes
     for suffix in [' INC', ' INC.', ' LLC', ' L.L.C.', ' LTD', ' LTD.',
-                   ' CORP', ' CORP.', ' CO', ' CO.', ' COMPANY']:
+                   ' CORP', ' CORP.', ' CO', ' CO.', ' COMPANY', ' LP', ' L.P.',
+                   ' CORPORATION', ' INCORPORATED', ' LIMITED']:
         if s.endswith(suffix):
             s = s[:-len(suffix)].strip()
     # Remove punctuation
@@ -146,11 +148,47 @@ def normalize_name(s: str) -> str:
     return s
 
 
-def load_company_lookup() -> Dict[str, int]:
-    """Load normalized company names to company_id mapping from D1."""
+def make_match_key(s: str) -> str:
+    """Create aggressive match key - removes common words."""
+    if not s:
+        return ""
+    s = normalize_name(s)
+    # Remove common words that vary between filings
+    for word in ['THE', 'AND', 'OF', 'WINE', 'WINES', 'WINERY', 'VINEYARD',
+                 'VINEYARDS', 'CELLARS', 'ESTATES', 'ESTATE', 'DISTILLERY',
+                 'DISTILLING', 'BREWING', 'BREWERY', 'IMPORTS', 'IMPORT',
+                 'INTERNATIONAL', 'INTL', 'USA', 'US', 'AMERICA', 'AMERICAN',
+                 'GROUP', 'HOLDINGS', 'ENTERPRISES']:
+        s = ' '.join(w for w in s.split() if w != word)
+    return ' '.join(s.split())
+
+
+def fuzzy_match(name: str, candidates: Dict[str, int], threshold: float = 0.92) -> Optional[int]:
+    """Find best fuzzy match above threshold. Returns company_id or None."""
+    if not name or not candidates:
+        return None
+
+    best_ratio = 0
+    best_id = None
+
+    for candidate, company_id in candidates.items():
+        ratio = SequenceMatcher(None, name, candidate).ratio()
+        if ratio > best_ratio and ratio >= threshold:
+            best_ratio = ratio
+            best_id = company_id
+
+    return best_id
+
+
+def load_company_lookup() -> Tuple[Dict[str, int], Dict[str, int]]:
+    """Load normalized company names and match keys to company_id mapping from D1."""
     logger.info("Loading company lookup from D1...")
 
-    lookup = {}
+    # Lookup by normalized name
+    name_lookup = {}
+    # Lookup by match_key (more aggressive normalization)
+    key_lookup = {}
+
     offset = 0
     batch_size = 10000
 
@@ -167,14 +205,19 @@ def load_company_lookup() -> Dict[str, int]:
         for row in results:
             norm = normalize_name(row['raw_name'])
             if norm:
-                lookup[norm] = row['company_id']
+                name_lookup[norm] = row['company_id']
+
+            key = make_match_key(row['raw_name'])
+            if key:
+                key_lookup[key] = row['company_id']
 
         offset += batch_size
         if len(results) < batch_size:
             break
 
-    logger.info(f"Loaded {len(lookup):,} company name mappings")
-    return lookup
+    logger.info(f"Loaded {len(name_lookup):,} company name mappings")
+    logger.info(f"Loaded {len(key_lookup):,} match key mappings")
+    return name_lookup, key_lookup
 
 
 # ============================================================================
@@ -279,29 +322,55 @@ def create_permits_table():
 # SYNC LOGIC
 # ============================================================================
 
-def sync_permits(permits: List[Dict], company_lookup: Dict[str, int], dry_run: bool = False):
-    """Sync permits to D1."""
+def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: Dict[str, int], dry_run: bool = False):
+    """Sync permits to D1 with improved matching."""
     logger.info(f"Syncing {len(permits):,} permits to D1...")
 
     now = datetime.now(timezone.utc).isoformat()
-    matched = 0
+    exact_match = 0
+    key_match = 0
+    fuzzy_match_count = 0
     unmatched = 0
 
-    # Match permits to companies
+    # Match permits to companies using tiered approach
     for permit in permits:
+        company_id = None
         norm = normalize_name(permit['owner_name'])
-        company_id = company_lookup.get(norm)
+
+        # Tier 1: Exact normalized name match
+        if norm:
+            company_id = name_lookup.get(norm)
+
+        # Tier 2: Match key (more aggressive normalization)
+        if not company_id:
+            key = make_match_key(permit['owner_name'])
+            if key:
+                company_id = key_lookup.get(key)
+                if company_id:
+                    key_match += 1
+
+        # Tier 3: Fuzzy match on normalized name (expensive, only for unmatched)
+        if not company_id and norm and len(norm) > 5:
+            company_id = fuzzy_match(norm, name_lookup, threshold=0.92)
+            if company_id:
+                fuzzy_match_count += 1
+
         permit['company_id'] = company_id
         permit['first_seen_at'] = now
         permit['updated_at'] = now
 
         if company_id:
-            matched += 1
+            if not key_match and not fuzzy_match_count:
+                exact_match += 1
         else:
             unmatched += 1
 
-    logger.info(f"Matched {matched:,} permits to existing companies")
-    logger.info(f"Unmatched: {unmatched:,} (new leads)")
+    total_matched = exact_match + key_match + fuzzy_match_count
+    logger.info(f"Matched {total_matched:,} permits to existing companies")
+    logger.info(f"  - Exact match: {exact_match:,}")
+    logger.info(f"  - Key match: {key_match:,}")
+    logger.info(f"  - Fuzzy match: {fuzzy_match_count:,}")
+    logger.info(f"Unmatched: {unmatched:,}")
 
     if dry_run:
         logger.info("DRY RUN - skipping database insert")
@@ -434,11 +503,11 @@ def main():
     permits = download_permits()
     save_permits_json(permits)
 
-    # Load company lookup
-    company_lookup = load_company_lookup()
+    # Load company lookup (returns name_lookup, key_lookup)
+    name_lookup, key_lookup = load_company_lookup()
 
-    # Sync to D1
-    sync_permits(permits, company_lookup, dry_run=args.dry_run)
+    # Sync to D1 with improved matching
+    sync_permits(permits, name_lookup, key_lookup, dry_run=args.dry_run)
 
     # Show stats
     if not args.dry_run:
