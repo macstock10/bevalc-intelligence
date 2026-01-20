@@ -555,7 +555,7 @@
                         </svg>
                     </div>
                     <h2>Pro Feature</h2>
-                    <p>Access to pre-launch leads requires a Pro subscription. Browse and export 29,000+ licensed businesses that haven't launched products yet - reach potential customers before your competitors.</p>
+                    <p>Access to the federal permits directory requires a Pro subscription. Browse and export 80,000+ licensed importers, wineries, and distilleries. Filter by permit type and state.</p>
                     <a href="index.html#pricing" class="btn btn-primary">Upgrade to Pro</a>
                 </div>
             `;
@@ -607,7 +607,7 @@
                         </tr>
                     </thead>
                     <tbody id="leads-body">
-                        <tr><td colspan="5" class="loading"><span class="loading-spinner"></span>Loading leads...</td></tr>
+                        <tr><td colspan="5" class="loading"><span class="loading-spinner"></span>Loading permits...</td></tr>
                     </tbody>
                 </table>
                 <div class="pagination" id="pagination"></div>
@@ -639,14 +639,14 @@
                 renderLeads(data.data);
                 renderPagination(data.pagination);
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-error);">Error loading leads. Please try again.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-error);">Error loading permits. Please try again.</td></tr>';
             }
         }
 
         function renderLeads(leads) {
             const tbody = document.getElementById('leads-body');
             if (leads.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:48px;">No leads found matching your filters.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:48px;">No permits found matching your filters.</td></tr>';
                 return;
             }
 
@@ -674,7 +674,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="m15 18-6-6 6-6"/></svg>
                     Previous
                 </button>
-                <span class="page-info">Page ${pagination.page} of ${pagination.totalPages} (${pagination.total.toLocaleString()} leads)</span>
+                <span class="page-info">Page ${pagination.page} of ${pagination.totalPages} (${pagination.total.toLocaleString()} permits)</span>
                 <button onclick="changePage(${pagination.page + 1})" ${pagination.page >= pagination.totalPages ? 'disabled' : ''}>
                     Next
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="m9 18 6-6-6-6"/></svg>
@@ -736,7 +736,7 @@
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `bevalc-leads-${new Date().toISOString().slice(0,10)}.csv`;
+                    a.download = `bevalc-permits-${new Date().toISOString().slice(0,10)}.csv`;
                     a.click();
                 })
                 .catch(() => {
