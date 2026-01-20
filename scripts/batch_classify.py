@@ -167,7 +167,7 @@ def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
             SELECT c.ttb_id, c.company_name, c.brand_name, c.fanciful_name, c.approval_date,
                    COALESCE(ca.company_id, -1) as company_id
             FROM colas c
-            LEFT JOIN company_aliases ca ON c.company_name = ca.raw_name
+            LEFT JOIN company_aliases ca ON UPPER(c.company_name) = UPPER(ca.raw_name)
             ORDER BY
                 COALESCE(CAST(SUBSTR(c.approval_date, 7, 4) AS INTEGER), c.year, 9999) ASC,
                 COALESCE(CAST(SUBSTR(c.approval_date, 1, 2) AS INTEGER), c.month, 1) ASC,

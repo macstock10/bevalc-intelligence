@@ -395,19 +395,22 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     if not company_names:
         return 0
 
-    # Check which companies already exist in company_aliases
+    # Check which companies already exist in company_aliases (case-insensitive)
     existing = set()
+    existing_upper = set()  # Track uppercase versions for case-insensitive matching
     for i in range(0, len(company_names), 100):
         batch = list(company_names)[i:i + 100]
-        placeholders = ','.join([escape_sql_value(n) for n in batch])
-        result = d1_execute(f"SELECT raw_name FROM company_aliases WHERE raw_name IN ({placeholders})")
+        placeholders = ','.join([escape_sql_value(n.upper()) for n in batch])
+        result = d1_execute(f"SELECT raw_name FROM company_aliases WHERE UPPER(raw_name) IN ({placeholders})")
         if result.get("success") and result.get("result"):
             for res in result.get("result", []):
                 for row in res.get("results", []):
-                    existing.add(row.get("raw_name"))
+                    raw = row.get("raw_name")
+                    existing.add(raw)
+                    existing_upper.add(raw.upper())
 
-    # Filter to only new companies
-    new_companies = company_names - existing
+    # Filter to only new companies (case-insensitive check)
+    new_companies = {n for n in company_names if n.upper() not in existing_upper}
     if not new_companies:
         logger.info("No new companies to add")
         return 0
