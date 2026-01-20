@@ -146,11 +146,42 @@ def analyze_current_state():
         logger.info(f"\nRecords needing classification: {null_count:,}")
 
 
-def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
+def load_company_aliases_map() -> Dict[str, int]:
+    """Load company_aliases into memory as uppercase map."""
+    logger.info("Loading company_aliases mapping...")
+
+    alias_map = {}  # UPPER(raw_name) -> company_id
+    offset = 0
+    batch_size = 10000
+
+    while True:
+        result = d1_execute(f"SELECT raw_name, company_id FROM company_aliases LIMIT {batch_size} OFFSET {offset}")
+        if not result.get("success") or not result.get("result"):
+            break
+
+        rows = result["result"][0].get("results", [])
+        if not rows:
+            break
+
+        for row in rows:
+            raw = row.get("raw_name", "")
+            cid = row.get("company_id")
+            if raw and cid:
+                alias_map[raw.upper()] = cid
+
+        offset += batch_size
+        if len(rows) < batch_size:
+            break
+
+    logger.info(f"  Loaded {len(alias_map):,} company aliases")
+    return alias_map
+
+
+def fetch_all_records_chunked(alias_map: Dict[str, int], batch_size: int = 50000) -> List[Dict]:
     """
     Fetch ALL records from D1, sorted chronologically.
     Returns list of dicts with ttb_id, company_name, brand_name, fanciful_name, approval_date, company_id.
-    Uses company_aliases to get normalized company_id for proper classification.
+    Uses in-memory alias_map for case-insensitive company_id lookup.
     """
     all_records = []
     offset = 0
@@ -158,30 +189,30 @@ def fetch_all_records_chunked(batch_size: int = 50000) -> List[Dict]:
     logger.info("Fetching all records from D1 (this may take a while)...")
 
     while True:
-        # Order chronologically by parsing approval_date (MM/DD/YYYY format)
-        # We parse directly from approval_date rather than year/month/day columns
-        # because some historical records have NULL or incorrect year/month/day values
-        # COALESCE handles 234 records with NULL approval_date by falling back to year/month columns
-        # Join with company_aliases to get normalized company_id
+        # Fetch records without JOIN - we'll look up company_id in Python
         result = d1_execute(f"""
-            SELECT c.ttb_id, c.company_name, c.brand_name, c.fanciful_name, c.approval_date,
-                   COALESCE(ca.company_id, -1) as company_id
-            FROM colas c
-            LEFT JOIN company_aliases ca ON UPPER(c.company_name) = UPPER(ca.raw_name)
+            SELECT ttb_id, company_name, brand_name, fanciful_name, approval_date, year, month, day
+            FROM colas
             ORDER BY
-                COALESCE(CAST(SUBSTR(c.approval_date, 7, 4) AS INTEGER), c.year, 9999) ASC,
-                COALESCE(CAST(SUBSTR(c.approval_date, 1, 2) AS INTEGER), c.month, 1) ASC,
-                COALESCE(CAST(SUBSTR(c.approval_date, 4, 2) AS INTEGER), c.day, 1) ASC,
-                c.ttb_id ASC
+                COALESCE(CAST(SUBSTR(approval_date, 7, 4) AS INTEGER), year, 9999) ASC,
+                COALESCE(CAST(SUBSTR(approval_date, 1, 2) AS INTEGER), month, 1) ASC,
+                COALESCE(CAST(SUBSTR(approval_date, 4, 2) AS INTEGER), day, 1) ASC,
+                ttb_id ASC
             LIMIT {batch_size} OFFSET {offset}
         """)
 
         if not result.get("success") or not result.get("result"):
+            logger.error(f"D1 error at offset {offset}")
             break
 
         rows = result["result"][0].get("results", [])
         if not rows:
             break
+
+        # Add company_id from alias_map (case-insensitive)
+        for row in rows:
+            company_name = (row.get("company_name") or "").upper()
+            row["company_id"] = alias_map.get(company_name, -1)
 
         all_records.extend(rows)
         logger.info(f"  Fetched {len(all_records):,} records...")
@@ -225,8 +256,11 @@ def run_batch_classification(batch_size: int = 10000, dry_run: bool = False):
     logger.info("Starting batch classification...")
     logger.info(f"Dry run: {dry_run}")
 
+    # Load company aliases for case-insensitive matching
+    alias_map = load_company_aliases_map()
+
     # Fetch all records sorted by approval_date
-    all_records = fetch_all_records_chunked()
+    all_records = fetch_all_records_chunked(alias_map)
     logger.info(f"Total records to process: {len(all_records):,}")
 
     # ==================== PASS 1: Classification ====================
