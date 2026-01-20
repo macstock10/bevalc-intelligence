@@ -102,6 +102,7 @@
                     <a href="#application-types">Application Types</a>
                     <a href="#statuses">Status Definitions</a>
                     <a href="#signals">Intelligence Signals</a>
+                    <a href="#permits">Federal Permits</a>
                 </div>
             </div>
 
@@ -314,6 +315,56 @@
 
                 <div class="glossary-note">
                     <p><strong>Pro Tip:</strong> Filter by "NEW COMPANY" and "NEW BRAND" signals to focus on genuine market activity and filter out routine refiles. This is available to Pro subscribers in the database.</p>
+                </div>
+            </section>
+
+            <section class="glossary-section" id="permits">
+                <h2>Federal Permits</h2>
+                <p class="section-intro">In addition to COLA filings, BevAlc Intelligence tracks TTB federal permits. These permits authorize businesses to produce, import, or wholesale alcohol beverages in the United States.</p>
+
+                <div class="glossary-term">
+                    <h3>What Are Federal Permits?</h3>
+                    <p>Before a business can produce, import, or distribute alcohol in the United States, they must obtain a federal permit from the TTB. These permits are separate from COLAs - a permit authorizes the <em>business</em> to operate, while a COLA authorizes a specific <em>product label</em>.</p>
+                    <p>TTB publishes a list of all active permit holders weekly, which we sync every Tuesday.</p>
+                </div>
+
+                <div class="glossary-term">
+                    <h3>Permit Types We Track</h3>
+                    <p>The following permit types are included in TTB's public permits data:</p>
+                    <ul>
+                        <li><strong>Importer (Alcohol):</strong> Authorized to import wine, spirits, or malt beverages into the US</li>
+                        <li><strong>Wholesaler (Alcohol):</strong> Authorized to sell alcohol at wholesale (not tracked for leads)</li>
+                        <li><strong>Wine Producer:</strong> Licensed wineries and wine cellars</li>
+                        <li><strong>Distilled Spirits Plant (DSP):</strong> Licensed distilleries</li>
+                    </ul>
+                </div>
+
+                <div class="glossary-term">
+                    <h3>Why Aren't Breweries Included?</h3>
+                    <p>Breweries are notably absent from the public permits list. This is due to <strong>IRC Section 6103</strong>, which protects certain tax return information from public disclosure. Brewery permits are classified as tax-protected information, so TTB cannot publish them.</p>
+                    <p>This means that while we can show permits for distilleries, wineries, and importers on company pages, breweries will show "None on file" even though they are legally permitted to operate.</p>
+                </div>
+
+                <div class="glossary-term">
+                    <h3>Permit Information Displayed</h3>
+                    <p>On company pages and record modals, permits are shown as color-coded badges:</p>
+                    <ul>
+                        <li><span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">Distillery</span> - Distilled Spirits Plant permit</li>
+                        <li><span style="background: #fce7f3; color: #9d174d; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">Winery</span> - Wine Producer permit</li>
+                        <li><span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">Importer</span> - Importer (Alcohol) permit</li>
+                        <li><span style="background: #e5e7eb; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">Wholesaler</span> - Wholesaler (Alcohol) permit</li>
+                    </ul>
+                    <p>If a company has multiple permits of the same type, a count is shown (e.g., "Importer (3)").</p>
+                </div>
+
+                <div class="glossary-term">
+                    <h3>Pre-Launch Leads</h3>
+                    <p>One of the most valuable uses of permits data is identifying <strong>pre-launch leads</strong>: businesses that have obtained a federal permit but haven't yet filed any COLAs. These companies are licensed to sell alcohol but haven't launched products yet.</p>
+                    <p>Pro subscribers can access the <a href="leads.html">Pre-Launch Leads</a> page to browse and export these companies, filtered by permit type and state.</p>
+                </div>
+
+                <div class="glossary-note">
+                    <p><strong>Pro Tip:</strong> Use the Leads page to identify potential customers before they launch. These are verified licensed businesses in the pre-commercialization stage.</p>
                 </div>
             </section>
 
