@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-Launch Leads | BevAlc Intelligence</title>
+    <meta name="description" content="Find licensed alcohol businesses that haven't launched products yet. Pre-launch leads for sales teams and distributors.">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .leads-header {
+            background: linear-gradient(135deg, var(--color-surface) 0%, #1a1a2e 100%);
+            padding: 48px 24px;
+            text-align: center;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .leads-header h1 {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+        .leads-header p {
+            color: var(--color-text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            max-width: 800px;
+            margin: 32px auto 0;
+        }
+        .stat-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            margin-top: 4px;
+        }
+        .filters-bar {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 24px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filters-bar select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-text);
+            font-size: 0.9rem;
+        }
+        .leads-table-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px 48px;
+        }
+        .leads-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--color-surface);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--color-border);
+        }
+        .leads-table th, .leads-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .leads-table th {
+            background: var(--color-bg);
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+        }
+        .leads-table tr:hover {
+            background: rgba(94, 234, 212, 0.05);
+        }
+        .permit-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .permit-badge.importer { background: #dbeafe; color: #1e40af; }
+        .permit-badge.winery { background: #fce7f3; color: #9d174d; }
+        .permit-badge.distillery { background: #fef3c7; color: #92400e; }
+        .new-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #22c55e;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-text);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .pagination button:hover:not(:disabled) {
+            background: var(--color-primary);
+            color: var(--color-bg);
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .pagination .page-info {
+            padding: 8px 16px;
+            color: var(--color-text-secondary);
+        }
+        .pro-gate {
+            text-align: center;
+            padding: 48px 24px;
+        }
+        .pro-gate h2 {
+            margin-bottom: 16px;
+        }
+        .pro-gate p {
+            color: var(--color-text-secondary);
+            margin-bottom: 24px;
+        }
+        .export-btn {
+            padding: 10px 20px;
+            background: var(--color-primary);
+            color: var(--color-bg);
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: auto;
+        }
+        .export-btn:hover {
+            opacity: 0.9;
+        }
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: var(--color-text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-logo">BevAlc<span>Intel</span></a>
+            <div class="nav-links">
+                <a href="/database.html">Database</a>
+                <a href="/leads.html" class="active">Leads</a>
+                <a href="/account.html">Account</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="leads-header">
+        <h1>Pre-Launch Leads</h1>
+        <p>Licensed alcohol businesses that haven't filed product labels yet. These companies have federal permits but no COLA filings - potential customers before they launch.</p>
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="value" id="stat-importers">-</div>
+                <div class="label">Importers</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="stat-wineries">-</div>
+                <div class="label">Wineries</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="stat-distilleries">-</div>
+                <div class="label">Distilleries</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="stat-new">-</div>
+                <div class="label">New This Week</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="content">
+        <div class="loading">Loading...</div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentFilters = { permit_type: '', state: '' };
+        let userEmail = null;
+        let isPro = false;
+
+        async function init() {
+            // Check auth
+            const userInfo = localStorage.getItem('bevalc_user');
+            if (userInfo) {
+                try {
+                    const user = JSON.parse(userInfo);
+                    userEmail = user.email;
+                    isPro = user.isPro || false;
+                } catch (e) {}
+            }
+
+            // Load stats (public)
+            await loadStats();
+
+            // Check Pro access
+            if (!isPro) {
+                showProGate();
+                return;
+            }
+
+            // Load leads
+            showLeadsUI();
+            await loadLeads();
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/permits/stats`);
+                const data = await res.json();
+                if (data.success) {
+                    const stats = data.stats;
+                    const byType = {};
+                    for (const t of stats.byType) {
+                        byType[t.industry_type] = t.leads;
+                    }
+                    document.getElementById('stat-importers').textContent = (byType['Importer (Alcohol)'] || 0).toLocaleString();
+                    document.getElementById('stat-wineries').textContent = (byType['Wine Producer'] || 0).toLocaleString();
+                    document.getElementById('stat-distilleries').textContent = (byType['Distilled Spirits Plant'] || 0).toLocaleString();
+                    document.getElementById('stat-new').textContent = (stats.newThisWeek || 0).toLocaleString();
+                }
+            } catch (e) {
+                console.error('Error loading stats:', e);
+            }
+        }
+
+        function showProGate() {
+            document.getElementById('content').innerHTML = `
+                <div class="pro-gate">
+                    <h2>Pro Feature</h2>
+                    <p>Access to pre-launch leads requires a Pro subscription. Get contact info for 29,000+ licensed businesses before they launch.</p>
+                    <a href="/#pricing" class="btn btn-primary">Upgrade to Pro</a>
+                </div>
+            `;
+        }
+
+        function showLeadsUI() {
+            document.getElementById('content').innerHTML = `
+                <div class="filters-bar">
+                    <select id="filter-type" onchange="filterChanged()">
+                        <option value="">All Permit Types</option>
+                        <option value="Importer">Importers</option>
+                        <option value="Winery">Wineries</option>
+                        <option value="Distillery">Distilleries</option>
+                    </select>
+                    <select id="filter-state" onchange="filterChanged()">
+                        <option value="">All States</option>
+                        <option value="CA">California</option>
+                        <option value="NY">New York</option>
+                        <option value="TX">Texas</option>
+                        <option value="FL">Florida</option>
+                        <option value="WA">Washington</option>
+                        <option value="OR">Oregon</option>
+                        <option value="IL">Illinois</option>
+                        <option value="PA">Pennsylvania</option>
+                        <option value="VA">Virginia</option>
+                        <option value="MI">Michigan</option>
+                    </select>
+                    <button class="export-btn" onclick="exportLeads()">Export CSV</button>
+                </div>
+                <div class="leads-table-container">
+                    <table class="leads-table">
+                        <thead>
+                            <tr>
+                                <th>Company Name</th>
+                                <th>DBA</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Permit #</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-body">
+                            <tr><td colspan="5" class="loading">Loading leads...</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            `;
+        }
+
+        async function loadLeads() {
+            const tbody = document.getElementById('leads-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                limit: 50,
+                email: userEmail
+            });
+            if (currentFilters.permit_type) params.set('permit_type', currentFilters.permit_type);
+            if (currentFilters.state) params.set('state', currentFilters.state);
+
+            try {
+                const res = await fetch(`${API_BASE}/api/permits/leads?${params}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    tbody.innerHTML = `<tr><td colspan="5">${data.error}</td></tr>`;
+                    return;
+                }
+
+                totalPages = data.pagination.totalPages;
+                renderLeads(data.data);
+                renderPagination(data.pagination);
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5">Error loading leads</td></tr>';
+            }
+        }
+
+        function renderLeads(leads) {
+            const tbody = document.getElementById('leads-body');
+            if (leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">No leads found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = leads.map(lead => {
+                const typeClass = lead.industry_type === 'Importer (Alcohol)' ? 'importer' :
+                                  lead.industry_type === 'Wine Producer' ? 'winery' : 'distillery';
+                const typeLabel = lead.industry_type === 'Importer (Alcohol)' ? 'Importer' :
+                                  lead.industry_type === 'Wine Producer' ? 'Winery' : 'Distillery';
+                return `
+                    <tr>
+                        <td>${escapeHtml(lead.owner_name)}${lead.is_new ? '<span class="new-badge">NEW</span>' : ''}</td>
+                        <td>${escapeHtml(lead.operating_name || '-')}</td>
+                        <td><span class="permit-badge ${typeClass}">${typeLabel}</span></td>
+                        <td>${escapeHtml(lead.city)}, ${escapeHtml(lead.state)}</td>
+                        <td>${escapeHtml(lead.permit_number)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderPagination(pagination) {
+            const container = document.getElementById('pagination');
+            container.innerHTML = `
+                <button onclick="changePage(${pagination.page - 1})" ${pagination.page <= 1 ? 'disabled' : ''}>Previous</button>
+                <span class="page-info">Page ${pagination.page} of ${pagination.totalPages} (${pagination.total.toLocaleString()} leads)</span>
+                <button onclick="changePage(${pagination.page + 1})" ${pagination.page >= pagination.totalPages ? 'disabled' : ''}>Next</button>
+            `;
+        }
+
+        function changePage(page) {
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            loadLeads();
+        }
+
+        function filterChanged() {
+            currentFilters.permit_type = document.getElementById('filter-type').value;
+            currentFilters.state = document.getElementById('filter-state').value;
+            currentPage = 1;
+            loadLeads();
+        }
+
+        function exportLeads() {
+            const params = new URLSearchParams({
+                email: userEmail,
+                limit: 10000
+            });
+            if (currentFilters.permit_type) params.set('permit_type', currentFilters.permit_type);
+            if (currentFilters.state) params.set('state', currentFilters.state);
+
+            // Fetch all and download as CSV
+            fetch(`${API_BASE}/api/permits/leads?${params}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert(data.error);
+                        return;
+                    }
+                    const csv = [
+                        ['Company Name', 'DBA', 'Permit Type', 'City', 'State', 'Permit Number'].join(','),
+                        ...data.data.map(l => [
+                            `"${(l.owner_name || '').replace(/"/g, '""')}"`,
+                            `"${(l.operating_name || '').replace(/"/g, '""')}"`,
+                            l.industry_type,
+                            `"${(l.city || '').replace(/"/g, '""')}"`,
+                            l.state,
+                            l.permit_number
+                        ].join(','))
+                    ].join('\n');
+
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `bevalc-leads-${new Date().toISOString().slice(0,10)}.csv`;
+                    a.click();
+                });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        init();
+    </script>
+</body>
+</html>

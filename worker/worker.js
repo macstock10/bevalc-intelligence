@@ -2358,6 +2358,137 @@ async function handleStats(env) {
 }
 
 // ==========================================
+// PERMIT LEADS HANDLERS
+// ==========================================
+
+async function handlePermitLeads(url, env) {
+    const params = url.searchParams;
+    const page = Math.max(1, parseInt(params.get('page')) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 50));
+    const offset = (page - 1) * limit;
+
+    // Filter options
+    const permitType = params.get('permit_type'); // Importer, Distillery, Winery
+    const state = params.get('state');
+
+    // Check Pro access
+    const email = params.get('email');
+    let isPro = false;
+    if (email) {
+        try {
+            const user = await env.DB.prepare(
+                'SELECT is_pro FROM user_preferences WHERE email = ?'
+            ).bind(email.toLowerCase()).first();
+            if (user?.is_pro === 1) isPro = true;
+        } catch (e) {}
+    }
+
+    if (!isPro) {
+        return { success: false, error: 'Pro subscription required for leads access' };
+    }
+
+    // Build WHERE clause for permits without COLA companies
+    let whereClause = 'company_id IS NULL';
+    const queryParams = [];
+
+    // Exclude wholesalers by default (they don't file COLAs)
+    whereClause += " AND industry_type != 'Wholesaler (Alcohol)'";
+
+    if (permitType) {
+        const typeMap = {
+            'Importer': 'Importer (Alcohol)',
+            'Distillery': 'Distilled Spirits Plant',
+            'Winery': 'Wine Producer'
+        };
+        const dbType = typeMap[permitType] || permitType;
+        whereClause += ' AND industry_type = ?';
+        queryParams.push(dbType);
+    }
+
+    if (state) {
+        whereClause += ' AND state = ?';
+        queryParams.push(state.toUpperCase());
+    }
+
+    // Count total
+    const countResult = await env.DB.prepare(
+        `SELECT COUNT(*) as total FROM permits WHERE ${whereClause}`
+    ).bind(...queryParams).first();
+    const total = countResult?.total || 0;
+
+    // Get leads
+    const dataResult = await env.DB.prepare(`
+        SELECT permit_number, owner_name, operating_name, city, state, industry_type, is_new
+        FROM permits
+        WHERE ${whereClause}
+        ORDER BY is_new DESC, owner_name ASC
+        LIMIT ? OFFSET ?
+    `).bind(...queryParams, limit, offset).all();
+
+    return {
+        success: true,
+        data: dataResult.results || [],
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+        }
+    };
+}
+
+async function handlePermitStats(env) {
+    // Get overall permit stats
+    const totalResult = await env.DB.prepare(`
+        SELECT COUNT(*) as total FROM permits
+    `).first();
+
+    const matchedResult = await env.DB.prepare(`
+        SELECT COUNT(*) as matched FROM permits WHERE company_id IS NOT NULL
+    `).first();
+
+    const unmatchedResult = await env.DB.prepare(`
+        SELECT COUNT(*) as unmatched FROM permits WHERE company_id IS NULL
+    `).first();
+
+    // By type (excluding wholesalers for leads count)
+    const byTypeResult = await env.DB.prepare(`
+        SELECT industry_type, COUNT(*) as count,
+               SUM(CASE WHEN company_id IS NULL THEN 1 ELSE 0 END) as leads
+        FROM permits
+        GROUP BY industry_type
+        ORDER BY count DESC
+    `).all();
+
+    // New permits this week
+    const newResult = await env.DB.prepare(`
+        SELECT COUNT(*) as new_count FROM permits WHERE is_new = 1
+    `).first();
+
+    // Top states for leads
+    const statesResult = await env.DB.prepare(`
+        SELECT state, COUNT(*) as count
+        FROM permits
+        WHERE company_id IS NULL AND industry_type != 'Wholesaler (Alcohol)'
+        GROUP BY state
+        ORDER BY count DESC
+        LIMIT 10
+    `).all();
+
+    return {
+        success: true,
+        stats: {
+            total: totalResult?.total || 0,
+            matched: matchedResult?.matched || 0,
+            unmatched: unmatchedResult?.unmatched || 0,
+            newThisWeek: newResult?.new_count || 0,
+            byType: byTypeResult.results || [],
+            topStatesForLeads: statesResult.results || []
+        }
+    };
+}
+
+// ==========================================
 // SEO PAGE HANDLERS
 // ==========================================
 
