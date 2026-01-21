@@ -11,165 +11,199 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style-dark.css">
     <style>
-        .watch-hero {
-            background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%);
-            padding: var(--space-2xl) var(--space-xl);
-            text-align: center;
-            border-bottom: 1px solid var(--color-border);
-            margin-top: 64px;
-        }
-        .watch-hero h1 {
-            font-family: var(--font-display);
+        .watch-page { min-height: 100vh; padding: 6rem 2rem 4rem; }
+        .watch-container { max-width: 900px; margin: 0 auto; }
+
+        .watch-header { margin-bottom: 2rem; }
+        .watch-header h1 {
             font-size: 2rem;
-            color: var(--color-text);
-            margin-bottom: var(--space-sm);
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
-        .watch-hero p {
+        .watch-header h1 svg {
+            width: 32px;
+            height: 32px;
+            color: var(--color-accent);
+        }
+        .watch-header p { color: var(--color-text-secondary); }
+        .watch-header .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             color: var(--color-text-secondary);
-            max-width: 600px;
-            margin: 0 auto;
-            font-size: 1rem;
+            text-decoration: none;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            transition: color 0.15s;
         }
+        .watch-header .back-link:hover { color: var(--color-accent); }
 
-        .watch-content {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: var(--space-2xl) var(--space-xl);
+        /* Loading state */
+        .loading-state {
+            text-align: center;
+            padding: 4rem 2rem;
         }
+        .loading-state .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--color-border);
+            border-top-color: var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Pro gate */
         .pro-gate {
             text-align: center;
-            padding: var(--space-3xl);
-            background: var(--color-bg-secondary);
-            border-radius: var(--radius-lg);
+            padding: 3rem 2rem;
+            background: var(--color-bg-card);
             border: 1px solid var(--color-border);
+            border-radius: var(--radius-2xl);
+        }
+        .pro-gate .lock-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(251, 191, 36, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: #fbbf24;
         }
         .pro-gate h2 {
-            font-size: 1.5rem;
-            margin-bottom: var(--space-md);
-            color: var(--color-text);
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--color-text-primary);
         }
         .pro-gate p {
             color: var(--color-text-secondary);
-            margin-bottom: var(--space-xl);
+            margin-bottom: 1.5rem;
         }
-        .pro-gate .btn-primary {
-            display: inline-block;
-            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+        .pro-gate .btn-upgrade {
+            background: linear-gradient(135deg, var(--color-accent), #0d7377);
             color: white;
             padding: 0.75rem 1.5rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .pro-gate .btn-upgrade:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4);
         }
 
+        /* Empty state */
         .empty-state {
             text-align: center;
-            padding: var(--space-3xl);
-            background: var(--color-bg-secondary);
-            border-radius: var(--radius-lg);
+            padding: 3rem 2rem;
+            background: var(--color-bg-card);
             border: 1px solid var(--color-border);
+            border-radius: var(--radius-2xl);
         }
         .empty-state svg {
             width: 64px;
             height: 64px;
             color: var(--color-text-secondary);
-            margin-bottom: var(--space-lg);
+            margin-bottom: 1rem;
         }
         .empty-state h3 {
             font-size: 1.25rem;
-            color: var(--color-text);
-            margin-bottom: var(--space-sm);
+            color: var(--color-text-primary);
+            margin-bottom: 0.5rem;
         }
         .empty-state p {
             color: var(--color-text-secondary);
-            margin-bottom: var(--space-xl);
+            margin-bottom: 1.5rem;
         }
         .empty-state a {
-            color: var(--color-primary);
+            color: var(--color-accent);
             text-decoration: none;
             font-weight: 500;
         }
-        .empty-state a:hover {
-            text-decoration: underline;
-        }
+        .empty-state a:hover { text-decoration: underline; }
 
-        .loading-state {
-            text-align: center;
-            padding: var(--space-3xl);
-            color: var(--color-text-secondary);
-        }
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--color-border);
-            border-top-color: var(--color-primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto var(--space-lg);
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
+        /* Company cards */
         .company-cards {
             display: flex;
             flex-direction: column;
-            gap: var(--space-lg);
+            gap: 1.5rem;
         }
 
         .company-card {
-            background: var(--color-bg);
+            background: var(--color-bg-card);
             border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            padding: var(--space-xl);
-            box-shadow: var(--shadow-sm);
+            border-radius: var(--radius-2xl);
+            padding: 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .company-card:hover {
+            border-color: var(--color-accent);
         }
 
         .company-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: var(--space-lg);
-            gap: var(--space-md);
+            margin-bottom: 1.5rem;
+            gap: 1rem;
             flex-wrap: wrap;
         }
 
         .company-name {
             font-size: 1.25rem;
             font-weight: 600;
-            color: var(--color-text);
+            color: var(--color-text-primary);
             margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         .company-name a {
             color: inherit;
             text-decoration: none;
+            transition: color 0.15s;
         }
         .company-name a:hover {
-            color: var(--color-primary);
+            color: var(--color-accent);
+        }
+        .company-icon {
+            font-size: 1.25rem;
         }
 
         .company-stats {
             display: flex;
-            gap: var(--space-lg);
+            gap: 1.5rem;
         }
 
         .stat-item {
             text-align: center;
+            padding: 0.75rem 1rem;
+            background: var(--color-bg-tertiary);
+            border-radius: var(--radius-lg);
+            min-width: 80px;
         }
         .stat-value {
             font-size: 1.5rem;
             font-weight: 700;
-            color: var(--color-primary);
+            color: var(--color-text-primary);
         }
         .stat-value.highlight {
-            color: #059669;
+            color: var(--color-accent);
         }
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--color-text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -178,120 +212,166 @@
         .company-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: var(--space-xl);
+            gap: 1.5rem;
         }
         @media (max-width: 768px) {
-            .company-details {
-                grid-template-columns: 1fr;
-            }
+            .company-details { grid-template-columns: 1fr; }
+            .company-stats { flex-wrap: wrap; }
+            .stat-item { min-width: 70px; }
         }
 
         .detail-section h4 {
-            font-size: 0.875rem;
+            font-size: 0.75rem;
             font-weight: 600;
             color: var(--color-text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: var(--space-md);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .detail-section h4 svg {
+            width: 14px;
+            height: 14px;
         }
 
-        .recent-brands {
+        .recent-brands, .category-list {
             list-style: none;
             padding: 0;
             margin: 0;
+            background: var(--color-bg-tertiary);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
         }
-        .recent-brands li {
+        .recent-brands li, .category-list li {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: var(--space-sm) 0;
+            padding: 0.75rem 1rem;
             border-bottom: 1px solid var(--color-border);
-            font-size: 0.9rem;
+            font-size: 0.875rem;
         }
-        .recent-brands li:last-child {
+        .recent-brands li:last-child, .category-list li:last-child {
             border-bottom: none;
         }
-        .brand-name {
-            color: var(--color-text);
+        .brand-name, .category-name {
+            color: var(--color-text-primary);
         }
         .brand-date {
             color: var(--color-text-secondary);
             font-size: 0.8rem;
         }
+        .brand-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
         .brand-signal {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             font-weight: 600;
             padding: 2px 6px;
             border-radius: 4px;
-            margin-left: 0.5rem;
         }
         .brand-signal.NEW_COMPANY {
-            background: #dbeafe;
-            color: #1d4ed8;
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
         }
         .brand-signal.NEW_BRAND {
-            background: #d1fae5;
-            color: #059669;
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+        .brand-signal.NEW_SKU {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
         }
 
-        .category-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .category-list li {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: var(--space-sm) 0;
-            border-bottom: 1px solid var(--color-border);
-            font-size: 0.9rem;
-        }
-        .category-list li:last-child {
-            border-bottom: none;
-        }
-        .category-name {
-            color: var(--color-text);
-        }
         .category-count {
             color: var(--color-text-secondary);
             font-weight: 500;
+            font-size: 0.8rem;
         }
 
         .no-data {
             color: var(--color-text-secondary);
             font-style: italic;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
+            padding: 1rem;
+            text-align: center;
+            background: var(--color-bg-tertiary);
+            border-radius: var(--radius-lg);
         }
 
         .view-all-link {
-            display: inline-block;
-            margin-top: var(--space-md);
-            color: var(--color-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            color: var(--color-accent);
             text-decoration: none;
             font-size: 0.875rem;
             font-weight: 500;
+            transition: gap 0.15s;
         }
         .view-all-link:hover {
-            text-decoration: underline;
+            gap: 0.75rem;
+        }
+        .view-all-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Summary stats at top */
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .summary-stat {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .summary-stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--color-accent);
+        }
+        .summary-stat-label {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+        }
+
+        @media (max-width: 600px) {
+            .watch-page { padding: 5rem 1rem 3rem; }
+            .company-card { padding: 1rem; }
+            .watch-header h1 { font-size: 1.5rem; }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
+    <div class="bg-animation"><div class="particles" id="particles"></div></div>
+
     <nav class="nav">
         <div class="nav-container">
             <a href="index.html" class="logo">
-                <span class="logo-icon">&#9670;</span>
+                <span class="logo-icon">◆</span>
                 <span class="logo-text">BevAlc Intelligence</span>
                 <span class="user-status user-status-mobile" id="user-status-mobile"></span>
             </a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
+                <a href="database.html" class="nav-link">Database</a>
                 <div class="nav-dropdown" id="browse-dropdown">
                     <button class="nav-dropdown-toggle" onclick="toggleDropdown('browse-dropdown')">
                         Browse
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
                     <div class="nav-dropdown-menu">
                         <a href="/whiskey/">Whiskey</a>
@@ -301,9 +381,8 @@
                         <a href="/rum/">Rum</a>
                         <a href="/wine/">Wine</a>
                         <a href="/beer/">Beer</a>
-                        <div class="nav-dropdown-divider"></div>
                         <div class="nav-dropdown-more">
-                            <a href="#">More <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg></a>
+                            <a href="#">More <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></a>
                             <div class="nav-dropdown-submenu">
                                 <a href="/brandy/">Brandy</a>
                                 <a href="/liqueur/">Liqueur</a>
@@ -313,105 +392,136 @@
                         </div>
                     </div>
                 </div>
-                <a href="database.html" class="nav-link">Database</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
                 <a href="leads.html" class="nav-link">Permits</a>
                 <a href="account.html" class="nav-link">Account</a>
             </div>
             <div class="nav-user" id="nav-user">
-                <span class="user-greeting" id="user-greeting"></span>
-                <a href="index.html#signup" class="nav-cta" id="nav-signup">Get Access</a>
+                <a href="database.html" class="nav-cta">Go to Database</a>
             </div>
             <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 12h18M3 6h18M3 18h18"/>
-                </svg>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
             </button>
+        </div>
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="index.html" class="mobile-menu-link">Home</a>
+            <a href="database.html" class="mobile-menu-link">Database</a>
+            <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
+            <a href="account.html" class="mobile-menu-link">Account</a>
+            <div class="mobile-menu-divider"></div>
+            <span class="mobile-menu-section">Browse Categories</span>
+            <a href="/whiskey/" class="mobile-menu-link">Whiskey</a>
+            <a href="/tequila/" class="mobile-menu-link">Tequila</a>
+            <a href="/vodka/" class="mobile-menu-link">Vodka</a>
+            <a href="/gin/" class="mobile-menu-link">Gin</a>
+            <a href="/rum/" class="mobile-menu-link">Rum</a>
+            <a href="/wine/" class="mobile-menu-link">Wine</a>
+            <a href="/beer/" class="mobile-menu-link">Beer</a>
+            <a href="/brandy/" class="mobile-menu-link">Brandy</a>
+            <a href="/liqueur/" class="mobile-menu-link">Liqueur</a>
+            <a href="/cocktails/" class="mobile-menu-link">Cocktails</a>
+            <a href="/other/" class="mobile-menu-link">Other</a>
         </div>
     </nav>
 
-    <!-- Mobile Menu -->
-    <div class="mobile-menu" id="mobile-menu">
-        <div class="mobile-menu-links">
-            <a href="index.html">Home</a>
-            <a href="/whiskey/">Whiskey</a>
-            <a href="/tequila/">Tequila</a>
-            <a href="/vodka/">Vodka</a>
-            <a href="/gin/">Gin</a>
-            <a href="/rum/">Rum</a>
-            <a href="/wine/">Wine</a>
-            <a href="/beer/">Beer</a>
-            <a href="database.html">Database</a>
-            <a href="index.html#pricing">Pricing</a>
-            <a href="leads.html">Permits</a>
-            <a href="account.html">Account</a>
+    <main class="watch-page">
+        <div class="watch-container">
+            <div class="watch-header">
+                <a href="account.html" class="back-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to Account
+                </a>
+                <h1>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    Competitor Watch
+                </h1>
+                <p>Track filing activity from companies in your watchlist</p>
+            </div>
+
+            <!-- Loading state -->
+            <div class="loading-state" id="loading-state">
+                <div class="spinner"></div>
+                <p>Loading competitor activity...</p>
+            </div>
+
+            <!-- Pro gate -->
+            <div class="pro-gate" id="pro-gate" style="display: none;">
+                <div class="lock-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <h2>Pro Feature</h2>
+                <p>Competitor Watch is available to Pro subscribers. Track what your competitors are filing and stay ahead of the market.</p>
+                <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+            </div>
+
+            <!-- Empty state -->
+            <div class="empty-state" id="empty-state" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <h3>No Companies in Your Watchlist</h3>
+                <p>Add companies to your watchlist from the database to track their filing activity here.</p>
+                <a href="database.html">Go to Database</a>
+            </div>
+
+            <!-- Summary stats -->
+            <div class="summary-stats" id="summary-stats" style="display: none;"></div>
+
+            <!-- Company cards -->
+            <div class="company-cards" id="company-cards" style="display: none;"></div>
         </div>
-    </div>
+    </main>
 
-    <!-- Hero -->
-    <section class="watch-hero">
-        <h1>Competitor Watch</h1>
-        <p>Track filing activity from companies in your watchlist. See new brands, filing trends, and category breakdown.</p>
-    </section>
-
-    <!-- Content -->
-    <section class="watch-content" id="main-content">
-        <!-- Loading state -->
-        <div class="loading-state" id="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Loading competitor activity...</p>
-        </div>
-
-        <!-- Pro gate (hidden by default) -->
-        <div class="pro-gate" id="pro-gate" style="display: none;">
-            <h2>Pro Feature</h2>
-            <p>Competitor Watch is available to Pro subscribers. Upgrade to track competitor filing activity.</p>
-            <a href="index.html#pricing" class="btn-primary">View Pricing</a>
-        </div>
-
-        <!-- Empty state (hidden by default) -->
-        <div class="empty-state" id="empty-state" style="display: none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <h3>No Companies in Your Watchlist</h3>
-            <p>Add companies to your watchlist from the database to track their filing activity here.</p>
-            <a href="database.html">Go to Database</a>
-        </div>
-
-        <!-- Company cards (hidden by default) -->
-        <div class="company-cards" id="company-cards" style="display: none;"></div>
-    </section>
-
-    <!-- Footer -->
     <footer class="footer">
         <div class="footer-container">
-            <div class="footer-main">
+            <div class="footer-grid">
                 <div class="footer-brand">
-                    <span class="footer-logo">&#9670; BevAlc Intelligence</span>
-                    <p class="footer-tagline">Professional TTB filing intelligence for the beverage alcohol industry.</p>
+                    <div class="footer-brand-name">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                        BevAlc Intelligence
+                    </div>
+                    <p class="footer-tagline">Track every satisfying TTB label approval. The industry's most comprehensive COLA database.</p>
                 </div>
-                <div class="footer-links">
-                    <div class="footer-col">
-                        <h4>Product</h4>
-                        <a href="database.html">Database</a>
-                        <a href="index.html#pricing">Pricing</a>
-                        <a href="glossary.html">Glossary</a>
-                    </div>
-                    <div class="footer-col">
-                        <h4>Company</h4>
-                        <a href="index.html#about">About</a>
-                        <a href="mailto:hello@bevalcintel.com">Contact</a>
-                    </div>
-                    <div class="footer-col">
-                        <h4>Legal</h4>
-                        <a href="legal.html#terms">Terms</a>
-                        <a href="legal.html#privacy">Privacy</a>
-                    </div>
+                <div class="footer-column">
+                    <h4>Categories</h4>
+                    <ul>
+                        <li><a href="/whiskey/">Whiskey</a></li>
+                        <li><a href="/tequila/">Tequila</a></li>
+                        <li><a href="/vodka/">Vodka</a></li>
+                        <li><a href="/gin/">Gin</a></li>
+                        <li><a href="/rum/">Rum</a></li>
+                        <li><a href="/wine/">Wine</a></li>
+                        <li><a href="/beer/">Beer</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="database.html">Search Database</a></li>
+                        <li><a href="glossary.html">Glossary</a></li>
+                        <li><a href="index.html#pricing">Pricing</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="legal.html#terms">Terms of Service</a></li>
+                        <li><a href="legal.html#privacy">Privacy Policy</a></li>
+                    </ul>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2025 BevAlc Intelligence. All rights reserved.</p>
+                <p class="footer-copyright">&copy; 2025 BevAlc Intelligence. All rights reserved.</p>
             </div>
         </div>
     </footer>
@@ -421,7 +531,6 @@
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
 
         document.addEventListener('DOMContentLoaded', async function() {
-            // Setup nav
             setupMobileMenu();
 
             // Check user status
@@ -437,25 +546,16 @@
                     userEmail = user.email || '';
                     userToken = user.token || '';
 
-                    // Update nav
-                    const greeting = document.getElementById('user-greeting');
-                    const signup = document.getElementById('nav-signup');
-                    if (greeting && signup) {
-                        greeting.textContent = user.email;
-                        signup.style.display = 'none';
-                    }
-
                     // Show Pro badge
                     if (isPro) {
                         const statusMobile = document.getElementById('user-status-mobile');
                         if (statusMobile) {
-                            statusMobile.innerHTML = '<span class="pro-badge">Pro</span>';
+                            statusMobile.innerHTML = '<span class="pro-badge" style="background: var(--color-accent); color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">Pro</span>';
                         }
                     }
                 } catch (e) {}
             }
 
-            // Hide loading
             const loadingState = document.getElementById('loading-state');
 
             // If not Pro, show gate
@@ -486,6 +586,10 @@
                     return;
                 }
 
+                // Render summary stats
+                renderSummaryStats(data.companies);
+                document.getElementById('summary-stats').style.display = 'grid';
+
                 // Render company cards
                 renderCompanies(data.companies);
                 document.getElementById('company-cards').style.display = 'flex';
@@ -496,22 +600,52 @@
             }
         });
 
+        function renderSummaryStats(companies) {
+            const container = document.getElementById('summary-stats');
+
+            const totalWeek = companies.reduce((sum, c) => sum + (c.week_filings || 0), 0);
+            const totalMonth = companies.reduce((sum, c) => sum + (c.month_filings || 0), 0);
+            const totalAll = companies.reduce((sum, c) => sum + (c.total_filings || 0), 0);
+
+            container.innerHTML = `
+                <div class="summary-stat">
+                    <div class="summary-stat-value">${companies.length}</div>
+                    <div class="summary-stat-label">Companies Tracked</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">${totalWeek}</div>
+                    <div class="summary-stat-label">Filings (7 Days)</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">${totalMonth}</div>
+                    <div class="summary-stat-label">Filings (30 Days)</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">${totalAll.toLocaleString()}</div>
+                    <div class="summary-stat-label">Total Filings</div>
+                </div>
+            `;
+        }
+
         function renderCompanies(companies) {
             const container = document.getElementById('company-cards');
+
+            // Sort by recent activity (week filings desc)
+            companies.sort((a, b) => (b.week_filings || 0) - (a.week_filings || 0));
 
             const html = companies.map(company => {
                 const companySlug = makeSlug(company.company_name);
 
                 // Recent brands list
-                let brandsHtml = '<p class="no-data">No new brands</p>';
+                let brandsHtml = '<p class="no-data">No recent new brands</p>';
                 if (company.recent_brands && company.recent_brands.length > 0) {
                     brandsHtml = '<ul class="recent-brands">' +
-                        company.recent_brands.map(b => `
+                        company.recent_brands.slice(0, 5).map(b => `
                             <li>
                                 <span class="brand-name">${escapeHtml(b.name)}</span>
-                                <span>
+                                <span class="brand-meta">
                                     <span class="brand-date">${b.date}</span>
-                                    <span class="brand-signal ${b.signal}">${b.signal.replace('_', ' ')}</span>
+                                    ${b.signal ? `<span class="brand-signal ${b.signal}">${b.signal.replace('_', ' ')}</span>` : ''}
                                 </span>
                             </li>
                         `).join('') +
@@ -522,7 +656,7 @@
                 let categoriesHtml = '<p class="no-data">No category data</p>';
                 if (company.top_categories && company.top_categories.length > 0) {
                     categoriesHtml = '<ul class="category-list">' +
-                        company.top_categories.map(c => `
+                        company.top_categories.slice(0, 5).map(c => `
                             <li>
                                 <span class="category-name">${escapeHtml(c.category || 'Other')}</span>
                                 <span class="category-count">${c.count.toLocaleString()}</span>
@@ -531,15 +665,18 @@
                         '</ul>';
                 }
 
+                const hasRecentActivity = company.week_filings > 0;
+
                 return `
                     <div class="company-card">
                         <div class="company-header">
                             <h3 class="company-name">
+                                <span class="company-icon">🏢</span>
                                 <a href="/company/${companySlug}/" target="_blank">${escapeHtml(company.company_name)}</a>
                             </h3>
                             <div class="company-stats">
                                 <div class="stat-item">
-                                    <div class="stat-value highlight">${company.week_filings}</div>
+                                    <div class="stat-value ${hasRecentActivity ? 'highlight' : ''}">${company.week_filings}</div>
                                     <div class="stat-label">7 Days</div>
                                 </div>
                                 <div class="stat-item">
@@ -554,16 +691,30 @@
                         </div>
                         <div class="company-details">
                             <div class="detail-section">
-                                <h4>Recent New Brands</h4>
+                                <h4>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                                    </svg>
+                                    Recent New Brands
+                                </h4>
                                 ${brandsHtml}
                             </div>
                             <div class="detail-section">
-                                <h4>Top Categories</h4>
+                                <h4>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    </svg>
+                                    Top Categories
+                                </h4>
                                 ${categoriesHtml}
                             </div>
                         </div>
                         <a href="database.html?q=${encodeURIComponent(company.company_name)}" class="view-all-link">
-                            View all filings &rarr;
+                            View all filings
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
                         </a>
                     </div>
                 `;
@@ -573,8 +724,11 @@
         }
 
         function showError(message) {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `
+            const container = document.querySelector('.watch-container');
+            const header = document.querySelector('.watch-header');
+            container.innerHTML = '';
+            container.appendChild(header);
+            container.innerHTML += `
                 <div class="empty-state">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -608,17 +762,24 @@
             const mobileMenu = document.getElementById('mobile-menu');
             if (mobileBtn && mobileMenu) {
                 mobileBtn.addEventListener('click', () => {
-                    mobileMenu.classList.toggle('active');
+                    mobileMenu.classList.toggle('open');
+                    mobileBtn.classList.toggle('open');
                 });
             }
         }
 
         function toggleDropdown(id) {
             const dropdown = document.getElementById(id);
-            if (dropdown) {
-                dropdown.classList.toggle('active');
-            }
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            if (!isOpen) dropdown.classList.add('open');
         }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.nav-dropdown')) {
+                document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+            }
+        });
     </script>
 </body>
 </html>
