@@ -677,10 +677,16 @@ function renderResults(data, userAllowedCategory = null) {
                 let noteHtml = '';
 
                 // Show note for first-time filings (NEW_COMPANY, NEW_BRAND, NEW_SKU)
+                // refile_count indicates how many times THIS SKU was subsequently refiled
                 if (cola.signal !== 'REFILE') {
                     const refileCount = cola.refile_count || 0;
                     if (refileCount > 0) {
-                        noteHtml = `<span class="signal-note">(${refileCount} refile${refileCount > 1 ? 's' : ''})</span>`;
+                        // Only show refile note for NEW_SKU, not for NEW_COMPANY/NEW_BRAND
+                        // as it's confusing to say "NEW COMPANY (2 refiles)"
+                        if (cola.signal === 'NEW_SKU') {
+                            noteHtml = `<span class="signal-note">(${refileCount} refile${refileCount > 1 ? 's' : ''})</span>`;
+                        }
+                        // For NEW_COMPANY and NEW_BRAND, don't show refile count - the signal is what matters
                     } else {
                         noteHtml = `<span class="signal-note signal-note-current">(current)</span>`;
                     }
