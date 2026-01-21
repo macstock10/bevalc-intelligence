@@ -177,49 +177,84 @@ def load_company_aliases_map() -> Dict[str, int]:
     return alias_map
 
 
+def get_year_month_list() -> List[Tuple[int, int]]:
+    """Get all (year, month) combinations from colas, sorted chronologically."""
+    result = d1_execute("""
+        SELECT DISTINCT year, month
+        FROM colas
+        WHERE year IS NOT NULL AND month IS NOT NULL
+        ORDER BY year ASC, month ASC
+    """)
+
+    if not result.get("success") or not result.get("result"):
+        logger.error("Failed to get year/month list")
+        return []
+
+    rows = result["result"][0].get("results", [])
+    return [(row["year"], row["month"]) for row in rows]
+
+
 def fetch_all_records_chunked(alias_map: Dict[str, int], batch_size: int = 50000) -> List[Dict]:
     """
     Fetch ALL records from D1, sorted chronologically.
     Returns list of dicts with ttb_id, company_name, brand_name, fanciful_name, approval_date, company_id.
     Uses in-memory alias_map for case-insensitive company_id lookup.
+
+    IMPORTANT: Uses year/month chunking instead of OFFSET to avoid D1 memory limits.
     """
     all_records = []
-    offset = 0
 
-    logger.info("Fetching all records from D1 (this may take a while)...")
+    logger.info("Fetching all records from D1 by year/month (avoids memory limits)...")
 
-    while True:
-        # Fetch records without JOIN - we'll look up company_id in Python
-        result = d1_execute(f"""
-            SELECT ttb_id, company_name, brand_name, fanciful_name, approval_date, year, month, day
-            FROM colas
-            ORDER BY
-                COALESCE(CAST(SUBSTR(approval_date, 7, 4) AS INTEGER), year, 9999) ASC,
-                COALESCE(CAST(SUBSTR(approval_date, 1, 2) AS INTEGER), month, 1) ASC,
-                COALESCE(CAST(SUBSTR(approval_date, 4, 2) AS INTEGER), day, 1) ASC,
-                ttb_id ASC
-            LIMIT {batch_size} OFFSET {offset}
-        """)
+    # Get all year/month combinations
+    year_months = get_year_month_list()
+    logger.info(f"  Found {len(year_months)} year/month combinations")
 
-        if not result.get("success") or not result.get("result"):
-            logger.error(f"D1 error at offset {offset}")
-            break
+    if not year_months:
+        logger.error("No year/month combinations found!")
+        return []
 
-        rows = result["result"][0].get("results", [])
-        if not rows:
-            break
+    # Fetch records month by month
+    for ym_idx, (year, month) in enumerate(year_months):
+        offset = 0
+        month_records = []
 
-        # Add company_id from alias_map (case-insensitive)
-        for row in rows:
-            company_name = (row.get("company_name") or "").upper()
-            row["company_id"] = alias_map.get(company_name, -1)
+        while True:
+            # Fetch records for this specific month
+            result = d1_execute(f"""
+                SELECT ttb_id, company_name, brand_name, fanciful_name, approval_date, year, month, day
+                FROM colas
+                WHERE year = {year} AND month = {month}
+                ORDER BY
+                    COALESCE(CAST(SUBSTR(approval_date, 4, 2) AS INTEGER), day, 1) ASC,
+                    ttb_id ASC
+                LIMIT {batch_size} OFFSET {offset}
+            """)
 
-        all_records.extend(rows)
-        logger.info(f"  Fetched {len(all_records):,} records...")
+            if not result.get("success") or not result.get("result"):
+                logger.error(f"D1 error at year={year}, month={month}, offset={offset}")
+                break
 
-        if len(rows) < batch_size:
-            break
-        offset += batch_size
+            rows = result["result"][0].get("results", [])
+            if not rows:
+                break
+
+            # Add company_id from alias_map (case-insensitive)
+            for row in rows:
+                company_name = (row.get("company_name") or "").upper()
+                row["company_id"] = alias_map.get(company_name, -1)
+
+            month_records.extend(rows)
+
+            if len(rows) < batch_size:
+                break
+            offset += batch_size
+
+        all_records.extend(month_records)
+
+        # Log progress every 12 months or at end
+        if (ym_idx + 1) % 12 == 0 or ym_idx == len(year_months) - 1:
+            logger.info(f"  Fetched {len(all_records):,} records through {year}-{month:02d}...")
 
     return all_records
 

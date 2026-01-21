@@ -58,6 +58,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Check for ttb URL parameter to open modal directly
     await checkUrlModal();
+
+    // Setup saved searches for Pro users
+    setupSavedSearches();
+
+    // Setup search history
+    setupSearchHistory();
 });
 
 // Read URL parameters and apply to filter elements
@@ -157,6 +163,16 @@ function cacheElements() {
     elements.userGreeting = document.getElementById('user-greeting');
     elements.navSignup = document.getElementById('nav-signup');
     elements.blurRecordCount = document.getElementById('blur-record-count');
+    // Saved searches elements
+    elements.savedSearchesWrapper = document.getElementById('saved-searches-wrapper');
+    elements.savedSearchesBtn = document.getElementById('saved-searches-btn');
+    elements.savedSearchesMenu = document.getElementById('saved-searches-menu');
+    elements.savedSearchesList = document.getElementById('saved-searches-list');
+    elements.saveCurrentSearch = document.getElementById('save-current-search');
+    elements.saveSearchModal = document.getElementById('save-search-modal');
+    elements.saveSearchName = document.getElementById('save-search-name');
+    elements.saveSearchCancel = document.getElementById('save-search-cancel');
+    elements.saveSearchConfirm = document.getElementById('save-search-confirm');
 }
 
 // Fetch total record count and update the blur overlay
@@ -510,6 +526,11 @@ async function performSearch() {
             renderPagination(data.pagination);
             updateResultsCount(data.pagination);
             showDataLagBanner(data.dataLagMonths);
+
+            // Save to search history (only on page 1 to avoid duplicates)
+            if (state.currentPage === 1) {
+                addToSearchHistory(getCurrentSearchParams());
+            }
         } else if (data.error === 'category_required') {
             // Category Pro user hasn't selected their category yet
             showCategoryRequiredMessage();
@@ -2397,4 +2418,496 @@ function makeSlug(text) {
         .replace(/['']/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
+}
+
+// ============================================
+// SAVED SEARCHES (Pro Feature)
+// ============================================
+
+function setupSavedSearches() {
+    // Check if Pro user
+    const userInfo = localStorage.getItem('bevalc_user');
+    let isPro = false;
+    let userEmail = '';
+    let userToken = '';
+
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            isPro = user.isPro === true;
+            userEmail = user.email || '';
+            userToken = user.token || '';
+        } catch (e) {}
+    }
+
+    // Show saved searches UI only for Pro users
+    if (isPro && elements.savedSearchesWrapper) {
+        elements.savedSearchesWrapper.style.display = 'block';
+        loadSavedSearches();
+        setupSavedSearchListeners();
+    }
+}
+
+function setupSavedSearchListeners() {
+    // Toggle dropdown
+    if (elements.savedSearchesBtn) {
+        elements.savedSearchesBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            elements.savedSearchesMenu.classList.toggle('open');
+        });
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (elements.savedSearchesMenu && !elements.savedSearchesMenu.contains(e.target) &&
+            !elements.savedSearchesBtn.contains(e.target)) {
+            elements.savedSearchesMenu.classList.remove('open');
+        }
+    });
+
+    // Open save modal
+    if (elements.saveCurrentSearch) {
+        elements.saveCurrentSearch.addEventListener('click', () => {
+            elements.savedSearchesMenu.classList.remove('open');
+            openSaveSearchModal();
+        });
+    }
+
+    // Cancel save
+    if (elements.saveSearchCancel) {
+        elements.saveSearchCancel.addEventListener('click', closeSaveSearchModal);
+    }
+
+    // Confirm save
+    if (elements.saveSearchConfirm) {
+        elements.saveSearchConfirm.addEventListener('click', saveCurrentSearch);
+    }
+
+    // Enter key in save input
+    if (elements.saveSearchName) {
+        elements.saveSearchName.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') saveCurrentSearch();
+        });
+    }
+
+    // Close modal on outside click
+    if (elements.saveSearchModal) {
+        elements.saveSearchModal.addEventListener('click', (e) => {
+            if (e.target === elements.saveSearchModal) closeSaveSearchModal();
+        });
+    }
+}
+
+function openSaveSearchModal() {
+    if (elements.saveSearchModal) {
+        elements.saveSearchModal.classList.add('open');
+        elements.saveSearchName.value = '';
+        elements.saveSearchName.focus();
+    }
+}
+
+function closeSaveSearchModal() {
+    if (elements.saveSearchModal) {
+        elements.saveSearchModal.classList.remove('open');
+    }
+}
+
+function getCurrentSearchParams() {
+    const params = {};
+
+    const query = elements.searchInput?.value?.trim();
+    if (query) params.q = query;
+
+    const origin = elements.filterOrigin?.value;
+    if (origin) params.origin = origin;
+
+    const category = elements.filterCategory?.value;
+    if (category) params.category = category;
+
+    const subcategory = elements.filterClass?.value;
+    if (subcategory) params.subcategory = subcategory;
+
+    const status = elements.filterStatus?.value;
+    if (status) params.status = status;
+
+    const signal = elements.filterSignal?.value || state.signalFilter;
+    if (signal) params.signal = signal;
+
+    const dateFrom = elements.filterDateFrom?.value;
+    if (dateFrom) params.date_from = dateFrom;
+
+    const dateTo = elements.filterDateTo?.value;
+    if (dateTo) params.date_to = dateTo;
+
+    return params;
+}
+
+async function saveCurrentSearch() {
+    const name = elements.saveSearchName?.value?.trim();
+    if (!name) {
+        alert('Please enter a name for this search');
+        return;
+    }
+
+    const userInfo = localStorage.getItem('bevalc_user');
+    let userEmail = '';
+    let userToken = '';
+
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            userEmail = user.email || '';
+            userToken = user.token || '';
+        } catch (e) {}
+    }
+
+    if (!userEmail) {
+        alert('Please log in to save searches');
+        return;
+    }
+
+    const searchParams = getCurrentSearchParams();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/saved-searches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: userEmail,
+                token: userToken,
+                name: name,
+                search_params: searchParams
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            closeSaveSearchModal();
+            loadSavedSearches();
+        } else {
+            alert(data.error || 'Failed to save search');
+        }
+    } catch (e) {
+        console.error('Save search failed:', e);
+        alert('Failed to save search. Please try again.');
+    }
+}
+
+async function loadSavedSearches() {
+    const userInfo = localStorage.getItem('bevalc_user');
+    let userEmail = '';
+    let userToken = '';
+
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            userEmail = user.email || '';
+            userToken = user.token || '';
+        } catch (e) {}
+    }
+
+    if (!userEmail || !elements.savedSearchesList) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&token=${encodeURIComponent(userToken)}`);
+        const data = await response.json();
+
+        if (data.success && data.searches) {
+            renderSavedSearches(data.searches);
+        }
+    } catch (e) {
+        console.error('Load saved searches failed:', e);
+    }
+}
+
+function renderSavedSearches(searches) {
+    if (!elements.savedSearchesList) return;
+
+    if (searches.length === 0) {
+        elements.savedSearchesList.innerHTML = '<div class="saved-searches-empty">No saved searches</div>';
+        return;
+    }
+
+    const html = searches.map(search => {
+        const date = new Date(search.created_at).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        return `
+            <div class="saved-search-item" data-id="${search.id}" data-params='${escapeHtml(search.search_params)}'>
+                <div class="saved-search-info">
+                    <div class="saved-search-name">${escapeHtml(search.name)}</div>
+                    <div class="saved-search-date">${date}</div>
+                </div>
+                <button class="saved-search-delete" data-id="${search.id}" title="Delete">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    elements.savedSearchesList.innerHTML = html;
+
+    // Add click handlers for loading searches
+    elements.savedSearchesList.querySelectorAll('.saved-search-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            // Don't trigger load if clicking delete button
+            if (e.target.closest('.saved-search-delete')) return;
+
+            const paramsJson = item.dataset.params;
+            try {
+                const params = JSON.parse(paramsJson);
+                applySavedSearch(params);
+                elements.savedSearchesMenu.classList.remove('open');
+            } catch (e) {
+                console.error('Failed to parse search params:', e);
+            }
+        });
+    });
+
+    // Add click handlers for delete buttons
+    elements.savedSearchesList.querySelectorAll('.saved-search-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            if (confirm('Delete this saved search?')) {
+                await deleteSavedSearch(id);
+            }
+        });
+    });
+}
+
+function applySavedSearch(params) {
+    // Clear all filters first
+    elements.searchInput.value = '';
+    elements.filterOrigin.value = '';
+    elements.filterCategory.value = '';
+    elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
+    elements.filterStatus.value = '';
+    if (elements.filterSignal) elements.filterSignal.value = '';
+    elements.filterDateFrom.value = '';
+    elements.filterDateTo.value = '';
+    state.signalFilter = null;
+
+    // Apply saved params
+    if (params.q) elements.searchInput.value = params.q;
+    if (params.origin) elements.filterOrigin.value = params.origin;
+    if (params.category) {
+        elements.filterCategory.value = params.category;
+        updateSubcategoryDropdown();
+    }
+    if (params.subcategory) elements.filterClass.value = params.subcategory;
+    if (params.status) elements.filterStatus.value = params.status;
+    if (params.signal && elements.filterSignal) {
+        elements.filterSignal.value = params.signal;
+    }
+    if (params.date_from) elements.filterDateFrom.value = params.date_from;
+    if (params.date_to) elements.filterDateTo.value = params.date_to;
+
+    // Execute search
+    state.currentPage = 1;
+    performSearch();
+}
+
+async function deleteSavedSearch(id) {
+    const userInfo = localStorage.getItem('bevalc_user');
+    let userEmail = '';
+    let userToken = '';
+
+    if (userInfo) {
+        try {
+            const user = JSON.parse(userInfo);
+            userEmail = user.email || '';
+            userToken = user.token || '';
+        } catch (e) {}
+    }
+
+    if (!userEmail) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&id=${id}&token=${encodeURIComponent(userToken)}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            loadSavedSearches();
+        } else {
+            alert(data.error || 'Failed to delete search');
+        }
+    } catch (e) {
+        console.error('Delete search failed:', e);
+        alert('Failed to delete search. Please try again.');
+    }
+}
+
+// ============================================
+// SEARCH HISTORY (localStorage-based)
+// ============================================
+
+const SEARCH_HISTORY_KEY = 'bevalc_search_history';
+const MAX_SEARCH_HISTORY = 15;
+
+function setupSearchHistory() {
+    const dropdown = document.getElementById('search-history-dropdown');
+    const clearBtn = document.getElementById('search-history-clear');
+
+    if (!dropdown || !elements.searchInput) return;
+
+    // Show dropdown on focus
+    elements.searchInput.addEventListener('focus', showSearchHistory);
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && !elements.searchInput.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+
+    // Clear history button
+    if (clearBtn) {
+        clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearSearchHistory();
+        });
+    }
+}
+
+function showSearchHistory() {
+    const dropdown = document.getElementById('search-history-dropdown');
+    const list = document.getElementById('search-history-list');
+
+    if (!dropdown || !list) return;
+
+    const history = getSearchHistory();
+
+    if (history.length === 0) {
+        list.innerHTML = '<div class="search-history-empty">No recent searches</div>';
+    } else {
+        list.innerHTML = history.map((item, index) => {
+            // Count active filters
+            let filterCount = 0;
+            if (item.origin) filterCount++;
+            if (item.category) filterCount++;
+            if (item.subcategory) filterCount++;
+            if (item.status) filterCount++;
+            if (item.signal) filterCount++;
+            if (item.date_from || item.date_to) filterCount++;
+
+            const filterBadge = filterCount > 0
+                ? `<span class="filters-badge">+${filterCount} filter${filterCount > 1 ? 's' : ''}</span>`
+                : '';
+
+            const displayQuery = item.q || '(All records)';
+
+            return `
+                <div class="search-history-item" data-index="${index}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span class="query">${escapeHtml(displayQuery)}</span>
+                    ${filterBadge}
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        list.querySelectorAll('.search-history-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.index);
+                applySearchHistoryItem(index);
+                dropdown.classList.remove('open');
+            });
+        });
+    }
+
+    dropdown.classList.add('open');
+}
+
+function getSearchHistory() {
+    try {
+        const history = localStorage.getItem(SEARCH_HISTORY_KEY);
+        return history ? JSON.parse(history) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function addToSearchHistory(searchParams) {
+    // Don't save empty searches
+    const hasFilters = searchParams.q || searchParams.origin || searchParams.category ||
+        searchParams.subcategory || searchParams.status || searchParams.signal ||
+        searchParams.date_from || searchParams.date_to;
+
+    if (!hasFilters) return;
+
+    let history = getSearchHistory();
+
+    // Remove duplicate if exists (same query and filters)
+    const searchKey = JSON.stringify(searchParams);
+    history = history.filter(item => JSON.stringify(item) !== searchKey);
+
+    // Add to beginning
+    history.unshift(searchParams);
+
+    // Keep only last N items
+    if (history.length > MAX_SEARCH_HISTORY) {
+        history = history.slice(0, MAX_SEARCH_HISTORY);
+    }
+
+    try {
+        localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+        console.error('Failed to save search history:', e);
+    }
+}
+
+function applySearchHistoryItem(index) {
+    const history = getSearchHistory();
+    if (index < 0 || index >= history.length) return;
+
+    const item = history[index];
+
+    // Clear all filters first
+    elements.searchInput.value = '';
+    elements.filterOrigin.value = '';
+    elements.filterCategory.value = '';
+    elements.filterClass.innerHTML = '<option value="">All Subcategories</option>';
+    elements.filterStatus.value = '';
+    if (elements.filterSignal) elements.filterSignal.value = '';
+    elements.filterDateFrom.value = '';
+    elements.filterDateTo.value = '';
+    state.signalFilter = null;
+
+    // Apply saved filters
+    if (item.q) elements.searchInput.value = item.q;
+    if (item.origin) elements.filterOrigin.value = item.origin;
+    if (item.category) {
+        elements.filterCategory.value = item.category;
+        updateSubcategoryDropdown();
+    }
+    if (item.subcategory) elements.filterClass.value = item.subcategory;
+    if (item.status) elements.filterStatus.value = item.status;
+    if (item.signal && elements.filterSignal) elements.filterSignal.value = item.signal;
+    if (item.date_from) elements.filterDateFrom.value = item.date_from;
+    if (item.date_to) elements.filterDateTo.value = item.date_to;
+
+    // Execute search
+    state.currentPage = 1;
+    performSearch();
+}
+
+function clearSearchHistory() {
+    try {
+        localStorage.removeItem(SEARCH_HISTORY_KEY);
+        showSearchHistory(); // Refresh dropdown
+    } catch (e) {
+        console.error('Failed to clear search history:', e);
+    }
 }

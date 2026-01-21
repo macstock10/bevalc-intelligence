@@ -148,6 +148,316 @@
         .filter-help-link:hover {
             text-decoration: underline;
         }
+
+        /* Saved Searches Styles */
+        .saved-searches-wrapper {
+            position: relative;
+        }
+
+        .saved-searches-dropdown {
+            position: relative;
+        }
+
+        .saved-searches-dropdown > button {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .saved-searches-dropdown > button svg {
+            flex-shrink: 0;
+        }
+
+        .saved-searches-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 0.5rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            min-width: 280px;
+            max-width: 350px;
+            z-index: 100;
+        }
+
+        .saved-searches-menu.open {
+            display: block;
+        }
+
+        .saved-searches-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #1e293b;
+        }
+
+        .btn-save-current {
+            background: #0d9488;
+            color: white;
+            border: none;
+            padding: 0.35rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-save-current:hover {
+            background: #0f766e;
+        }
+
+        .saved-searches-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .saved-searches-empty {
+            padding: 1.5rem 1rem;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+
+        .saved-search-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .saved-search-item:hover {
+            background: #f8fafc;
+        }
+
+        .saved-search-item:last-child {
+            border-bottom: none;
+        }
+
+        .saved-search-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .saved-search-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .saved-search-date {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 0.15rem;
+        }
+
+        .saved-search-delete {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            padding: 0.25rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s;
+            margin-left: 0.5rem;
+        }
+
+        .saved-search-delete:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* Save Search Modal */
+        .save-search-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .save-search-modal.open {
+            display: flex;
+        }
+
+        .save-search-modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .save-search-modal h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1.125rem;
+            color: #1e293b;
+        }
+
+        .save-search-modal input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.9375rem;
+            margin-bottom: 1rem;
+        }
+
+        .save-search-modal input:focus {
+            outline: none;
+            border-color: #0d9488;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+        }
+
+        .save-search-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        .save-search-modal .btn-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .save-search-modal .btn-save {
+            background: #0d9488;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .save-search-modal .btn-save:hover {
+            background: #0f766e;
+        }
+
+        /* Search History Dropdown */
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-history-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 0.25rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 50;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .search-history-dropdown.open {
+            display: block;
+        }
+
+        .search-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .search-history-clear {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .search-history-clear:hover {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .search-history-list {
+            padding: 0.25rem 0;
+        }
+
+        .search-history-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .search-history-item:hover {
+            background: #f8fafc;
+        }
+
+        .search-history-item svg {
+            flex-shrink: 0;
+            color: #94a3b8;
+            width: 16px;
+            height: 16px;
+        }
+
+        .search-history-item .query {
+            flex: 1;
+            font-size: 0.9rem;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-history-item .filters-badge {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            background: #f1f5f9;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .search-history-empty {
+            padding: 1rem;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body>
@@ -242,8 +552,16 @@
                             <circle cx="11" cy="11" r="8"></circle>
                             <path d="m21 21-4.35-4.35"></path>
                         </svg>
-                        <input type="text" id="search-input" placeholder="Search brands, companies, TTB IDs...">
+                        <input type="text" id="search-input" placeholder="Search brands, companies, TTB IDs..." autocomplete="off">
                         <button class="search-btn" id="search-btn">Search</button>
+                    </div>
+                    <!-- Search History Dropdown -->
+                    <div class="search-history-dropdown" id="search-history-dropdown">
+                        <div class="search-history-header">
+                            <span>Recent Searches</span>
+                            <button class="search-history-clear" id="search-history-clear">Clear</button>
+                        </div>
+                        <div class="search-history-list" id="search-history-list"></div>
                     </div>
                 </div>
                 
@@ -310,6 +628,27 @@
                     </div>
                     
                     <button class="btn btn-secondary btn-small" id="clear-filters">Clear All</button>
+
+                    <!-- Saved Searches (Pro only) -->
+                    <div class="saved-searches-wrapper" id="saved-searches-wrapper" style="display: none;">
+                        <div class="saved-searches-dropdown">
+                            <button class="btn btn-secondary btn-small" id="saved-searches-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                Saved
+                            </button>
+                            <div class="saved-searches-menu" id="saved-searches-menu">
+                                <div class="saved-searches-header">
+                                    <span>Saved Searches</span>
+                                    <button class="btn-save-current" id="save-current-search">+ Save Current</button>
+                                </div>
+                                <div class="saved-searches-list" id="saved-searches-list">
+                                    <div class="saved-searches-empty">No saved searches</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="filter-help">
@@ -372,6 +711,18 @@
             </div>
         </div>
     </main>
+
+    <!-- Save Search Modal -->
+    <div class="save-search-modal" id="save-search-modal">
+        <div class="save-search-modal-content">
+            <h3>Save Current Search</h3>
+            <input type="text" id="save-search-name" placeholder="Enter a name for this search..." maxlength="100">
+            <div class="save-search-modal-actions">
+                <button class="btn-cancel" id="save-search-cancel">Cancel</button>
+                <button class="btn-save" id="save-search-confirm">Save</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Detail Modal -->
     <div class="modal-overlay" id="modal-overlay">

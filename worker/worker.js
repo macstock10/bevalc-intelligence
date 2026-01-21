@@ -328,6 +328,14 @@ export default {
             } else if (path === '/api/watchlist/remove' && request.method === 'POST') {
                 response = await handleRemoveFromWatchlist(request, env);
             }
+            // Saved searches endpoints
+            else if (path === '/api/saved-searches' && request.method === 'GET') {
+                response = await handleGetSavedSearches(url, env);
+            } else if (path === '/api/saved-searches' && request.method === 'POST') {
+                response = await handleSaveSavedSearch(request, env);
+            } else if (path === '/api/saved-searches' && request.method === 'DELETE') {
+                response = await handleDeleteSavedSearch(url, env);
+            }
             // Database endpoints
             else if (path === '/api/search') {
                 response = await handleSearch(url, env);
@@ -357,6 +365,8 @@ export default {
                 response = await handlePermitLeads(url, env);
             } else if (path === '/api/permits/stats' && request.method === 'GET') {
                 response = await handlePermitStats(env);
+            } else if (path === '/api/competitor-activity' && request.method === 'GET') {
+                response = await handleCompetitorActivity(url, env);
             } else {
                 response = { success: false, error: 'Not found' };
             }
@@ -1613,6 +1623,282 @@ async function syncWatchlistToLoops(email, type, value, isAdding, env) {
         return { success: true };
     } catch (e) {
         console.error('Loops watchlist sync error:', e.message);
+        return { success: false, error: e.message };
+    }
+}
+
+// ==========================================
+// SAVED SEARCHES HANDLERS
+// ==========================================
+
+async function handleGetSavedSearches(url, env) {
+    const email = url.searchParams.get('email');
+    const token = url.searchParams.get('token');
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    try {
+        // Verify user is Pro
+        const user = await env.DB.prepare(
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (!user || user.is_pro !== 1) {
+            return { success: false, error: 'Pro subscription required' };
+        }
+
+        // Verify token if provided
+        if (token && user.preferences_token && token !== user.preferences_token) {
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Get saved searches
+        const result = await env.DB.prepare(`
+            SELECT id, name, search_params, created_at
+            FROM saved_searches
+            WHERE email = ?
+            ORDER BY created_at DESC
+            LIMIT 50
+        `).bind(email.toLowerCase()).all();
+
+        return {
+            success: true,
+            searches: result.results || []
+        };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleSaveSavedSearch(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const { email, name, search_params, token } = body;
+
+    if (!email || !name || !search_params) {
+        return { success: false, error: 'Email, name, and search_params required' };
+    }
+
+    if (name.length > 100) {
+        return { success: false, error: 'Name must be 100 characters or less' };
+    }
+
+    try {
+        // Verify user is Pro
+        const user = await env.DB.prepare(
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (!user || user.is_pro !== 1) {
+            return { success: false, error: 'Pro subscription required' };
+        }
+
+        // Verify token if provided
+        if (token && user.preferences_token && token !== user.preferences_token) {
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Check limit (max 20 saved searches per user)
+        const countResult = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM saved_searches WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (countResult && countResult.count >= 20) {
+            return { success: false, error: 'Maximum 20 saved searches allowed. Delete some to save more.' };
+        }
+
+        // Save the search
+        const paramsJson = typeof search_params === 'string' ? search_params : JSON.stringify(search_params);
+
+        await env.DB.prepare(`
+            INSERT INTO saved_searches (email, name, search_params)
+            VALUES (?, ?, ?)
+        `).bind(email.toLowerCase(), name.trim(), paramsJson).run();
+
+        return { success: true, message: 'Search saved' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleDeleteSavedSearch(url, env) {
+    const email = url.searchParams.get('email');
+    const id = url.searchParams.get('id');
+    const token = url.searchParams.get('token');
+
+    if (!email || !id) {
+        return { success: false, error: 'Email and id required' };
+    }
+
+    try {
+        // Verify user exists
+        const user = await env.DB.prepare(
+            'SELECT preferences_token FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        // Verify token if provided
+        if (token && user && user.preferences_token && token !== user.preferences_token) {
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Delete the search (only if it belongs to this user)
+        await env.DB.prepare(`
+            DELETE FROM saved_searches WHERE id = ? AND email = ?
+        `).bind(parseInt(id), email.toLowerCase()).run();
+
+        return { success: true, message: 'Search deleted' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// ==========================================
+// COMPETITOR ACTIVITY HANDLER
+// ==========================================
+
+async function handleCompetitorActivity(url, env) {
+    const email = url.searchParams.get('email');
+    const token = url.searchParams.get('token');
+
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+    try {
+        // Verify user is Pro
+        const user = await env.DB.prepare(
+            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+
+        if (!user || user.is_pro !== 1) {
+            return { success: false, error: 'Pro subscription required' };
+        }
+
+        // Verify token if provided
+        if (token && user.preferences_token && token !== user.preferences_token) {
+            return { success: false, error: 'Invalid token' };
+        }
+
+        // Get user's watched companies from watchlist
+        const watchlistResult = await env.DB.prepare(`
+            SELECT value FROM watchlist
+            WHERE email = ? AND type = 'company'
+        `).bind(email.toLowerCase()).all();
+
+        const watchedCompanies = (watchlistResult.results || []).map(r => r.value);
+
+        if (watchedCompanies.length === 0) {
+            return {
+                success: true,
+                companies: [],
+                message: 'No companies in your watchlist'
+            };
+        }
+
+        // Calculate date boundaries
+        const now = new Date();
+        const oneWeekAgo = new Date(now);
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const oneMonthAgo = new Date(now);
+        oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+
+        // Format dates for SQL comparison
+        const formatDateForSql = (date) => {
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            const y = date.getFullYear();
+            return `${m}/${d}/${y}`;
+        };
+
+        const weekDate = formatDateForSql(oneWeekAgo);
+        const monthDate = formatDateForSql(oneMonthAgo);
+
+        // Build activity data for each watched company
+        const companyActivity = [];
+
+        for (const companyName of watchedCompanies) {
+            // Get company's total, 7-day, and 30-day filing counts
+            const statsQuery = `
+                SELECT
+                    COUNT(*) as total_filings,
+                    SUM(CASE WHEN
+                        CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) > CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                        OR (CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) = CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 1, 2) AS INTEGER) > CAST(SUBSTR(?, 1, 2) AS INTEGER))
+                        OR (CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) = CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 1, 2) AS INTEGER) = CAST(SUBSTR(?, 1, 2) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) >= CAST(SUBSTR(?, 4, 2) AS INTEGER))
+                    THEN 1 ELSE 0 END) as week_filings,
+                    SUM(CASE WHEN
+                        CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) > CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                        OR (CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) = CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 1, 2) AS INTEGER) > CAST(SUBSTR(?, 1, 2) AS INTEGER))
+                        OR (CAST(SUBSTR(approval_date, 7, 4) AS INTEGER) = CAST(SUBSTR(?, 7, 4) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 1, 2) AS INTEGER) = CAST(SUBSTR(?, 1, 2) AS INTEGER)
+                            AND CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) >= CAST(SUBSTR(?, 4, 2) AS INTEGER))
+                    THEN 1 ELSE 0 END) as month_filings
+                FROM colas
+                WHERE company_name = ?
+            `;
+
+            const statsResult = await env.DB.prepare(statsQuery)
+                .bind(weekDate, weekDate, weekDate, weekDate, weekDate, weekDate,
+                      monthDate, monthDate, monthDate, monthDate, monthDate, monthDate,
+                      companyName).first();
+
+            // Get recent new brands for this company
+            const recentBrandsResult = await env.DB.prepare(`
+                SELECT DISTINCT brand_name, approval_date, signal
+                FROM colas
+                WHERE company_name = ? AND signal IN ('NEW_BRAND', 'NEW_COMPANY')
+                ORDER BY year DESC, month DESC, day DESC
+                LIMIT 5
+            `).bind(companyName).all();
+
+            // Get category breakdown
+            const categoryResult = await env.DB.prepare(`
+                SELECT category, COUNT(*) as count
+                FROM colas
+                WHERE company_name = ?
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT 5
+            `).bind(companyName).all();
+
+            companyActivity.push({
+                company_name: companyName,
+                total_filings: statsResult?.total_filings || 0,
+                week_filings: statsResult?.week_filings || 0,
+                month_filings: statsResult?.month_filings || 0,
+                recent_brands: (recentBrandsResult.results || []).map(b => ({
+                    name: b.brand_name,
+                    date: b.approval_date,
+                    signal: b.signal
+                })),
+                top_categories: (categoryResult.results || []).map(c => ({
+                    category: c.category,
+                    count: c.count
+                }))
+            });
+        }
+
+        // Sort by month_filings (most active first)
+        companyActivity.sort((a, b) => b.month_filings - a.month_filings);
+
+        return {
+            success: true,
+            companies: companyActivity,
+            as_of: new Date().toISOString()
+        };
+    } catch (e) {
+        console.error('Competitor activity error:', e);
         return { success: false, error: e.message };
     }
 }
