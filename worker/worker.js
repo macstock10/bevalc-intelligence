@@ -6592,11 +6592,33 @@ async function searchCompanyContacts(companyName, env) {
     }
 
     try {
-        // Build SQL query to find decision-makers at this company
+        // Step 1: Clean/normalize company name using PDL Company Cleaner
+        let searchName = companyName;
+        try {
+            const cleanResponse = await fetch(`https://api.peopledatalabs.com/v5/company/clean?name=${encodeURIComponent(companyName)}`, {
+                method: 'GET',
+                headers: {
+                    'X-Api-Key': env.PEOPLE_DATA_LABS_API_KEY
+                }
+            });
+
+            if (cleanResponse.ok) {
+                const cleanData = await cleanResponse.json();
+                if (cleanData.name) {
+                    searchName = cleanData.name;
+                    console.log(`[PDL] Cleaned: "${companyName}" → "${searchName}"`);
+                }
+            }
+        } catch (e) {
+            console.log('[PDL] Company cleaner failed, using original name');
+            // Continue with original name
+        }
+
+        // Step 2: Build SQL query to find decision-makers at this company
         // Use SQL instead of Elasticsearch for simplicity
         const sqlQuery = `
             SELECT * FROM person
-            WHERE job_company_name='${companyName.replace(/'/g, "''")}'
+            WHERE job_company_name='${searchName.replace(/'/g, "''")}'
             AND (
                 job_title_levels LIKE '%director%'
                 OR job_title_levels LIKE '%vp%'

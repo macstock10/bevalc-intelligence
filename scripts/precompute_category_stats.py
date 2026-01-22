@@ -125,7 +125,7 @@ def compute_category_stats(category: str) -> dict:
     # 6. Latest filing date (to show "Data through X")
     logger.info(f"  [{category}] Latest filing date...")
     result = d1_execute(f"""
-        SELECT MAX(year * 10000 + month * 100 + day) as latest_numeric
+        SELECT MAX(year * 10000 + month * 100 + COALESCE(day, 1)) as latest_numeric
         FROM colas
         WHERE category = '{category}'
     """)
