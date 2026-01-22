@@ -2704,7 +2704,7 @@ async function handlePermitLeads(url, env) {
 
     // Get leads
     const dataResult = await env.DB.prepare(`
-        SELECT permit_number, owner_name, operating_name, city, state, industry_type, is_new
+        SELECT permit_number, owner_name, operating_name, street, city, state, zip, county, industry_type, is_new, first_seen_at, updated_at
         FROM permits
         WHERE ${whereClause}
         ORDER BY is_new DESC, owner_name ASC

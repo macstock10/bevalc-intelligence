@@ -399,6 +399,26 @@
         <div class="loading"><span class="loading-spinner"></span>Loading...</div>
     </div>
 
+    <!-- Permit Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="modal-title">Company Name</h2>
+                    <p class="modal-subtitle" id="modal-subtitle">Permit Number</p>
+                </div>
+                <button class="modal-close" id="modal-close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
     <footer class="footer">
         <div class="footer-container">
             <div class="footer-grid">
@@ -452,6 +472,7 @@
         let currentFilters = { permit_type: '', state: '' };
         let userEmail = null;
         let isPro = false;
+        let permitsData = []; // Store permit data for modal access
 
         async function init() {
             // Setup nav
@@ -645,18 +666,20 @@
 
         function renderLeads(leads) {
             const tbody = document.getElementById('leads-body');
+            permitsData = leads; // Store for modal access
+
             if (leads.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:48px;">No permits found matching your filters.</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = leads.map(lead => {
+            tbody.innerHTML = leads.map((lead, index) => {
                 const typeClass = lead.industry_type === 'Importer (Alcohol)' ? 'importer' :
                                   lead.industry_type === 'Wine Producer' ? 'winery' : 'distillery';
                 const typeLabel = lead.industry_type === 'Importer (Alcohol)' ? 'Importer' :
                                   lead.industry_type === 'Wine Producer' ? 'Winery' : 'Distillery';
                 return `
-                    <tr>
+                    <tr onclick="openPermitModal(${index})" style="cursor: pointer;">
                         <td><span class="company-name">${escapeHtml(lead.owner_name)}</span>${lead.is_new ? '<span class="new-badge">NEW</span>' : ''}</td>
                         <td>${escapeHtml(lead.operating_name || '-')}</td>
                         <td><span class="permit-badge ${typeClass}">${typeLabel}</span></td>
@@ -792,6 +815,116 @@
             if (!e.target.closest('.nav-dropdown')) {
                 document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
             }
+        });
+
+        // Modal functions
+        function openPermitModal(index) {
+            const permit = permitsData[index];
+            if (!permit) return;
+
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const modalSubtitle = document.getElementById('modal-subtitle');
+            const modalBody = document.getElementById('modal-body');
+
+            // Type badge
+            const typeClass = permit.industry_type === 'Importer (Alcohol)' ? 'importer' :
+                              permit.industry_type === 'Wine Producer' ? 'winery' : 'distillery';
+            const typeLabel = permit.industry_type === 'Importer (Alcohol)' ? 'Importer' :
+                              permit.industry_type === 'Wine Producer' ? 'Winery' : 'Distillery';
+
+            // Set title with company name and NEW badge if applicable
+            modalTitle.innerHTML = `${escapeHtml(permit.owner_name)}${permit.is_new ? '<span class="new-badge" style="margin-left: 12px;">NEW</span>' : ''}`;
+            modalSubtitle.textContent = permit.permit_number;
+
+            // Format address
+            let addressParts = [];
+            if (permit.street) addressParts.push(permit.street);
+            let cityStateZip = [];
+            if (permit.city) cityStateZip.push(permit.city);
+            if (permit.state) cityStateZip.push(permit.state);
+            if (permit.zip) cityStateZip.push(permit.zip);
+            if (cityStateZip.length > 0) addressParts.push(cityStateZip.join(', '));
+            const fullAddress = addressParts.join('<br>');
+
+            // Format dates
+            const firstSeen = permit.first_seen_at ? new Date(permit.first_seen_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            const lastUpdated = permit.updated_at ? new Date(permit.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+
+            // Google search link for company research
+            const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(permit.owner_name + ' ' + (permit.operating_name || '') + ' ' + (permit.city || '') + ' ' + (permit.state || ''))}`;
+
+            // Build modal body
+            modalBody.innerHTML = `
+                <div class="modal-section">
+                    <h4>Permit Information</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Permit Number</span>
+                            <span class="detail-value" style="font-family: monospace;">${escapeHtml(permit.permit_number)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Permit Type</span>
+                            <span class="detail-value"><span class="permit-badge ${typeClass}">${typeLabel}</span></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">First Seen</span>
+                            <span class="detail-value">${firstSeen}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Last Updated</span>
+                            <span class="detail-value">${lastUpdated}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-section">
+                    <h4>Company Information</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Legal Name</span>
+                            <span class="detail-value">${escapeHtml(permit.owner_name)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">DBA / Trade Name</span>
+                            <span class="detail-value">${escapeHtml(permit.operating_name || '-')}</span>
+                        </div>
+                        <div class="detail-item" style="grid-column: span 2;">
+                            <span class="detail-label">Address</span>
+                            <span class="detail-value">${fullAddress || '-'}</span>
+                        </div>
+                        ${permit.county ? `
+                        <div class="detail-item">
+                            <span class="detail-label">County</span>
+                            <span class="detail-value">${escapeHtml(permit.county)}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="modal-section" style="border-bottom: none;">
+                    <h4>Research</h4>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <a href="${googleSearchUrl}" target="_blank" rel="noopener" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); text-decoration: none; font-size: 0.875rem; font-weight: 500;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+                            Search Google
+                        </a>
+                    </div>
+                </div>
+            `;
+
+            modalOverlay.classList.add('active');
+        }
+
+        function closePermitModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        // Modal event listeners
+        document.getElementById('modal-close')?.addEventListener('click', closePermitModal);
+        document.getElementById('modal-overlay')?.addEventListener('click', function(e) {
+            if (e.target === this) closePermitModal();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closePermitModal();
         });
 
         init();
