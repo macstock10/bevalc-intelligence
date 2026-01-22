@@ -5757,11 +5757,64 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
 // Rate limiting helper
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Single Google Custom Search query with rate limiting and retry
+// Hash a string for cache key (simple hash, not crypto)
+async function hashQuery(query) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(query.toLowerCase().trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+}
+
+// Check search cache for existing results
+async function getSearchCache(query, env) {
+    try {
+        const queryHash = await hashQuery(query);
+        const result = await env.DB.prepare(
+            'SELECT results FROM search_cache WHERE query_hash = ? AND expires_at > datetime("now")'
+        ).bind(queryHash).first();
+
+        if (result) {
+            console.log(`[Google] Cache HIT for: "${query}"`);
+            return JSON.parse(result.results);
+        }
+        return null;
+    } catch (e) {
+        console.error('Cache lookup failed:', e);
+        return null;
+    }
+}
+
+// Save search results to cache (30-day TTL)
+async function saveSearchCache(query, results, env) {
+    try {
+        const queryHash = await hashQuery(query);
+        const now = new Date().toISOString();
+        const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        await env.DB.prepare(
+            'INSERT OR REPLACE INTO search_cache (query_hash, query, results, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(queryHash, query, JSON.stringify(results), now, expires).run();
+
+        console.log(`[Google] Cached results for: "${query}"`);
+    } catch (e) {
+        console.error('Cache save failed:', e);
+    }
+}
+
+// Single Google Custom Search query with caching, rate limiting, and retry
 async function googleSearch(query, env, retryCount = 0) {
     if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
         console.error('Google CSE credentials not configured');
         return [];
+    }
+
+    // Check cache first (only on first attempt, not retries)
+    if (retryCount === 0) {
+        const cached = await getSearchCache(query, env);
+        if (cached) {
+            return cached;
+        }
     }
 
     const maxRetries = 2;
@@ -5794,8 +5847,15 @@ async function googleSearch(query, env, retryCount = 0) {
         }
 
         const data = await response.json();
-        console.log(`[Google] Found ${data.items?.length || 0} results`);
-        return data.items || [];
+        const results = data.items || [];
+        console.log(`[Google] Found ${results.length} results`);
+
+        // Cache successful results
+        if (results.length > 0) {
+            await saveSearchCache(query, results, env);
+        }
+
+        return results;
     } catch (e) {
         console.error('Google search failed:', e);
         return [];
