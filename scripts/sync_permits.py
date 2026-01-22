@@ -279,15 +279,12 @@ def save_permits_json(permits: List[Dict]):
 # DATABASE SCHEMA
 # ============================================================================
 
-def create_permits_table():
-    """Create the permits table if it doesn't exist."""
-    logger.info("Creating permits table...")
-
-    # Drop and recreate for clean state
-    d1_query("DROP TABLE IF EXISTS permits")
+def ensure_permits_table():
+    """Create the permits table if it doesn't exist (preserves existing data)."""
+    logger.info("Ensuring permits table exists...")
 
     create_sql = """
-        CREATE TABLE permits (
+        CREATE TABLE IF NOT EXISTS permits (
             permit_number TEXT PRIMARY KEY,
             owner_name TEXT NOT NULL,
             operating_name TEXT,
@@ -305,17 +302,21 @@ def create_permits_table():
     """
     d1_query(create_sql)
 
-    # Create indexes
+    # Create indexes if they don't exist
     indexes = [
-        "CREATE INDEX idx_permits_company_id ON permits(company_id)",
-        "CREATE INDEX idx_permits_industry_type ON permits(industry_type)",
-        "CREATE INDEX idx_permits_state ON permits(state)",
-        "CREATE INDEX idx_permits_owner_name ON permits(owner_name)",
+        "CREATE INDEX IF NOT EXISTS idx_permits_company_id ON permits(company_id)",
+        "CREATE INDEX IF NOT EXISTS idx_permits_industry_type ON permits(industry_type)",
+        "CREATE INDEX IF NOT EXISTS idx_permits_state ON permits(state)",
+        "CREATE INDEX IF NOT EXISTS idx_permits_owner_name ON permits(owner_name)",
+        "CREATE INDEX IF NOT EXISTS idx_permits_is_new ON permits(is_new)",
     ]
     for idx_sql in indexes:
-        d1_query(idx_sql)
+        try:
+            d1_query(idx_sql)
+        except Exception as e:
+            pass  # Index may already exist
 
-    logger.info("Permits table created with indexes")
+    logger.info("Permits table ready")
 
 
 # ============================================================================
@@ -323,7 +324,7 @@ def create_permits_table():
 # ============================================================================
 
 def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: Dict[str, int], dry_run: bool = False):
-    """Sync permits to D1 with improved matching."""
+    """Sync permits to D1 with improved matching. Preserves first_seen_at for existing permits."""
     logger.info(f"Syncing {len(permits):,} permits to D1...")
 
     now = datetime.now(timezone.utc).isoformat()
@@ -356,7 +357,6 @@ def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: D
                 fuzzy_match_count += 1
 
         permit['company_id'] = company_id
-        permit['first_seen_at'] = now
         permit['updated_at'] = now
 
         if company_id:
@@ -376,43 +376,54 @@ def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: D
         logger.info("DRY RUN - skipping database insert")
         return
 
-    # Create fresh table
-    create_permits_table()
+    # Ensure table exists (preserves existing data)
+    ensure_permits_table()
 
-    # Insert in batches
+    # UPSERT in batches - preserves first_seen_at for existing permits
     batch_size = 100
     for i in range(0, len(permits), batch_size):
         batch = permits[i:i + batch_size]
-        values = []
 
         for p in batch:
             company_id_str = str(p['company_id']) if p['company_id'] else 'NULL'
-            values.append(f"""(
-                '{escape_sql(p['permit_number'])}',
-                '{escape_sql(p['owner_name'])}',
-                '{escape_sql(p['operating_name'])}',
-                '{escape_sql(p['street'])}',
-                '{escape_sql(p['city'])}',
-                '{escape_sql(p['state'])}',
-                '{escape_sql(p['zip'])}',
-                '{escape_sql(p['county'])}',
-                '{escape_sql(p['industry_type'])}',
-                {p['is_new']},
-                {company_id_str},
-                '{p['first_seen_at']}',
-                '{p['updated_at']}'
-            )""")
 
-        sql = f"""
-            INSERT INTO permits
-            (permit_number, owner_name, operating_name, street, city, state, zip,
-             county, industry_type, is_new, company_id, first_seen_at, updated_at)
-            VALUES {', '.join(values)}
-        """
-        d1_query(sql)
+            # Use INSERT ... ON CONFLICT to preserve first_seen_at for existing permits
+            sql = f"""
+                INSERT INTO permits
+                (permit_number, owner_name, operating_name, street, city, state, zip,
+                 county, industry_type, is_new, company_id, first_seen_at, updated_at)
+                VALUES (
+                    '{escape_sql(p['permit_number'])}',
+                    '{escape_sql(p['owner_name'])}',
+                    '{escape_sql(p['operating_name'])}',
+                    '{escape_sql(p['street'])}',
+                    '{escape_sql(p['city'])}',
+                    '{escape_sql(p['state'])}',
+                    '{escape_sql(p['zip'])}',
+                    '{escape_sql(p['county'])}',
+                    '{escape_sql(p['industry_type'])}',
+                    {p['is_new']},
+                    {company_id_str},
+                    '{now}',
+                    '{p['updated_at']}'
+                )
+                ON CONFLICT(permit_number) DO UPDATE SET
+                    owner_name = excluded.owner_name,
+                    operating_name = excluded.operating_name,
+                    street = excluded.street,
+                    city = excluded.city,
+                    state = excluded.state,
+                    zip = excluded.zip,
+                    county = excluded.county,
+                    industry_type = excluded.industry_type,
+                    is_new = excluded.is_new,
+                    company_id = excluded.company_id,
+                    updated_at = excluded.updated_at
+            """
+            d1_query(sql)
 
         if (i + batch_size) % 5000 == 0 or i + batch_size >= len(permits):
-            logger.info(f"  Inserted {min(i + batch_size, len(permits)):,}/{len(permits):,} permits")
+            logger.info(f"  Synced {min(i + batch_size, len(permits)):,}/{len(permits):,} permits")
 
     logger.info("Permit sync complete!")
 
