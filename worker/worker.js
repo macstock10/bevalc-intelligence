@@ -4479,7 +4479,7 @@ async function handleHubPage(categorySlug, env, headers) {
                         <div class="hub-stat-label">New Companies (30d)</div>
                     </a>
                 </div>
-                <div class="hub-data-updated">Data through ${cachedStats?.latest_filing_date || (cachedStats?.updated_at ? new Date(cachedStats.updated_at) : now).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}</div>
+                <div class="hub-data-updated">Data through ${now.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}</div>
 
                 <div class="hub-upgrade-banner" id="upgrade-banner">
                     <span class="upgrade-icon">🔔</span>
