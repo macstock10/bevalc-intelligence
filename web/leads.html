@@ -849,10 +849,6 @@
 
             // Format dates
             const firstSeen = permit.first_seen_at ? new Date(permit.first_seen_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
-            const lastUpdated = permit.updated_at ? new Date(permit.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
-
-            // Google search link for company research
-            const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(permit.owner_name + ' ' + (permit.operating_name || '') + ' ' + (permit.city || '') + ' ' + (permit.state || ''))}`;
 
             // Build modal body
             modalBody.innerHTML = `
@@ -871,13 +867,9 @@
                             <span class="detail-label">First Seen</span>
                             <span class="detail-value">${firstSeen}</span>
                         </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Last Updated</span>
-                            <span class="detail-value">${lastUpdated}</span>
-                        </div>
                     </div>
                 </div>
-                <div class="modal-section">
+                <div class="modal-section" style="border-bottom: none;">
                     <h4>Company Information</h4>
                     <div class="detail-grid">
                         <div class="detail-item">
@@ -898,15 +890,6 @@
                             <span class="detail-value">${escapeHtml(permit.county)}</span>
                         </div>
                         ` : ''}
-                    </div>
-                </div>
-                <div class="modal-section" style="border-bottom: none;">
-                    <h4>Research</h4>
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <a href="${googleSearchUrl}" target="_blank" rel="noopener" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); text-decoration: none; font-size: 0.875rem; font-weight: 500;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-                            Search Google
-                        </a>
                     </div>
                 </div>
             `;
