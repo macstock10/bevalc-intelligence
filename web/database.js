@@ -1502,6 +1502,34 @@ function renderTearsheet(tearsheet, cached) {
                 </div>
             ` : ''}
 
+            ${(tearsheet.contacts && tearsheet.contacts.length > 0) ? `
+                <div class="tearsheet-field" style="margin-top: 16px;">
+                    <span class="tearsheet-field-label">Key Contacts</span>
+                    <div style="margin-top: 8px;">
+                        ${tearsheet.contacts.slice(0, 3).map(contact => `
+                            <div style="padding: 10px; margin-bottom: 8px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #0d9488;">
+                                <div style="font-size: 0.9rem; font-weight: 600; color: var(--color-dark);">${escapeHtml(contact.name)}</div>
+                                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">${escapeHtml(contact.title)}</div>
+                                ${contact.email ? `
+                                    <div style="font-size: 0.75rem; color: #0d9488; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                            <polyline points="22,6 12,13 2,6"></polyline>
+                                        </svg>
+                                        ${escapeHtml(contact.email)}
+                                    </div>
+                                ` : ''}
+                                ${contact.linkedin ? `
+                                    <div style="font-size: 0.75rem; color: #0d9488; margin-top: 2px;">
+                                        <a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">LinkedIn Profile →</a>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- Quick Stats Preview (3 metrics) -->
             <div style="display: flex; gap: 20px; margin: 16px 0; justify-content: center;">
                 <div style="text-align: center; padding: 12px 16px; background: #f8fafc; border-radius: 8px; min-width: 70px;">
@@ -1545,18 +1573,7 @@ function renderTearsheet(tearsheet, cached) {
             </button>
 
             <div style="margin-top: 12px; padding: 8px 12px; background: #fefce8; border-radius: 6px; text-align: center;">
-                <p style="font-size: 0.7rem; color: #a16207; margin: 0;">Our generated content may contain irrelevancies. Please verify before use.</p>
-            </div>
-
-            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center;">
-                <a href="mailto:hello@bevalcintel.com?subject=Contact%20info%20request:%20${encodeURIComponent(tearsheet.company_name || '')}&body=I'd%20like%20contact%20information%20for%20${encodeURIComponent(tearsheet.company_name || '')}%0A%0ASpecifically%20looking%20for:%0A"
-                   style="color: #64748b; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                    Want contact info? Let us know
-                </a>
+                <p style="font-size: 0.7rem; color: #a16207; margin: 0;">AI-generated content may contain inaccuracies. Please verify before use.</p>
             </div>
         </div>
     `;

@@ -122,6 +122,26 @@ def compute_category_stats(category: str) -> dict:
     top_brands = get_results(result)
     logger.info(f"  [{category}] Top brands: {len(top_brands)}")
 
+    # 6. Latest filing date (to show "Data through X")
+    logger.info(f"  [{category}] Latest filing date...")
+    result = d1_execute(f"""
+        SELECT MAX(year * 10000 + month * 100 + day) as latest_numeric
+        FROM colas
+        WHERE category = '{category}'
+    """)
+    rows = get_results(result)
+    latest_numeric = rows[0]['latest_numeric'] if rows and rows[0]['latest_numeric'] else 0
+
+    # Convert to MM/DD/YYYY
+    if latest_numeric > 0:
+        latest_year = latest_numeric // 10000
+        latest_month = (latest_numeric % 10000) // 100
+        latest_day = latest_numeric % 100
+        latest_filing_date = f"{latest_month:02d}/{latest_day:02d}/{latest_year}"
+    else:
+        latest_filing_date = None
+
+    logger.info(f"  [{category}] Latest filing: {latest_filing_date}")
     logger.info(f"  [{category}] Done!")
 
     return {
@@ -131,15 +151,19 @@ def compute_category_stats(category: str) -> dict:
         'month_new_companies': month_new_companies,
         'top_companies': json.dumps(top_companies),
         'top_brands': json.dumps(top_brands),
+        'latest_filing_date': latest_filing_date,
         'updated_at': now.isoformat()
     }
 
 
 def save_stats(stats: dict):
     """Save stats to category_stats table."""
+    latest_filing = stats.get('latest_filing_date')
+    latest_sql = f"'{latest_filing}'" if latest_filing else 'NULL'
+
     sql = f"""
         INSERT OR REPLACE INTO category_stats
-        (category, total_filings, week_filings, month_new_companies, top_companies, top_brands, updated_at)
+        (category, total_filings, week_filings, month_new_companies, top_companies, top_brands, latest_filing_date, updated_at)
         VALUES (
             '{stats['category']}',
             {stats['total_filings']},
@@ -147,6 +171,7 @@ def save_stats(stats: dict):
             {stats['month_new_companies']},
             '{stats['top_companies'].replace("'", "''")}',
             '{stats['top_brands'].replace("'", "''")}',
+            {latest_sql},
             '{stats['updated_at']}'
         )
     """

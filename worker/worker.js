@@ -4310,7 +4310,7 @@ async function handleHubPage(categorySlug, env, headers) {
 
         // First, check for cached stats (precomputed daily for heavy categories like Wine/Beer)
         const cachedStats = await env.DB.prepare(
-            `SELECT total_filings, week_filings, month_new_companies, top_companies, top_brands, updated_at
+            `SELECT total_filings, week_filings, month_new_companies, top_companies, top_brands, latest_filing_date, updated_at
              FROM category_stats WHERE category = ?`
         ).bind(category).first();
 
@@ -4479,7 +4479,7 @@ async function handleHubPage(categorySlug, env, headers) {
                         <div class="hub-stat-label">New Companies (30d)</div>
                     </a>
                 </div>
-                <div class="hub-data-updated">Data updated: ${(cachedStats?.updated_at ? new Date(cachedStats.updated_at) : now).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}</div>
+                <div class="hub-data-updated">Data through ${cachedStats?.latest_filing_date || (cachedStats?.updated_at ? new Date(cachedStats.updated_at) : now).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}</div>
 
                 <div class="hub-upgrade-banner" id="upgrade-banner">
                     <span class="upgrade-icon">🔔</span>
@@ -5716,6 +5716,19 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         // Continue with partial results
     }
 
+    // Step 4: Search for contacts using People Data Labs
+    let contacts = [];
+    if (env.PEOPLE_DATA_LABS_API_KEY) {
+        try {
+            console.log(`[Enhancement] Searching for contacts via PDL...`);
+            contacts = await searchCompanyContacts(companyName, env);
+            console.log(`[Enhancement] Found ${contacts.length} contacts`);
+        } catch (e) {
+            console.error('[Enhancement] Error fetching contacts:', e);
+            // Continue without contacts
+        }
+    }
+
     return {
         company_id: companyId,
         company_name: companyName,
@@ -5736,7 +5749,7 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
             acc[c.class_type_code] = c.count;
             return acc;
         }, {}) || {},
-        contacts: [],
+        contacts,
         news,
         social: social || null,
         summary,
@@ -6563,6 +6576,84 @@ function getIndustryHint(categories) {
 }
 
 // ============================================================================
+// PEOPLE DATA LABS CONTACT SEARCH
+// ============================================================================
+
+/**
+ * Search for contacts at a company using People Data Labs Person Search API
+ * @param {string} companyName - Raw company name from TTB
+ * @param {object} env - Worker environment with PEOPLE_DATA_LABS_API_KEY
+ * @returns {Promise<Array>} - Array of contact objects
+ */
+async function searchCompanyContacts(companyName, env) {
+    if (!env.PEOPLE_DATA_LABS_API_KEY) {
+        console.error('[PDL] API key not configured');
+        return [];
+    }
+
+    try {
+        // Build SQL query to find decision-makers at this company
+        // Use SQL instead of Elasticsearch for simplicity
+        const sqlQuery = `
+            SELECT * FROM person
+            WHERE job_company_name='${companyName.replace(/'/g, "''")}'
+            AND (
+                job_title_levels LIKE '%director%'
+                OR job_title_levels LIKE '%vp%'
+                OR job_title_levels LIKE '%c_suite%'
+                OR job_title_levels LIKE '%owner%'
+            )
+            AND (
+                work_email IS NOT NULL
+                OR mobile_phone IS NOT NULL
+            )
+        `.trim();
+
+        const requestBody = JSON.stringify({
+            sql: sqlQuery,
+            size: 5,  // Limit to top 5 contacts
+            dataset: 'all',
+            pretty: false
+        });
+
+        // Make POST request to PDL Person Search API
+        const response = await fetch('https://api.peopledatalabs.com/v5/person/search', {
+            method: 'POST',
+            headers: {
+                'X-Api-Key': env.PEOPLE_DATA_LABS_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: requestBody
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log(`[PDL] No contacts found for: ${companyName}`);
+                return [];
+            }
+            throw new Error(`PDL API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const people = data.data || [];
+
+        // Format contacts for enhancement response
+        return people.map(person => ({
+            name: person.full_name || 'Unknown',
+            title: person.job_title || 'Unknown',
+            email: person.work_email || (person.emails && person.emails[0]?.address) || null,
+            phone: person.mobile_phone || (person.phone_numbers && person.phone_numbers[0]) || null,
+            linkedin: person.linkedin_url || null,
+            location: person.location_name || null
+        }));
+
+    } catch (error) {
+        console.error('[PDL] Contact search failed:', error);
+        return [];
+    }
+}
+
+// ============================================================================
 // OLD ENHANCEMENT FUNCTION (kept for rollback - now commented out)
 // ============================================================================
 
@@ -6718,8 +6809,8 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
     await env.DB.prepare(`
         INSERT OR REPLACE INTO company_enhancements
         (company_id, company_name, website_url, website_confidence, filing_stats,
-         distribution_states, brand_portfolio, category_breakdown, summary, news, social_links, enhanced_at, enhanced_by, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         distribution_states, brand_portfolio, category_breakdown, summary, news, social_links, contacts, enhanced_at, enhanced_by, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         companyId,
         companyName,
@@ -6732,6 +6823,7 @@ async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
         tearsheet.summary || null,
         JSON.stringify(tearsheet.news || []),
         JSON.stringify(tearsheet.social || null),
+        JSON.stringify(tearsheet.contacts || []),
         now,
         email,
         expiresAt
