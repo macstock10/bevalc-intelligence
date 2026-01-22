@@ -323,6 +323,41 @@ def ensure_permits_table():
 # SYNC LOGIC
 # ============================================================================
 
+def load_existing_first_seen() -> Dict[str, str]:
+    """Load existing permit first_seen_at values from D1."""
+    logger.info("Loading existing permit timestamps...")
+    existing = {}
+
+    offset = 0
+    batch_size = 10000
+
+    while True:
+        try:
+            results = d1_query(f"""
+                SELECT permit_number, first_seen_at
+                FROM permits
+                WHERE first_seen_at IS NOT NULL
+                LIMIT {batch_size} OFFSET {offset}
+            """)
+
+            if not results:
+                break
+
+            for row in results:
+                existing[row['permit_number']] = row['first_seen_at']
+
+            offset += batch_size
+            if len(results) < batch_size:
+                break
+        except Exception as e:
+            # Table might not exist yet
+            logger.info(f"Could not load existing timestamps: {e}")
+            break
+
+    logger.info(f"Loaded {len(existing):,} existing permit timestamps")
+    return existing
+
+
 def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: Dict[str, int], dry_run: bool = False):
     """Sync permits to D1 with improved matching. Preserves first_seen_at for existing permits."""
     logger.info(f"Syncing {len(permits):,} permits to D1...")
@@ -332,6 +367,9 @@ def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: D
     key_match = 0
     fuzzy_match_count = 0
     unmatched = 0
+
+    # Load existing first_seen_at timestamps BEFORE we modify the table
+    existing_timestamps = load_existing_first_seen()
 
     # Match permits to companies using tiered approach
     for permit in permits:
@@ -350,14 +388,18 @@ def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: D
                 if company_id:
                     key_match += 1
 
-        # Tier 3: Fuzzy match on normalized name (expensive, only for unmatched)
-        if not company_id and norm and len(norm) > 5:
-            company_id = fuzzy_match(norm, name_lookup, threshold=0.92)
-            if company_id:
-                fuzzy_match_count += 1
+        # Tier 3: Fuzzy match DISABLED - too slow for 82K permits
+        # If needed, run as separate batch job
+        # if not company_id and norm and len(norm) > 5:
+        #     company_id = fuzzy_match(norm, name_lookup, threshold=0.92)
+        #     if company_id:
+        #         fuzzy_match_count += 1
 
         permit['company_id'] = company_id
         permit['updated_at'] = now
+
+        # Preserve first_seen_at for existing permits, set to now for new ones
+        permit['first_seen_at'] = existing_timestamps.get(permit['permit_number'], now)
 
         if company_id:
             if not key_match and not fuzzy_match_count:
@@ -366,64 +408,57 @@ def sync_permits(permits: List[Dict], name_lookup: Dict[str, int], key_lookup: D
             unmatched += 1
 
     total_matched = exact_match + key_match + fuzzy_match_count
+    new_permits = len(permits) - len(existing_timestamps)
     logger.info(f"Matched {total_matched:,} permits to existing companies")
     logger.info(f"  - Exact match: {exact_match:,}")
     logger.info(f"  - Key match: {key_match:,}")
     logger.info(f"  - Fuzzy match: {fuzzy_match_count:,}")
     logger.info(f"Unmatched: {unmatched:,}")
+    logger.info(f"New permits (first time seen): {max(0, new_permits):,}")
 
     if dry_run:
         logger.info("DRY RUN - skipping database insert")
         return
 
-    # Ensure table exists (preserves existing data)
+    # Drop and recreate table for fast batch insert (we've preserved first_seen_at in memory)
+    logger.info("Recreating permits table for fast batch insert...")
+    d1_query("DROP TABLE IF EXISTS permits")
     ensure_permits_table()
 
-    # UPSERT in batches - preserves first_seen_at for existing permits
+    # Batch insert (much faster than individual UPSERTs)
     batch_size = 100
     for i in range(0, len(permits), batch_size):
         batch = permits[i:i + batch_size]
+        values = []
 
         for p in batch:
             company_id_str = str(p['company_id']) if p['company_id'] else 'NULL'
+            values.append(f"""(
+                '{escape_sql(p['permit_number'])}',
+                '{escape_sql(p['owner_name'])}',
+                '{escape_sql(p['operating_name'])}',
+                '{escape_sql(p['street'])}',
+                '{escape_sql(p['city'])}',
+                '{escape_sql(p['state'])}',
+                '{escape_sql(p['zip'])}',
+                '{escape_sql(p['county'])}',
+                '{escape_sql(p['industry_type'])}',
+                {p['is_new']},
+                {company_id_str},
+                '{p['first_seen_at']}',
+                '{p['updated_at']}'
+            )""")
 
-            # Use INSERT ... ON CONFLICT to preserve first_seen_at for existing permits
-            sql = f"""
-                INSERT INTO permits
-                (permit_number, owner_name, operating_name, street, city, state, zip,
-                 county, industry_type, is_new, company_id, first_seen_at, updated_at)
-                VALUES (
-                    '{escape_sql(p['permit_number'])}',
-                    '{escape_sql(p['owner_name'])}',
-                    '{escape_sql(p['operating_name'])}',
-                    '{escape_sql(p['street'])}',
-                    '{escape_sql(p['city'])}',
-                    '{escape_sql(p['state'])}',
-                    '{escape_sql(p['zip'])}',
-                    '{escape_sql(p['county'])}',
-                    '{escape_sql(p['industry_type'])}',
-                    {p['is_new']},
-                    {company_id_str},
-                    '{now}',
-                    '{p['updated_at']}'
-                )
-                ON CONFLICT(permit_number) DO UPDATE SET
-                    owner_name = excluded.owner_name,
-                    operating_name = excluded.operating_name,
-                    street = excluded.street,
-                    city = excluded.city,
-                    state = excluded.state,
-                    zip = excluded.zip,
-                    county = excluded.county,
-                    industry_type = excluded.industry_type,
-                    is_new = excluded.is_new,
-                    company_id = excluded.company_id,
-                    updated_at = excluded.updated_at
-            """
-            d1_query(sql)
+        sql = f"""
+            INSERT INTO permits
+            (permit_number, owner_name, operating_name, street, city, state, zip,
+             county, industry_type, is_new, company_id, first_seen_at, updated_at)
+            VALUES {', '.join(values)}
+        """
+        d1_query(sql)
 
         if (i + batch_size) % 5000 == 0 or i + batch_size >= len(permits):
-            logger.info(f"  Synced {min(i + batch_size, len(permits)):,}/{len(permits):,} permits")
+            logger.info(f"  Inserted {min(i + batch_size, len(permits)):,}/{len(permits):,} permits")
 
     logger.info("Permit sync complete!")
 
