@@ -1001,7 +1001,14 @@
                         </div>
                     `).join('');
                 } else {
-                    results.innerHTML = `<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">No contacts found for this company in our database.</div>`;
+                    // Show more helpful message with debug info
+                    let message = 'No contacts found in our database.';
+                    if (data.debug) {
+                        message = data.debug;
+                    } else if (data.searched_name && data.searched_name !== companyName) {
+                        message = `No contacts found for "${data.searched_name}" (normalized from "${companyName}").`;
+                    }
+                    results.innerHTML = `<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">${escapeHtml(message)}</div>`;
                 }
 
             } catch (error) {

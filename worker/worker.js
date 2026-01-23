@@ -2792,12 +2792,14 @@ async function handlePermitsContacts(request, env) {
         }
 
         // Search for contacts using the PDL contact search function
-        const contacts = await searchCompanyContacts(company_name, env);
+        const result = await searchCompanyContacts(company_name, env);
 
         return {
             success: true,
-            contacts,
-            company_name
+            contacts: result.contacts || [],
+            company_name,
+            searched_name: result.searched_name || company_name,
+            debug: result.debug || null
         };
 
     } catch (error) {
@@ -5756,8 +5758,12 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
     if (env.PEOPLE_DATA_LABS_API_KEY) {
         try {
             console.log(`[Enhancement] Searching for contacts via PDL...`);
-            contacts = await searchCompanyContacts(companyName, env);
+            const contactResult = await searchCompanyContacts(companyName, env);
+            contacts = contactResult.contacts || [];
             console.log(`[Enhancement] Found ${contacts.length} contacts`);
+            if (contactResult.debug) {
+                console.log(`[Enhancement] PDL debug: ${contactResult.debug}`);
+            }
         } catch (e) {
             console.error('[Enhancement] Error fetching contacts:', e);
             // Continue without contacts
@@ -6623,13 +6629,15 @@ function getIndustryHint(categories) {
 async function searchCompanyContacts(companyName, env) {
     if (!env.PEOPLE_DATA_LABS_API_KEY) {
         console.error('[PDL] API key not configured');
-        return [];
+        return { contacts: [], debug: 'API key not configured', searched_name: companyName };
     }
 
     try {
         // Step 1: Clean/normalize company name using PDL Company Cleaner
         let searchName = companyName;
+        let cleanerWorked = false;
         try {
+            console.log(`[PDL] Cleaning company name: "${companyName}"`);
             const cleanResponse = await fetch(`https://api.peopledatalabs.com/v5/company/clean?name=${encodeURIComponent(companyName)}`, {
                 method: 'GET',
                 headers: {
@@ -6639,18 +6647,21 @@ async function searchCompanyContacts(companyName, env) {
 
             if (cleanResponse.ok) {
                 const cleanData = await cleanResponse.json();
+                console.log(`[PDL] Cleaner response:`, JSON.stringify(cleanData));
                 if (cleanData.name) {
                     searchName = cleanData.name;
+                    cleanerWorked = true;
                     console.log(`[PDL] Cleaned: "${companyName}" → "${searchName}"`);
                 }
+            } else {
+                console.log(`[PDL] Cleaner failed with status: ${cleanResponse.status}`);
             }
         } catch (e) {
-            console.log('[PDL] Company cleaner failed, using original name');
+            console.log('[PDL] Company cleaner exception:', e.message);
             // Continue with original name
         }
 
         // Step 2: Build SQL query to find decision-makers at this company
-        // Use SQL instead of Elasticsearch for simplicity
         const sqlQuery = `
             SELECT * FROM person
             WHERE job_company_name='${searchName.replace(/'/g, "''")}'
@@ -6666,9 +6677,11 @@ async function searchCompanyContacts(companyName, env) {
             )
         `.trim();
 
+        console.log(`[PDL] Searching for contacts at: "${searchName}"`);
+
         const requestBody = JSON.stringify({
             sql: sqlQuery,
-            size: 5,  // Limit to top 5 contacts
+            size: 5,
             dataset: 'all',
             pretty: false
         });
@@ -6683,19 +6696,36 @@ async function searchCompanyContacts(companyName, env) {
             body: requestBody
         });
 
+        console.log(`[PDL] Person search response status: ${response.status}`);
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.log(`[PDL] Error response: ${errorText}`);
             if (response.status === 404) {
-                console.log(`[PDL] No contacts found for: ${companyName}`);
-                return [];
+                return {
+                    contacts: [],
+                    debug: `No contacts found in PDL database for "${searchName}"${cleanerWorked ? ` (cleaned from "${companyName}")` : ''}`,
+                    searched_name: searchName
+                };
             }
-            throw new Error(`PDL API error: ${response.status}`);
+            throw new Error(`PDL API error ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
         const people = data.data || [];
 
+        console.log(`[PDL] Found ${people.length} contacts`);
+
+        if (people.length === 0) {
+            return {
+                contacts: [],
+                debug: `PDL search returned 0 results for "${searchName}"${cleanerWorked ? ` (cleaned from "${companyName}")` : ''}`,
+                searched_name: searchName
+            };
+        }
+
         // Format contacts for enhancement response
-        return people.map(person => ({
+        const contacts = people.map(person => ({
             name: person.full_name || 'Unknown',
             title: person.job_title || 'Unknown',
             email: person.work_email || (person.emails && person.emails[0]?.address) || null,
@@ -6704,9 +6734,19 @@ async function searchCompanyContacts(companyName, env) {
             location: person.location_name || null
         }));
 
+        return {
+            contacts,
+            debug: null,
+            searched_name: searchName
+        };
+
     } catch (error) {
         console.error('[PDL] Contact search failed:', error);
-        return [];
+        return {
+            contacts: [],
+            debug: `Search failed: ${error.message}`,
+            searched_name: companyName
+        };
     }
 }
 
