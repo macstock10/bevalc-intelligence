@@ -303,6 +303,44 @@
                 display: none;
             }
         }
+        /* Get Contacts Button */
+        .btn-get-contacts {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-get-contacts:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+        }
+
+        .btn-get-contacts svg {
+            flex-shrink: 0;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(13, 148, 136, 0.2);
+            border-top-color: #0d9488;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -869,7 +907,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-section" style="border-bottom: none;">
+                <div class="modal-section">
                     <h4>Company Information</h4>
                     <div class="detail-grid">
                         <div class="detail-item">
@@ -892,6 +930,25 @@
                         ` : ''}
                     </div>
                 </div>
+                <div class="modal-section" id="contacts-section" style="border-bottom: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;">Key Contacts</h4>
+                        <button class="btn-get-contacts" onclick="getPermitContacts('${escapeHtml(permit.owner_name).replace(/'/g, "\\'")}', '${permit.permit_number}')" id="get-contacts-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            Get Contacts
+                        </button>
+                    </div>
+                    <div id="contacts-loading" style="display: none; padding: 2rem; text-align: center; color: #64748b;">
+                        <div class="spinner" style="margin: 0 auto 0.5rem;"></div>
+                        Searching for contacts...
+                    </div>
+                    <div id="contacts-results"></div>
+                </div>
             `;
 
             modalOverlay.classList.add('active');
@@ -899,6 +956,60 @@
 
         function closePermitModal() {
             document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        // Get contacts for permit company
+        async function getPermitContacts(companyName, permitNumber) {
+            const btn = document.getElementById('get-contacts-btn');
+            const loading = document.getElementById('contacts-loading');
+            const results = document.getElementById('contacts-results');
+
+            // Show loading
+            btn.style.display = 'none';
+            loading.style.display = 'block';
+            results.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/permits/contacts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        company_name: companyName,
+                        permit_number: permitNumber,
+                        email: userEmail
+                    })
+                });
+
+                const data = await response.json();
+
+                loading.style.display = 'none';
+
+                if (!response.ok) {
+                    results.innerHTML = `<div style="padding: 1rem; background: #fef3c7; border-radius: 8px; color: #92400e; font-size: 0.875rem;">${data.error || 'Failed to fetch contacts'}</div>`;
+                    btn.style.display = 'flex';
+                    return;
+                }
+
+                if (data.contacts && data.contacts.length > 0) {
+                    results.innerHTML = data.contacts.map(contact => `
+                        <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #0d9488;">
+                            <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${escapeHtml(contact.name)}</div>
+                            <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem;">${escapeHtml(contact.title)}</div>
+                            ${contact.email ? `<div style="font-size: 0.8125rem; color: #0d9488; margin-bottom: 0.25rem;">✉️ ${escapeHtml(contact.email)}</div>` : ''}
+                            ${contact.phone ? `<div style="font-size: 0.8125rem; color: #64748b;">📞 ${escapeHtml(contact.phone)}</div>` : ''}
+                            ${contact.linkedin ? `<div style="margin-top: 0.5rem;"><a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener" style="font-size: 0.8125rem; color: #0d9488; text-decoration: none;">View LinkedIn Profile →</a></div>` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    results.innerHTML = `<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">No contacts found for this company in our database.</div>`;
+                }
+
+            } catch (error) {
+                console.error('Error fetching contacts:', error);
+                loading.style.display = 'none';
+                results.innerHTML = `<div style="padding: 1rem; background: #fee2e2; border-radius: 8px; color: #991b1b; font-size: 0.875rem;">Error loading contacts. Please try again.</div>`;
+                btn.style.display = 'flex';
+            }
         }
 
         // Modal event listeners

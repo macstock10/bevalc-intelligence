@@ -365,6 +365,8 @@ export default {
                 response = await handlePermitLeads(url, env);
             } else if (path === '/api/permits/stats' && request.method === 'GET') {
                 response = await handlePermitStats(env);
+            } else if (path === '/api/permits/contacts' && request.method === 'POST') {
+                response = await handlePermitsContacts(request, env);
             } else if (path === '/api/competitor-activity' && request.method === 'GET') {
                 response = await handleCompetitorActivity(url, env);
             } else {
@@ -2772,6 +2774,39 @@ async function handlePermitStats(env) {
             topStatesForLeads: statesResult.results || []
         }
     };
+}
+
+async function handlePermitsContacts(request, env) {
+    // Get permit company contacts using PDL Person Search
+    try {
+        const body = await request.json();
+        const { company_name, permit_number, email } = body;
+
+        if (!company_name) {
+            return { success: false, error: 'Company name required' };
+        }
+
+        // Check if user is authenticated
+        if (!email) {
+            return { success: false, error: 'Please log in to access contacts' };
+        }
+
+        // Search for contacts using the PDL contact search function
+        const contacts = await searchCompanyContacts(company_name, env);
+
+        return {
+            success: true,
+            contacts,
+            company_name
+        };
+
+    } catch (error) {
+        console.error('[PermitsContacts] Error:', error);
+        return {
+            success: false,
+            error: error.message || 'Failed to fetch contacts'
+        };
+    }
 }
 
 // ==========================================

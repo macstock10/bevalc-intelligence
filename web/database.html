@@ -13,6 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-database-improvements.css">
     <style>
         /* CSV Export Button Styles */
         .results-header {
@@ -627,7 +628,7 @@
                         <input type="date" id="filter-date-to" class="filter-select">
                     </div>
                     
-                    <button class="btn btn-secondary btn-small" id="clear-filters">Clear All</button>
+                    <a href="#" class="clear-filters-link" id="clear-filters" onclick="event.preventDefault(); clearFilters();">Clear all</a>
 
                     <!-- Saved Searches (Pro only) -->
                     <div class="saved-searches-wrapper" id="saved-searches-wrapper" style="display: none;">
@@ -649,10 +650,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="filter-help">
-                    <a href="glossary.html#signals" class="filter-help-link">How to interpret the Signal column →</a>
                 </div>
             </div>
 
@@ -684,7 +681,7 @@
                                     <th class="sortable" data-sort="class_type_code">Subcategory <span class="sort-icon"></span></th>
                                     <th class="sortable" data-sort="origin_code">Origin <span class="sort-icon"></span></th>
                                     <th class="sortable active desc" data-sort="approval_date">Approval Date <span class="sort-icon">↓</span></th>
-                                    <th>Signal</th>
+                                    <th>Signal <span class="info-tooltip" title="NEW_COMPANY = First time filer | NEW_BRAND = Existing company, new brand | NEW_SKU = New product variation | REFILE = Previously approved label">ⓘ</span></th>
                                     <th class="sortable" data-sort="status">Status <span class="sort-icon"></span></th>
                                 </tr>
                             </thead>
