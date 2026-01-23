@@ -46,18 +46,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     cacheElements();
     checkAccess();
     setupEventListeners();
-    await loadFilters();
 
-    // Update blur overlay with actual record count
-    updateTotalRecordCount();
-
-    // Apply URL parameters to filters before initial search
+    // Apply URL parameters to filters before loading
     applyUrlFilters();
 
-    await performSearch();
-
-    // Check for ttb URL parameter to open modal directly
-    await checkUrlModal();
+    // Run all async initialization tasks in parallel for faster loading
+    await Promise.all([
+        loadFilters(),
+        performSearch(),
+        checkUrlModal()
+    ]);
 
     // Setup saved searches for Pro users
     setupSavedSearches();
@@ -173,38 +171,6 @@ function cacheElements() {
     elements.saveSearchName = document.getElementById('save-search-name');
     elements.saveSearchCancel = document.getElementById('save-search-cancel');
     elements.saveSearchConfirm = document.getElementById('save-search-confirm');
-}
-
-// Fetch total record count and update the blur overlay
-async function updateTotalRecordCount() {
-    try {
-        // Use search with minimal params to get total count quickly
-        const response = await fetch(`${API_BASE}/api/search?limit=1`);
-        const data = await response.json();
-
-        if (data.success && data.total) {
-            const total = data.total;
-            let displayText;
-
-            if (total >= 1000000) {
-                // Format as X.XM+
-                const millions = (total / 1000000).toFixed(1);
-                displayText = `${millions}M+`;
-            } else if (total >= 1000) {
-                // Format as XXXK+
-                const thousands = Math.floor(total / 1000);
-                displayText = `${thousands}K+`;
-            } else {
-                displayText = `${total}+`;
-            }
-
-            if (elements.blurRecordCount) {
-                elements.blurRecordCount.textContent = displayText;
-            }
-        }
-    } catch (e) {
-        console.log('Could not fetch total record count');
-    }
 }
 
 function checkAccess() {
@@ -781,14 +747,32 @@ function renderPagination(pagination) {
 function updateResultsCount(pagination) {
     const start = (pagination.page - 1) * pagination.limit + 1;
     const end = Math.min(pagination.page * pagination.limit, pagination.total);
-    
+
     if (pagination.total === 0) {
         elements.resultsCount.textContent = '0 results';
     } else {
         elements.resultsCount.textContent = `Showing ${start.toLocaleString()}-${end.toLocaleString()} of ${pagination.total.toLocaleString()} results`;
     }
-    
+
     elements.totalRecords.textContent = `${pagination.total.toLocaleString()} total records`;
+
+    // Update blur overlay record count (for non-logged-in users)
+    if (elements.blurRecordCount && pagination.total) {
+        const total = pagination.total;
+        let displayText;
+
+        if (total >= 1000000) {
+            const millions = (total / 1000000).toFixed(1);
+            displayText = `${millions}M+`;
+        } else if (total >= 1000) {
+            const thousands = Math.floor(total / 1000);
+            displayText = `${thousands}K+`;
+        } else {
+            displayText = `${total}+`;
+        }
+
+        elements.blurRecordCount.textContent = displayText;
+    }
 }
 
 // ============================================
