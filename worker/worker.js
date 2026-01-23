@@ -6087,28 +6087,58 @@ Return JSON only:
 // ============================================================================
 
 async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
-    // STEP 1: Parse company name into search terms
-    // "Northland Spirits LLC, Pearlhead Distilling LLC" → ["Northland Spirits", "Pearlhead Distilling"]
-    const nameParts = companyName
-        .split(/\s*,\s*|\s+DBA\s+|\s+D\/B\/A\s+/i)
-        .map(p => p
-            .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim()
-        )
-        .filter(p => p.length >= 3);
-
-    const searchTerms = [...new Set(nameParts)]; // dedupe
+    console.log(`[Enhancement] === COMPREHENSIVE WEBSITE DISCOVERY ===`);
     console.log(`[Enhancement] Company: "${companyName}"`);
-    console.log(`[Enhancement] Search terms: ${searchTerms.map(t => `"${t}"`).join(', ')}`);
-    console.log(`[Enhancement] Brand: "${brandName}", Industry: "${industryHint}"`);
+    console.log(`[Enhancement] Brand: "${brandName}"`);
+    console.log(`[Enhancement] Industry: "${industryHint}"`);
 
-    // STEP 2: Google search each term, collect all results
+    // STEP 1: Build comprehensive search query list
+    const queries = [];
+
+    // Clean company name (remove legal suffixes)
+    const cleanName = companyName
+        .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Query 1: Exact company name in quotes (highest priority)
+    queries.push(`"${companyName}"`);
+
+    // Query 2: Exact company name + "website"
+    queries.push(`"${companyName}" website`);
+
+    // Query 3: Clean name + industry keyword
+    if (cleanName !== companyName) {
+        queries.push(`"${cleanName}" ${industryHint}`);
+    }
+
+    // Query 4: Clean name + "official site"
+    if (cleanName.length > 0) {
+        queries.push(`"${cleanName}" official site`);
+    }
+
+    // Query 5: Brand name if different from company
+    if (brandName && brandName !== 'Unknown' && !companyName.toLowerCase().includes(brandName.toLowerCase())) {
+        queries.push(`"${brandName}" ${industryHint}`);
+    }
+
+    // Query 6: Company name + "contact" (often finds official site)
+    queries.push(`"${cleanName}" contact`);
+
+    // De-duplicate and limit to top 5 queries
+    const uniqueQueries = [...new Set(queries)].slice(0, 5);
+    console.log(`[Enhancement] Will search ${uniqueQueries.length} queries:`);
+    uniqueQueries.forEach((q, i) => console.log(`  ${i + 1}. ${q}`));
+
+    // STEP 2: Execute all search queries in parallel for speed
     const allResults = [];
     const seenUrls = new Set();
 
-    for (const term of searchTerms.slice(0, 2)) { // Max 2 searches
-        const results = await googleSearch(term, env);
+    const searchPromises = uniqueQueries.map(query => googleSearch(query, env));
+    const searchResults = await Promise.all(searchPromises);
+
+    // Combine and deduplicate results
+    for (const results of searchResults) {
         for (const r of results) {
             if (!seenUrls.has(r.link)) {
                 seenUrls.add(r.link);
@@ -6117,7 +6147,7 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
         }
     }
 
-    console.log(`[Enhancement] Google returned ${allResults.length} unique results`);
+    console.log(`[Enhancement] Google returned ${allResults.length} unique results across all queries`);
 
     // STEP 3: Extract social media URLs from results (no extra API call)
     let facebookUrl = null, instagramUrl = null, youtubeUrl = null;
@@ -6151,7 +6181,7 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
     // STEP 5: Claude picks the website (just from Google metadata, NO fetching)
     let websiteUrl = null;
     if (env.ANTHROPIC_API_KEY) {
-        const prompt = `You are identifying the official website for a beverage alcohol company.
+        const prompt = `You are identifying the official website for a beverage alcohol company. Be smart about matching - companies often have abbreviated domains or parent company websites.
 
 COMPANY: ${companyName}
 BRAND: ${brandName}
@@ -6161,14 +6191,37 @@ Here are Google search results. Which one is most likely the company's OFFICIAL 
 
 ${candidateList}
 
-INSTRUCTIONS:
-- Pick the URL that looks like the company's own website (not a retailer, directory, or news site)
-- The domain often contains the company name or brand name
-- Distilleries, wineries, breweries usually have their own .com site
-- Importers/distributors may have less obvious domains but still have company sites
-- If none look like an official company website, say "none"
+MATCHING RULES:
+1. DIRECT MATCH: Domain contains company name or brand (e.g., "smithwinery.com" for "Smith Winery LLC")
 
-Reply with ONLY the URL (e.g., "https://example.com") or "none". Nothing else.`;
+2. ABBREVIATION: Companies often shorten their name in domains:
+   - "United Liquors" → "unisco.com"
+   - "American Beverage Company" → "ambevco.com"
+   - "California Wine Imports" → "calwine.com"
+
+3. PARENT COMPANY: Distributors/importers may have a parent company domain:
+   - Title/snippet mentions the company name even if domain doesn't
+   - Look for phrases like "division of", "operated by", "portfolio includes"
+
+4. INDUSTRY SITES: Look for actual company pages on industry websites:
+   - wineinstitute.org/company-name
+   - ttb.gov listings
+   - Import/distributor directories with company profiles
+
+5. CONTEXT CLUES in title/snippet:
+   - Mentions company name or brand explicitly
+   - Describes company as distributor/importer/winery/distillery/brewery
+   - Has contact info, product info, or "about us" content
+
+WHAT TO AVOID:
+- Retailers (totalwine.com, wine.com, beverages2u.com)
+- Marketplaces (amazon.com, drizly.com)
+- Review sites (vivino.com, untappd.com, ratebeer.com)
+- Generic directories without actual company info
+
+BE CONFIDENT: If a result clearly references the company even with an unexpected domain, pick it. Don't say "none" too easily.
+
+Reply with ONLY the URL (e.g., "https://example.com") or "none" if truly nothing matches.`;
 
         try {
             console.log('[Enhancement] Asking Claude to pick website...');
@@ -6180,8 +6233,8 @@ Reply with ONLY the URL (e.g., "https://example.com") or "none". Nothing else.`;
                     'anthropic-version': '2023-06-01'
                 },
                 body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 100,
+                    model: 'claude-3-5-sonnet-20241022',
+                    max_tokens: 150,
                     messages: [{ role: 'user', content: prompt }]
                 })
             });
