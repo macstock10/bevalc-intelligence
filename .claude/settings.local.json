@@ -48,7 +48,8 @@
       "Bash(if [ -f \"scripts/.env\" ])",
       "Bash(then grep PEOPLE_DATA_LABS_API_KEY scripts/.env)",
       "Bash(else echo \"No .env file found\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(npx wrangler secret put:*)"
     ]
   }
 }

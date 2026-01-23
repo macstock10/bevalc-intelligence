@@ -6821,6 +6821,7 @@ If you find NO actual decision-makers or named contacts, return an empty array: 
 
 /**
  * Search for contacts using Hunter.io Domain Search API
+ * Uses official Hunter.io API with executive-level filtering
  */
 async function hunterDomainSearch(domain, env) {
     if (!env.HUNTER_IO_API_KEY) {
@@ -6829,34 +6830,50 @@ async function hunterDomainSearch(domain, env) {
 
     console.log(`[Hunter.io] Searching domain: ${domain}`);
 
-    const response = await fetch(
-        `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${env.HUNTER_IO_API_KEY}&limit=5`
-    );
+    // Build URL with proper parameters per Hunter.io docs
+    const params = new URLSearchParams({
+        domain: domain,
+        api_key: env.HUNTER_IO_API_KEY,
+        limit: '10',  // Get top 10 results
+        seniority: 'executive',  // Filter for executives only
+        type: 'personal'  // Exclude generic emails (info@, contact@)
+    });
+
+    const response = await fetch(`https://api.hunter.io/v2/domain-search?${params}`);
 
     if (!response.ok) {
         const errorText = await response.text();
+
+        // Handle specific error codes per Hunter.io docs
+        if (response.status === 401) {
+            throw new Error('Hunter.io API key invalid');
+        } else if (response.status === 429) {
+            throw new Error('Hunter.io usage limit reached');
+        } else if (response.status === 404) {
+            // Domain not found - not an error, just no results
+            return { contacts: [] };
+        }
+
         throw new Error(`Hunter.io API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     const emails = data.data?.emails || [];
 
-    // Filter for senior roles only
-    const seniorTitles = ['owner', 'president', 'ceo', 'founder', 'director', 'vp', 'vice president', 'head', 'chief'];
+    console.log(`[Hunter.io] Found ${emails.length} emails`);
 
+    // Transform to our contact format
     const contacts = emails
-        .filter(e => {
-            const title = (e.position || '').toLowerCase();
-            return seniorTitles.some(t => title.includes(t));
-        })
-        .slice(0, 5)
+        .slice(0, 5)  // Limit to top 5
         .map(e => ({
             name: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Unknown',
             title: e.position || 'Unknown',
             email: e.value,
             phone: e.phone_number || null,
-            linkedin: e.linkedin || null
-        }));
+            linkedin: e.linkedin || null,
+            confidence: e.confidence  // Hunter.io provides confidence score
+        }))
+        .filter(c => c.name !== 'Unknown');  // Only include named contacts
 
     return { contacts };
 }
