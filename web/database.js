@@ -1044,11 +1044,6 @@ function openModal(record) {
         `;
     });
 
-    // Add Contacts section for Pro users
-    if (hasRecordAccess && record.company_name) {
-        html += buildContactsSection(record, userEmail);
-    }
-
     // Add Enhancement section for Pro users
     html += buildEnhancementSection(record, userEmail, hasRecordAccess);
 
@@ -1305,112 +1300,6 @@ function closeModal() {
 }
 
 // ============================================
-// KEY CONTACTS
-// ============================================
-
-function buildContactsSection(record, userEmail) {
-    const companyName = record.company_name || '';
-    if (!companyName) return '';
-
-    return `
-        <div class="modal-section" id="cola-contacts-section" style="border-bottom: 1px solid #e2e8f0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h4 style="margin: 0;">Key Contacts</h4>
-                <button class="btn-get-contacts" onclick="getColaContacts('${escapeHtml(companyName).replace(/'/g, "\\'")}', '${escapeHtml(record.ttb_id)}')" id="cola-get-contacts-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    Get Contacts
-                </button>
-            </div>
-            <div id="cola-contacts-loading" style="display: none; padding: 2rem; text-align: center; color: #64748b;">
-                <div class="spinner" style="margin: 0 auto 0.5rem; width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: #0d9488; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                Searching for contacts...
-            </div>
-            <div id="cola-contacts-results"></div>
-        </div>
-    `;
-}
-
-async function getColaContacts(companyName, ttbId) {
-    const btn = document.getElementById('cola-get-contacts-btn');
-    const loading = document.getElementById('cola-contacts-loading');
-    const results = document.getElementById('cola-contacts-results');
-
-    // Get user email
-    const userInfo = localStorage.getItem('bevalc_user');
-    let userEmail = null;
-    if (userInfo) {
-        try {
-            const user = JSON.parse(userInfo);
-            userEmail = user.email;
-        } catch (e) {}
-    }
-
-    if (!userEmail) {
-        results.innerHTML = `<div style="padding: 1rem; background: #fef3c7; border-radius: 8px; color: #92400e; font-size: 0.875rem;">Please log in to access contacts.</div>`;
-        return;
-    }
-
-    // Show loading
-    btn.style.display = 'none';
-    loading.style.display = 'block';
-    results.innerHTML = '';
-
-    try {
-        const response = await fetch(`${API_BASE}/api/permits/contacts`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                company_name: companyName,
-                permit_number: ttbId,
-                email: userEmail
-            })
-        });
-
-        const data = await response.json();
-
-        loading.style.display = 'none';
-
-        if (!response.ok) {
-            results.innerHTML = `<div style="padding: 1rem; background: #fef3c7; border-radius: 8px; color: #92400e; font-size: 0.875rem;">${data.error || 'Failed to fetch contacts'}</div>`;
-            btn.style.display = 'flex';
-            return;
-        }
-
-        if (data.contacts && data.contacts.length > 0) {
-            results.innerHTML = data.contacts.map(contact => `
-                <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #0d9488;">
-                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${escapeHtml(contact.name)}</div>
-                    <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem;">${escapeHtml(contact.title)}</div>
-                    ${contact.email ? `<div style="font-size: 0.8125rem; color: #0d9488; margin-bottom: 0.25rem;">✉️ ${escapeHtml(contact.email)}</div>` : ''}
-                    ${contact.phone ? `<div style="font-size: 0.8125rem; color: #64748b;">📞 ${escapeHtml(contact.phone)}</div>` : ''}
-                    ${contact.linkedin ? `<div style="margin-top: 0.5rem;"><a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener" style="font-size: 0.8125rem; color: #0d9488; text-decoration: none;">View LinkedIn Profile →</a></div>` : ''}
-                </div>
-            `).join('');
-        } else {
-            // Show more helpful message with debug info
-            let message = 'No contacts found in our database.';
-            if (data.debug) {
-                message = data.debug;
-            } else if (data.searched_name && data.searched_name !== companyName) {
-                message = `No contacts found for "${data.searched_name}" (normalized from "${companyName}").`;
-            }
-            results.innerHTML = `<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">${escapeHtml(message)}</div>`;
-        }
-
-    } catch (error) {
-        console.error('Error fetching contacts:', error);
-        loading.style.display = 'none';
-        results.innerHTML = `<div style="padding: 1rem; background: #fee2e2; border-radius: 8px; color: #991b1b; font-size: 0.875rem;">Error loading contacts. Please try again.</div>`;
-        btn.style.display = 'flex';
-    }
-}
-
-// ============================================
 // COMPANY ENHANCEMENT
 // ============================================
 
@@ -1451,7 +1340,7 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
             <div id="enhancement-container" data-company-name="${escapeHtml(companyName)}" data-brand-name="${escapeHtml(brandName)}" data-email="${escapeHtml(userEmail || '')}">
                 <div class="enhancement-cta" id="enhancement-cta">
                     <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">
-                        Get filing analytics, brand portfolio, distribution footprint, and more.
+                        Get filing analytics, brand portfolio, distribution footprint, website, key contacts, and more.
                     </p>
                     <button onclick="enhanceCompany()" class="enhance-btn" id="enhance-btn">
                         ${starIcon}
@@ -1463,7 +1352,7 @@ function buildEnhancementSection(record, userEmail, hasRecordAccess) {
                 <div id="enhancement-loading" style="display: none; text-align: center; padding: 30px;">
                     <div style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #0d9488; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
                     <p style="color: var(--color-dark); font-weight: 600; margin-bottom: 8px;">Researching ${escapeHtml(companyName)}...</p>
-                    <p style="color: #94a3b8; font-size: 0.8rem;">Searching web for company info, news, and website</p>
+                    <p style="color: #94a3b8; font-size: 0.8rem;">Searching for company info, news, website, and contacts</p>
                     <p style="color: #64748b; font-size: 0.75rem; margin-top: 12px;">This typically takes 15-30 seconds</p>
                 </div>
                 <div id="enhancement-tearsheet" style="display: none;"></div>

@@ -2579,44 +2579,36 @@ async function handleRecord(url, env) {
         return { success: false, error: 'Record not found' };
     }
 
-    // Look up website: brand first, company as fallback
-    let websiteUrl = null;
+    // Run all supplementary queries in parallel for faster loading
+    const [brandWebsite, companyWebsite, permitsResult] = await Promise.all([
+        // Brand website lookup
+        result.brand_name
+            ? env.DB.prepare('SELECT website_url FROM brand_websites WHERE brand_name = ?').bind(result.brand_name).first()
+            : Promise.resolve(null),
+        // Company website lookup
+        result.company_name
+            ? env.DB.prepare(`
+                SELECT cw.website_url
+                FROM company_websites cw
+                JOIN company_aliases ca ON ca.company_id = cw.company_id
+                WHERE ca.raw_name = ?
+            `).bind(result.company_name).first()
+            : Promise.resolve(null),
+        // Permits lookup
+        result.company_name
+            ? env.DB.prepare(`
+                SELECT p.permit_number, p.industry_type, p.city, p.state, p.is_new
+                FROM permits p
+                JOIN company_aliases ca ON p.company_id = ca.company_id
+                WHERE ca.raw_name = ?
+                ORDER BY p.industry_type
+            `).bind(result.company_name).all()
+            : Promise.resolve({ results: [] })
+    ]);
 
-    // Try brand-specific website first
-    if (result.brand_name) {
-        const brandWebsite = await env.DB.prepare(
-            'SELECT website_url FROM brand_websites WHERE brand_name = ?'
-        ).bind(result.brand_name).first();
-        if (brandWebsite?.website_url) {
-            websiteUrl = brandWebsite.website_url;
-        }
-    }
-
-    // Fall back to company website
-    if (!websiteUrl && result.company_name) {
-        const companyWebsite = await env.DB.prepare(`
-            SELECT cw.website_url
-            FROM company_websites cw
-            JOIN company_aliases ca ON ca.company_id = cw.company_id
-            WHERE ca.raw_name = ?
-        `).bind(result.company_name).first();
-        if (companyWebsite?.website_url) {
-            websiteUrl = companyWebsite.website_url;
-        }
-    }
-
-    // Get permits for this company
-    let permits = [];
-    if (result.company_name) {
-        const permitsResult = await env.DB.prepare(`
-            SELECT p.permit_number, p.industry_type, p.city, p.state, p.is_new
-            FROM permits p
-            JOIN company_aliases ca ON p.company_id = ca.company_id
-            WHERE ca.raw_name = ?
-            ORDER BY p.industry_type
-        `).bind(result.company_name).all();
-        permits = permitsResult.results || [];
-    }
+    // Determine website URL (brand first, company fallback)
+    const websiteUrl = brandWebsite?.website_url || companyWebsite?.website_url || null;
+    const permits = permitsResult.results || [];
 
     return {
         success: true,
