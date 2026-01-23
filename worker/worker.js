@@ -5745,21 +5745,19 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
         // Continue with partial results
     }
 
-    // Step 4: Search for contacts using People Data Labs
+    // Step 4: Search for contacts using multi-tier approach
     let contacts = [];
-    if (env.PEOPLE_DATA_LABS_API_KEY) {
-        try {
-            console.log(`[Enhancement] Searching for contacts via PDL...`);
-            const contactResult = await searchCompanyContacts(companyName, env);
-            contacts = contactResult.contacts || [];
-            console.log(`[Enhancement] Found ${contacts.length} contacts`);
-            if (contactResult.debug) {
-                console.log(`[Enhancement] PDL debug: ${contactResult.debug}`);
-            }
-        } catch (e) {
-            console.error('[Enhancement] Error fetching contacts:', e);
-            // Continue without contacts
+    try {
+        console.log(`[Enhancement] Searching for contacts...`);
+        const contactResult = await searchCompanyContacts(companyName, websiteUrl, env);
+        contacts = contactResult.contacts || [];
+        console.log(`[Enhancement] Found ${contacts.length} contacts via ${contactResult.method || 'unknown'}`);
+        if (contactResult.debug) {
+            console.log(`[Enhancement] Contact search debug: ${contactResult.debug}`);
         }
+    } catch (e) {
+        console.error('[Enhancement] Error fetching contacts:', e);
+        // Continue without contacts
     }
 
     return {
@@ -6613,133 +6611,381 @@ function getIndustryHint(categories) {
 // ============================================================================
 
 /**
- * Search for contacts at a company using People Data Labs Person Search API
- * @param {string} companyName - Raw company name from TTB
- * @param {object} env - Worker environment with PEOPLE_DATA_LABS_API_KEY
- * @returns {Promise<Array>} - Array of contact objects
+ * Search for contacts at a company using multi-page website scraping with Claude
+ * Falls back to Hunter.io if website scraping finds nothing
+ * @param {string} companyName - Company name
+ * @param {string} websiteUrl - Company website URL (from Google CSE)
+ * @param {object} env - Worker environment
+ * @returns {Promise<object>} - { contacts: [], debug: string, searched_name: string }
  */
-async function searchCompanyContacts(companyName, env) {
-    if (!env.PEOPLE_DATA_LABS_API_KEY) {
-        console.error('[PDL] API key not configured');
-        return { contacts: [], debug: 'API key not configured', searched_name: companyName };
-    }
-
-    try {
-        // Step 1: Clean/normalize company name using PDL Company Cleaner
-        let searchName = companyName;
-        let cleanerWorked = false;
-        try {
-            console.log(`[PDL] Cleaning company name: "${companyName}"`);
-            const cleanResponse = await fetch(`https://api.peopledatalabs.com/v5/company/clean?name=${encodeURIComponent(companyName)}`, {
-                method: 'GET',
-                headers: {
-                    'X-Api-Key': env.PEOPLE_DATA_LABS_API_KEY
-                }
-            });
-
-            if (cleanResponse.ok) {
-                const cleanData = await cleanResponse.json();
-                console.log(`[PDL] Cleaner response:`, JSON.stringify(cleanData));
-                if (cleanData.name) {
-                    searchName = cleanData.name;
-                    cleanerWorked = true;
-                    console.log(`[PDL] Cleaned: "${companyName}" → "${searchName}"`);
-                }
-            } else {
-                console.log(`[PDL] Cleaner failed with status: ${cleanResponse.status}`);
-            }
-        } catch (e) {
-            console.log('[PDL] Company cleaner exception:', e.message);
-            // Continue with original name
-        }
-
-        // Step 2: Build SQL query to find decision-makers at this company
-        const sqlQuery = `
-            SELECT * FROM person
-            WHERE job_company_name='${searchName.replace(/'/g, "''")}'
-            AND (
-                job_title_levels LIKE '%director%'
-                OR job_title_levels LIKE '%vp%'
-                OR job_title_levels LIKE '%c_suite%'
-                OR job_title_levels LIKE '%owner%'
-            )
-            AND (
-                work_email IS NOT NULL
-                OR mobile_phone IS NOT NULL
-            )
-        `.trim();
-
-        console.log(`[PDL] Searching for contacts at: "${searchName}"`);
-
-        const requestBody = JSON.stringify({
-            sql: sqlQuery,
-            size: 5,
-            dataset: 'all',
-            pretty: false
-        });
-
-        // Make POST request to PDL Person Search API
-        const response = await fetch('https://api.peopledatalabs.com/v5/person/search', {
-            method: 'POST',
-            headers: {
-                'X-Api-Key': env.PEOPLE_DATA_LABS_API_KEY,
-                'Content-Type': 'application/json'
-            },
-            body: requestBody
-        });
-
-        console.log(`[PDL] Person search response status: ${response.status}`);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.log(`[PDL] Error response: ${errorText}`);
-            if (response.status === 404) {
-                return {
-                    contacts: [],
-                    debug: `No contacts found in PDL database for "${searchName}"${cleanerWorked ? ` (cleaned from "${companyName}")` : ''}`,
-                    searched_name: searchName
-                };
-            }
-            throw new Error(`PDL API error ${response.status}: ${errorText}`);
-        }
-
-        const data = await response.json();
-        const people = data.data || [];
-
-        console.log(`[PDL] Found ${people.length} contacts`);
-
-        if (people.length === 0) {
-            return {
-                contacts: [],
-                debug: `PDL search returned 0 results for "${searchName}"${cleanerWorked ? ` (cleaned from "${companyName}")` : ''}`,
-                searched_name: searchName
-            };
-        }
-
-        // Format contacts for enhancement response
-        const contacts = people.map(person => ({
-            name: person.full_name || 'Unknown',
-            title: person.job_title || 'Unknown',
-            email: person.work_email || (person.emails && person.emails[0]?.address) || null,
-            phone: person.mobile_phone || (person.phone_numbers && person.phone_numbers[0]) || null,
-            linkedin: person.linkedin_url || null,
-            location: person.location_name || null
-        }));
-
-        return {
-            contacts,
-            debug: null,
-            searched_name: searchName
-        };
-
-    } catch (error) {
-        console.error('[PDL] Contact search failed:', error);
+async function searchCompanyContacts(companyName, websiteUrl, env) {
+    if (!websiteUrl) {
         return {
             contacts: [],
-            debug: `Search failed: ${error.message}`,
+            debug: 'No website found - cannot search for contacts',
             searched_name: companyName
         };
     }
+
+    console.log(`[Contacts] Searching for contacts at ${companyName} (${websiteUrl})`);
+
+    // TIER 1: Scrape website with Claude Sonnet
+    try {
+        const scrapedContacts = await scrapeWebsiteForContacts(companyName, websiteUrl, env);
+        if (scrapedContacts.contacts && scrapedContacts.contacts.length > 0) {
+            console.log(`[Contacts] Found ${scrapedContacts.contacts.length} contacts via website scraping`);
+            return {
+                contacts: scrapedContacts.contacts,
+                debug: null,
+                searched_name: companyName,
+                method: 'website_scraping'
+            };
+        }
+    } catch (error) {
+        console.error('[Contacts] Website scraping failed:', error);
+    }
+
+    // TIER 2: Google search for company owner/CEO
+    if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID) {
+        try {
+            const googleContacts = await googleSearchForContacts(companyName, env);
+            if (googleContacts.contacts && googleContacts.contacts.length > 0) {
+                console.log(`[Contacts] Found ${googleContacts.contacts.length} contacts via Google search`);
+                return {
+                    contacts: googleContacts.contacts,
+                    debug: null,
+                    searched_name: companyName,
+                    method: 'google_search'
+                };
+            }
+        } catch (error) {
+            console.error('[Contacts] Google search failed:', error);
+        }
+    }
+
+    // TIER 3: Try Hunter.io as fallback
+    if (env.HUNTER_IO_API_KEY) {
+        try {
+            const domain = new URL(websiteUrl).hostname.replace(/^www\./, '');
+            const hunterContacts = await hunterDomainSearch(domain, env);
+            if (hunterContacts.contacts && hunterContacts.contacts.length > 0) {
+                console.log(`[Contacts] Found ${hunterContacts.contacts.length} contacts via Hunter.io`);
+                return {
+                    contacts: hunterContacts.contacts,
+                    debug: null,
+                    searched_name: companyName,
+                    method: 'hunter_io'
+                };
+            }
+        } catch (error) {
+            console.error('[Contacts] Hunter.io failed:', error);
+        }
+    }
+
+    // Nothing found
+    return {
+        contacts: [],
+        debug: `No contacts found via website, Google search, or Hunter.io`,
+        searched_name: companyName
+    };
+}
+
+/**
+ * Scrape website for contact information using Claude Sonnet
+ * Fetches multiple pages (homepage, contact, about, team) and extracts structured contact data
+ */
+async function scrapeWebsiteForContacts(companyName, websiteUrl, env) {
+    if (!env.ANTHROPIC_API_KEY) {
+        throw new Error('Anthropic API key not configured');
+    }
+
+    console.log(`[WebScrape] Fetching pages from ${websiteUrl}`);
+
+    // Common contact page paths to check
+    const baseUrl = new URL(websiteUrl);
+    const pagesToFetch = [
+        websiteUrl, // Homepage
+        `${baseUrl.origin}/contact`,
+        `${baseUrl.origin}/contact-us`,
+        `${baseUrl.origin}/about`,
+        `${baseUrl.origin}/about-us`,
+        `${baseUrl.origin}/team`,
+        `${baseUrl.origin}/leadership`
+    ];
+
+    // Fetch all pages in parallel (up to 7 pages)
+    const fetchPromises = pagesToFetch.map(async url => {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'BevAlc Intelligence Contact Discovery Bot (+https://bevalcintel.com)'
+                },
+                signal: AbortSignal.timeout(5000) // 5 second timeout per page
+            });
+
+            if (response.ok) {
+                const html = await response.text();
+                return { url, html: html.slice(0, 50000) }; // Limit to 50KB per page
+            }
+        } catch (e) {
+            // Page not found or timeout - skip it
+        }
+        return null;
+    });
+
+    const pages = (await Promise.all(fetchPromises)).filter(p => p !== null);
+
+    if (pages.length === 0) {
+        throw new Error('Could not fetch any pages from website');
+    }
+
+    console.log(`[WebScrape] Fetched ${pages.length} pages, sending to Claude for extraction`);
+
+    // Combine all page HTML for Claude
+    const combinedContext = pages.map(p => `=== ${p.url} ===\n${p.html}`).join('\n\n');
+
+    // Call Claude to extract contacts
+    const prompt = `You are extracting contact information for ${companyName} from their website pages.
+
+Find decision-makers and key contacts (owners, executives, directors, sales leaders). Extract:
+- Full name
+- Job title
+- Email address
+- Phone number (if available)
+- LinkedIn URL (if available)
+
+IMPORTANT RULES:
+- Only extract REAL contacts with actual names (not "Contact Us" or generic info@)
+- Prioritize decision-makers: Owner, President, CEO, VP, Director, Sales Manager
+- Skip generic emails like: info@, contact@, support@, sales@ (unless that's the ONLY option)
+- Skip customer service roles
+- If you find multiple people, return up to 5 most senior contacts
+- Be accurate - if you're not sure, don't include it
+
+Website content:
+${combinedContext}
+
+Return a JSON array of contacts in this exact format:
+[
+  {
+    "name": "John Smith",
+    "title": "Owner & Winemaker",
+    "email": "john@winery.com",
+    "phone": "+1-555-123-4567",
+    "linkedin": "https://linkedin.com/in/johnsmith"
+  }
+]
+
+If you find NO actual decision-makers or named contacts, return an empty array: []`;
+
+    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 2000,
+            messages: [{
+                role: 'user',
+                content: prompt
+            }]
+        })
+    });
+
+    if (!claudeResponse.ok) {
+        const errorText = await claudeResponse.text();
+        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
+    }
+
+    const claudeData = await claudeResponse.json();
+    const responseText = claudeData.content[0].text;
+
+    // Parse JSON response
+    let contacts = [];
+    try {
+        // Extract JSON array from response (might be wrapped in markdown)
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+            contacts = JSON.parse(jsonMatch[0]);
+        }
+    } catch (e) {
+        console.error('[WebScrape] Failed to parse Claude response:', e);
+        console.log('[WebScrape] Raw response:', responseText);
+    }
+
+    return { contacts };
+}
+
+/**
+ * Search for contacts using Hunter.io Domain Search API
+ */
+async function hunterDomainSearch(domain, env) {
+    if (!env.HUNTER_IO_API_KEY) {
+        throw new Error('Hunter.io API key not configured');
+    }
+
+    console.log(`[Hunter.io] Searching domain: ${domain}`);
+
+    const response = await fetch(
+        `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${env.HUNTER_IO_API_KEY}&limit=5`
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Hunter.io API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const emails = data.data?.emails || [];
+
+    // Filter for senior roles only
+    const seniorTitles = ['owner', 'president', 'ceo', 'founder', 'director', 'vp', 'vice president', 'head', 'chief'];
+
+    const contacts = emails
+        .filter(e => {
+            const title = (e.position || '').toLowerCase();
+            return seniorTitles.some(t => title.includes(t));
+        })
+        .slice(0, 5)
+        .map(e => ({
+            name: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Unknown',
+            title: e.position || 'Unknown',
+            email: e.value,
+            phone: e.phone_number || null,
+            linkedin: e.linkedin || null
+        }));
+
+    return { contacts };
+}
+
+/**
+ * Search for company contacts using Google Custom Search + Claude extraction
+ * Searches for "[company] owner", "[company] CEO", "[company] founder" etc.
+ */
+async function googleSearchForContacts(companyName, env) {
+    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID || !env.ANTHROPIC_API_KEY) {
+        throw new Error('Google CSE or Anthropic API keys not configured');
+    }
+
+    console.log(`[GoogleSearch] Searching for ${companyName} owner/CEO`);
+
+    // Try multiple search queries for better coverage
+    const searchQueries = [
+        `"${companyName}" owner`,
+        `"${companyName}" CEO`,
+        `"${companyName}" founder`,
+        `"${companyName}" president contact`
+    ];
+
+    let allSnippets = [];
+
+    // Execute searches in parallel
+    const searchPromises = searchQueries.map(async query => {
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${env.GOOGLE_CSE_API_KEY}&cx=${env.GOOGLE_CSE_ID}&q=${encodeURIComponent(query)}&num=3`;
+            const response = await fetch(url);
+
+            if (response.ok) {
+                const data = await response.json();
+                return (data.items || []).map(item => ({
+                    title: item.title,
+                    snippet: item.snippet,
+                    link: item.link
+                }));
+            }
+        } catch (e) {
+            console.error(`[GoogleSearch] Query "${query}" failed:`, e);
+        }
+        return [];
+    });
+
+    const searchResults = await Promise.all(searchPromises);
+    allSnippets = searchResults.flat();
+
+    if (allSnippets.length === 0) {
+        return { contacts: [] };
+    }
+
+    console.log(`[GoogleSearch] Got ${allSnippets.length} search results, extracting contacts with Claude`);
+
+    // Use Claude to extract contact info from search snippets
+    const snippetsText = allSnippets.map((s, i) =>
+        `Result ${i + 1}: ${s.title}\n${s.snippet}\nURL: ${s.link}`
+    ).join('\n\n---\n\n');
+
+    const prompt = `You are extracting contact information for ${companyName} from Google search results.
+
+Find the owner, CEO, founder, or president of ${companyName}. Extract:
+- Full name
+- Job title
+- Email address (if found)
+- Phone number (if found)
+- LinkedIn URL (if found)
+
+IMPORTANT RULES:
+- Only extract REAL people with actual names
+- Focus on: Owner, CEO, Founder, President (not managers or staff)
+- If email/phone is mentioned in the snippets, include it
+- Be accurate - if you're not confident, don't include it
+- Return up to 2 contacts maximum (top executives only)
+
+Google search results:
+${snippetsText}
+
+Return a JSON array in this exact format:
+[
+  {
+    "name": "John Smith",
+    "title": "Owner & CEO",
+    "email": "john@company.com",
+    "phone": "+1-555-123-4567",
+    "linkedin": "https://linkedin.com/in/johnsmith"
+  }
+]
+
+If you find NO clear decision-makers or named contacts, return an empty array: []`;
+
+    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1000,
+            messages: [{
+                role: 'user',
+                content: prompt
+            }]
+        })
+    });
+
+    if (!claudeResponse.ok) {
+        const errorText = await claudeResponse.text();
+        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
+    }
+
+    const claudeData = await claudeResponse.json();
+    const responseText = claudeData.content[0].text;
+
+    // Parse JSON response
+    let contacts = [];
+    try {
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+            contacts = JSON.parse(jsonMatch[0]);
+        }
+    } catch (e) {
+        console.error('[GoogleSearch] Failed to parse Claude response:', e);
+        console.log('[GoogleSearch] Raw response:', responseText);
+    }
+
+    return { contacts };
 }
 
 // ============================================================================
