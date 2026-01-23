@@ -930,24 +930,30 @@
                         ` : ''}
                     </div>
                 </div>
-                <div class="modal-section" id="contacts-section" style="border-bottom: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 style="margin: 0;">Key Contacts</h4>
-                        <button class="btn-get-contacts" onclick="getPermitContacts('${escapeHtml(permit.owner_name).replace(/'/g, "\\'")}', '${permit.permit_number}')" id="get-contacts-btn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="9" cy="7" r="4"></circle>
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                            </svg>
-                            Get Contacts
-                        </button>
+                <div class="modal-section enhancement-section" style="border-bottom: none;">
+                    <h4>Company Intelligence</h4>
+                    <div id="permit-enhancement-container" data-company-name="${escapeHtml(permit.owner_name)}" data-permit-number="${permit.permit_number}">
+                        <div class="enhancement-cta" id="permit-enhancement-cta">
+                            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">
+                                Get company website, key contacts, and more.
+                            </p>
+                            <button onclick="enhancePermitCompany()" class="enhance-btn" id="permit-enhance-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                </svg>
+                                <span>Enhance Company</span>
+                                <span class="enhance-cost">(1 credit)</span>
+                            </button>
+                            <p style="color: #64748b; font-size: 0.75rem; margin-top: 8px;" id="permit-credit-balance"></p>
+                        </div>
+                        <div id="permit-enhancement-loading" style="display: none; text-align: center; padding: 30px;">
+                            <div style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #0d9488; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+                            <p style="color: var(--color-dark); font-weight: 600; margin-bottom: 8px;">Researching ${escapeHtml(permit.owner_name)}...</p>
+                            <p style="color: #94a3b8; font-size: 0.8rem;">Searching for company info, website, and contacts</p>
+                            <p style="color: #64748b; font-size: 0.75rem; margin-top: 12px;">This typically takes 15-30 seconds</p>
+                        </div>
+                        <div id="permit-enhancement-tearsheet" style="display: none;"></div>
                     </div>
-                    <div id="contacts-loading" style="display: none; padding: 2rem; text-align: center; color: #64748b;">
-                        <div class="spinner" style="margin: 0 auto 0.5rem;"></div>
-                        Searching for contacts...
-                    </div>
-                    <div id="contacts-results"></div>
                 </div>
             `;
 
@@ -958,65 +964,90 @@
             document.getElementById('modal-overlay').classList.remove('active');
         }
 
-        // Get contacts for permit company
-        async function getPermitContacts(companyName, permitNumber) {
-            const btn = document.getElementById('get-contacts-btn');
-            const loading = document.getElementById('contacts-loading');
-            const results = document.getElementById('contacts-results');
+        // Enhance permit company
+        async function enhancePermitCompany() {
+            const container = document.getElementById('permit-enhancement-container');
+            const companyName = container.dataset.companyName;
+            const permitNumber = container.dataset.permitNumber;
 
-            // Show loading
-            btn.style.display = 'none';
-            loading.style.display = 'block';
-            results.innerHTML = '';
+            if (!userEmail) {
+                window.location.href = '/auth/signup.html';
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('permit-enhancement-cta').style.display = 'none';
+            document.getElementById('permit-enhancement-loading').style.display = 'block';
 
             try {
-                const response = await fetch(`${API_BASE}/api/permits/contacts`, {
+                // Call enhance using company name (permits aren't in companies table yet)
+                const response = await fetch(`${API_BASE}/api/enhance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         company_name: companyName,
-                        permit_number: permitNumber,
+                        brand_name: companyName,  // Use company name as brand
                         email: userEmail
                     })
                 });
 
                 const data = await response.json();
 
-                loading.style.display = 'none';
-
-                if (!response.ok) {
-                    results.innerHTML = `<div style="padding: 1rem; background: #fef3c7; border-radius: 8px; color: #92400e; font-size: 0.875rem;">${data.error || 'Failed to fetch contacts'}</div>`;
-                    btn.style.display = 'flex';
-                    return;
-                }
-
-                if (data.contacts && data.contacts.length > 0) {
-                    results.innerHTML = data.contacts.map(contact => `
-                        <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #0d9488;">
-                            <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${escapeHtml(contact.name)}</div>
-                            <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem;">${escapeHtml(contact.title)}</div>
-                            ${contact.email ? `<div style="font-size: 0.8125rem; color: #0d9488; margin-bottom: 0.25rem;">✉️ ${escapeHtml(contact.email)}</div>` : ''}
-                            ${contact.phone ? `<div style="font-size: 0.8125rem; color: #64748b;">📞 ${escapeHtml(contact.phone)}</div>` : ''}
-                            ${contact.linkedin ? `<div style="margin-top: 0.5rem;"><a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener" style="font-size: 0.8125rem; color: #0d9488; text-decoration: none;">View LinkedIn Profile →</a></div>` : ''}
-                        </div>
-                    `).join('');
-                } else {
-                    // Show more helpful message with debug info
-                    let message = 'No contacts found in our database.';
-                    if (data.debug) {
-                        message = data.debug;
-                    } else if (data.searched_name && data.searched_name !== companyName) {
-                        message = `No contacts found for "${data.searched_name}" (normalized from "${companyName}").`;
+                if (!data.success) {
+                    if (data.error === 'payment_required') {
+                        window.location.href = '/account.html#credits';
+                        return;
                     }
-                    results.innerHTML = `<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">${escapeHtml(message)}</div>`;
+                    throw new Error(data.error || 'Enhancement failed');
                 }
+
+                // Show tearsheet
+                document.getElementById('permit-enhancement-loading').style.display = 'none';
+                document.getElementById('permit-enhancement-tearsheet').style.display = 'block';
+                document.getElementById('permit-enhancement-tearsheet').innerHTML = renderPermitTearsheet(data.tearsheet, data.cached);
 
             } catch (error) {
-                console.error('Error fetching contacts:', error);
-                loading.style.display = 'none';
-                results.innerHTML = `<div style="padding: 1rem; background: #fee2e2; border-radius: 8px; color: #991b1b; font-size: 0.875rem;">Error loading contacts. Please try again.</div>`;
-                btn.style.display = 'flex';
+                console.error('Enhancement error:', error);
+                document.getElementById('permit-enhancement-loading').style.display = 'none';
+                document.getElementById('permit-enhancement-cta').style.display = 'block';
+                alert('Enhancement failed: ' + error.message);
             }
+        }
+
+        function renderPermitTearsheet(tearsheet, cached) {
+            const contacts = tearsheet.contacts || [];
+
+            // Format contacts
+            const contactsHtml = contacts.length > 0 ? contacts.map(contact => `
+                <div style="padding: 1rem; margin-bottom: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #0d9488;">
+                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${escapeHtml(contact.name)}</div>
+                    <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem;">${escapeHtml(contact.title)}</div>
+                    ${contact.email ? `<div style="font-size: 0.8125rem; color: #0d9488; margin-bottom: 0.25rem;">✉️ ${escapeHtml(contact.email)}</div>` : ''}
+                    ${contact.phone ? `<div style="font-size: 0.8125rem; color: #64748b;">📞 ${escapeHtml(contact.phone)}</div>` : ''}
+                    ${contact.linkedin ? `<div style="margin-top: 0.5rem;"><a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener" style="font-size: 0.8125rem; color: #0d9488; text-decoration: none;">View LinkedIn Profile →</a></div>` : ''}
+                </div>
+            `).join('') : '<div style="padding: 1.5rem; text-align: center; background: #f8fafc; border-radius: 8px; color: #64748b; font-size: 0.875rem;">No contacts found</div>';
+
+            return `
+                <div class="tearsheet">
+                    <div class="tearsheet-header">
+                        <h3 style="margin: 0 0 4px 0; font-size: 1.1rem; color: var(--color-dark);">${escapeHtml(tearsheet.company_name || 'Company')}</h3>
+                        ${tearsheet.website?.url ? `<a href="${escapeHtml(tearsheet.website.url)}" target="_blank" rel="noopener" style="font-size: 0.85rem; color: var(--color-primary);">${escapeHtml(tearsheet.website.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : '<span style="font-size: 0.8rem; color: #94a3b8;">No website found</span>'}
+                        ${cached ? '<span style="font-size: 0.65rem; color: #94a3b8; margin-left: 8px;">(cached)</span>' : ''}
+                    </div>
+
+                    ${tearsheet.summary ? `
+                        <div class="tearsheet-summary" style="margin: 12px 0; padding: 12px; background: #f8fafc; border-radius: 6px;">
+                            <p style="font-size: 0.9rem; color: var(--color-dark); line-height: 1.5; margin: 0;">${escapeHtml(tearsheet.summary)}</p>
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-top: 16px;">
+                        <h4 style="font-size: 0.9rem; color: var(--color-text-secondary); margin-bottom: 8px;">Key Contacts</h4>
+                        ${contactsHtml}
+                    </div>
+                </div>
+            `;
         }
 
         // Modal event listeners
