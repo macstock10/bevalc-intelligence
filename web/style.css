@@ -940,6 +940,11 @@ a:hover { color: var(--color-primary-hover); }
 .results-table tbody tr {
     transition: background 0.15s ease;
     cursor: pointer;
+    height: 52px;
+}
+
+.results-table tbody td {
+    vertical-align: middle;
 }
 
 /* Zebra Striping */

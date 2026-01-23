@@ -44,7 +44,11 @@
       "Bash(node test_pdl.js:*)",
       "WebFetch(domain:docs.peopledatalabs.com)",
       "Bash(node test_pdl_proper.js:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(if [ -f \"scripts/.env\" ])",
+      "Bash(then grep PEOPLE_DATA_LABS_API_KEY scripts/.env)",
+      "Bash(else echo \"No .env file found\")",
+      "Bash(fi)"
     ]
   }
 }
