@@ -356,22 +356,19 @@ def get_week_dates() -> Tuple[datetime, datetime, datetime, datetime]:
 
 
 def date_range_sql(start: datetime, end: datetime) -> str:
-    """Generate SQL WHERE clause for date range using year/month/day columns."""
-    conditions = []
+    """Generate SQL WHERE clause for date range using approval_date column.
 
-    if start.year == end.year:
-        if start.month == end.month:
-            # Same year, same month
-            conditions.append(f"(year = {start.year} AND month = {start.month} AND day >= {start.day} AND day <= {end.day})")
-        else:
-            # Same year, different months
-            conditions.append(f"(year = {start.year} AND ((month = {start.month} AND day >= {start.day}) OR (month > {start.month} AND month < {end.month}) OR (month = {end.month} AND day <= {end.day})))")
-    else:
-        # Different years (e.g., Dec 29 2025 to Jan 4 2026)
-        conditions.append(f"(year = {start.year} AND month = {start.month} AND day >= {start.day})")
-        conditions.append(f"(year = {end.year} AND month = {end.month} AND day <= {end.day})")
+    Uses approval_date IN (...) with explicit date strings instead of
+    year/month/day columns, which may not be populated consistently.
+    """
+    dates = []
+    current = start
+    while current <= end:
+        dates.append(current.strftime("%m/%d/%Y"))
+        current += timedelta(days=1)
 
-    return "(" + " OR ".join(conditions) + ")"
+    quoted_dates = ", ".join(f"'{d}'" for d in dates)
+    return f"approval_date IN ({quoted_dates})"
 
 
 def get_four_week_range() -> str:
