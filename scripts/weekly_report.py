@@ -215,79 +215,227 @@ def load_env():
                     os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 
-def get_category(class_type_code: str) -> str:
+def get_category(class_type_code) -> str:
     """Map TTB class/type code to category using exact lookup."""
-    if not class_type_code:
+    if class_type_code is None or (isinstance(class_type_code, float) and pd.isna(class_type_code)):
+        return 'Other'
+    if not isinstance(class_type_code, str):
         return 'Other'
     code = class_type_code.strip().upper()
     return TTB_CODE_CATEGORIES.get(code, 'Other')
 
 
-def fetch_historical_data() -> pd.DataFrame:
-    """Fetch ALL historical COLA data from D1 database via API."""
+def d1_query(sql: str) -> List[Dict]:
+    """Execute a D1 query and return results."""
     load_env()
-    
+
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
     database_id = os.environ.get("CLOUDFLARE_D1_DATABASE_ID")
     api_token = os.environ.get("CLOUDFLARE_API_TOKEN")
-    
+
     if not all([account_id, database_id, api_token]):
         raise RuntimeError("Missing Cloudflare credentials in environment")
-    
+
     url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}/query"
     headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
-    
-    # Fetch ALL approved records (no year filter)
-    # D1 has limits, so we paginate through results
+
+    resp = requests.post(url, headers=headers, json={"sql": sql})
+    resp.raise_for_status()
+    data = resp.json()
+
+    if not data.get("success"):
+        raise RuntimeError(f"D1 query failed: {data}")
+
+    return data.get("result", [{}])[0].get("results", [])
+
+
+def fetch_week_data(week_start: datetime, week_end: datetime) -> pd.DataFrame:
+    """Fetch this week's COLA records with pre-computed signals."""
+    # Format dates for SQL (MM/DD/YYYY)
+    start_str = week_start.strftime("%m/%d/%Y")
+    end_str = week_end.strftime("%m/%d/%Y")
+
+    # Query for this week's records - use year/month/day for efficient indexed lookup
+    query = f"""
+        SELECT ttb_id, brand_name, fanciful_name, class_type_code, origin_code,
+               approval_date, status, company_name, year, month, day, signal
+        FROM colas
+        WHERE status = 'APPROVED'
+        AND year = {week_end.year}
+        AND (
+            (month = {week_start.month} AND day >= {week_start.day})
+            OR (month = {week_end.month} AND day <= {week_end.day})
+            OR (month > {week_start.month} AND month < {week_end.month})
+        )
+    """
+
+    # Handle year boundary (e.g., week spanning Dec-Jan)
+    if week_start.year != week_end.year:
+        query = f"""
+            SELECT ttb_id, brand_name, fanciful_name, class_type_code, origin_code,
+                   approval_date, status, company_name, year, month, day, signal
+            FROM colas
+            WHERE status = 'APPROVED'
+            AND (
+                (year = {week_start.year} AND month = {week_start.month} AND day >= {week_start.day})
+                OR (year = {week_end.year} AND month = {week_end.month} AND day <= {week_end.day})
+            )
+        """
+
+    results = d1_query(query)
+    logger.info(f"Fetched {len(results):,} records for week {start_str} - {end_str}")
+
+    if not results:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results)
+    df["approval_date"] = pd.to_datetime(df["approval_date"], format="%m/%d/%Y", errors="coerce")
+    df = df.dropna(subset=["approval_date"])
+
+    # Filter to exact date range (in case query was broader)
+    df = df[(df["approval_date"] >= week_start) & (df["approval_date"] <= week_end)]
+
+    df["category"] = df["class_type_code"].apply(get_category)
+    df["week"] = df["approval_date"].dt.to_period("W-SUN").dt.start_time
+
+    return df
+
+
+def fetch_daily_aggregates(years_back: int = 3) -> pd.DataFrame:
+    """Fetch daily aggregate counts for rolling averages (much faster than full data)."""
+    min_year = datetime.now().year - years_back
+
+    query = f"""
+        SELECT year, month, day,
+               COUNT(*) as total_count,
+               COUNT(DISTINCT company_name || '|' || brand_name || '|' ||
+                     COALESCE(fanciful_name, '') || '|' || COALESCE(class_type_code, '')) as unique_skus
+        FROM colas
+        WHERE status = 'APPROVED' AND year >= {min_year}
+        GROUP BY year, month, day
+        ORDER BY year, month, day
+    """
+
+    results = d1_query(query)
+    logger.info(f"Fetched {len(results):,} daily aggregates (years >= {min_year})")
+
+    if not results:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results)
+
+    # Build date column
+    df["date"] = pd.to_datetime(
+        df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2) + "-" + df["day"].astype(str).str.zfill(2),
+        format="%Y-%m-%d",
+        errors="coerce"
+    )
+    df = df.dropna(subset=["date"])
+
+    # Add week column (Monday-based, ending Sunday)
+    df["week"] = df["date"].dt.to_period("W-SUN").dt.start_time
+
+    return df
+
+
+def fetch_category_aggregates(week_start: datetime, week_end: datetime, weeks_back: int = 52) -> pd.DataFrame:
+    """Fetch category-wise aggregates for historical comparison."""
+    lookback_start = week_start - timedelta(weeks=weeks_back)
+    min_year = lookback_start.year
+
+    query = f"""
+        SELECT class_type_code, year, month, day, COUNT(*) as count
+        FROM colas
+        WHERE status = 'APPROVED' AND year >= {min_year}
+        GROUP BY class_type_code, year, month, day
+    """
+
+    results = d1_query(query)
+    logger.info(f"Fetched {len(results):,} category daily aggregates")
+
+    if not results:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results)
+    df["date"] = pd.to_datetime(
+        df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2) + "-" + df["day"].astype(str).str.zfill(2),
+        format="%Y-%m-%d",
+        errors="coerce"
+    )
+    df = df.dropna(subset=["date"])
+    df["category"] = df["class_type_code"].apply(get_category)
+    df["week"] = df["date"].dt.to_period("W-SUN").dt.start_time
+
+    return df
+
+
+def fetch_recent_data_for_charts(weeks_back: int = 130) -> pd.DataFrame:
+    """Fetch recent data for category trend charts (limited scope)."""
+    cutoff = datetime.now() - timedelta(weeks=weeks_back)
+    min_year = cutoff.year
+
+    # Paginate to get all records for chart period
     all_results = []
     offset = 0
     batch_size = 50000
-    
+
     while True:
         query = f"""
-            SELECT ttb_id, brand_name, fanciful_name, class_type_code, origin_code, 
-                   approval_date, status, company_name, year, month, day
-            FROM colas 
-            WHERE status = 'APPROVED'
+            SELECT ttb_id, brand_name, fanciful_name, class_type_code, origin_code,
+                   approval_date, company_name, year, month, day, signal
+            FROM colas
+            WHERE status = 'APPROVED' AND year >= {min_year}
             ORDER BY year DESC, month DESC, day DESC
             LIMIT {batch_size} OFFSET {offset}
         """
-        
-        resp = requests.post(url, headers=headers, json={"sql": query})
-        resp.raise_for_status()
-        data = resp.json()
-        
-        if not data.get("success"):
-            raise RuntimeError(f"D1 query failed: {data}")
-        
-        results = data.get("result", [{}])[0].get("results", [])
+
+        results = d1_query(query)
         if not results:
             break
-            
+
         all_results.extend(results)
         logger.info(f"Fetched batch: {len(results)} records (total: {len(all_results)})")
-        
+
         if len(results) < batch_size:
             break
         offset += batch_size
-    
+
     if not all_results:
-        logger.warning("No data returned from D1")
         return pd.DataFrame()
-    
+
     df = pd.DataFrame(all_results)
-    
-    # Parse dates from approval_date string (MM/DD/YYYY format)
     df["approval_date"] = pd.to_datetime(df["approval_date"], format="%m/%d/%Y", errors="coerce")
     df = df.dropna(subset=["approval_date"])
-    
-    # Add week column (Monday-based, ending Sunday)
+
+    # Filter to exact date range
+    df = df[df["approval_date"] >= cutoff]
+
     df["week"] = df["approval_date"].dt.to_period("W-SUN").dt.start_time
-    
-    # Add category
     df["category"] = df["class_type_code"].apply(get_category)
-    
-    logger.info(f"Fetched {len(df):,} records (all available history)")
+
+    logger.info(f"Fetched {len(df):,} records for charts (last {weeks_back} weeks)")
+    return df
+
+
+def fetch_historical_data() -> pd.DataFrame:
+    """
+    OPTIMIZED: Fetch data needed for the weekly report.
+
+    Instead of fetching ALL 2.7M records, we now fetch only the last 2.5 years
+    (~300-600k records for charts and metrics).
+
+    This reduces fetch time from ~12 minutes to ~2-3 minutes.
+    """
+    load_env()
+
+    # Fetch recent data for charts (last 2.5 years = 130 weeks)
+    # This is still needed for category trend charts which need raw data
+    df = fetch_recent_data_for_charts(weeks_back=130)
+
+    if df.empty:
+        raise RuntimeError("No data fetched. Check D1 creds and database contents.")
+
+    logger.info(f"Total records for report: {len(df):,}")
     return df
 
 
@@ -334,80 +482,77 @@ def rolling_mean(series: pd.Series, window: int) -> pd.Series:
 def compute_newness_metrics(df: pd.DataFrame, week_start: datetime, week_end: datetime) -> Dict:
     """
     Compute new brand / new SKU / refile metrics for the report week.
-    
-    Definitions:
-    - Unique Approvals: Distinct (company, brand, fanciful, class) combinations this week
-    - New Brand: First-seen (company_name, brand_name) combination in ALL available history
-    - New SKU: First-seen (company, brand, fanciful, class) combination in ALL history
-    - Refile: Unique SKU that was seen before (Unique - New SKUs)
-    
+
+    OPTIMIZED: Uses pre-computed 'signal' column from D1 instead of re-computing
+    by comparing against all historical data. This is much faster.
+
+    Signal values in D1:
+    - NEW_COMPANY: First filing from this company
+    - NEW_BRAND: First filing of this brand for this company
+    - NEW_SKU: First filing of this specific SKU (brand + fanciful + class)
+    - REFILE: SKU has been filed before
+
     Returns top 10 for each category plus full row data for Pro teaser table.
     """
     # Filter to report week
     week_df = df[(df["approval_date"] >= week_start) & (df["approval_date"] <= week_end)].copy()
-    
-    # Historical data = everything before this week (all available history)
-    hist_df = df[df["approval_date"] < week_start].copy()
-    
+
     total_this_week = len(week_df)
-    
-    # Create keys for matching
-    def brand_key(row):
-        return (str(row.get("company_name", "")).upper().strip(), 
-                str(row.get("brand_name", "")).upper().strip())
-    
+
+    # Create SKU key for unique counting
     def sku_key(row):
         return (str(row.get("company_name", "")).upper().strip(),
                 str(row.get("brand_name", "")).upper().strip(),
                 str(row.get("fanciful_name", "")).upper().strip(),
                 str(row.get("class_type_code", "")).upper().strip())
-    
-    # Get historical sets
-    hist_brands = set(hist_df.apply(brand_key, axis=1).tolist()) if len(hist_df) > 0 else set()
-    hist_skus = set(hist_df.apply(sku_key, axis=1).tolist()) if len(hist_df) > 0 else set()
-    
-    # Get unique SKUs this week
+
     week_df["sku_key"] = week_df.apply(sku_key, axis=1)
-    week_df["brand_key"] = week_df.apply(brand_key, axis=1)
-    
     unique_skus_this_week = week_df["sku_key"].nunique()
-    
-    # For each unique SKU, determine if it's new or a refile
-    unique_sku_df = week_df.drop_duplicates(subset=["sku_key"]).copy()
-    
-    new_skus = 0
-    new_brands = 0
+
+    # Use pre-computed signal column
+    # Normalize signal values (handle None/NaN and variations)
+    week_df["signal_norm"] = week_df["signal"].fillna("").str.upper().str.strip()
+
+    # Count by signal type
+    # NEW_COMPANY and NEW_BRAND both count as "new brands" for the report
+    new_brand_mask = week_df["signal_norm"].isin(["NEW_COMPANY", "NEW_BRAND"])
+    new_sku_mask = week_df["signal_norm"] == "NEW_SKU"
+    refile_mask = week_df["signal_norm"] == "REFILE"
+
+    # For new brands, count unique (company, brand) combinations
+    new_brand_df = week_df[new_brand_mask].copy()
+    new_brand_df["brand_key"] = new_brand_df.apply(
+        lambda r: (str(r.get("company_name", "")).upper().strip(),
+                   str(r.get("brand_name", "")).upper().strip()),
+        axis=1
+    )
+    new_brands = new_brand_df["brand_key"].nunique()
+
+    # For new SKUs, count unique SKU keys (includes NEW_COMPANY and NEW_BRAND since they're also new SKUs)
+    new_sku_df = week_df[new_brand_mask | new_sku_mask].copy()
+    new_skus = new_sku_df["sku_key"].nunique()
+
+    # Refiles = unique SKUs that were seen before
+    refiles = unique_skus_this_week - new_skus
+    refile_share = (refiles / unique_skus_this_week * 100) if unique_skus_this_week > 0 else 0
+
+    # Build teaser lists for new brands
+    new_brand_details = []
+    new_brand_rows = []
     seen_brands = set()
-    
-    # Track new brand names and new SKU details for teaser lists (with category)
-    new_brand_details = []  # (brand_name, category)
-    new_sku_details = []    # (brand + fanciful, category) - only SKUs WITH fanciful names
-    
-    # Track full row data for Pro teaser table
-    new_brand_rows = []  # Full row data for new brands
-    new_sku_rows = []    # Full row data for new SKUs
-    
-    for _, row in unique_sku_df.iterrows():
-        sk = row["sku_key"]
-        bk = row["brand_key"]
-        category = row.get("category", "Other")
+
+    for _, row in new_brand_df.drop_duplicates(subset=["brand_key"]).head(20).iterrows():
         brand_name = str(row.get("brand_name", "")).strip()
+        category = row.get("category", "Other")
         fanciful = str(row.get("fanciful_name", "")).strip()
         origin = str(row.get("origin_code", "")).strip()
         approval_date = row.get("approval_date")
         ttb_id = str(row.get("ttb_id", "")).strip()
-        
-        # Determine signal
-        signal = None
-        is_new_brand = False
-        is_new_sku = False
-        
-        # Is this brand new? (only count once per brand)
-        if bk not in hist_brands and bk not in seen_brands:
-            new_brands += 1
-            seen_brands.add(bk)
-            is_new_brand = True
-            signal = "NEW BRAND"
+        signal = row.get("signal", "NEW_BRAND")
+
+        brand_key = (str(row.get("company_name", "")).upper(), brand_name.upper())
+        if brand_key not in seen_brands:
+            seen_brands.add(brand_key)
             if len(new_brand_details) < 10:
                 new_brand_details.append((brand_name, category))
             if len(new_brand_rows) < 10:
@@ -420,36 +565,36 @@ def compute_newness_metrics(df: pd.DataFrame, week_start: datetime, week_end: da
                     "ttb_id": ttb_id,
                     "signal": signal,
                 })
-        
-        # Is this SKU new?
-        if sk not in hist_skus:
-            new_skus += 1
-            if not is_new_brand:
-                signal = "NEW SKU"
-            # Only add to teaser list if it has a real fanciful name (more interesting for preview)
-            if fanciful and fanciful.upper() not in ("NONE", "N/A", ""):
-                sku_display = f"{brand_name} - {fanciful}"
-                if len(new_sku_details) < 10:
-                    new_sku_details.append((sku_display, category))
-                if len(new_sku_rows) < 10 and not is_new_brand:
-                    new_sku_rows.append({
-                        "brand_name": brand_name,
-                        "fanciful_name": fanciful,
-                        "category": category,
-                        "origin": origin,
-                        "approval_date": approval_date,
-                        "ttb_id": ttb_id,
-                        "signal": signal,
-                    })
-        else:
-            # REFILE
-            signal = "REFILE"
-    
-    # Refiles = unique SKUs that were seen before
-    refiles = unique_skus_this_week - new_skus
-    
-    refile_share = (refiles / unique_skus_this_week * 100) if unique_skus_this_week > 0 else 0
-    
+
+    # Build teaser lists for new SKUs (only those with fanciful names, excluding new brands)
+    new_sku_details = []
+    new_sku_rows = []
+
+    sku_only_df = week_df[new_sku_mask].copy()  # Only NEW_SKU, not NEW_BRAND/NEW_COMPANY
+    for _, row in sku_only_df.drop_duplicates(subset=["sku_key"]).head(20).iterrows():
+        brand_name = str(row.get("brand_name", "")).strip()
+        fanciful = str(row.get("fanciful_name", "")).strip()
+        category = row.get("category", "Other")
+        origin = str(row.get("origin_code", "")).strip()
+        approval_date = row.get("approval_date")
+        ttb_id = str(row.get("ttb_id", "")).strip()
+
+        # Only add to teaser list if it has a real fanciful name
+        if fanciful and fanciful.upper() not in ("NONE", "N/A", ""):
+            sku_display = f"{brand_name} - {fanciful}"
+            if len(new_sku_details) < 10:
+                new_sku_details.append((sku_display, category))
+            if len(new_sku_rows) < 10:
+                new_sku_rows.append({
+                    "brand_name": brand_name,
+                    "fanciful_name": fanciful,
+                    "category": category,
+                    "origin": origin,
+                    "approval_date": approval_date,
+                    "ttb_id": ttb_id,
+                    "signal": "NEW_SKU",
+                })
+
     return {
         "total_approvals": total_this_week,
         "unique_approvals": unique_skus_this_week,
@@ -457,10 +602,10 @@ def compute_newness_metrics(df: pd.DataFrame, week_start: datetime, week_end: da
         "new_skus": new_skus,
         "refiles": refiles,
         "refile_share": refile_share,
-        "top_new_brands": new_brand_details[:10],  # Top 10 for teaser (brand, category)
-        "top_new_skus": new_sku_details[:10],      # Top 10 for teaser (sku, category)
-        "new_brand_rows": new_brand_rows[:10],     # Full row data for Pro teaser
-        "new_sku_rows": new_sku_rows[:10],         # Full row data for Pro teaser
+        "top_new_brands": new_brand_details[:10],
+        "top_new_skus": new_sku_details[:10],
+        "new_brand_rows": new_brand_rows[:10],
+        "new_sku_rows": new_sku_rows[:10],
     }
 
 
