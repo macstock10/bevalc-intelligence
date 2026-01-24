@@ -4,12 +4,14 @@
 
 | Task | Command / Action |
 |------|------------------|
-| Deploy frontend | Push to main ? Netlify auto-deploys |
+| Deploy frontend | Push to main → Netlify auto-deploys |
 | Deploy worker | `cd worker && npx wrangler deploy` |
-| Run scraper manually | GitHub Actions ? Daily TTB Sync: Daily 9pm ET (2am UTC)
-| Run report manually | GitHub Actions ? Weekly Report ? Run workflow |
+| Run scraper manually | GitHub Actions → Daily TTB Sync → Run workflow |
+| Run report manually | GitHub Actions → Weekly Report → Run workflow |
 | Regenerate sitemaps | `cd scripts && python generate_sitemaps.py` |
-| Check logs | GitHub Actions ? click workflow run ? view logs |
+| Generate LinkedIn video | `cd skills/remotion/bevalc-videos && npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4` |
+| Generate LinkedIn posts | `/weekly-content` in Claude Code |
+| Check logs | GitHub Actions → click workflow run → view logs |
 
 ## Deployment
 
@@ -187,6 +189,50 @@ cd scripts && python generate_sitemaps.py
 curl -s -o /dev/null -w "%{http_code}" https://bevalcintel.com/sitemap.xml
 curl -s -o /dev/null -w "%{http_code}" https://bevalcintel.com/sitemap-brands-1.xml
 ```
+
+## Video Generation (LinkedIn)
+
+Weekly market activity videos for LinkedIn using Remotion.
+
+### Quick Start
+```bash
+cd skills/remotion/bevalc-videos
+
+# Preview in browser
+npm run dev
+
+# Render LinkedIn square video (RECOMMENDED)
+npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4
+
+# Output: skills/remotion/bevalc-videos/out/weekly-recap-square.mp4
+```
+
+### Before Rendering
+**CRITICAL: Update data in `src/Root.tsx` with real D1 query results.**
+
+```bash
+# Get signal breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT signal, COUNT(*) as count FROM colas WHERE year = 2026 AND month = 1 AND day >= 10 GROUP BY signal"
+
+# Get category breakdown
+npx wrangler d1 execute bevalc-colas --remote --command="SELECT category, COUNT(*) as count FROM colas WHERE signal = 'NEW_BRAND' AND year = 2026 AND month = 1 AND day >= 10 GROUP BY category ORDER BY count DESC"
+```
+
+### Available Formats
+| Composition | Dimensions | Platform |
+|-------------|------------|----------|
+| `WeeklyRecapSquare` | 1080x1080 | LinkedIn feed (recommended) |
+| `WeeklyRecap` | 1920x1080 | YouTube, presentations |
+| `WeeklyRecapVertical` | 1080x1920 | Instagram Stories |
+
+### Posting to LinkedIn
+1. Render: `npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4`
+2. Upload as native video to LinkedIn
+3. Add caption from `/weekly-content` generated posts
+
+See `skills/remotion/README.md` for full documentation.
+
+---
 
 ## Contacts / Resources
 

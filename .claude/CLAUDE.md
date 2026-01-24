@@ -250,7 +250,13 @@ bevalc-intelligence/
 │   ├── normalize_companies.py # One-time: fuzzy match company names
 │   ├── sync_permits.py        # Weekly: sync TTB permits to D1
 │   └── generate_sitemaps.py   # Generate sitemaps → upload to R2
-├── skills/                    # Claude skill definitions
+├── skills/
+│   └── remotion/
+│       ├── SKILL.md           # Video generation skill
+│       ├── README.md          # Full documentation
+│       └── bevalc-videos/     # Remotion project
+│           ├── src/Root.tsx   # Video data + compositions
+│           └── out/           # Rendered videos (gitignored)
 ├── templates/                 # LinkedIn post templates
 ├── web/
 │   ├── index.html             # Landing page
@@ -508,17 +514,22 @@ npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, comp
 See `CLAUDE-CONTENT.md` for full documentation.
 See `.claude/agents/content-writer.md` for voice guide and verification procedures.
 
-**Main Command:** `/weekly-content` - Generates 4 LinkedIn posts from D1 data
+**Main Command:** `/weekly-content` - Generates LinkedIn posts from D1 data
+
+**Content Philosophy:**
+- Focus on CREATION, not administration ("brands launched" not "filings submitted")
+- Provide CONTEXT through multi-year trends and seasonal patterns
+- Tell the STORY behind the data
 
 **LinkedIn Content Types:**
-1. **Weekly Intelligence Brief** (Monday 9am) - Filing stats, top filers
-2. **Market Movers** (Wednesday 10am) - New market entrants
-3. **Intent Signals** (Thursday 10am) - Filing velocity anomalies
-4. **Category Analysis** (Friday 10am) - Category deep dive
+1. **Weekly Intelligence Brief** (Monday 9am) - Brand creation summary, YoY context
+2. **Market Movers** (Wednesday 10am) - New companies entering market
+3. **Intent Signals** (Thursday 10am) - Brand launch velocity anomalies
+4. **Category Analysis** (Friday 10am) - Multi-year category deep dive
 
 **Output:** `scripts/content-queue/linkedin-drafts-YYYY-MM-DD.md`
 
-**Tone:** Professional, data-forward, no emojis
+**Tone:** Professional, data-forward, no emojis, no "filings" language
 
 **MANDATORY: Data Verification Process**
 
@@ -530,6 +541,44 @@ Every content file must include verified data. The process:
 4. **Cross-reference claims** - Every number must trace to a query result
 
 A single wrong number destroys credibility. See `content-writer.md` for detailed procedures.
+
+---
+
+## Video Generation (Remotion)
+
+See `skills/remotion/README.md` for full documentation.
+
+**Quick Commands:**
+```bash
+cd skills/remotion/bevalc-videos
+
+# Preview in browser
+npm run dev
+
+# Render LinkedIn square video (RECOMMENDED)
+npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4
+
+# Output: skills/remotion/bevalc-videos/out/weekly-recap-square.mp4
+```
+
+**Available Formats:**
+| Composition | Dimensions | Platform |
+|-------------|------------|----------|
+| `WeeklyRecapSquare` | 1080x1080 | LinkedIn feed (recommended) |
+| `WeeklyRecap` | 1920x1080 | YouTube, presentations |
+| `WeeklyRecapVertical` | 1080x1920 | Instagram Stories, TikTok |
+
+**Video Content (6 scenes, ~18 seconds):**
+1. TitleCard - Headline with date range
+2. ComparisonCard - Current vs prior 2-week period
+3. StatsGrid - New brands, companies, products
+4. CategoryBreakdown - Horizontal bar chart
+5. Leaderboard - Top launcher per category
+6. EndCard - CTA to bevalcintel.com
+
+**CRITICAL: Data must come from D1 queries - NEVER fabricate numbers.**
+
+Update data in `skills/remotion/bevalc-videos/src/Root.tsx` before rendering.
 
 ---
 

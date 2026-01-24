@@ -1,0 +1,24 @@
+{
+  "name": "bevalc-videos",
+  "version": "1.0.0",
+  "description": "Programmatic video generation for BevAlc Intelligence newsletter",
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "render:horizontal": "remotion render WeeklyRecap out/weekly-recap-horizontal.mp4",
+    "render:vertical": "remotion render WeeklyRecapVertical out/weekly-recap-vertical.mp4",
+    "render:all": "npm run render:horizontal && npm run render:vertical"
+  },
+  "keywords": ["remotion", "video", "bevalc"],
+  "author": "BevAlc Intelligence",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/bundler": "^4.0.409",
+    "@remotion/cli": "^4.0.409",
+    "@types/react": "^19.2.9",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "^4.0.409",
+    "typescript": "^5.9.3"
+  }
+}

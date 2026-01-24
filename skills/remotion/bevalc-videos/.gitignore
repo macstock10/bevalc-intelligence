@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Rendered videos (large files)
+out/
+*.mp4
+*.webm
+*.gif
+
+# Remotion cache
+.remotion/
+
+# Webpack cache
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db

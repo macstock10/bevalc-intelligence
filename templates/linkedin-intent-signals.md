@@ -1,6 +1,6 @@
 # LinkedIn Intent Signals Post
 
-Highlights companies showing unusual filing velocity - "heating up" indicators.
+Highlights companies showing unusual brand launch velocity - "heating up" indicators.
 
 ---
 
@@ -8,32 +8,38 @@ Highlights companies showing unusual filing velocity - "heating up" indicators.
 
 ### Hook (First 2 lines)
 ```
-[Company] filed [X] labels in [timeframe].
+[Company] launched [X] new brands in [timeframe].
 
 That's [X]x their typical rate.
 ```
 
 ### Body
 
-**Filing Velocity**
-- [Timeframe] filings: [X]
-- Prior period average: [X]
+**Launch Velocity**
+- Recent period: [X] new brands
+- Prior period average: [X] new brands
 - Increase: [X]%
 
-**What They're Filing**
-- [Category 1]: [X] filings
-- [Category 2]: [X] filings
-- [Brand focus or new brand launches if relevant]
+**What They're Launching**
+- [Category 1]: [X] new brands
+- [Category 2]: [X] new brands
+- [Notable brand names or patterns]
+
+**Historical Context**
+[Company]'s brand launch history:
+- 2025 total: [X] new brands
+- 2024 total: [X] new brands
+- This period represents [X]% of their typical annual output
 
 **Why This Matters**
-[2-3 sentences explaining the business implication - expansion, new product launch, acquisition integration, market entry, etc.]
+[2-3 sentences explaining the business implication - expansion, new product line, acquisition integration, market entry strategy, etc.]
 
-**Context**
-[1-2 sentences of relevant background - recent news, M&A activity, market conditions]
+**What to Watch**
+[1-2 sentences on what this could signal for the market or what to monitor next]
 
 ---
 
-Track filing velocity at bevalcintel.com
+Track brand launch velocity at bevalcintel.com
 
 ---
 
@@ -45,46 +51,59 @@ Track filing velocity at bevalcintel.com
 - Professional language appropriate for executives and analysts
 - No emojis or casual language
 
-### What Constitutes "Intent Signal"
-- 2x+ filing rate vs. prior period
-- 50+ filings in a week from typically moderate filer
-- New category entry (company filing in category they haven't filed in before)
-- Geographic expansion signals (new states appearing)
-- Burst of NEW_BRAND signals from established company
+### Language Rules
+- Say "brand launches" not "filings"
+- Say "launch velocity" not "filing rate"
+- Say "product innovation" not "label approvals"
+- Focus on business activity, not regulatory process
+
+### What Constitutes an "Intent Signal"
+- 2x+ brand launch rate vs. prior period
+- Burst of new brand activity (not just SKU extensions)
+- New category entry (company launching brands in category they haven't been in)
+- Geographic expansion signals
+- Post-acquisition integration activity
 
 ### Caution
 - Avoid definitive claims about company strategy
 - Use language like "suggests", "indicates", "may signal"
 - Acknowledge when data could have multiple interpretations
+- Always provide historical context
 
 ---
 
 ## Example Post
 
 ```
-Brown-Forman filed 47 labels last week.
+Brown-Forman launched 47 new brands last month.
 
-That's 3x their typical weekly rate.
+That's 3x their typical monthly rate.
 
-Filing Velocity
-- Last week: 47 filings
-- 4-week average: 15
+Launch Velocity
+- Last month: 47 new brands
+- 12-month average: 15/month
 - Increase: 213%
 
-What They're Filing
-- Whiskey: 31 filings (Jack Daniel's variants)
-- RTD: 12 filings (new ready-to-drink line)
-- Tequila: 4 filings (Herradura extensions)
+What They're Launching
+- Whiskey: 31 new brands (Jack Daniel's and Woodford Reserve lines)
+- RTD: 12 new brands (canned cocktail expansion)
+- Tequila: 4 new brands (Herradura extensions)
+
+Historical Context
+Brown-Forman's brand launch history:
+- 2025 total: 187 new brands
+- 2024 total: 156 new brands
+- This month represents 25% of their typical annual output
 
 Why This Matters
-This filing burst suggests a significant product refresh across their portfolio. The RTD filings are particularly notable - Brown-Forman has been relatively quiet in the ready-to-drink category compared to competitors.
+This burst suggests a significant product refresh across their portfolio. The RTD launches are particularly notable - Brown-Forman has been relatively quiet in the ready-to-drink category compared to competitors like Diageo and Beam Suntory.
 
-Context
-The spirits industry is projecting 8% RTD growth in 2026. Brown-Forman may be positioning to capture share in a category they've historically underweighted.
+What to Watch
+The spirits industry is projecting 8% RTD growth in 2026. Brown-Forman may be positioning to capture share in a category they've historically underweighted. Watch for distribution announcements in coming months.
 
 ---
 
-Track filing velocity at bevalcintel.com
+Track brand launch velocity at bevalcintel.com
 ```
 
 ---
@@ -94,51 +113,61 @@ Track filing velocity at bevalcintel.com
 ### SQL Queries
 
 ```sql
--- Companies with unusual filing velocity (last 7 days vs prior 28-day avg)
+-- Companies with unusual brand launch velocity (recent vs. baseline)
 WITH recent AS (
   SELECT company_name, COUNT(*) as recent_count
   FROM colas
-  WHERE approval_date >= date('now', '-7 days')
+  WHERE signal = 'NEW_BRAND'
+    AND year = 2026 AND month = 1 AND day >= 10
   GROUP BY company_name
 ),
 baseline AS (
-  SELECT company_name, COUNT(*) / 4.0 as avg_weekly
+  SELECT company_name, COUNT(*) / 4.0 as avg_biweekly
   FROM colas
-  WHERE approval_date >= date('now', '-35 days')
-    AND approval_date < date('now', '-7 days')
+  WHERE signal = 'NEW_BRAND'
+    AND ((year = 2025 AND month = 12) OR (year = 2026 AND month = 1 AND day < 10))
   GROUP BY company_name
 )
 SELECT
   r.company_name,
-  r.recent_count,
-  ROUND(b.avg_weekly, 1) as avg_weekly,
-  ROUND(r.recent_count / b.avg_weekly, 1) as velocity_multiple
+  r.recent_count as new_brands,
+  ROUND(b.avg_biweekly, 1) as avg_biweekly,
+  ROUND(r.recent_count / b.avg_biweekly, 1) as velocity_multiple
 FROM recent r
 JOIN baseline b ON r.company_name = b.company_name
-WHERE b.avg_weekly >= 5  -- Exclude tiny filers
-  AND r.recent_count >= b.avg_weekly * 2  -- At least 2x normal
+WHERE b.avg_biweekly >= 3  -- Exclude tiny launchers
+  AND r.recent_count >= b.avg_biweekly * 2  -- At least 2x normal
 ORDER BY velocity_multiple DESC
 LIMIT 10
-```
 
-```sql
--- New category entry (company filing in category for first time)
-WITH this_week AS (
-  SELECT DISTINCT company_name, class_type_code
+-- New category entry (company launching brands in category for first time)
+WITH recent AS (
+  SELECT DISTINCT company_name, category
   FROM colas
-  WHERE approval_date >= date('now', '-7 days')
+  WHERE signal = 'NEW_BRAND'
+    AND year = 2026 AND month = 1 AND day >= 10
 ),
 historical AS (
-  SELECT DISTINCT company_name, class_type_code
+  SELECT DISTINCT company_name, category
   FROM colas
-  WHERE approval_date < date('now', '-7 days')
+  WHERE signal = 'NEW_BRAND'
+    AND (year < 2026 OR (year = 2026 AND month = 1 AND day < 10))
 )
-SELECT tw.company_name, tw.class_type_code
-FROM this_week tw
+SELECT r.company_name, r.category as new_category
+FROM recent r
 LEFT JOIN historical h
-  ON tw.company_name = h.company_name
-  AND tw.class_type_code = h.class_type_code
+  ON r.company_name = h.company_name
+  AND r.category = h.category
 WHERE h.company_name IS NULL
+
+-- Company historical context
+SELECT year, COUNT(*) as new_brands
+FROM colas
+WHERE signal = 'NEW_BRAND'
+  AND company_name = '[COMPANY_NAME]'
+  AND year >= 2023
+GROUP BY year
+ORDER BY year DESC
 ```
 
 ---
@@ -147,3 +176,13 @@ WHERE h.company_name IS NULL
 - 1-2 per week when significant signals detected
 - Can skip weeks with no notable velocity changes
 - Prioritize recognizable company names for engagement
+
+---
+
+## CRITICAL: Data Verification
+
+Before posting, verify:
+1. Velocity calculations are accurate (recent / baseline)
+2. Historical context numbers match D1 queries
+3. Category breakdown adds up to total
+4. All percentage changes are calculated correctly
