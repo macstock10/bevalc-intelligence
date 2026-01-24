@@ -2783,8 +2783,9 @@ async function handlePermitsContacts(request, env) {
             return { success: false, error: 'Please log in to access contacts' };
         }
 
-        // Search for contacts using the PDL contact search function
-        const result = await searchCompanyContacts(company_name, env);
+        // Search for contacts using the multi-tier contact search function
+        // For permits, we don't have brand name or website, so pass null for both
+        const result = await searchCompanyContacts(company_name, null, null, env);
 
         return {
             success: true,
@@ -5393,34 +5394,37 @@ async function handleEnhance(request, env) {
     const body = await request.json();
     const { company_id, company_name, brand_name, email } = body;
 
-    if (!company_id || !company_name) {
-        return { success: false, error: 'Missing company_id or company_name' };
+    // company_name is required, company_id is optional (permits don't have one)
+    if (!company_name) {
+        return { success: false, error: 'Missing company_name' };
     }
 
     if (!email) {
         return { success: false, error: 'Authentication required' };
     }
 
-    // Check if already enhanced (cache hit)
-    const existing = await env.DB.prepare(
-        'SELECT * FROM company_enhancements WHERE company_id = ?'
-    ).bind(company_id).first();
+    // Check if already enhanced (cache hit) - only if we have a company_id
+    if (company_id) {
+        const existing = await env.DB.prepare(
+            'SELECT * FROM company_enhancements WHERE company_id = ?'
+        ).bind(company_id).first();
 
-    if (existing && existing.enhanced_at) {
-        // Check if expired (90 days)
-        const enhancedDate = new Date(existing.enhanced_at);
-        const now = new Date();
-        const daysSince = (now - enhancedDate) / (1000 * 60 * 60 * 24);
+        if (existing && existing.enhanced_at) {
+            // Check if expired (90 days)
+            const enhancedDate = new Date(existing.enhanced_at);
+            const now = new Date();
+            const daysSince = (now - enhancedDate) / (1000 * 60 * 60 * 24);
 
-        if (daysSince < 90) {
-            const tearsheet = parseEnhancement(existing);
-            // Add fresh recent filings for PDF report
-            tearsheet.recent_filings = await fetchRecentFilings(company_id, env);
-            return {
-                success: true,
-                cached: true,
-                tearsheet
-            };
+            if (daysSince < 90) {
+                const tearsheet = parseEnhancement(existing);
+                // Add fresh recent filings for PDF report
+                tearsheet.recent_filings = await fetchRecentFilings(company_id, env);
+                return {
+                    success: true,
+                    cached: true,
+                    tearsheet
+                };
+            }
         }
     }
 
@@ -5443,8 +5447,10 @@ async function handleEnhance(request, env) {
         const hasUsefulInfo = tearsheet.summary || tearsheet.website?.url;
 
         if (hasUsefulInfo) {
-            // Save to cache
-            await saveEnhancement(company_id, company_name, tearsheet, email, env);
+            // Save to cache only if we have a company_id (not for permits)
+            if (company_id) {
+                await saveEnhancement(company_id, company_name, tearsheet, email, env);
+            }
 
             // Deduct credit
             await deductCredit(email, company_id, env);
@@ -5704,7 +5710,7 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
                 const urlLower = page.url.toLowerCase();
                 if (urlLower === websiteUrl?.toLowerCase() || urlLower.endsWith('/') && urlLower.slice(0, -1) === websiteUrl?.toLowerCase()) {
                     websiteContent.homepage = page.content;
-                } else if (urlLower.includes('/about') || urlLower.includes('/our-story') || urlLower.includes('/history')) {
+                } else if (urlLower.includes('/about') || urlLower.includes('/story') || urlLower.includes('/history')) {
                     websiteContent.aboutPage = page.content;
                 } else if (urlLower.includes('/contact')) {
                     websiteContent.contactPage = page.content;
@@ -5748,16 +5754,13 @@ async function runEnhancement(companyId, companyName, clickedBrandName, env) {
     // Step 4: Search for contacts using multi-tier approach
     let contacts = [];
     try {
-        console.log(`[Enhancement] Searching for contacts...`);
-        const contactResult = await searchCompanyContacts(companyName, websiteUrl, env);
+        const scrapedContent = discoveredUrls.scrapedPages || [];
+        console.log(`[Enhancement] Searching for contacts. Website: ${websiteUrl || 'none'}, Scraped pages: ${scrapedContent.length}`);
+        const contactResult = await searchCompanyContacts(companyName, primaryBrand, websiteUrl, scrapedContent, env);
         contacts = contactResult.contacts || [];
         console.log(`[Enhancement] Found ${contacts.length} contacts via ${contactResult.method || 'unknown'}`);
-        if (contactResult.debug) {
-            console.log(`[Enhancement] Contact search debug: ${contactResult.debug}`);
-        }
     } catch (e) {
-        console.error('[Enhancement] Error fetching contacts:', e);
-        // Continue without contacts
+        console.error(`[Enhancement] Contact search error: ${e.message}`);
     }
 
     return {
@@ -5874,7 +5877,7 @@ async function googleSearch(query, env, retryCount = 0) {
         url.searchParams.set('key', env.GOOGLE_CSE_API_KEY);
         url.searchParams.set('cx', env.GOOGLE_CSE_ID);
         url.searchParams.set('q', query);
-        url.searchParams.set('num', '5');
+        url.searchParams.set('num', '10');
 
         const response = await fetch(url.toString());
 
@@ -5943,7 +5946,13 @@ async function fetchPageContent(url, timeout = 10000, retryCount = 0) {
 
         const html = await response.text();
 
-        // Extract text content (strip HTML tags, scripts, styles)
+        // FIRST: Extract emails from raw HTML (before stripping tags)
+        // This catches mailto: links and emails in attributes
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const foundEmails = html.match(emailRegex) || [];
+        const emailSection = foundEmails.length > 0 ? `\n[EMAILS FOUND: ${[...new Set(foundEmails)].join(', ')}]\n` : '';
+
+        // THEN: Extract text content (strip HTML tags, scripts, styles)
         let text = html
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -5954,8 +5963,10 @@ async function fetchPageContent(url, timeout = 10000, retryCount = 0) {
             .replace(/\s+/g, ' ')
             .trim();
 
-        console.log(`[Fetch] Got ${text.length} chars from ${url}`);
-        return text.substring(0, 4000);
+        // Prepend extracted emails to ensure they're in the content
+        const content = emailSection + text;
+        console.log(`[Fetch] Got ${text.length} chars from ${url}${foundEmails.length > 0 ? `, found ${foundEmails.length} emails` : ''}`);
+        return content.substring(0, 5000);
     } catch (e) {
         // Retry on timeout (aborted)
         if (e.name === 'AbortError' && retryCount < maxRetries) {
@@ -5969,40 +5980,140 @@ async function fetchPageContent(url, timeout = 10000, retryCount = 0) {
 }
 
 // Scrape multiple pages from a confirmed website
-async function scrapeWebsitePages(baseUrl, maxPages = 5) {
+// Strategy: Fetch homepage, extract ALL internal links, fetch those pages, search for @
+async function scrapeWebsitePages(baseUrl, maxPages = 12) {
     try {
         const baseDomain = new URL(baseUrl).hostname;
+        const baseOrigin = new URL(baseUrl).origin;
         const results = [];
+        const visitedUrls = new Set();
+        const rawHtmlForLinks = []; // Store raw HTML for link extraction
 
-        // Fetch homepage first
-        const homeContent = await fetchPageContent(baseUrl);
-        if (homeContent) {
-            results.push({ url: baseUrl, content: homeContent });
+        console.log(`[Scrape] Starting crawl of ${baseDomain}`);
+
+        // Helper to fetch raw HTML (for link extraction)
+        const fetchRawHtml = async (url) => {
+            try {
+                await delay(500);
+                const response = await fetch(url, {
+                    signal: AbortSignal.timeout(10000),
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Accept': 'text/html,application/xhtml+xml'
+                    },
+                    redirect: 'follow'
+                });
+                if (!response.ok) return null;
+                return await response.text();
+            } catch (e) {
+                return null;
+            }
+        };
+
+        // Helper to process raw HTML into clean content with emails extracted
+        const processHtml = (html) => {
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+            const foundEmails = html.match(emailRegex) || [];
+            const emailSection = foundEmails.length > 0 ? `\n[EMAILS FOUND: ${[...new Set(foundEmails)].join(', ')}]\n` : '';
+
+            let text = html
+                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&[a-z]+;/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            return (emailSection + text).substring(0, 5000);
+        };
+
+        // STEP 1: Fetch the discovered URL and root homepage (get raw HTML first)
+        const homeHtml = await fetchRawHtml(baseUrl);
+        if (homeHtml) {
+            rawHtmlForLinks.push(homeHtml);
+            results.push({ url: baseUrl, content: processHtml(homeHtml) });
+            visitedUrls.add(baseUrl);
+            visitedUrls.add(baseUrl.replace(/\/$/, '')); // Also mark without trailing slash
+            console.log(`[Scrape] Fetched homepage: ${baseUrl}`);
         }
 
-        // Priority pages to try
-        const priorityPaths = [
-            '/about', '/about-us', '/about-us/', '/our-story',
-            '/contact', '/contact-us',
-            '/products', '/our-products', '/brands', '/our-brands',
-            '/team', '/leadership', '/history'
-        ];
+        // Also fetch root if discovered URL is a subpage
+        if (baseUrl !== baseOrigin && baseUrl !== baseOrigin + '/') {
+            const rootHtml = await fetchRawHtml(baseOrigin);
+            if (rootHtml) {
+                rawHtmlForLinks.push(rootHtml);
+                results.push({ url: baseOrigin, content: processHtml(rootHtml) });
+                visitedUrls.add(baseOrigin);
+                visitedUrls.add(baseOrigin + '/');
+                console.log(`[Scrape] Fetched root: ${baseOrigin}`);
+            }
+        }
 
-        for (const path of priorityPaths) {
+        // STEP 2: Extract ALL internal links from pages we have
+        const extractInternalLinks = (html, origin, domain) => {
+            const links = new Set();
+            const linkRegex = /href=["']([^"'#]+)["']/gi;
+            let match;
+
+            while ((match = linkRegex.exec(html)) !== null) {
+                const href = match[1].trim();
+
+                // Skip non-page links
+                if (!href ||
+                    href.startsWith('mailto:') ||
+                    href.startsWith('tel:') ||
+                    href.startsWith('javascript:') ||
+                    href.startsWith('//') ||
+                    href.match(/\.(jpg|jpeg|png|gif|svg|pdf|css|js|ico|woff|ttf)$/i)) {
+                    continue;
+                }
+
+                try {
+                    const fullUrl = new URL(href, origin).toString();
+                    // Only keep same-domain links
+                    if (new URL(fullUrl).hostname === domain) {
+                        // Normalize URL (remove trailing slash for comparison)
+                        const normalized = fullUrl.replace(/\/$/, '');
+                        links.add(normalized);
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            return links;
+        };
+
+        // Get all links from raw HTML (not processed content which has tags stripped)
+        const allLinks = new Set();
+        for (const rawHtml of rawHtmlForLinks) {
+            const links = extractInternalLinks(rawHtml, baseOrigin, baseDomain);
+            links.forEach(link => allLinks.add(link));
+        }
+
+        console.log(`[Scrape] Found ${allLinks.size} internal links from homepage(s)`);
+
+        // STEP 3: Fetch all internal pages (up to limit)
+        for (const linkUrl of allLinks) {
             if (results.length >= maxPages) break;
 
+            const normalizedLink = linkUrl.replace(/\/$/, '');
+            if (visitedUrls.has(normalizedLink) || visitedUrls.has(normalizedLink + '/')) continue;
+
             try {
-                const pageUrl = new URL(path, baseUrl).toString();
-                const content = await fetchPageContent(pageUrl, 3000);
+                const content = await fetchPageContent(linkUrl, 4000);
                 if (content && content.length > 200) {
-                    results.push({ url: pageUrl, content });
+                    results.push({ url: linkUrl, content });
+                    visitedUrls.add(normalizedLink);
+                    visitedUrls.add(normalizedLink + '/');
                 }
             } catch (e) {
                 continue;
             }
         }
 
-        console.log(`[Scrape] Got ${results.length} pages from ${baseDomain}`);
+        console.log(`[Scrape] Crawled ${results.length} pages from ${baseDomain}`);
         return results;
     } catch (e) {
         console.error(`[Scrape] Error: ${e.message}`);
@@ -6092,41 +6203,110 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
     console.log(`[Enhancement] Brand: "${brandName}"`);
     console.log(`[Enhancement] Industry: "${industryHint}"`);
 
-    // STEP 1: Build comprehensive search query list
+    // STEP 1: Use Claude to intelligently parse company name and extract search terms
+    let searchTerms = [];
+
+    if (env.ANTHROPIC_API_KEY) {
+        try {
+            console.log('[Enhancement] Using Claude to parse company name...');
+            const parsePrompt = `You are extracting search terms from a beverage company name to find their website.
+
+Company name: "${companyName}"
+
+Extract ALL possible names/aliases this company might use for their website:
+1. DBAs (doing business as)
+2. AKAs (also known as)
+3. Comma-separated alternate names
+4. Primary company name without legal suffixes
+5. Abbreviated versions
+
+Examples:
+- "One Tier LLC dba BOTLD" → ["One Tier", "BOTLD"]
+- "Smith Wines, Jones Imports LLC" → ["Smith Wines", "Jones Imports"]
+- "United Liquors, LLC" → ["United Liquors", "United", "UL"]
+- "American Beverage Company Inc" → ["American Beverage Company", "American Beverage", "ABC"]
+
+Return ONLY a JSON array of strings: ["term1", "term2", "term3"]
+Include 2-5 search terms. Be smart about abbreviations and variations.`;
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': env.ANTHROPIC_API_KEY,
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: 'claude-3-5-sonnet-20241022',
+                    max_tokens: 200,
+                    messages: [{ role: 'user', content: parsePrompt }]
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const text = (result.content?.[0]?.text || '').trim();
+
+                // Extract JSON array
+                const jsonMatch = text.match(/\[[\s\S]*\]/);
+                if (jsonMatch) {
+                    searchTerms = JSON.parse(jsonMatch[0]);
+                    console.log(`[Enhancement] Claude extracted search terms: ${searchTerms.map(t => `"${t}"`).join(', ')}`);
+                }
+            }
+        } catch (e) {
+            console.error('[Enhancement] Claude parsing failed:', e.message);
+        }
+    }
+
+    // Fallback: Basic regex parsing if Claude failed
+    if (searchTerms.length === 0) {
+        console.log('[Enhancement] Using fallback regex parsing...');
+        searchTerms = companyName
+            .split(/\s*,\s*|\s+DBA\s+|\s+D\/B\/A\s+|\s+AKA\s+|\s+A\/K\/A\s+/i)
+            .map(p => p
+                .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+            )
+            .filter(p => p.length >= 3);
+    }
+
+    searchTerms = [...new Set(searchTerms)]; // dedupe
+
+    // STEP 2: Build SIMPLE search query list - company, brand, LinkedIn
     const queries = [];
 
-    // Clean company name (remove legal suffixes)
-    const cleanName = companyName
-        .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    // Primary company name (cleaned, first term)
+    const primaryCompanyTerm = searchTerms[0] || companyName;
 
-    // Query 1: Exact company name in quotes (highest priority)
-    queries.push(`"${companyName}"`);
+    // 1. Company name search
+    queries.push(`"${primaryCompanyTerm}"`);
 
-    // Query 2: Exact company name + "website"
-    queries.push(`"${companyName}" website`);
-
-    // Query 3: Clean name + industry keyword
-    if (cleanName !== companyName) {
-        queries.push(`"${cleanName}" ${industryHint}`);
+    // 2. Company name + industry
+    if (industryHint && industryHint !== 'alcohol') {
+        queries.push(`"${primaryCompanyTerm}" ${industryHint}`);
     }
 
-    // Query 4: Clean name + "official site"
-    if (cleanName.length > 0) {
-        queries.push(`"${cleanName}" official site`);
-    }
-
-    // Query 5: Brand name if different from company
-    if (brandName && brandName !== 'Unknown' && !companyName.toLowerCase().includes(brandName.toLowerCase())) {
+    // 3. Brand name search (ALWAYS search it if provided)
+    if (brandName && brandName !== 'Unknown' && brandName.toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
+        queries.push(`"${brandName}"`);
         queries.push(`"${brandName}" ${industryHint}`);
     }
 
-    // Query 6: Company name + "contact" (often finds official site)
-    queries.push(`"${cleanName}" contact`);
+    // 4. LinkedIn searches (high priority for finding social presence)
+    queries.push(`site:linkedin.com/company "${primaryCompanyTerm}"`);
+    if (brandName && brandName !== 'Unknown' && brandName.toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
+        queries.push(`site:linkedin.com/company "${brandName}"`);
+    }
 
-    // De-duplicate and limit to top 5 queries
-    const uniqueQueries = [...new Set(queries)].slice(0, 5);
+    // 5. If we have a second company term (e.g., "Ska Durango" from "Ska Brewing Co, Ska Durango, LLC")
+    if (searchTerms[1] && searchTerms[1].toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
+        queries.push(`"${searchTerms[1]}"`);
+    }
+
+    // De-duplicate and limit to 8 queries max
+    const uniqueQueries = [...new Set(queries)].slice(0, 8);
     console.log(`[Enhancement] Will search ${uniqueQueries.length} queries:`);
     uniqueQueries.forEach((q, i) => console.log(`  ${i + 1}. ${q}`));
 
@@ -6150,12 +6330,14 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
     console.log(`[Enhancement] Google returned ${allResults.length} unique results across all queries`);
 
     // STEP 3: Extract social media URLs from results (no extra API call)
-    let facebookUrl = null, instagramUrl = null, youtubeUrl = null;
+    let facebookUrl = null, instagramUrl = null, youtubeUrl = null, linkedinCompanyUrl = null;
     for (const r of allResults) {
         const url = r.link;
         if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) facebookUrl = url;
         if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) instagramUrl = url;
         if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) youtubeUrl = url;
+        // Capture LinkedIn company pages (not individual profiles)
+        if (url.includes('linkedin.com/company/') && !linkedinCompanyUrl) linkedinCompanyUrl = url;
     }
 
     // STEP 4: Format results for Claude (just URL, title, snippet - NO content fetching yet)
@@ -6175,13 +6357,18 @@ async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
 
     if (!candidateList) {
         console.log('[Enhancement] No candidates after filtering');
-        return { website: null, social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl }, news: [], scrapedPages: [] };
+        // Fall back to LinkedIn company page if no website candidates
+        const fallbackWebsite = linkedinCompanyUrl || null;
+        if (fallbackWebsite) {
+            console.log(`[Enhancement] Using LinkedIn company page as fallback: ${fallbackWebsite}`);
+        }
+        return { website: fallbackWebsite, social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl, linkedin: linkedinCompanyUrl }, news: [], scrapedPages: [] };
     }
 
     // STEP 5: Claude picks the website (just from Google metadata, NO fetching)
     let websiteUrl = null;
     if (env.ANTHROPIC_API_KEY) {
-        const prompt = `You are identifying the official website for a beverage alcohol company. Be smart about matching - companies often have abbreviated domains or parent company websites.
+        const prompt = `You are identifying the official website for a beverage alcohol company.
 
 COMPANY: ${companyName}
 BRAND: ${brandName}
@@ -6191,37 +6378,16 @@ Here are Google search results. Which one is most likely the company's OFFICIAL 
 
 ${candidateList}
 
-MATCHING RULES:
-1. DIRECT MATCH: Domain contains company name or brand (e.g., "smithwinery.com" for "Smith Winery LLC")
+INSTRUCTIONS:
+- Pick the URL that looks like the company's own website (not a retailer, directory, or news site)
+- The domain often contains the company name or brand name
+- Companies often abbreviate: "United Liquors" may use "unisco.com", "American Beverage" may use "ambevco.com"
+- Look for context clues: title/snippet mentioning the company name, "about us", contact info
+- Distilleries, wineries, breweries usually have their own .com site
+- Importers/distributors may have parent company domains - check if snippet mentions the company
+- If none look like an official company website, say "none"
 
-2. ABBREVIATION: Companies often shorten their name in domains:
-   - "United Liquors" → "unisco.com"
-   - "American Beverage Company" → "ambevco.com"
-   - "California Wine Imports" → "calwine.com"
-
-3. PARENT COMPANY: Distributors/importers may have a parent company domain:
-   - Title/snippet mentions the company name even if domain doesn't
-   - Look for phrases like "division of", "operated by", "portfolio includes"
-
-4. INDUSTRY SITES: Look for actual company pages on industry websites:
-   - wineinstitute.org/company-name
-   - ttb.gov listings
-   - Import/distributor directories with company profiles
-
-5. CONTEXT CLUES in title/snippet:
-   - Mentions company name or brand explicitly
-   - Describes company as distributor/importer/winery/distillery/brewery
-   - Has contact info, product info, or "about us" content
-
-WHAT TO AVOID:
-- Retailers (totalwine.com, wine.com, beverages2u.com)
-- Marketplaces (amazon.com, drizly.com)
-- Review sites (vivino.com, untappd.com, ratebeer.com)
-- Generic directories without actual company info
-
-BE CONFIDENT: If a result clearly references the company even with an unexpected domain, pick it. Don't say "none" too easily.
-
-Reply with ONLY the URL (e.g., "https://example.com") or "none" if truly nothing matches.`;
+Reply with ONLY the URL (e.g., "https://example.com") or "none". Nothing else.`;
 
         try {
             console.log('[Enhancement] Asking Claude to pick website...');
@@ -6233,8 +6399,8 @@ Reply with ONLY the URL (e.g., "https://example.com") or "none" if truly nothing
                     'anthropic-version': '2023-06-01'
                 },
                 body: JSON.stringify({
-                    model: 'claude-3-5-sonnet-20241022',
-                    max_tokens: 150,
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 100,
                     messages: [{ role: 'user', content: prompt }]
                 })
             });
@@ -6252,6 +6418,12 @@ Reply with ONLY the URL (e.g., "https://example.com") or "none" if truly nothing
         } catch (e) {
             console.error('[Enhancement] Claude website selection failed:', e.message);
         }
+    }
+
+    // STEP 5.5: Fall back to LinkedIn company page if no official website found
+    if (!websiteUrl && linkedinCompanyUrl) {
+        websiteUrl = linkedinCompanyUrl;
+        console.log(`[Enhancement] No official website found, using LinkedIn company page: ${websiteUrl}`);
     }
 
     // STEP 6: Scrape the selected website (NOW we fetch content)
@@ -6283,7 +6455,7 @@ Reply with ONLY the URL (e.g., "https://example.com") or "none" if truly nothing
 
     return {
         website: websiteUrl,
-        social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl },
+        social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl, linkedin: linkedinCompanyUrl },
         news: newsArticles,
         scrapedPages: scrapedPages
     };
@@ -6665,40 +6837,135 @@ function getIndustryHint(categories) {
 
 /**
  * Search for contacts at a company using multi-page website scraping with Claude
- * Falls back to Hunter.io if website scraping finds nothing
+ * Falls back through multiple tiers: scraped content → Google search → LinkedIn search → Hunter.io
  * @param {string} companyName - Company name
+ * @param {string} brandName - Brand name (for LinkedIn search)
  * @param {string} websiteUrl - Company website URL (from Google CSE)
+ * @param {Array} scrapedContent - Already-scraped pages from website discovery [{url, content}, ...]
  * @param {object} env - Worker environment
  * @returns {Promise<object>} - { contacts: [], debug: string, searched_name: string }
  */
-async function searchCompanyContacts(companyName, websiteUrl, env) {
-    if (!websiteUrl) {
-        return {
-            contacts: [],
-            debug: 'No website found - cannot search for contacts',
-            searched_name: companyName
-        };
-    }
+async function searchCompanyContacts(companyName, brandName, websiteUrl, scrapedContent, env) {
+    console.log(`[Contacts] Starting contact search for: ${companyName}, website: ${websiteUrl || 'none'}, scrapedContent: ${scrapedContent?.length || 0} pages`);
 
-    console.log(`[Contacts] Searching for contacts at ${companyName} (${websiteUrl})`);
+    // Helper function to extract emails and phones from text
+    const extractContactInfo = (text) => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const phoneRegex = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
 
-    // TIER 1: Scrape website with Claude Sonnet
-    try {
-        const scrapedContacts = await scrapeWebsiteForContacts(companyName, websiteUrl, env);
-        if (scrapedContacts.contacts && scrapedContacts.contacts.length > 0) {
-            console.log(`[Contacts] Found ${scrapedContacts.contacts.length} contacts via website scraping`);
-            return {
-                contacts: scrapedContacts.contacts,
-                debug: null,
-                searched_name: companyName,
-                method: 'website_scraping'
-            };
+        const allEmails = text.match(emailRegex) || [];
+        const phones = text.match(phoneRegex) || [];
+
+        // Filter spam emails
+        const spamPatterns = ['noreply', 'no-reply', 'donotreply', 'mailer', 'notifications', 'newsletter', 'sentry', 'wixpress', 'example.com', 'schema.org', 'w3.org', 'wordpress', 'googleapis', 'gravatar', 'sentry.io', 'cloudflare'];
+        const validEmails = [...new Set(allEmails)].filter(email => {
+            const lower = email.toLowerCase();
+            return !spamPatterns.some(pattern => lower.includes(pattern));
+        });
+
+        return { emails: validEmails, phones: [...new Set(phones)] };
+    };
+
+    // STEP 1: First check already-scraped content (fastest, already fetched)
+    if (scrapedContent && scrapedContent.length > 0) {
+        console.log(`[Contacts] Checking ${scrapedContent.length} pre-scraped pages for emails`);
+        const allScrapedText = scrapedContent.map(p => p.content || '').join('\n');
+
+        // DIAGNOSTIC: Check if @ exists in content
+        const hasAtSign = allScrapedText.includes('@');
+        const hasEmailsFoundTag = allScrapedText.includes('[EMAILS FOUND:');
+        const contentLength = allScrapedText.length;
+        const first500 = allScrapedText.substring(0, 500);
+        console.log(`[Contacts] DIAGNOSTIC: contentLength=${contentLength}, hasAtSign=${hasAtSign}, hasEmailsFoundTag=${hasEmailsFoundTag}`);
+        console.log(`[Contacts] DIAGNOSTIC first 500 chars: ${first500}`);
+
+        const { emails, phones } = extractContactInfo(allScrapedText);
+
+        console.log(`[Contacts] Pre-scraped content search found ${emails.length} emails: ${emails.join(', ')}`);
+
+        if (emails.length > 0) {
+            const contacts = emails.slice(0, 3).map((email, idx) => ({
+                name: idx === 0 ? 'Company Contact' : `Contact ${idx + 1}`,
+                title: idx === 0 ? 'Primary Contact' : 'Additional Contact',
+                email: email,
+                phone: idx === 0 && phones.length > 0 ? phones[0] : null,
+                linkedin: null
+            }));
+            return { contacts, debug: null, searched_name: companyName, method: 'scraped_content' };
         }
-    } catch (error) {
-        console.error('[Contacts] Website scraping failed:', error);
     }
 
-    // TIER 2: Google search for company owner/CEO
+    // STEP 2: Direct fetch of website (in case scraped content didn't have emails)
+    if (websiteUrl) {
+        try {
+            const rootUrl = new URL(websiteUrl).origin;
+            const urlsToFetch = [websiteUrl];
+            if (rootUrl !== websiteUrl && rootUrl + '/' !== websiteUrl) {
+                urlsToFetch.push(rootUrl);
+            }
+
+            console.log(`[Contacts] Direct fetching: ${urlsToFetch.join(', ')}`);
+
+            let allHtml = '';
+            for (const url of urlsToFetch) {
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    if (response.ok) {
+                        const html = await response.text();
+                        allHtml += html + '\n';
+                        console.log(`[Contacts] Fetched ${html.length} chars from ${url}`);
+                    } else {
+                        console.log(`[Contacts] Fetch returned ${response.status} for ${url}`);
+                    }
+                } catch (e) {
+                    console.log(`[Contacts] Fetch error for ${url}: ${e.message}`);
+                }
+            }
+
+            if (allHtml.length > 0) {
+                const { emails, phones } = extractContactInfo(allHtml);
+                console.log(`[Contacts] Direct fetch found ${emails.length} emails: ${emails.join(', ')}`);
+
+                if (emails.length > 0) {
+                    const contacts = emails.slice(0, 3).map((email, idx) => ({
+                        name: idx === 0 ? 'Company Contact' : `Contact ${idx + 1}`,
+                        title: idx === 0 ? 'Primary Contact' : 'Additional Contact',
+                        email: email,
+                        phone: idx === 0 && phones.length > 0 ? phones[0] : null,
+                        linkedin: null
+                    }));
+                    return { contacts, debug: null, searched_name: companyName, method: 'direct_fetch' };
+                }
+            }
+        } catch (e) {
+            console.log(`[Contacts] Direct fetch failed: ${e.message}`);
+        }
+    }
+
+    // TIER 1: Scrape website with Claude Sonnet (only if we have a website and no emails found above)
+    if (websiteUrl) {
+        try {
+            const scrapedContacts = await scrapeWebsiteForContacts(companyName, websiteUrl, env);
+            if (scrapedContacts.contacts && scrapedContacts.contacts.length > 0) {
+                console.log(`[Contacts] Found ${scrapedContacts.contacts.length} contacts via website scraping`);
+                return {
+                    contacts: scrapedContacts.contacts,
+                    debug: null,
+                    searched_name: companyName,
+                    method: 'website_scraping'
+                };
+            }
+        } catch (error) {
+            console.error('[Contacts] Website scraping failed:', error);
+        }
+    } else {
+        console.log('[Contacts] No website - skipping Tier 1 (website scraping)');
+    }
+
+    // TIER 2: Google search for company owner/CEO (works without website)
     if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID) {
         try {
             const googleContacts = await googleSearchForContacts(companyName, env);
@@ -6716,8 +6983,26 @@ async function searchCompanyContacts(companyName, websiteUrl, env) {
         }
     }
 
-    // TIER 3: Try Hunter.io as fallback
-    if (env.HUNTER_IO_API_KEY) {
+    // TIER 3: LinkedIn search via Google (searches both company and brand name)
+    if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID && env.ANTHROPIC_API_KEY) {
+        try {
+            const linkedInContacts = await linkedInSearchForContacts(companyName, brandName, env);
+            if (linkedInContacts.contacts && linkedInContacts.contacts.length > 0) {
+                console.log(`[Contacts] Found ${linkedInContacts.contacts.length} contacts via LinkedIn search`);
+                return {
+                    contacts: linkedInContacts.contacts,
+                    debug: null,
+                    searched_name: companyName,
+                    method: 'linkedin_search'
+                };
+            }
+        } catch (error) {
+            console.error('[Contacts] LinkedIn search failed:', error);
+        }
+    }
+
+    // TIER 4: Try Hunter.io as fallback (requires website for domain)
+    if (websiteUrl && env.HUNTER_IO_API_KEY) {
         try {
             const domain = new URL(websiteUrl).hostname.replace(/^www\./, '');
             const hunterContacts = await hunterDomainSearch(domain, env);
@@ -6733,12 +7018,15 @@ async function searchCompanyContacts(companyName, websiteUrl, env) {
         } catch (error) {
             console.error('[Contacts] Hunter.io failed:', error);
         }
+    } else if (!websiteUrl) {
+        console.log('[Contacts] No website - skipping Tier 4 (Hunter.io needs domain)');
     }
 
     // Nothing found
+    const methods = websiteUrl ? 'website, Google, LinkedIn, or Hunter.io' : 'Google or LinkedIn';
     return {
         contacts: [],
-        debug: `No contacts found via website, Google search, or Hunter.io`,
+        debug: `No contacts found via ${methods}`,
         searched_name: companyName
     };
 }
@@ -6757,11 +7045,14 @@ async function scrapeWebsiteForContacts(companyName, websiteUrl, env) {
     // Common contact page paths to check
     const baseUrl = new URL(websiteUrl);
     const pagesToFetch = [
-        websiteUrl, // Homepage
+        websiteUrl, // The discovered URL
+        baseUrl.origin, // Root homepage (in case websiteUrl is a subpage like /story)
         `${baseUrl.origin}/contact`,
         `${baseUrl.origin}/contact-us`,
         `${baseUrl.origin}/about`,
         `${baseUrl.origin}/about-us`,
+        `${baseUrl.origin}/story`,
+        `${baseUrl.origin}/our-story`,
         `${baseUrl.origin}/team`,
         `${baseUrl.origin}/leadership`
     ];
@@ -6805,15 +7096,17 @@ Find decision-makers and key contacts (owners, executives, directors, sales lead
 - Job title
 - Email address
 - Phone number (if available)
-- LinkedIn URL (if available)
+- LinkedIn URL (ONLY if explicitly linked on the page - DO NOT GUESS OR MAKE UP)
 
 IMPORTANT RULES:
-- Only extract REAL contacts with actual names (not "Contact Us" or generic info@)
-- Prioritize decision-makers: Owner, President, CEO, VP, Director, Sales Manager
-- Skip generic emails like: info@, contact@, support@, sales@ (unless that's the ONLY option)
-- Skip customer service roles
+- Prioritize decision-makers with names: Owner, President, CEO, VP, Director, Sales Manager
+- If you find named people with emails, extract them first
+- If NO named contacts exist, extract the company's main contact email (even without a name)
+- For company emails without names, use "Company Contact" as the name and "Primary Contact" as the title
+- Skip truly generic emails like info@, contact@, support@ ONLY if better options exist
 - If you find multiple people, return up to 5 most senior contacts
 - Be accurate - if you're not sure, don't include it
+- NEVER invent or guess LinkedIn URLs - only include if you see an actual linkedin.com link in the HTML
 
 Website content:
 ${combinedContext}
@@ -6825,11 +7118,12 @@ Return a JSON array of contacts in this exact format:
     "title": "Owner & Winemaker",
     "email": "john@winery.com",
     "phone": "+1-555-123-4567",
-    "linkedin": "https://linkedin.com/in/johnsmith"
+    "linkedin": null
   }
 ]
 
-If you find NO actual decision-makers or named contacts, return an empty array: []`;
+If you find a company email address but no named person, still return it with name "Company Contact" and title "Primary Contact".
+Only return an empty array [] if the page has absolutely no email addresses or contact information.`;
 
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -6867,6 +7161,41 @@ If you find NO actual decision-makers or named contacts, return an empty array: 
     } catch (e) {
         console.error('[WebScrape] Failed to parse Claude response:', e);
         console.log('[WebScrape] Raw response:', responseText);
+    }
+
+    // FALLBACK: If Claude returned empty, try regex extraction directly from HTML
+    if (contacts.length === 0) {
+        console.log('[WebScrape] Claude returned no contacts, trying regex fallback');
+
+        // Extract emails using regex (excluding common generic patterns)
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const allEmails = combinedContext.match(emailRegex) || [];
+
+        // Filter out truly generic emails and duplicates
+        const genericPatterns = ['noreply@', 'no-reply@', 'donotreply@', 'mailer@', 'notifications@', 'newsletter@'];
+        const uniqueEmails = [...new Set(allEmails)].filter(email => {
+            const lower = email.toLowerCase();
+            // Keep company-specific emails, even if they use info@, contact@, etc.
+            return !genericPatterns.some(pattern => lower.startsWith(pattern));
+        });
+
+        // Extract phone numbers
+        const phoneRegex = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
+        const phones = combinedContext.match(phoneRegex) || [];
+        const uniquePhones = [...new Set(phones)];
+
+        if (uniqueEmails.length > 0) {
+            console.log(`[WebScrape] Regex found ${uniqueEmails.length} emails: ${uniqueEmails.join(', ')}`);
+            // Take the first non-generic email as primary contact
+            const primaryEmail = uniqueEmails[0];
+            contacts.push({
+                name: 'Company Contact',
+                title: 'Primary Contact',
+                email: primaryEmail,
+                phone: uniquePhones.length > 0 ? uniquePhones[0] : null,
+                linkedin: null
+            });
+        }
     }
 
     return { contacts };
@@ -6916,6 +7245,7 @@ async function hunterDomainSearch(domain, env) {
     console.log(`[Hunter.io] Found ${emails.length} emails`);
 
     // Transform to our contact format
+    // Note: Hunter.io returns linkedin field but it's often inaccurate, so we don't include it
     const contacts = emails
         .slice(0, 5)  // Limit to top 5
         .map(e => ({
@@ -6923,7 +7253,7 @@ async function hunterDomainSearch(domain, env) {
             title: e.position || 'Unknown',
             email: e.value,
             phone: e.phone_number || null,
-            linkedin: e.linkedin || null,
+            linkedin: null,  // Hunter.io LinkedIn data is unreliable - omit it
             confidence: e.confidence  // Hunter.io provides confidence score
         }))
         .filter(c => c.name !== 'Unknown');  // Only include named contacts
@@ -6991,9 +7321,9 @@ async function googleSearchForContacts(companyName, env) {
 Find the owner, CEO, founder, or president of ${companyName}. Extract:
 - Full name
 - Job title
-- Email address (if found)
-- Phone number (if found)
-- LinkedIn URL (if found)
+- Email address (if found in snippets)
+- Phone number (if found in snippets)
+- LinkedIn URL (ONLY if an actual linkedin.com URL appears in the snippets - DO NOT GUESS)
 
 IMPORTANT RULES:
 - Only extract REAL people with actual names
@@ -7001,6 +7331,7 @@ IMPORTANT RULES:
 - If email/phone is mentioned in the snippets, include it
 - Be accurate - if you're not confident, don't include it
 - Return up to 2 contacts maximum (top executives only)
+- NEVER invent or guess LinkedIn URLs - only include if you see an actual linkedin.com URL
 
 Google search results:
 ${snippetsText}
@@ -7012,7 +7343,7 @@ Return a JSON array in this exact format:
     "title": "Owner & CEO",
     "email": "john@company.com",
     "phone": "+1-555-123-4567",
-    "linkedin": "https://linkedin.com/in/johnsmith"
+    "linkedin": null
   }
 ]
 
@@ -7055,6 +7386,153 @@ If you find NO clear decision-makers or named contacts, return an empty array: [
         console.log('[GoogleSearch] Raw response:', responseText);
     }
 
+    return { contacts };
+}
+
+/**
+ * Search for company contacts via LinkedIn using Google site search
+ * Searches for both company name and brand name to maximize results
+ * @param {string} companyName - Company name
+ * @param {string} brandName - Brand name (may be same as company or different)
+ * @param {object} env - Worker environment
+ */
+async function linkedInSearchForContacts(companyName, brandName, env) {
+    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID || !env.ANTHROPIC_API_KEY) {
+        throw new Error('Google CSE or Anthropic API keys not configured');
+    }
+
+    console.log(`[LinkedIn] Searching for ${companyName}${brandName && brandName !== companyName ? ` / ${brandName}` : ''}`);
+
+    // Build search queries for both company and brand
+    const searchQueries = [
+        `site:linkedin.com "${companyName}" owner OR founder OR CEO`,
+        `site:linkedin.com "${companyName}" president OR director`
+    ];
+
+    // Add brand-specific searches if brand is different from company
+    if (brandName && brandName !== companyName && brandName !== 'Unknown') {
+        searchQueries.push(`site:linkedin.com "${brandName}" owner OR founder OR CEO`);
+        searchQueries.push(`site:linkedin.com "${brandName}" winemaker OR distiller OR brewmaster`);
+    }
+
+    let allSnippets = [];
+
+    // Execute searches in parallel
+    const searchPromises = searchQueries.map(async query => {
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${env.GOOGLE_CSE_API_KEY}&cx=${env.GOOGLE_CSE_ID}&q=${encodeURIComponent(query)}&num=5`;
+            const response = await fetch(url);
+
+            if (response.ok) {
+                const data = await response.json();
+                return (data.items || []).map(item => ({
+                    title: item.title,
+                    snippet: item.snippet,
+                    link: item.link
+                }));
+            }
+        } catch (e) {
+            console.error(`[LinkedIn] Query "${query}" failed:`, e);
+        }
+        return [];
+    });
+
+    const searchResults = await Promise.all(searchPromises);
+    allSnippets = searchResults.flat();
+
+    // Dedupe by URL
+    const seenUrls = new Set();
+    allSnippets = allSnippets.filter(s => {
+        if (seenUrls.has(s.link)) return false;
+        seenUrls.add(s.link);
+        return true;
+    });
+
+    if (allSnippets.length === 0) {
+        console.log('[LinkedIn] No results found');
+        return { contacts: [] };
+    }
+
+    console.log(`[LinkedIn] Got ${allSnippets.length} unique results, extracting contacts with Claude`);
+
+    // Use Claude to extract contact info from LinkedIn search snippets
+    const snippetsText = allSnippets.map((s, i) =>
+        `Result ${i + 1}: ${s.title}\n${s.snippet}\nURL: ${s.link}`
+    ).join('\n\n---\n\n');
+
+    const prompt = `You are extracting contact information for "${companyName}"${brandName && brandName !== companyName ? ` (brand: "${brandName}")` : ''} from LinkedIn search results via Google.
+
+The Google search results show LinkedIn profile titles and snippets. Extract decision-makers who work at or own this company.
+
+IMPORTANT RULES:
+- Only extract people who CLEARLY work at or own "${companyName}" or "${brandName}"
+- Look for titles like: Owner, Founder, CEO, President, Winemaker, Distiller, Brewmaster, Director
+- The LinkedIn URL in the results IS the person's real LinkedIn profile - include it
+- Do NOT include people who just happen to have similar names but work elsewhere
+- If the snippet mentions the company/brand name in connection with the person, that's a good sign
+- Return up to 3 contacts maximum
+- CRITICAL: email and phone should ALWAYS be null - LinkedIn does not show emails. NEVER make up or guess emails.
+
+Google search results (from site:linkedin.com):
+${snippetsText}
+
+Return a JSON array in this exact format:
+[
+  {
+    "name": "John Smith",
+    "title": "Owner & Founder",
+    "email": null,
+    "phone": null,
+    "linkedin": "https://www.linkedin.com/in/johnsmith"
+  }
+]
+
+If you find NO clear decision-makers for this specific company, return an empty array: []`;
+
+    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+                role: 'user',
+                content: prompt
+            }]
+        })
+    });
+
+    if (!claudeResponse.ok) {
+        const errorText = await claudeResponse.text();
+        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
+    }
+
+    const claudeData = await claudeResponse.json();
+    const responseText = claudeData.content[0].text;
+
+    // Parse JSON response
+    let contacts = [];
+    try {
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+            contacts = JSON.parse(jsonMatch[0]);
+            // Post-process: remove any fake/hallucinated emails (LinkedIn doesn't provide emails)
+            contacts = contacts.map(c => ({
+                ...c,
+                email: null,  // Force null - LinkedIn search never has real emails
+                phone: null   // Force null - LinkedIn search never has real phones
+            }));
+        }
+    } catch (e) {
+        console.error('[LinkedIn] Failed to parse Claude response:', e);
+        console.log('[LinkedIn] Raw response:', responseText);
+    }
+
+    console.log(`[LinkedIn] Extracted ${contacts.length} contacts`);
     return { contacts };
 }
 
