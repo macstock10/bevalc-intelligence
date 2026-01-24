@@ -1,0 +1,100 @@
+name: TTB Statistics Sync
+
+# Syncs TTB distilled spirits production statistics.
+# TTB updates this data monthly (45 days after month end) and
+# yearly (60 days after year end). Running weekly ensures we
+# catch updates promptly.
+
+on:
+  schedule:
+    # Run every Wednesday at 3am UTC (10pm ET Tuesday)
+    - cron: '0 3 * * 3'
+  workflow_dispatch:
+    inputs:
+      data_type:
+        description: 'Data to sync'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - monthly
+          - yearly
+      generate_content:
+        description: 'Generate articles after sync'
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Dry run (no database writes)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd scripts
+          pip install requests
+
+      - name: Create directories
+        run: |
+          mkdir -p logs content-queue
+
+      - name: Sync TTB Statistics
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+
+          DATA_TYPE="${{ inputs.data_type || 'all' }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          FLAGS=""
+          if [ "$DATA_TYPE" = "monthly" ]; then
+            FLAGS="--monthly"
+          elif [ "$DATA_TYPE" = "yearly" ]; then
+            FLAGS="--yearly"
+          fi
+
+          if [ "$DRY_RUN" = "true" ]; then
+            FLAGS="$FLAGS --dry-run"
+          fi
+
+          echo "Running: python sync_ttb_statistics.py $FLAGS"
+          python sync_ttb_statistics.py $FLAGS
+
+      - name: Generate Articles
+        if: ${{ inputs.generate_content != 'false' && inputs.dry_run != 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cd scripts
+          python generate_spirits_articles.py --auto
+
+      - name: Upload content
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spirits-content-${{ github.run_number }}
+          path: scripts/content-queue/spirits-*.md
+          retention-days: 30
+          if-no-files-found: ignore

@@ -11,6 +11,8 @@
 | Regenerate sitemaps | `cd scripts && python generate_sitemaps.py` |
 | Generate LinkedIn video | `cd skills/remotion/bevalc-videos && npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4` |
 | Generate LinkedIn posts | `/weekly-content` in Claude Code |
+| Sync TTB statistics | `cd scripts && python sync_ttb_statistics.py` |
+| Generate spirits articles | `cd scripts && python generate_spirits_articles.py --auto` |
 | Check logs | GitHub Actions → click workflow run → view logs |
 
 ## Deployment
@@ -30,6 +32,7 @@
 ### GitHub Actions (Scheduled)
 - **Daily TTB Sync**: Daily 9pm ET (2am UTC)
 - **Weekly Report**: Fridays 2pm ET (7pm UTC)
+- **TTB Statistics Sync**: Wednesdays 10pm ET (3am UTC)
 - **Manual trigger**: Actions tab → select workflow → Run workflow
 
 ## Rollback Procedures
@@ -234,9 +237,83 @@ See `skills/remotion/README.md` for full documentation.
 
 ---
 
+## TTB Distilled Spirits Statistics
+
+Production statistics from TTB covering all US distilled spirits (whisky, vodka, rum, gin, brandy, cordials).
+
+### Data Source
+- **URL**: https://www.ttb.gov/regulated-commodities/beverage-alcohol/distilled-spirits/statistics
+- **Coverage**: 2012 to present
+- **Update frequency**: Monthly (45 days after month end), Yearly (60 days after year end)
+
+### Automatic Sync
+GitHub Action runs every Wednesday at 3am UTC (10pm ET Tuesday):
+1. Downloads monthly + yearly CSVs from TTB
+2. Syncs to `ttb_spirits_stats` table in D1
+3. Generates articles for new data
+
+### Manual Sync
+```bash
+cd scripts
+
+# Full sync (monthly + yearly)
+python sync_ttb_statistics.py
+
+# Check sync status
+python sync_ttb_statistics.py --status
+
+# Monthly data only
+python sync_ttb_statistics.py --monthly
+```
+
+### Generate Content
+```bash
+cd scripts
+
+# Auto-generate for latest data
+python generate_spirits_articles.py --auto
+
+# Specific month
+python generate_spirits_articles.py --monthly 2024 11
+
+# Annual analysis
+python generate_spirits_articles.py --yearly 2024
+
+# Category deep dive
+python generate_spirits_articles.py --category whisky
+
+# LinkedIn post
+python generate_spirits_articles.py --linkedin
+```
+
+Output: `scripts/content-queue/spirits-*.md`
+
+### Check Data Coverage
+```sql
+-- Latest monthly data
+SELECT MAX(year) as year, MAX(month) as month
+FROM ttb_spirits_stats WHERE month IS NOT NULL;
+
+-- Latest yearly data
+SELECT MAX(year) as year FROM ttb_spirits_stats WHERE month IS NULL;
+
+-- Production by category (latest year)
+SELECT statistical_detail, value, count_ims
+FROM ttb_spirits_stats
+WHERE year = 2024 AND month IS NULL
+AND statistical_group LIKE '1-Distilled Spirits Production%'
+ORDER BY value DESC;
+```
+
+### Skill Command
+Use `/spirits-report` in Claude Code to generate articles interactively.
+
+---
+
 ## Contacts / Resources
 
 - **TTB COLA Database**: https://ttbonline.gov/colasonline/publicSearchColasBasic.do
+- **TTB Spirits Statistics**: https://www.ttb.gov/regulated-commodities/beverage-alcohol/distilled-spirits/statistics
 - **Cloudflare Dashboard**: https://dash.cloudflare.com
 - **Netlify Dashboard**: https://app.netlify.com
 - **Resend Dashboard**: https://resend.com/emails

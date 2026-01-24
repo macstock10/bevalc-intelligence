@@ -70,6 +70,25 @@ This is the most important section. Read this first to understand how the system
 │  Updated weekly by TTB (usually Mondays)                                │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WEEKLY TTB STATISTICS SYNC (Wednesday 3am UTC)       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  WEDNESDAY 3am UTC / 10pm ET (GitHub Actions: ttb-statistics-sync.yml)  │
+│  └─► sync_ttb_statistics.py                                             │
+│       ├─► 1. Download monthly + yearly CSVs from TTB                    │
+│       ├─► 2. Parse production data (proof gallons by category)          │
+│       ├─► 3. Insert/update ttb_spirits_stats table in D1                │
+│       └─► 4. Log sync status (last year/month available)                │
+│                                                                         │
+│  THEN: generate_spirits_articles.py --auto                              │
+│       └─► Generates monthly recap + LinkedIn posts for new data         │
+│                                                                         │
+│  Data source: https://www.ttb.gov/regulated-commodities/beverage-alcohol/distilled-spirits/statistics │
+│  Updated monthly by TTB (45 days after month end)                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Live System Architecture
@@ -313,6 +332,25 @@ Precomputes hub page stats to avoid slow GROUP BY queries on large categories:
 - Wine (1.88M records) and Beer (470K) were taking 13-17 seconds without cache
 - With cache, all hub pages load in <1 second
 
+### `scripts/sync_ttb_statistics.py`
+Syncs TTB distilled spirits production statistics to D1:
+- Downloads monthly and yearly CSVs from TTB website
+- Parses production volumes, producer counts, withdrawals
+- Inserts to `ttb_spirits_stats` table (INSERT OR REPLACE)
+- Logs sync status to `ttb_stats_sync_log`
+
+Run: `python sync_ttb_statistics.py` (full sync) or `--status` (check coverage)
+
+### `scripts/generate_spirits_articles.py`
+Generates analysis articles from TTB spirits statistics:
+- `--auto` - Generate articles for latest available data
+- `--monthly 2024 11` - Generate specific month recap
+- `--yearly 2024` - Generate annual analysis
+- `--category whisky` - Generate category deep dive
+- `--linkedin` - Generate short LinkedIn post
+
+Output: `scripts/content-queue/spirits-*.md`
+
 ---
 
 ## Database Schema (Cloudflare D1)
@@ -442,6 +480,30 @@ Precomputes hub page stats to avoid slow GROUP BY queries on large categories:
 - Wine Producers without COLAs: 12,740
 - Distilleries without COLAs: 2,963
 
+### `ttb_spirits_stats` - TTB production statistics
+| Column | Type | Notes |
+|--------|------|-------|
+| year | INT | Year of data |
+| month | INT | Month (NULL for yearly aggregates) |
+| statistical_group | TEXT | Category group (e.g., "1-Distilled Spirits Production") |
+| statistical_detail | TEXT | Specific category (e.g., "1-Whisky") |
+| count_ims | INT | Number of industry members reporting |
+| value | INT | Volume (proof gallons, pounds, or count) |
+| is_redacted | INT | 1 if data was suppressed by TTB |
+
+Data source: TTB Distilled Spirits Statistics (2012-present)
+Categories: Whisky, Vodka, Brandy, Rum, Gin, Cordials, Neutral Spirits
+
+### `ttb_stats_sync_log` - Statistics sync history
+| Column | Type | Notes |
+|--------|------|-------|
+| data_type | TEXT | 'monthly' or 'yearly' |
+| records_synced | INT | Count of records inserted/updated |
+| last_data_year | INT | Most recent year in data |
+| last_data_month | INT | Most recent month (for monthly) |
+| synced_at | TEXT | ISO timestamp |
+| status | TEXT | 'success', 'error', 'partial' |
+
 ---
 
 ## Environment Variables
@@ -505,6 +567,14 @@ npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, comp
 
 # View all cached enhancements
 npx wrangler d1 execute bevalc-colas --remote --command "SELECT company_id, company_name, website_url, enhanced_at FROM company_enhancements ORDER BY enhanced_at DESC LIMIT 20"
+
+# TTB Statistics - sync and generate content
+cd scripts
+python sync_ttb_statistics.py              # Full sync (monthly + yearly)
+python sync_ttb_statistics.py --status     # Check data coverage
+python generate_spirits_articles.py --auto # Generate articles for latest data
+python generate_spirits_articles.py --monthly 2024 11  # Specific month
+python generate_spirits_articles.py --yearly 2024      # Annual analysis
 ```
 
 ---
@@ -579,6 +649,37 @@ npx remotion render WeeklyRecapSquare out/weekly-recap-square.mp4
 **CRITICAL: Data must come from D1 queries - NEVER fabricate numbers.**
 
 Update data in `skills/remotion/bevalc-videos/src/Root.tsx` before rendering.
+
+---
+
+## TTB Statistics Content
+
+See `.claude/commands/spirits-report.md` for full documentation.
+
+**Main Command:** `/spirits-report` - Generates articles from TTB production statistics
+
+**Data Source:** TTB Distilled Spirits Statistics
+- URL: https://www.ttb.gov/regulated-commodities/beverage-alcohol/distilled-spirits/statistics
+- Coverage: 2012 to present
+- Update frequency: Monthly (45 days after month end)
+- Sync schedule: Weekly (Wednesday 3am UTC via GitHub Action)
+
+**Article Types:**
+1. **Monthly Recap** - Production summary with YoY comparisons
+2. **Annual Analysis** - Comprehensive year-end industry review
+3. **Category Deep Dive** - Focused analysis on single category (whisky, vodka, etc.)
+4. **LinkedIn Post** - Short-form social content
+
+**Output:** `scripts/content-queue/spirits-*.md`
+
+**Templates:** `templates/spirits-*.md`
+
+**Writing Rules:**
+- NO em dashes (use commas, periods, parentheses)
+- NO AI phrases ("it's worth noting", "delve into", "landscape")
+- Every paragraph must contain specific numbers
+- All data from D1 queries, never fabricated
+- Trade publication tone, not press release
 
 ---
 
