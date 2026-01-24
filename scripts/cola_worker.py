@@ -920,25 +920,25 @@ class ColaWorker:
                             INSERT OR REPLACE INTO colas
                             (ttb_id, status, vendor_code, serial_number, class_type_code,
                              origin_code, brand_name, fanciful_name, type_of_application,
-                             for_sale_in, total_bottle_capacity, formula, approval_date, 
+                             for_sale_in, total_bottle_capacity, formula, approval_date,
                              qualifications, grape_varietal, wine_vintage, appellation,
-                             alcohol_content, ph_level, plant_registry, company_name, 
-                             street, state, contact_person, phone_number, year, month)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             alcohol_content, ph_level, plant_registry, company_name,
+                             street, state, contact_person, phone_number, year, month, day)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             data.get('ttb_id'), data.get('status'), data.get('vendor_code'),
                             data.get('serial_number'), data.get('class_type_code'),
                             data.get('origin_code'), data.get('brand_name'),
                             data.get('fanciful_name'), data.get('type_of_application'),
                             data.get('for_sale_in'), data.get('total_bottle_capacity'),
-                            data.get('formula'), data.get('approval_date'), 
+                            data.get('formula'), data.get('approval_date'),
                             data.get('qualifications'), data.get('grape_varietal'),
                             data.get('wine_vintage'), data.get('appellation'),
                             data.get('alcohol_content'), data.get('ph_level'),
-                            data.get('plant_registry'), data.get('company_name'), 
+                            data.get('plant_registry'), data.get('company_name'),
                             data.get('street'), data.get('state'),
                             data.get('contact_person'), data.get('phone_number'),
-                            year, month
+                            data.get('year'), data.get('month'), data.get('day')
                         ))
                         
                         # Mark as scraped so we don't re-scrape on resume
