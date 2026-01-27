@@ -270,6 +270,10 @@ bevalc-intelligence/
 │   ├── sync_permits.py        # Weekly: sync TTB permits to D1
 │   └── generate_sitemaps.py   # Generate sitemaps → upload to R2
 ├── skills/
+│   ├── carousel/
+│   │   ├── SKILL.md           # Carousel generation skill
+│   │   ├── generate-carousel.js  # Main generator script
+│   │   └── out/               # Generated PDFs (gitignored)
 │   └── remotion/
 │       ├── SKILL.md           # Video generation skill
 │       ├── README.md          # Full documentation
@@ -652,6 +656,42 @@ Update data in `skills/remotion/bevalc-videos/src/Root.tsx` before rendering.
 
 ---
 
+## Carousel Generation (LinkedIn PDFs)
+
+See `skills/carousel/SKILL.md` for full documentation.
+
+**Quick Commands:**
+```bash
+cd skills/carousel
+
+# Install dependencies (first time only)
+npm install
+
+# Generate with sample data
+npm run generate:sample
+
+# Generate with custom data.json
+npm run generate
+
+# Output: skills/carousel/out/carousel-YYYY-MM-DD.pdf
+```
+
+**Carousel Structure (6 slides, 1080x1080):**
+1. Hook - Big headline: "X New Brands Launched"
+2. Comparison - This week vs prior week with delta
+3. Stats Grid - New companies, brands, products
+4. Category Breakdown - Horizontal bar chart
+5. Leaderboard - Top 5 brand launchers
+6. CTA - "Track Brand Launches" + bevalcintel.com
+
+**Data Format:** Same JSON structure as Remotion videos (see `skills/carousel/SKILL.md`)
+
+**Design System:** Matches Remotion videos (dark navy bg, teal accent, Inter font)
+
+**LinkedIn Upload:** Upload the PDF as a document post. LinkedIn converts it to a swipeable carousel.
+
+---
+
 ## TTB Statistics Content
 
 See `.claude/commands/spirits-report.md` for full documentation.
@@ -742,3 +782,53 @@ See `.claude/commands/spirits-report.md` for full documentation.
 **At START of session, Claude SHOULD:**
 1. Read this file to understand current state
 2. Ask what the user wants to accomplish
+
+---
+
+## To-Do List
+
+- [ ] Figure out a way to convince people they can steal business from competitors by monitoring established brands (competitive intelligence angle - track when competitors file new SKUs, line extensions, or enter new categories)
+
+---
+
+## Session Log (2026-01-26)
+
+### Landing Page Conversion Optimization
+
+**Expert Panel Review:** Ran the landing page through 10 simulated experts (Ogilvy, Nielsen, Wiebe, Laja, Krug, Cialdini, Ive, Patel, Dunford, Suellentrop). Initial average score: 78/100.
+
+**Changes Made:**
+1. **Hero Section:**
+   - Updated subheadline: "Get immediate alerts when new brands, distilleries, wineries, and breweries enter the market. Close deals while competitors are still searching."
+   - Changed CTA from "Access Our Data Free" to "See This Week's New Companies"
+   - Added trust badges (Official TTB data, Updated daily, 20+ years history)
+   - Added product preview card showing sample data with signal badges
+
+2. **Messaging Updates:**
+   - Replaced "filing" language with "labels/approvals" throughout (user preference)
+   - Removed "scrape" - now says "ingest federal approval data daily"
+   - Updated "How It Works" to 3 clear numbered steps with sophisticated language (signal engine, entity resolution, pattern detection)
+
+3. **Pricing:**
+   - Updated to $299/month (from $99)
+   - Added value anchor: "One closed deal covers your entire year"
+
+4. **ICP Targeting (Service Providers):**
+   - Packaging & Label Printers
+   - Compliance Consultants
+   - Co-Packers & Bottlers
+   - Creative & Branding Agencies
+   - Brokers & Distributor Scouts
+   - Flavor Houses & Ingredient Suppliers
+
+5. **Mobile Optimization:**
+   - Trust badges stack vertically on mobile
+   - Hero CTA button text wraps properly
+   - Use cases grid goes single-column on phones
+   - Product preview card full-width with proper spacing
+
+**Strategic Direction (from user's ChatGPT consultation):**
+- Position as "BevAlc Launch Intelligence" not just a database
+- Primary ICP: Service providers who profit from being early (not brands)
+- Product roadmap: Signal Engine → Lead Engine → Pipeline Engine
+- Key differentiator: "You compete with sales teams being late, not API access players"
