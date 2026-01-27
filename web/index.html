@@ -148,14 +148,14 @@
                 <span class="hero-title-main">Find New Clients</span>
                 <span class="hero-title-accent">Before Your Competitors Do.</span>
             </h1>
-            <p class="hero-subtitle">We track every new distillery, winery, and brewery from TTB label approvals. Reach them first.</p>
+            <p class="hero-subtitle">Get immediate alerts when new brands, distilleries, wineries, and breweries enter the market. Close deals while competitors are still searching.</p>
 
             <!-- Hero Email Signup -->
             <div class="hero-email-signup" id="hero-email-signup">
                 <form class="hero-email-form" id="hero-email-form">
                     <input type="email" id="hero-email" placeholder="Enter your email" required>
                     <button type="submit" class="btn btn-glow" id="hero-submit-btn">
-                        <span class="btn-text">Access Our Data Free</span>
+                        <span class="btn-text">See This Week's New Companies</span>
                         <span class="btn-loading" style="display: none;">
                             <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"></circle>
@@ -163,7 +163,23 @@
                         </span>
                     </button>
                 </form>
-                <p class="hero-microcopy" id="hero-microcopy">See new labels for free. Cancel anytime.</p>
+                <p class="hero-microcopy" id="hero-microcopy">No credit card required. Unsubscribe with one click.</p>
+
+                <!-- Trust Badges -->
+                <div class="hero-trust-badges">
+                    <span class="trust-badge">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Official TTB data
+                    </span>
+                    <span class="trust-badge">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Updated daily
+                    </span>
+                    <span class="trust-badge">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        20+ years of history
+                    </span>
+                </div>
 
                 <div class="signup-success" id="hero-signup-success" style="display: none;">
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
@@ -173,6 +189,46 @@
                     <h3>Check Your Inbox!</h3>
                     <p>You now have full access to the database.</p>
                     <a href="database.html" class="btn btn-glow" style="margin-top: 1rem;">Go to Database</a>
+                </div>
+            </div>
+
+            <!-- Product Preview -->
+            <div class="hero-product-preview">
+                <div class="product-preview-card">
+                    <div class="preview-header">
+                        <span class="preview-dot red"></span>
+                        <span class="preview-dot yellow"></span>
+                        <span class="preview-dot green"></span>
+                        <span class="preview-title">Today's New Market Entrants</span>
+                    </div>
+                    <div class="preview-content">
+                        <div class="preview-row">
+                            <div class="preview-company">
+                                <strong>Ozark Mountain Distillery</strong>
+                                <span>Missouri</span>
+                            </div>
+                            <span class="signal-badge signal-new-company">New Company</span>
+                        </div>
+                        <div class="preview-row">
+                            <div class="preview-company">
+                                <strong>Copper & Kings</strong>
+                                <span>Kentucky</span>
+                            </div>
+                            <span class="signal-badge signal-new-brand">New Brand</span>
+                        </div>
+                        <div class="preview-row">
+                            <div class="preview-company">
+                                <strong>High West Distillery</strong>
+                                <span>Utah</span>
+                            </div>
+                            <span class="signal-badge signal-new-sku">New SKU</span>
+                        </div>
+                        <div class="preview-row preview-row-blurred">
+                            <div class="preview-company">
+                                <strong>Enter email to see more...</strong>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -193,12 +249,12 @@
         <div class="stats-container">
             <div class="stat-item">
                 <span class="stat-number" id="total-filings-stat">2.8M+</span>
-                <span class="stat-label">Filings Indexed</span>
+                <span class="stat-label">Labels Tracked</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-                <span class="stat-number">~2,400</span>
-                <span class="stat-label">New Filings/Week</span>
+                <span class="stat-number">~350</span>
+                <span class="stat-label">New Labels/Day</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -212,7 +268,7 @@
     <section class="lead-signals reveal">
         <div class="lead-signals-container">
             <h2 class="section-title">Actionable Lead Signals</h2>
-            <p class="section-subtitle-large">We classify every filing so you know exactly who's new to the market and ready to buy services.</p>
+            <p class="section-subtitle-large">We classify every new label approval so you know exactly who's entering the market and ready to buy services.</p>
 
             <div class="lead-signals-grid stagger-children">
                 <div class="lead-signal-card">
@@ -252,7 +308,7 @@
     <section class="proof-section reveal">
         <div class="proof-container">
             <h2 class="section-title">What You'll See <span class="section-title-note">(sample)</span></h2>
-            <p class="section-subtitle">Every filing classified by signal type so you know who's worth calling</p>
+            <p class="section-subtitle">Every label classified by signal type so you know who's worth calling</p>
             
             <div class="proof-table-wrapper">
                 <table class="proof-table" id="proof-table">
@@ -372,25 +428,41 @@
                 <h2 class="section-title">How It Works</h2>
                 <p class="hiw-subheader">Weekly COLA monitoring that surfaces lead signals automatically.</p>
 
-                <div class="hiw-paragraphs">
-                    <p><strong>Every beverage company files with the TTB.</strong> Before a new distillery ships their first bottle, before a winery launches a new label, before a brewery expands their lineup - they file a COLA. That filing is public data. The problem? It's buried in a clunky government portal that's impossible to monitor.</p>
-
-                    <p><strong>We pull new approvals weekly,</strong> normalize the messy company names and categories, and classify each filing: is this a brand new company? A new brand from an existing player? A line extension? That classification tells you who's worth calling.</p>
-
-                    <p><strong>You get the full toolkit:</strong> a searchable database with 2M+ records, weekly reports by category, watchlist alerts when specific brands or companies file, and CSV exports. Spot a new distillery in your report, Google them, add to your CRM, make the call before your competitors know they exist.</p>
+                <div class="hiw-steps">
+                    <div class="hiw-step">
+                        <div class="hiw-step-number">1</div>
+                        <div class="hiw-step-content">
+                            <h4>We ingest federal approval data daily</h4>
+                            <p>Every beverage company must get a COLA approved before selling. Our system processes new approvals within 24 hours of publication.</p>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-number">2</div>
+                        <div class="hiw-step-content">
+                            <h4>Our signal engine classifies intent</h4>
+                            <p>Entity resolution links labels to companies. Pattern detection identifies new market entrants, brand launches, and expansion signals.</p>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-number">3</div>
+                        <div class="hiw-step-content">
+                            <h4>You reach prospects 1-3 months early</h4>
+                            <p>Labels are approved before products hit shelves. You're reaching companies while they're still building, not after they've already chosen vendors.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="hiw-benefits">
                     <h3>Why This Matters for Lead Gen</h3>
                     <ul>
                         <li><strong>Fresh leads weekly:</strong> New companies need services. You see them first.</li>
-                        <li><strong>Signal, not noise:</strong> We filter 2,400 filings/week down to what matters.</li>
+                        <li><strong>Signal, not noise:</strong> We filter thousands of labels down to what matters.</li>
                         <li><strong>Competitive edge:</strong> Your competitors are waiting for trade shows. You're not.</li>
                     </ul>
                 </div>
 
                 <div class="hiw-cta">
-                    <a href="database.html" class="btn btn-glow">Browse Last Week's Filings</a>
+                    <a href="database.html" class="btn btn-glow">Browse Recent Approvals</a>
                     <p class="hiw-cta-note">Free report every Saturday covering the prior week. Upgrade for category reports + alerts.</p>
                 </div>
             </div>
@@ -426,7 +498,7 @@
                         </div>
                     </div>
                     <div class="hiw-sample-footer">
-                        <a href="database.html">View all filings →</a>
+                        <a href="database.html">View all labels →</a>
                     </div>
                 </div>
             </div>
@@ -440,33 +512,33 @@
 
             <div class="use-cases-grid use-cases-grid-6 stagger-children">
                 <div class="use-case-card use-case-compact">
-                    <h3>Brokers & Sales Reps</h3>
-                    <p class="use-case-benefit">Find new distilleries and wineries before competitors. First call wins.</p>
+                    <h3>Packaging & Label Printers</h3>
+                    <p class="use-case-benefit">New brands need packaging. Reach them while they're still in development, not after they've chosen a vendor.</p>
                 </div>
 
                 <div class="use-case-card use-case-compact">
                     <h3>Compliance Consultants</h3>
-                    <p class="use-case-benefit">Spot first-time filers who need help navigating TTB regulations.</p>
+                    <p class="use-case-benefit">First-time applicants need guidance. You see them before they even know they need help.</p>
                 </div>
 
                 <div class="use-case-card use-case-compact">
-                    <h3>Distributors & Importers</h3>
-                    <p class="use-case-benefit">Discover promising brands early. Find your next portfolio addition.</p>
+                    <h3>Co-Packers & Bottlers</h3>
+                    <p class="use-case-benefit">Spot brands scaling up before they start calling around. Be the first production partner they talk to.</p>
                 </div>
 
                 <div class="use-case-card use-case-compact">
-                    <h3>Brands & Producers</h3>
-                    <p class="use-case-benefit">Track competitor launches and line extensions before they hit shelves.</p>
+                    <h3>Creative & Branding Agencies</h3>
+                    <p class="use-case-benefit">New brands need identity work. Find them when budgets are fresh and decisions aren't made.</p>
                 </div>
 
                 <div class="use-case-card use-case-compact">
-                    <h3>Label & Package Designers</h3>
-                    <p class="use-case-benefit">New brands need design. Reach them while they're still building.</p>
+                    <h3>Brokers & Distributor Scouts</h3>
+                    <p class="use-case-benefit">Find emerging brands before your competitors. First call wins the relationship.</p>
                 </div>
 
                 <div class="use-case-card use-case-compact">
-                    <h3>Investors & M&A</h3>
-                    <p class="use-case-benefit">Track filing velocity as a signal of growth. Due diligence data.</p>
+                    <h3>Flavor Houses & Ingredient Suppliers</h3>
+                    <p class="use-case-benefit">New product launches mean new formulations. Reach R&D teams early in the development cycle.</p>
                 </div>
             </div>
         </div>
@@ -480,7 +552,7 @@
                 <ul class="wyg-list">
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>Search 2.8M+ filings</strong> with 20+ years of COLA data</span>
+                        <span><strong>Search 2.8M+ labels</strong> with 20+ years of approval data</span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
@@ -500,7 +572,7 @@
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
-                        <span><strong>Direct TTB filing links</strong> to official records <span class="pro-badge">Pro</span></span>
+                        <span><strong>Direct TTB links</strong> to official records and label images <span class="pro-badge">Pro</span></span>
                     </li>
                     <li>
                         <span class="wyg-check">✓</span>
@@ -529,7 +601,7 @@
                             </div>
                             <div class="mock-stat">
                                 <span class="mock-stat-num">2,412</span>
-                                <span class="mock-stat-label">Total Filings</span>
+                                <span class="mock-stat-label">Total Labels</span>
                             </div>
                         </div>
                         <div class="mock-list">
@@ -547,7 +619,7 @@
     <section class="social-proof reveal">
         <div class="social-proof-container stagger-children">
             <div class="testimonial-card">
-                <p class="testimonial-text">Official TTB data. Every record links directly to the government filing and label image.</p>
+                <p class="testimonial-text">Official TTB data. Every record links directly to the government approval and label image.</p>
                 <div class="testimonial-author">
                     <div class="testimonial-avatar">TTB</div>
                     <div class="testimonial-info">
@@ -596,11 +668,11 @@
                     </div>
                     <ul class="pricing-features">
                         <li><strong>Get started:</strong></li>
-                        <li>Search 2M+ filings</li>
+                        <li>Search 2M+ labels</li>
                         <li>2-month data delay</li>
                         <li>Weekly market pulse email</li>
                         <li>Explore category trends</li>
-                        <li>View filing details</li>
+                        <li>View label details</li>
                     </ul>
                     <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
                 </div>
@@ -611,7 +683,7 @@
                     <div class="pricing-header">
                         <h3>Pro</h3>
                         <div class="pricing-price">
-                            <span class="price-amount">$99</span>
+                            <span class="price-amount">$299</span>
                             <span class="price-period">/month</span>
                         </div>
                     </div>
@@ -629,6 +701,10 @@
             </div>
 
             <p class="pricing-urgency">New companies get cold-called within days. 2-month-old leads are already working with someone.</p>
+
+            <div class="pricing-value-anchor">
+                <p>One closed deal covers your entire year. Your competitors are still waiting for trade shows.</p>
+            </div>
         </div>
     </section>
 
