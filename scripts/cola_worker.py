@@ -232,6 +232,7 @@ class ColaWorker:
                 -- Metadata
                 year INTEGER,
                 month INTEGER,
+                day INTEGER,
                 scraped_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             
