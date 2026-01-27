@@ -645,6 +645,21 @@ a:hover {
         align-items: center;
         gap: var(--space-sm);
     }
+
+    .trust-badge {
+        font-size: 0.75rem;
+        padding: var(--space-xs) var(--space-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-trust-badges {
+        gap: var(--space-xs);
+    }
+
+    .trust-badge {
+        font-size: 0.6875rem;
+    }
 }
 
 /* Hero Product Preview */
@@ -736,12 +751,28 @@ a:hover {
 @media (max-width: 768px) {
     .hero-product-preview {
         margin-top: var(--space-2xl);
+        margin-left: var(--space-md);
+        margin-right: var(--space-md);
     }
 
     .preview-row {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .preview-company strong {
+        font-size: 0.875rem;
+    }
+
+    .preview-title {
+        font-size: 0.65rem;
+    }
+
+    .signal-badge {
+        font-size: 0.625rem;
+        padding: 3px 8px;
     }
 }
 
@@ -1994,6 +2025,23 @@ a:hover {
     margin: 0;
 }
 
+@media (max-width: 768px) {
+    .pricing-value-anchor {
+        padding: var(--space-md);
+        margin-left: var(--space-md);
+        margin-right: var(--space-md);
+    }
+
+    .pricing-value-anchor p {
+        font-size: 0.8125rem;
+    }
+
+    .pricing-urgency {
+        font-size: 0.875rem;
+        padding: 0 var(--space-md);
+    }
+}
+
 /* ==========================================
    FINAL CTA SECTION
    ========================================== */
@@ -2204,10 +2252,28 @@ a:hover {
         grid-template-columns: repeat(2, 1fr);
         max-width: 100%;
     }
-    
+
     .social-proof-container {
         grid-template-columns: 1fr;
         max-width: 600px;
+    }
+}
+
+@media (max-width: 600px) {
+    .use-cases-grid-6 {
+        grid-template-columns: 1fr;
+    }
+
+    .use-case-compact {
+        padding: var(--space-lg);
+    }
+
+    .use-case-compact h3 {
+        font-size: 1rem;
+    }
+
+    .use-case-compact .use-case-benefit {
+        font-size: 0.8125rem;
     }
 }
 
@@ -2349,14 +2415,35 @@ a:hover {
     .hero-title {
         font-size: 2rem;
     }
-    
+
+    .hero-subtitle {
+        font-size: 1rem;
+        padding: 0 var(--space-sm);
+    }
+
     .hero-email-form {
         flex-direction: column;
         border-radius: var(--radius-lg);
     }
-    
+
     .hero-email-form input[type="email"] {
         text-align: center;
+    }
+
+    .hero-email-form .btn {
+        font-size: 0.9375rem;
+        padding: var(--space-md);
+        white-space: normal;
+        line-height: 1.3;
+    }
+
+    .hero-microcopy {
+        font-size: 0.75rem;
+    }
+
+    .hero-pill {
+        font-size: 0.65rem;
+        padding: var(--space-xs) var(--space-md);
     }
     
     .stats-container {
