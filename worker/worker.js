@@ -2621,19 +2621,32 @@ async function handleRecord(url, env) {
 }
 
 async function handleStats(env) {
-    const stats = await env.DB.prepare(`
-        SELECT
-            COUNT(*) as total,
-            COUNT(DISTINCT origin_code) as origins,
-            COUNT(DISTINCT class_type_code) as class_types,
-            MIN(approval_date) as oldest,
-            MAX(approval_date) as newest
-        FROM colas
-    `).first();
+    // Run queries in parallel
+    const [stats, totalCompanies, activeCompanies] = await Promise.all([
+        env.DB.prepare(`
+            SELECT
+                COUNT(*) as total,
+                COUNT(DISTINCT origin_code) as origins,
+                COUNT(DISTINCT class_type_code) as class_types,
+                MIN(approval_date) as oldest,
+                MAX(approval_date) as newest
+            FROM colas
+        `).first(),
+        env.DB.prepare(`SELECT COUNT(*) as count FROM companies`).first(),
+        env.DB.prepare(`
+            SELECT COUNT(DISTINCT company_name) as count
+            FROM colas
+            WHERE year >= 2023
+        `).first()
+    ]);
 
     return {
         success: true,
-        stats
+        stats: {
+            ...stats,
+            total_companies: totalCompanies?.count || 0,
+            active_companies_3yr: activeCompanies?.count || 0
+        }
     };
 }
 

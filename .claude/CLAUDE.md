@@ -788,6 +788,8 @@ See `.claude/commands/spirits-report.md` for full documentation.
 ## To-Do List
 
 - [ ] Figure out a way to convince people they can steal business from competitors by monitoring established brands (competitive intelligence angle - track when competitors file new SKUs, line extensions, or enter new categories)
+- [ ] Add search links to company modal (Google Search, Google Maps, LinkedIn Search) - "user does final click" pattern for lead enrichment without API costs
+- [ ] Surface permit data in company modal when permit match exists (owner_name, operating_name, street, city, state, zip, industry_type)
 
 ---
 
@@ -832,3 +834,28 @@ See `.claude/commands/spirits-report.md` for full documentation.
 - Primary ICP: Service providers who profit from being early (not brands)
 - Product roadmap: Signal Engine → Lead Engine → Pipeline Engine
 - Key differentiator: "You compete with sales teams being late, not API access players"
+
+### Lead Enrichment Discussion
+
+**User asked about COLA Cloud features:** OCR for label text, barcode extraction, LLM enrichment. Analysis showed $12-20K upfront + $750-950/mo ongoing. Recommended against - doesn't fit service provider ICP who wants outreach tools, not label analysis.
+
+**Lead enrichment budget constraints:** User has no budget for $1.5-3K/month enrichment APIs (Clearbit, Apollo, etc.).
+
+**Solution: "User Does Final Click" Pattern:**
+Instead of paying for enriched data, provide search links that let users find info themselves:
+1. **Google Search:** `"Company Name" beverage alcohol`
+2. **Google Maps:** `Company Name city state` (for physical location)
+3. **LinkedIn Search:** `Company Name` company search
+
+**Leverage existing permit data:**
+- 82K permits already in D1 with owner_name, address, city, state, zip
+- 21,591 (26%) already matched to COLA companies
+- When permit match exists, show: Legal entity name, DBA, full address, industry type
+- For others: Show search links as fallback
+
+**Key insight from user:** "Not all new brands are new permits" - NEW_COMPANY signal in COLAs doesn't mean they're a new business. They may have existed for years with a permit but just now submitted their first COLA.
+
+**Implementation plan:**
+1. Add search link buttons to company modal (free, instant)
+2. If company has matched permit(s), show permit data above search links
+3. Future: Domain guessing (`companyname.com`) with HEAD request validation
