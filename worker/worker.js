@@ -2289,8 +2289,8 @@ async function handleSearch(url, env) {
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
         // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        // Signal priority: REFILE (routine) > NEW_SKU > NEW_BRAND > NEW_COMPANY (first filing, shows at bottom)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'REFILE' THEN 1 WHEN 'NEW_SKU' THEN 2 WHEN 'NEW_BRAND' THEN 3 WHEN 'NEW_COMPANY' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
+        // Signal priority for database search: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE (interesting signals first)
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -2509,8 +2509,8 @@ async function handleExport(url, env) {
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
         // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        // Signal priority: REFILE (routine) > NEW_SKU > NEW_BRAND > NEW_COMPANY (first filing, shows at bottom)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'REFILE' THEN 1 WHEN 'NEW_SKU' THEN 2 WHEN 'NEW_BRAND' THEN 3 WHEN 'NEW_COMPANY' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
+        // Signal priority for exports: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE (interesting signals first)
+        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
