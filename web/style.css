@@ -848,11 +848,16 @@ a:hover { color: var(--color-primary-hover); }
 }
 
 /* Table - Professional Data Table */
-.table-container { position: relative; }
+.table-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: white;
+}
+
 .table-wrapper {
-    overflow-x: hidden;
-    max-height: calc(100vh - 400px);
-    overflow-y: auto;
+    overflow-x: auto;
 }
 
 .results-table {
@@ -870,19 +875,16 @@ a:hover { color: var(--color-primary-hover); }
 .results-table .col-signal { width: 15%; }
 
 .results-table th {
-    position: sticky;
-    top: 0;
     text-align: left;
-    padding: var(--space-sm) var(--space-md);
-    font-size: 0.75rem;
-    font-weight: 700;
+    padding: 1rem 1.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #1e293b;
+    letter-spacing: 0.08em;
+    color: #64748b;
     background: #f8fafc;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 1px solid #e2e8f0;
     white-space: nowrap;
-    z-index: 10;
 }
 
 .results-table th.sortable {
@@ -916,8 +918,8 @@ a:hover { color: var(--color-primary-hover); }
 }
 
 .results-table td {
-    padding: var(--space-sm) var(--space-md);
-    font-size: 0.875rem;
+    padding: 1rem 1.25rem;
+    font-size: 0.9375rem;
     color: var(--color-text);
     border-bottom: 1px solid #f1f5f9;
     overflow: hidden;
@@ -928,17 +930,17 @@ a:hover { color: var(--color-primary-hover); }
 /* Brand column - bold and clickable */
 .results-table td:first-child {
     font-weight: 600;
-    color: #0d9488;
+    color: #0f766e;
 }
 
 /* Product column - secondary text */
 .results-table td:nth-child(2) {
-    color: #64748b;
-    font-size: 0.8125rem;
+    color: #475569;
+    font-size: 0.875rem;
 }
 
 .results-table tbody tr {
-    transition: background 0.15s ease;
+    transition: all 0.15s ease;
     cursor: pointer;
     height: 52px;
 }
@@ -947,15 +949,23 @@ a:hover { color: var(--color-primary-hover); }
     vertical-align: middle;
 }
 
-/* Zebra Striping */
+/* No zebra striping - cleaner look */
 .results-table tbody tr:nth-child(even) {
-    background: #f9fafb;
+    background: transparent;
 }
 
 /* Row Hover */
 .results-table tbody tr:hover {
-    background: #f0fdfa !important;
-    box-shadow: inset 4px 0 0 var(--color-primary);
+    background: #f0fdfa;
+}
+
+.results-table tbody tr:hover td:first-child {
+    color: #0d9488;
+}
+
+/* Last row no border */
+.results-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
 .clickable-row { cursor: pointer; }
@@ -1940,6 +1950,85 @@ a:hover { color: var(--color-primary-hover); }
     }
     .search-bar svg {
         display: none;
+    }
+
+    /* Mobile table - card layout */
+    .table-container {
+        border: none;
+        background: transparent;
+        border-radius: 0;
+    }
+
+    .results-table {
+        display: block;
+    }
+
+    .results-table thead {
+        display: none;
+    }
+
+    .results-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .results-table tbody tr {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .results-table tbody tr:hover {
+        border-color: #0d9488;
+        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.15);
+    }
+
+    .results-table td {
+        display: block;
+        padding: 0.25rem 0;
+        border-bottom: none;
+        white-space: normal;
+        overflow: visible;
+    }
+
+    /* Brand name - prominent */
+    .results-table td:first-child {
+        font-size: 1.0625rem;
+        font-weight: 600;
+        color: #0f766e;
+        margin-bottom: 0.25rem;
+    }
+
+    /* Product name */
+    .results-table td:nth-child(2) {
+        font-size: 0.9375rem;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Category, Date, Signal - inline row */
+    .results-table td:nth-child(3),
+    .results-table td:nth-child(4),
+    .results-table td:nth-child(5) {
+        display: inline-block;
+        font-size: 0.8125rem;
+        color: #64748b;
+        padding-right: 1rem;
+    }
+
+    /* Signal badge on mobile */
+    .results-table td:nth-child(5) {
+        padding-right: 0;
+    }
+
+    .results-table td:nth-child(5) .signal-badge {
+        font-size: 0.6875rem;
+        padding: 0.2rem 0.5rem;
     }
 }
 

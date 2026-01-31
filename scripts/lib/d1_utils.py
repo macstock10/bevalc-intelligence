@@ -373,6 +373,12 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     Creates entries for new company names that aren't already in company_aliases.
     This ensures new filers have SEO pages and can be normalized in future syncs.
 
+    IMPORTANT: Uses brand-based matching to detect company name changes.
+    If a "new" company is filing under a brand that already exists under a different
+    company, we link the new name as an alias to the existing company rather than
+    creating a duplicate. This prevents false NEW_COMPANY signals when businesses
+    simply change their legal entity name.
+
     Args:
         records: List of COLA records containing company_name
         dry_run: If True, skip actual insert
@@ -417,6 +423,57 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
 
     logger.info(f"Adding {len(new_companies)} new companies to database...")
 
+    # === BRAND-BASED MATCHING ===
+    # For each new company, check if they're filing under brands that already exist
+    # under a different company. If so, this is likely a company name change, not a new company.
+    # Map: new_company_name -> existing_company_id (if brand match found)
+    brand_matched_companies = {}
+
+    # Build map of new company -> brands they're filing
+    new_company_brands = {}
+    for record in records:
+        company_name = record.get('company_name', '').strip()
+        brand_name = record.get('brand_name', '').strip().upper()
+        if company_name in new_companies and brand_name:
+            if company_name not in new_company_brands:
+                new_company_brands[company_name] = set()
+            new_company_brands[company_name].add(brand_name)
+
+    # For each new company, check if any of their brands exist under other companies
+    for company_name, brands in new_company_brands.items():
+        if not brands:
+            continue
+
+        # Query for existing filings with these brand names (from other companies)
+        brands_list = list(brands)[:10]  # Limit to first 10 brands for query size
+        brand_placeholders = ','.join([escape_sql_value(b) for b in brands_list])
+
+        result = d1_execute(f"""
+            SELECT DISTINCT ca.company_id, c.brand_name, comp.canonical_name
+            FROM colas c
+            JOIN company_aliases ca ON c.company_name = ca.raw_name
+            JOIN companies comp ON ca.company_id = comp.id
+            WHERE UPPER(c.brand_name) IN ({brand_placeholders})
+            LIMIT 5
+        """)
+
+        if result.get("success") and result.get("result"):
+            rows = result["result"][0].get("results", [])
+            if rows:
+                # Found existing company(s) with matching brands
+                # Use the first match (most common case: single company owns the brand)
+                existing_company_id = rows[0].get("company_id")
+                existing_company_name = rows[0].get("canonical_name", "Unknown")
+                matched_brand = rows[0].get("brand_name", "Unknown")
+
+                brand_matched_companies[company_name] = existing_company_id
+                logger.info(f"  Brand match: '{company_name}' -> existing company '{existing_company_name}' "
+                           f"(both file brand '{matched_brand}')")
+
+    # Log brand matches summary
+    if brand_matched_companies:
+        logger.info(f"  Found {len(brand_matched_companies)} company name changes via brand matching")
+
     # Get current max company ID
     result = d1_execute("SELECT MAX(id) as max_id FROM companies")
     max_id = 0
@@ -460,7 +517,17 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             normalized = raw_to_normalized[company_name]
             normalized_upper = normalized.upper()
 
-            # Check if normalized company already exists (either in DB or in this batch)
+            # PRIORITY 1: Check if this company was matched via brand analysis
+            # This catches company name changes (e.g., "ABC Inc" → "ABC LLC")
+            if company_name in brand_matched_companies:
+                # Link alias to existing company (detected via shared brand)
+                existing_id = brand_matched_companies[company_name]
+                alias_values.append(
+                    f"({escape_sql_value(company_name)}, {existing_id})"
+                )
+                continue
+
+            # PRIORITY 2: Check if normalized company already exists (either in DB or in this batch)
             if normalized_upper in existing_normalized:
                 # Link alias to existing company
                 existing_id = existing_normalized[normalized_upper]
@@ -507,5 +574,8 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             sql = f"INSERT OR IGNORE INTO company_aliases (raw_name, company_id) VALUES {','.join(alias_values)}"
             d1_execute(sql)
 
-    logger.info(f"Added {total_inserted} new companies")
+    if brand_matched_companies:
+        logger.info(f"Added {total_inserted} new companies ({len(brand_matched_companies)} linked via brand matching)")
+    else:
+        logger.info(f"Added {total_inserted} new companies")
     return total_inserted
