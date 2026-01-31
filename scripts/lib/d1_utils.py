@@ -366,6 +366,30 @@ def normalize_company_name(company_name: str) -> str:
     return name
 
 
+def get_company_name_variants(company_name: str) -> List[str]:
+    """
+    Get all variants of a company name to check against existing aliases.
+
+    For comma-separated names like "Big Ditch Brewing Company, Big Ditch Brewing Company LLC",
+    returns both parts as variants to check, plus the full name.
+
+    This catches cases where TTB formats company names with DBA notation.
+    """
+    if not company_name:
+        return []
+
+    variants = [company_name.strip()]
+
+    # If comma-separated, add each part as a variant
+    if ', ' in company_name:
+        parts = [p.strip() for p in company_name.split(', ')]
+        for part in parts:
+            if part and part not in variants:
+                variants.append(part)
+
+    return variants
+
+
 def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     """
     Add new companies to companies and company_aliases tables.
@@ -402,12 +426,24 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
         return 0
 
     # Check which companies already exist in company_aliases (case-insensitive)
+    # Also check variants of comma-separated names
     existing = set()
     existing_upper = set()  # Track uppercase versions for case-insensitive matching
-    for i in range(0, len(company_names), 100):
-        batch = list(company_names)[i:i + 100]
-        placeholders = ','.join([escape_sql_value(n.upper()) for n in batch])
-        result = d1_execute(f"SELECT raw_name FROM company_aliases WHERE UPPER(raw_name) IN ({placeholders})")
+
+    # Build list of all variants to check
+    all_variants = set()
+    company_to_variants = {}  # company_name -> [variants]
+    for company_name in company_names:
+        variants = get_company_name_variants(company_name)
+        company_to_variants[company_name] = variants
+        for v in variants:
+            all_variants.add(v.upper())
+
+    # Query all variants at once
+    for i in range(0, len(all_variants), 100):
+        batch = list(all_variants)[i:i + 100]
+        placeholders = ','.join([escape_sql_value(n) for n in batch])
+        result = d1_execute(f"SELECT raw_name, company_id FROM company_aliases WHERE UPPER(raw_name) IN ({placeholders})")
         if result.get("success") and result.get("result"):
             for res in result.get("result", []):
                 for row in res.get("results", []):
@@ -415,13 +451,36 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     existing.add(raw)
                     existing_upper.add(raw.upper())
 
-    # Filter to only new companies (case-insensitive check)
-    new_companies = {n for n in company_names if n.upper() not in existing_upper}
-    if not new_companies:
+    # A company is "new" only if NONE of its variants exist in aliases
+    # Map variant-matched companies to their existing company_id
+    variant_matched = {}  # company_name -> company_id
+    new_companies = set()
+
+    for company_name in company_names:
+        variants = company_to_variants[company_name]
+        matched = False
+        for v in variants:
+            if v.upper() in existing_upper:
+                # Found a match - look up the company_id
+                for i in range(0, len([v]), 100):
+                    result = d1_execute(f"SELECT company_id FROM company_aliases WHERE UPPER(raw_name) = {escape_sql_value(v.upper())}")
+                    if result.get("success") and result.get("result"):
+                        rows = result["result"][0].get("results", [])
+                        if rows:
+                            variant_matched[company_name] = rows[0].get("company_id")
+                            logger.info(f"  Variant match: '{company_name}' -> existing via '{v}'")
+                            matched = True
+                            break
+                if matched:
+                    break
+        if not matched:
+            new_companies.add(company_name)
+
+    if not new_companies and not variant_matched:
         logger.info("No new companies to add")
         return 0
 
-    logger.info(f"Adding {len(new_companies)} new companies to database...")
+    logger.info(f"Adding {len(new_companies)} new companies to database (plus {len(variant_matched)} variant aliases)...")
 
     # === BRAND-BASED MATCHING ===
     # For each new company, check if they're filing under brands that already exist
@@ -504,9 +563,15 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                 for row in res.get("results", []):
                     existing_normalized[row.get("canonical_name", "").upper()] = row.get("id")
 
+    # Combine all companies that need processing:
+    # - new_companies: genuinely new, need new company + alias
+    # - variant_matched: just need alias to existing company
+    # - brand_matched_companies: just need alias to existing company
+    all_to_process = new_companies | set(variant_matched.keys()) | set(brand_matched_companies.keys())
+
     # Insert in batches
-    for i in range(0, len(new_companies), 100):
-        batch = list(new_companies)[i:i + 100]
+    for i in range(0, len(all_to_process), 100):
+        batch = list(all_to_process)[i:i + 100]
 
         # Build companies insert values
         company_values = []
@@ -514,8 +579,18 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
         seen_normalized = set()  # Track normalized names we're adding in this batch
 
         for company_name in batch:
-            normalized = raw_to_normalized[company_name]
+            # Get normalized name (may not exist for variant/brand matched companies, but we don't need it for them)
+            normalized = raw_to_normalized.get(company_name, normalize_company_name(company_name))
             normalized_upper = normalized.upper()
+
+            # PRIORITY 0: Check if this company was matched via variant analysis
+            # This catches TTB's comma-separated name formats like "Name, Name LLC"
+            if company_name in variant_matched:
+                existing_id = variant_matched[company_name]
+                alias_values.append(
+                    f"({escape_sql_value(company_name)}, {existing_id})"
+                )
+                continue
 
             # PRIORITY 1: Check if this company was matched via brand analysis
             # This catches company name changes (e.g., "ABC Inc" → "ABC LLC")
@@ -574,8 +649,9 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             sql = f"INSERT OR IGNORE INTO company_aliases (raw_name, company_id) VALUES {','.join(alias_values)}"
             d1_execute(sql)
 
-    if brand_matched_companies:
-        logger.info(f"Added {total_inserted} new companies ({len(brand_matched_companies)} linked via brand matching)")
+    linked_count = len(variant_matched) + len(brand_matched_companies)
+    if linked_count:
+        logger.info(f"Added {total_inserted} new companies ({len(variant_matched)} variant aliases, {len(brand_matched_companies)} brand-matched aliases)")
     else:
         logger.info(f"Added {total_inserted} new companies")
     return total_inserted
