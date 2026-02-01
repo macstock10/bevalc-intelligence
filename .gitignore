@@ -53,3 +53,10 @@ nul
 web/old/
 web/save*/
 web/*Starting*/
+
+# Skills output
+skills/carousel/out/
+skills/carousel/debug-carousel.html
+skills/carousel/node_modules/
+skills/remotion/bevalc-videos/out/
+skills/visuals/out/

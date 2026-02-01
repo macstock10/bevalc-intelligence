@@ -118,17 +118,7 @@ export function Welcome({
             lineHeight: "1.5",
           }}
         >
-          <strong>Category Pro ($29/mo)</strong> — Focus on one category with full signals, watchlist alerts, and CSV exports.
-        </Text>
-        <Text
-          style={{
-            fontSize: "13px",
-            color: colors.textSecondary,
-            margin: "0 0 12px 0",
-            lineHeight: "1.5",
-          }}
-        >
-          <strong>Premier ($79/mo)</strong> — Full access to all categories with complete market intelligence.
+          <strong>Pro ($99/mo)</strong> — Real-time data, new company & brand signals, watchlist alerts, CSV exports, and company intelligence.
         </Text>
         <Link
           href="https://bevalcintel.com/#pricing"

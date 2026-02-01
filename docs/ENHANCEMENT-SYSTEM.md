@@ -11,7 +11,7 @@ Replace manual brand enrichment with AI-powered on-demand company research. User
 | Tier | Enhancement Access |
 |------|-------------------|
 | Free | Purchase credit packs |
-| Pro ($79/mo) | 15 included/month |
+| Pro ($99/mo) | 15 included/month |
 
 ### Credit Packs (Free Users)
 
@@ -373,7 +373,7 @@ Create Stripe checkout for credit pack.
   </div>
 
   <p class="pro-upsell">
-    Or upgrade to <a href="/pricing">Pro ($79/mo)</a> for 15 credits/month included
+    Or upgrade to <a href="/pricing">Pro ($99/mo)</a> for 15 credits/month included
   </p>
 </div>
 ```

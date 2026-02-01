@@ -49,7 +49,27 @@
       "Bash(then grep PEOPLE_DATA_LABS_API_KEY scripts/.env)",
       "Bash(else echo \"No .env file found\")",
       "Bash(fi)",
-      "Bash(npx wrangler secret put:*)"
+      "Bash(npx wrangler secret put:*)",
+      "WebFetch(domain:tequilasusa.com)",
+      "Bash(timeout 60 npx wrangler tail:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(npx create-video@latest bevalc-videos --template blank)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:www.remotion.dev)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "WebFetch(domain:www.ttb.gov)",
+      "WebFetch(domain:deliveron.org)",
+      "Bash(npx wrangler:*)",
+      "Bash(npx:*)",
+      "Bash(git push:*)",
+      "Bash(npm run generate:pitch:sample:*)",
+      "Bash(node generate-pitch.js:*)",
+      "Bash(npm run generate:sellsheet:sample:*)",
+      "Bash(start \"\" \"C:\\\\Projects\\\\bevalc-intelligence\\\\skills\\\\salableskills\\\\debug-sellsheet.html\")",
+      "Bash(start \"\" \"C:\\\\Projects\\\\bevalc-intelligence\\\\brand-brain-demo\\\\index.html\")",
+      "Bash(cd:*)",
+      "WebFetch(domain:ai.google.dev)"
     ]
   }
 }

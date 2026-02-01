@@ -107,15 +107,13 @@ Required secrets (set in GitHub Actions and Cloudflare):
 
 ## Pricing Tiers
 
-- **Free**: Basic search, blurred signals
-- **Category Pro** ($29/mo): Full access to one category
-- **Premier** ($79/mo): Full access to all categories
+- **Free**: Basic search, blurred signals, 2-month data delay
+- **Pro** ($99/mo): Real-time data, signals, watchlists, CSV exports, company intelligence
 
 ## Documentation
 
 - **Architecture**: .claude/CLAUDE.md
 - **Operations**: RUNBOOK.md
-- **Content Automation**: .claude/CLAUDE-CONTENT.md
 
 ## License
 

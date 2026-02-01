@@ -9,8 +9,8 @@
 BevAlc Intelligence is a B2B SaaS product providing competitive intelligence on beverage alcohol label approvals (TTB COLA filings). The primary value proposition is **early detection of new market entrants** for lead generation, competitive intelligence, and market trend analysis.
 
 **Business Model:** Lifestyle business targeting $10-50k MRR
-**Pricing:** $79/month (Category Pro), $149/month (Premier)
-**Target Market:** Craft beverage producers and industry service providers
+**Pricing:** $99/month (Pro)
+**Target Market:** Service providers who sell to beverage brands (printers, consultants, co-packers, agencies, brokers)
 **Go-to-Market:** SEO-driven organic growth + bourbon broker referral partnership
 
 ---
@@ -212,9 +212,8 @@ BevAlc Intelligence is a B2B SaaS product providing competitive intelligence on 
 ### Current Tiers
 | Tier | Price | Features |
 |------|-------|----------|
-| Free | $0 | Search database, limited results |
-| Category Pro | $79/mo | Full search, weekly reports, watchlist, export (single category) |
-| Premier | $149/mo | All categories, priority support |
+| Free | $0 | Search database, blurred signals, 2-month data delay |
+| Pro | $99/mo | Real-time data, signals, watchlists, CSV exports, company intelligence |
 
 ### Pricing Rationale
 - Value-based pricing (intuition, not validated)
