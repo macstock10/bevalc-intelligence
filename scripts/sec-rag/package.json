@@ -1,0 +1,22 @@
+{
+  "name": "bevalc-sec-rag",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "ingest": "tsx ingest.ts",
+    "ingest:backfill": "tsx ingest.ts --backfill",
+    "ingest:incremental": "tsx ingest.ts --incremental"
+  },
+  "dependencies": {
+    "openai": "^4.73.0",
+    "cohere-ai": "^7.14.0",
+    "node-html-parser": "^6.1.13",
+    "tiktoken": "^1.0.17",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -28,4 +28,15 @@ binding = "AI"
 # - RESEND_API_KEY                 (for welcome emails)
 # - REPORT_API_KEY                 (for internal report scripts)
 # - LOOPS_API_KEY                  (for email marketing sync)
-# - ANTHROPIC_API_KEY              (for AI summaries in SEC research)
+#
+# SEC RAG System secrets:
+# - ANTHROPIC_API_KEY              (for grounded answer generation with Claude)
+# - OPENAI_API_KEY                 (for File Search vector store retrieval)
+# - COHERE_API_KEY                 (for reranking retrieved chunks)
+# - OPENAI_VECTOR_STORE_ID         (OpenAI File Search vector store ID - get from OpenAI dashboard)
+#
+# To set secrets:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put OPENAI_API_KEY
+#   wrangler secret put COHERE_API_KEY
+#   wrangler secret put OPENAI_VECTOR_STORE_ID

@@ -1,0 +1,235 @@
+#!/usr/bin/env npx tsx
+/**
+ * SEC Filing Ingestion Script
+ *
+ * Downloads SEC filings from EDGAR, parses them, chunks them,
+ * and uploads to OpenAI vector store.
+ *
+ * Usage:
+ *   npm run ingest -- --backfill           # Full historical backfill
+ *   npm run ingest -- --incremental        # Last 7 days only
+ *   npm run ingest -- --ticker BF.B        # Single company
+ *   npm run ingest -- --clear              # Clear vector store first
+ */
+
+import 'dotenv/config';
+import { parseArgs } from 'util';
+import {
+  COMPANIES,
+  INGESTION_CONFIG,
+  TICKER_MAP,
+  type CompanyConfig,
+} from './config.js';
+import {
+  getCompanyFilings,
+  filterFilingsByDate,
+  downloadFiling,
+  type EdgarFiling,
+} from './lib/edgar.js';
+import {
+  parseFilingHtml,
+  parse8K,
+  parse6K,
+} from './lib/parser.js';
+import {
+  chunkDocument,
+  deduplicateBoilerplate,
+  countTokens,
+} from './lib/chunker.js';
+import {
+  getOrCreateVectorStore,
+  uploadChunksIndividually,
+  clearVectorStore,
+} from './lib/vectorstore.js';
+import type { DocumentChunk, DocType } from './lib/types.js';
+
+// Parse CLI arguments
+const { values: args } = parseArgs({
+  options: {
+    backfill: { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    ticker: { type: 'string' },
+    clear: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+  },
+});
+
+async function main() {
+  console.log('=== SEC Filing Ingestion ===\n');
+
+  // Validate environment
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable required');
+  }
+
+  // Determine which companies to process
+  let companies: CompanyConfig[];
+  if (args.ticker) {
+    const company = TICKER_MAP.get(args.ticker);
+    if (!company) {
+      throw new Error(`Unknown ticker: ${args.ticker}`);
+    }
+    companies = [company];
+  } else {
+    companies = [...COMPANIES];
+  }
+
+  console.log(`Processing ${companies.length} companies: ${companies.map(c => c.ticker).join(', ')}\n`);
+
+  // Get or create vector store
+  const vectorStoreId = await getOrCreateVectorStore();
+  console.log(`Vector store ID: ${vectorStoreId}\n`);
+
+  // Clear if requested
+  if (args.clear) {
+    console.log('Clearing vector store...');
+    const deleted = await clearVectorStore(vectorStoreId);
+    console.log(`Deleted ${deleted} files\n`);
+  }
+
+  // Track stats
+  const stats = {
+    filingsProcessed: 0,
+    chunksCreated: 0,
+    chunksUploaded: 0,
+    chunksFailed: 0,
+    totalTokens: 0,
+  };
+
+  // Process each company
+  for (const company of companies) {
+    console.log(`\n--- ${company.ticker}: ${company.name} ---`);
+
+    try {
+      await processCompany(company, vectorStoreId, stats, args);
+    } catch (error) {
+      console.error(`Error processing ${company.ticker}:`, error);
+    }
+  }
+
+  // Print summary
+  console.log('\n=== Ingestion Complete ===');
+  console.log(`Filings processed: ${stats.filingsProcessed}`);
+  console.log(`Chunks created: ${stats.chunksCreated}`);
+  console.log(`Chunks uploaded: ${stats.chunksUploaded}`);
+  console.log(`Chunks failed: ${stats.chunksFailed}`);
+  console.log(`Total tokens: ${stats.totalTokens.toLocaleString()}`);
+}
+
+async function processCompany(
+  company: CompanyConfig,
+  vectorStoreId: string,
+  stats: typeof stats,
+  args: { backfill?: boolean; incremental?: boolean; 'dry-run'?: boolean }
+) {
+  // Fetch filing list from EDGAR
+  console.log(`Fetching filings from EDGAR...`);
+  const allFilings = await getCompanyFilings(company.cik, company.docTypes as DocType[]);
+  console.log(`Found ${allFilings.length} filings total`);
+
+  // Filter by date
+  let filings: EdgarFiling[];
+  if (args.incremental) {
+    // Last 7 days
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    filings = allFilings.filter(f => f.filingDate >= cutoffStr);
+    console.log(`Incremental mode: ${filings.length} filings in last 7 days`);
+  } else if (args.backfill) {
+    // Apply per-doctype backfill limits
+    filings = [];
+    for (const docType of company.docTypes) {
+      const docFilings = allFilings.filter(f => f.form === docType);
+      const filtered = filterFilingsByDate(docFilings, docType as DocType, INGESTION_CONFIG.backfillYears);
+      filings.push(...filtered);
+    }
+    console.log(`Backfill mode: ${filings.length} filings within date limits`);
+  } else {
+    // Default: last year
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    filings = allFilings.filter(f => f.filingDate >= cutoffStr);
+    console.log(`Default mode: ${filings.length} filings in last year`);
+  }
+
+  if (filings.length === 0) {
+    console.log('No filings to process');
+    return;
+  }
+
+  // Process each filing
+  const allChunks: DocumentChunk[] = [];
+
+  for (const filing of filings) {
+    console.log(`\nProcessing ${filing.form} filed ${filing.filingDate}...`);
+
+    try {
+      // Download filing
+      const html = await downloadFiling(filing);
+      console.log(`  Downloaded ${(html.length / 1024).toFixed(0)} KB`);
+
+      // Parse filing
+      let parsed;
+      if (filing.form === '8-K') {
+        parsed = parse8K(html, filing, company.ticker, company.name);
+      } else if (filing.form === '6-K') {
+        parsed = parse6K(html, filing, company.ticker, company.name);
+      } else {
+        parsed = parseFilingHtml(html, filing, company.ticker, company.name);
+      }
+
+      console.log(`  Parsed ${parsed.sections.length} sections`);
+
+      // Chunk document
+      const chunks = chunkDocument(parsed);
+      console.log(`  Created ${chunks.length} chunks`);
+
+      // Track tokens
+      const tokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0);
+      console.log(`  Total tokens: ${tokens.toLocaleString()}`);
+
+      allChunks.push(...chunks);
+      stats.filingsProcessed++;
+      stats.chunksCreated += chunks.length;
+      stats.totalTokens += tokens;
+    } catch (error) {
+      console.error(`  Error processing filing:`, error);
+    }
+  }
+
+  // Deduplicate boilerplate across chunks
+  console.log(`\nDeduplicating boilerplate across ${allChunks.length} chunks...`);
+  const dedupedChunks = deduplicateBoilerplate(allChunks);
+  console.log(`After dedup: ${dedupedChunks.length} chunks`);
+
+  if (args['dry-run']) {
+    console.log('\nDry run - skipping upload');
+    return;
+  }
+
+  // Upload to vector store
+  if (dedupedChunks.length > 0) {
+    console.log(`\nUploading ${dedupedChunks.length} chunks to vector store...`);
+    const { uploaded, failed } = await uploadChunksIndividually(vectorStoreId, dedupedChunks);
+    stats.chunksUploaded += uploaded;
+    stats.chunksFailed += failed;
+    console.log(`Uploaded: ${uploaded}, Failed: ${failed}`);
+  }
+}
+
+// Declare stats type for function signature
+const stats = {
+  filingsProcessed: 0,
+  chunksCreated: 0,
+  chunksUploaded: 0,
+  chunksFailed: 0,
+  totalTokens: 0,
+};
+
+// Run
+main().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});

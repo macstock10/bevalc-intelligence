@@ -1,183 +1,117 @@
-name: SEC Filings Sync
+name: SEC RAG Sync
 
-# Polls SEC EDGAR for new filings every 4 hours during market hours.
-# Processes 8-K events and generates embeddings for new filings.
+# Syncs SEC filings to OpenAI vector store for RAG queries.
+# Daily incremental sync for new filings.
+# Manual backfill for historical data.
 
 on:
   schedule:
-    # Run at 3pm, 7pm, 11pm UTC = 10am, 2pm, 6pm ET
-    - cron: '0 15 * * 1-5'
-    - cron: '0 19 * * 1-5'
-    - cron: '0 23 * * 1-5'
+    # Run daily at 6am UTC = 1am ET
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       mode:
         description: 'Sync mode'
         required: true
-        default: 'recent'
+        default: 'incremental'
         type: choice
         options:
-          - recent
-          - backfill
-          - 8k-only
-          - embeddings-only
-      company:
+          - incremental    # Last 7 days
+          - backfill       # Full historical backfill
+          - clear          # Clear vector store and re-sync
+      ticker:
         description: 'Company ticker (optional, for single company)'
         required: false
         type: string
-      days:
-        description: 'Days to look back (for recent mode)'
+      dry_run:
+        description: 'Dry run (skip upload to vector store)'
         required: false
-        default: '7'
-        type: string
+        default: false
+        type: boolean
 
 jobs:
   sync-filings:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
+          node-version: '20'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
-          cd scripts
-          pip install -r requirements.txt
+          cd scripts/sec-rag
+          npm install
 
       - name: Create directories
         run: |
           mkdir -p data logs
 
-      - name: Sync recent filings
-        if: ${{ github.event_name == 'schedule' || inputs.mode == 'recent' }}
+      - name: Run incremental sync
+        if: ${{ github.event_name == 'schedule' || inputs.mode == 'incremental' }}
         env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          cd scripts
-          DAYS="${{ inputs.days || '7' }}"
-          echo "Syncing filings from last ${DAYS} days"
-          python sec_ingest_filings.py --recent --days $DAYS
-
-      - name: Backfill company
-        if: ${{ inputs.mode == 'backfill' && inputs.company != '' }}
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          cd scripts
-          echo "Backfilling company: ${{ inputs.company }}"
-          python sec_ingest_filings.py --company ${{ inputs.company }} --backfill
+          cd scripts/sec-rag
+          echo "Running incremental sync (last 7 days)"
+          TICKER_FLAG=""
+          if [ -n "${{ inputs.ticker }}" ]; then
+            TICKER_FLAG="--ticker ${{ inputs.ticker }}"
+          fi
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          npx tsx ingest.ts --incremental $TICKER_FLAG $DRY_RUN_FLAG
 
-      - name: Backfill all companies
-        if: ${{ inputs.mode == 'backfill' && inputs.company == '' }}
+      - name: Run backfill
+        if: ${{ inputs.mode == 'backfill' }}
         env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          cd scripts
-          echo "Backfilling all tracked companies"
-          python sec_ingest_filings.py --all --backfill
+          cd scripts/sec-rag
+          echo "Running full backfill"
+          TICKER_FLAG=""
+          if [ -n "${{ inputs.ticker }}" ]; then
+            TICKER_FLAG="--ticker ${{ inputs.ticker }}"
+          fi
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          npx tsx ingest.ts --backfill $TICKER_FLAG $DRY_RUN_FLAG
 
-  process-8k:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: sync-filings
-    if: ${{ always() && (github.event_name == 'schedule' || inputs.mode == 'recent' || inputs.mode == '8k-only') }}
+      - name: Run clear and re-sync
+        if: ${{ inputs.mode == 'clear' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts/sec-rag
+          echo "Clearing vector store and re-syncing"
+          TICKER_FLAG=""
+          if [ -n "${{ inputs.ticker }}" ]; then
+            TICKER_FLAG="--ticker ${{ inputs.ticker }}"
+          fi
+          npx tsx ingest.ts --clear --backfill $TICKER_FLAG
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          cd scripts
-          pip install -r requirements.txt
-
-      - name: Process pending 8-K filings
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          cd scripts
-          echo "Processing pending 8-K filings"
-          python sec_process_8k.py --pending --limit 20
-
-  generate-embeddings:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: sync-filings
-    if: ${{ always() && (github.event_name == 'schedule' || inputs.mode == 'recent' || inputs.mode == 'embeddings-only') }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          cd scripts
-          pip install -r requirements.txt
-
-      - name: Generate embeddings for new chunks
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          cd scripts
-          echo "Generating embeddings for pending chunks"
-          python sec_embed_chunks.py --pending --limit 200
-
-
-  # Weekly MD&A diff computation (runs on Saturdays)
-  compute-mda-diffs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 15 * * 6' }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          cd scripts
-          pip install -r requirements.txt
-
-      - name: Compute MD&A diffs
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          cd scripts
-          echo "Computing MD&A diffs for all companies"
-          python sec_compute_mda_diffs.py --all
+          name: sec-rag-sync-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 14
