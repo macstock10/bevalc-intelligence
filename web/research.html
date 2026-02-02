@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEC Research | BevAlc Intelligence</title>
+    <meta name="description" content="Research SEC filings from public beverage alcohol companies. 8-K event radar, RAG-powered Q&A, MD&A diff analysis.">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Research Page Specific Styles */
+        .research-page {
+            padding: 2rem 0 4rem;
+            min-height: calc(100vh - 80px);
+        }
+
+        .research-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .research-header {
+            margin-bottom: 2rem;
+        }
+
+        .research-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .research-subtitle {
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        /* Company Pills */
+        .company-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .company-pill {
+            padding: 0.5rem 1rem;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .company-pill:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .company-pill.active {
+            background: #0d9488;
+            border-color: #0d9488;
+            color: white;
+        }
+
+        /* Tab Navigation */
+        .research-tabs {
+            display: flex;
+            gap: 0.25rem;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+        }
+
+        .research-tab {
+            padding: 0.75rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s ease;
+        }
+
+        .research-tab:hover {
+            color: #1e293b;
+        }
+
+        .research-tab.active {
+            color: #0d9488;
+            border-bottom-color: #0d9488;
+        }
+
+        .research-tab .pro-badge {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            font-size: 0.625rem;
+            font-weight: 700;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 8-K Events */
+        .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .event-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .event-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .event-card.priority-high {
+            border-left: 3px solid #ef4444;
+        }
+
+        .event-card.priority-normal {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .event-card.priority-low {
+            border-left: 3px solid #94a3b8;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .event-company {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #0d9488;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .event-date {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        .event-headline {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .event-item-badge {
+            display: inline-block;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-summary {
+            font-size: 0.875rem;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .event-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.75rem;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #0d9488;
+            text-decoration: none;
+        }
+
+        .event-link:hover {
+            text-decoration: underline;
+        }
+
+        /* RAG Query Interface */
+        .query-section {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .query-input-wrapper {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .query-input {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: #0d9488;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+        }
+
+        .query-btn {
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .query-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+        }
+
+        .query-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .query-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+            color: #64748b;
+            background: white;
+        }
+
+        .query-result {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .query-answer {
+            font-size: 0.9375rem;
+            line-height: 1.7;
+            color: #334155;
+        }
+
+        .query-citations {
+            margin-top: 1.5rem;
+        }
+
+        .citations-header {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+        }
+
+        .citation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .citation-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+        }
+
+        .citation-source {
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+        }
+
+        .citation-excerpt {
+            color: #64748b;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* MD&A Diffs */
+        .diff-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .diff-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+
+        .diff-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .diff-title {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .diff-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .diff-badge.low-change {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .diff-badge.medium-change {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .diff-badge.high-change {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .diff-summary {
+            font-size: 0.875rem;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .diff-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.8125rem;
+            color: #94a3b8;
+        }
+
+        .diff-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        .diff-stat.additions {
+            color: #16a34a;
+        }
+
+        .diff-stat.deletions {
+            color: #dc2626;
+        }
+
+        /* Filings Table */
+        .filings-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .filings-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .filings-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .filings-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+        }
+
+        .filings-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        .filing-type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .filing-type-badge.type-10k {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .filing-type-badge.type-10q {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .filing-type-badge.type-8k {
+            background: #f3e8ff;
+            color: #6b21a8;
+        }
+
+        /* Pro Gate */
+        .pro-gate {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 12px;
+            border: 1px dashed #cbd5e1;
+        }
+
+        .pro-gate h3 {
+            font-size: 1.25rem;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+        }
+
+        .pro-gate p {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+        }
+
+        .pro-gate .btn-upgrade {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .pro-gate .btn-upgrade:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        /* Loading States */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #0d9488;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: #94a3b8;
+        }
+
+        .empty-state h3 {
+            font-size: 1.125rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Credits Display */
+        .credits-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8125rem;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+        .credits-count {
+            font-weight: 600;
+            color: #0d9488;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .query-input-wrapper {
+                flex-direction: column;
+            }
+
+            .company-pills {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                padding-bottom: 0.5rem;
+            }
+
+            .event-header {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .diff-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">BevAlc Intelligence</span>
+                <span class="user-status user-status-mobile" id="user-status-mobile"></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Home</a>
+                <div class="nav-dropdown" id="browse-dropdown">
+                    <button class="nav-dropdown-toggle" onclick="toggleDropdown('browse-dropdown')">
+                        Browse
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="/whiskey/">Whiskey</a>
+                        <a href="/tequila/">Tequila</a>
+                        <a href="/vodka/">Vodka</a>
+                        <a href="/gin/">Gin</a>
+                        <a href="/rum/">Rum</a>
+                        <a href="/wine/">Wine</a>
+                        <a href="/beer/">Beer</a>
+                        <div class="nav-dropdown-divider"></div>
+                        <div class="nav-dropdown-more">
+                            <a href="#">More <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg></a>
+                            <div class="nav-dropdown-submenu">
+                                <a href="/brandy/">Brandy</a>
+                                <a href="/liqueur/">Liqueur</a>
+                                <a href="/cocktails/">Cocktails</a>
+                                <a href="/other/">Other</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <a href="database.html" class="nav-link">Database</a>
+                <a href="research.html" class="nav-link active">Research</a>
+                <a href="index.html#pricing" class="nav-link">Pricing</a>
+                <a href="account.html" class="nav-link">Account</a>
+            </div>
+            <div class="nav-user" id="nav-user">
+                <span class="user-greeting" id="user-greeting"></span>
+                <a href="index.html#signup" class="nav-cta" id="nav-signup">Get Access</a>
+            </div>
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </div>
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="index.html" class="mobile-menu-link">Home</a>
+            <a href="database.html" class="mobile-menu-link">Database</a>
+            <a href="research.html" class="mobile-menu-link">Research</a>
+            <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
+            <a href="account.html" class="mobile-menu-link">Account</a>
+        </div>
+    </nav>
+
+    <!-- Research Content -->
+    <main class="research-page">
+        <div class="research-container">
+            <!-- Header -->
+            <div class="research-header">
+                <h1>SEC Research</h1>
+                <p class="research-subtitle">Analyze SEC filings from public beverage alcohol companies</p>
+            </div>
+
+            <!-- Company Pills -->
+            <div class="company-pills" id="company-pills">
+                <button class="company-pill active" data-ticker="">All Companies</button>
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="research-tabs">
+                <button class="research-tab active" data-tab="8k-events">8-K Event Radar</button>
+                <button class="research-tab" data-tab="ask-filings">Ask Filings <span class="pro-badge">PRO</span></button>
+                <button class="research-tab" data-tab="mda-changes">MD&A Changes <span class="pro-badge">PRO</span></button>
+                <button class="research-tab" data-tab="all-filings">All Filings</button>
+            </div>
+
+            <!-- Tab Content: 8-K Events -->
+            <div class="tab-content active" id="tab-8k-events">
+                <div class="events-list" id="events-list">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Ask Filings (RAG) -->
+            <div class="tab-content" id="tab-ask-filings">
+                <div class="query-section">
+                    <div class="credits-display" id="credits-display" style="display: none;">
+                        <span>Credits remaining:</span>
+                        <span class="credits-count" id="credits-count">0</span>
+                    </div>
+                    <div class="query-input-wrapper">
+                        <input type="text" class="query-input" id="query-input"
+                               placeholder="Ask about strategies, risks, financial performance...">
+                        <button class="query-btn" id="query-btn">Ask</button>
+                    </div>
+                    <div class="query-filters">
+                        <select class="filter-select" id="filter-company">
+                            <option value="">All Companies</option>
+                        </select>
+                        <select class="filter-select" id="filter-filing-type">
+                            <option value="">All Filing Types</option>
+                            <option value="10-K">10-K (Annual)</option>
+                            <option value="10-Q">10-Q (Quarterly)</option>
+                        </select>
+                    </div>
+                    <div class="query-result" id="query-result" style="display: none;">
+                        <div class="query-answer" id="query-answer"></div>
+                        <div class="query-citations" id="query-citations">
+                            <div class="citations-header">Sources</div>
+                            <div class="citation-list" id="citation-list"></div>
+                        </div>
+                    </div>
+                    <div class="pro-gate" id="rag-pro-gate" style="display: none;">
+                        <h3>Pro Feature</h3>
+                        <p>RAG-powered Q&A across SEC filings requires a Pro subscription.</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: MD&A Changes -->
+            <div class="tab-content" id="tab-mda-changes">
+                <div class="diff-list" id="diff-list">
+                    <div class="pro-gate" id="mda-pro-gate" style="display: none;">
+                        <h3>Pro Feature</h3>
+                        <p>MD&A diff analysis requires a Pro subscription.</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: All Filings -->
+            <div class="tab-content" id="tab-all-filings">
+                <div class="filings-table-wrapper">
+                    <table class="filings-table">
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Type</th>
+                                <th>Period</th>
+                                <th>Filed</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filings-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // State
+        let userEmail = localStorage.getItem('bevalc_email');
+        let isPro = false;
+        let credits = 0;
+        let selectedTicker = '';
+        let companies = [];
+
+        // API Base
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:8787'
+            : '';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCompanies();
+            await checkUserStatus();
+            setupEventListeners();
+            loadActiveTab();
+        });
+
+        // Load tracked companies
+        async function loadCompanies() {
+            try {
+                const response = await fetch(`${API_BASE}/api/sec/companies`);
+                const data = await response.json();
+                if (data.success) {
+                    companies = data.companies;
+                    renderCompanyPills();
+                    populateCompanyFilter();
+                }
+            } catch (error) {
+                console.error('Failed to load companies:', error);
+            }
+        }
+
+        // Check user status
+        async function checkUserStatus() {
+            if (!userEmail) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(userEmail)}`);
+                const data = await response.json();
+                if (data.success) {
+                    isPro = data.is_pro;
+                    credits = data.credits || 0;
+                    updateCreditsDisplay();
+                }
+            } catch (error) {
+                console.error('Failed to check user status:', error);
+            }
+        }
+
+        // Render company pills
+        function renderCompanyPills() {
+            const container = document.getElementById('company-pills');
+            container.innerHTML = '<button class="company-pill active" data-ticker="">All Companies</button>';
+
+            companies.forEach(company => {
+                const pill = document.createElement('button');
+                pill.className = 'company-pill';
+                pill.dataset.ticker = company.ticker;
+                pill.textContent = `${company.ticker} - ${company.company_name}`;
+                container.appendChild(pill);
+            });
+        }
+
+        // Populate company filter dropdown
+        function populateCompanyFilter() {
+            const select = document.getElementById('filter-company');
+            companies.forEach(company => {
+                const option = document.createElement('option');
+                option.value = company.ticker;
+                option.textContent = `${company.ticker} - ${company.company_name}`;
+                select.appendChild(option);
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Company pills
+            document.getElementById('company-pills').addEventListener('click', (e) => {
+                if (e.target.classList.contains('company-pill')) {
+                    document.querySelectorAll('.company-pill').forEach(p => p.classList.remove('active'));
+                    e.target.classList.add('active');
+                    selectedTicker = e.target.dataset.ticker;
+                    loadActiveTab();
+                }
+            });
+
+            // Tab navigation
+            document.querySelectorAll('.research-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.research-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+                    loadActiveTab();
+                });
+            });
+
+            // Query button
+            document.getElementById('query-btn').addEventListener('click', submitQuery);
+            document.getElementById('query-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') submitQuery();
+            });
+
+            // Mobile menu
+            const mobileBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (mobileBtn && mobileMenu) {
+                mobileBtn.addEventListener('click', () => {
+                    mobileMenu.classList.toggle('open');
+                    mobileBtn.classList.toggle('active');
+                });
+            }
+        }
+
+        // Load content for active tab
+        function loadActiveTab() {
+            const activeTab = document.querySelector('.research-tab.active');
+            if (!activeTab) return;
+
+            switch (activeTab.dataset.tab) {
+                case '8k-events':
+                    load8kEvents();
+                    break;
+                case 'ask-filings':
+                    checkRagAccess();
+                    break;
+                case 'mda-changes':
+                    loadMdaChanges();
+                    break;
+                case 'all-filings':
+                    loadAllFilings();
+                    break;
+            }
+        }
+
+        // Load 8-K events
+        async function load8kEvents() {
+            const container = document.getElementById('events-list');
+            container.innerHTML = '<div class="loading-spinner"></div>';
+
+            try {
+                let url = `${API_BASE}/api/sec/8k-events?days=60&limit=50`;
+                if (selectedTicker) {
+                    url += `&ticker=${encodeURIComponent(selectedTicker)}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success && data.events.length > 0) {
+                    container.innerHTML = data.events.map(event => `
+                        <div class="event-card priority-${event.priority}">
+                            <div class="event-header">
+                                <span class="event-company">${event.ticker}</span>
+                                <span class="event-date">${formatDate(event.filing_date)}</span>
+                            </div>
+                            <div class="event-item-badge">Item ${event.item_number}: ${event.item_title}</div>
+                            <div class="event-headline">${escapeHtml(event.headline || event.item_title)}</div>
+                            <div class="event-summary">${escapeHtml(event.summary || '')}</div>
+                            <a href="${event.edgar_url}" target="_blank" class="event-link">
+                                View Filing
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No recent 8-K events</h3>
+                            <p>Check back later for material event disclosures.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="empty-state"><p>Failed to load events</p></div>`;
+            }
+        }
+
+        // Check RAG access
+        function checkRagAccess() {
+            if (!userEmail || !isPro) {
+                document.getElementById('rag-pro-gate').style.display = 'block';
+                document.querySelector('.query-input-wrapper').style.display = 'none';
+                document.querySelector('.query-filters').style.display = 'none';
+            } else {
+                document.getElementById('rag-pro-gate').style.display = 'none';
+                document.querySelector('.query-input-wrapper').style.display = 'flex';
+                document.querySelector('.query-filters').style.display = 'flex';
+            }
+        }
+
+        // Submit RAG query
+        async function submitQuery() {
+            const queryInput = document.getElementById('query-input');
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            const btn = document.getElementById('query-btn');
+            btn.disabled = true;
+            btn.textContent = 'Searching...';
+
+            const filters = {
+                ticker: document.getElementById('filter-company').value,
+                filing_type: document.getElementById('filter-filing-type').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/sec/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, email: userEmail, filters })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('query-answer').textContent = data.answer;
+
+                    const citationList = document.getElementById('citation-list');
+                    citationList.innerHTML = (data.citations || []).map(c => `
+                        <div class="citation-item">
+                            <span class="citation-source">${c.ticker} ${c.filing_type} FY${c.fiscal_year}</span>
+                            <span class="citation-excerpt">${escapeHtml(c.excerpt)}</span>
+                        </div>
+                    `).join('');
+
+                    document.getElementById('query-result').style.display = 'block';
+
+                    if (data.credits_remaining !== undefined) {
+                        credits = data.credits_remaining;
+                        updateCreditsDisplay();
+                    }
+                } else {
+                    alert(data.error || 'Query failed');
+                }
+            } catch (error) {
+                alert('Failed to process query');
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Ask';
+        }
+
+        // Load MD&A changes
+        async function loadMdaChanges() {
+            const container = document.getElementById('diff-list');
+
+            if (!userEmail || !isPro) {
+                container.innerHTML = `
+                    <div class="pro-gate">
+                        <h3>Pro Feature</h3>
+                        <p>MD&A diff analysis requires a Pro subscription.</p>
+                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '<div class="loading-spinner"></div>';
+
+            // MD&A diffs would be loaded here
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>MD&A Comparisons Coming Soon</h3>
+                    <p>Year-over-year MD&A analysis will be available shortly.</p>
+                </div>
+            `;
+        }
+
+        // Load all filings
+        async function loadAllFilings() {
+            const tbody = document.getElementById('filings-tbody');
+            tbody.innerHTML = '<tr><td colspan="5"><div class="loading-spinner"></div></td></tr>';
+
+            try {
+                let url = `${API_BASE}/api/sec/filings?limit=50`;
+                if (selectedTicker) {
+                    url += `&ticker=${encodeURIComponent(selectedTicker)}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success && data.filings.length > 0) {
+                    tbody.innerHTML = data.filings.map(filing => `
+                        <tr>
+                            <td>${filing.ticker}</td>
+                            <td>
+                                <span class="filing-type-badge type-${filing.filing_type.toLowerCase().replace('-', '')}">
+                                    ${filing.filing_type}
+                                </span>
+                            </td>
+                            <td>${filing.fiscal_year || ''}${filing.fiscal_quarter ? ' Q' + filing.fiscal_quarter : ''}</td>
+                            <td>${formatDate(filing.filing_date)}</td>
+                            <td>
+                                <a href="${filing.edgar_url}" target="_blank" class="event-link">View</a>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No filings found</td></tr>';
+                }
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="5">Failed to load filings</td></tr>';
+            }
+        }
+
+        // Update credits display
+        function updateCreditsDisplay() {
+            const display = document.getElementById('credits-display');
+            const count = document.getElementById('credits-count');
+            if (isPro && userEmail) {
+                display.style.display = 'flex';
+                count.textContent = credits;
+            } else {
+                display.style.display = 'none';
+            }
+        }
+
+        // Utility functions
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Nav dropdown (shared with other pages)
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            dropdown.classList.toggle('open');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.nav-dropdown')) {
+                document.querySelectorAll('.nav-dropdown.open').forEach(d => d.classList.remove('open'));
+            }
+        });
+    </script>
+</body>
+</html>

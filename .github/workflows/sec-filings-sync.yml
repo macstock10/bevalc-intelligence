@@ -1,0 +1,183 @@
+name: SEC Filings Sync
+
+# Polls SEC EDGAR for new filings every 4 hours during market hours.
+# Processes 8-K events and generates embeddings for new filings.
+
+on:
+  schedule:
+    # Run at 3pm, 7pm, 11pm UTC = 10am, 2pm, 6pm ET
+    - cron: '0 15 * * 1-5'
+    - cron: '0 19 * * 1-5'
+    - cron: '0 23 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sync mode'
+        required: true
+        default: 'recent'
+        type: choice
+        options:
+          - recent
+          - backfill
+          - 8k-only
+          - embeddings-only
+      company:
+        description: 'Company ticker (optional, for single company)'
+        required: false
+        type: string
+      days:
+        description: 'Days to look back (for recent mode)'
+        required: false
+        default: '7'
+        type: string
+
+jobs:
+  sync-filings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+
+      - name: Create directories
+        run: |
+          mkdir -p data logs
+
+      - name: Sync recent filings
+        if: ${{ github.event_name == 'schedule' || inputs.mode == 'recent' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cd scripts
+          DAYS="${{ inputs.days || '7' }}"
+          echo "Syncing filings from last ${DAYS} days"
+          python sec_ingest_filings.py --recent --days $DAYS
+
+      - name: Backfill company
+        if: ${{ inputs.mode == 'backfill' && inputs.company != '' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+          echo "Backfilling company: ${{ inputs.company }}"
+          python sec_ingest_filings.py --company ${{ inputs.company }} --backfill
+
+      - name: Backfill all companies
+        if: ${{ inputs.mode == 'backfill' && inputs.company == '' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+          echo "Backfilling all tracked companies"
+          python sec_ingest_filings.py --all --backfill
+
+  process-8k:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: sync-filings
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.mode == 'recent' || inputs.mode == '8k-only') }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+
+      - name: Process pending 8-K filings
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cd scripts
+          echo "Processing pending 8-K filings"
+          python sec_process_8k.py --pending --limit 20
+
+  generate-embeddings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: sync-filings
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.mode == 'recent' || inputs.mode == 'embeddings-only') }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+
+      - name: Generate embeddings for new chunks
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd scripts
+          echo "Generating embeddings for pending chunks"
+          python sec_embed_chunks.py --pending --limit 200
+
+
+  # Weekly MD&A diff computation (runs on Saturdays)
+  compute-mda-diffs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 15 * * 6' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+
+      - name: Compute MD&A diffs
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cd scripts
+          echo "Computing MD&A diffs for all companies"
+          python sec_compute_mda_diffs.py --all

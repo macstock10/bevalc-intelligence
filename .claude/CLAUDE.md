@@ -44,6 +44,8 @@ NEW_COMPANY signal in COLAs doesn't mean they're a new business. They may have e
 | Daily 11:30am ET | `send_watchlist_alerts.py` | Email alerts for watchlist matches |
 | Friday 2pm ET | `send_weekly_report.py` | Weekly summary emails |
 | Tuesday 6am ET | `sync_permits.py` | Sync 82K TTB permits |
+| Weekdays 10am/2pm/6pm ET | `sec_ingest_filings.py` | Poll SEC EDGAR for new filings |
+| Saturday 10am ET | `sec_compute_mda_diffs.py` | Compute MD&A year-over-year diffs |
 
 ### Signal Classification
 
@@ -66,6 +68,7 @@ Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
 - `/api/search` - Query database
 - `/api/checkout` - Stripe checkout
 - `/api/enhance` - AI company intelligence (uses credits)
+- `/api/sec/*` - SEC Research endpoints (filings, 8-K events, RAG query, MD&A diffs)
 - `/company/[slug]` - SSR company pages
 - `/brand/[slug]` - SSR brand pages
 
@@ -100,6 +103,27 @@ Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
 **`company_enhancements`** - Cached AI intelligence results
 - `company_id` (PK), `website_url`, `summary`, `news`, `expires_at` (90-day TTL)
 
+### SEC Research Tables
+
+**`sec_companies`** - Tracked public beverage alcohol companies
+- `id`, `ticker`, `cik`, `company_name`, `company_id` (FK)
+
+**`sec_filings`** - Individual SEC filings (10-K, 10-Q, 8-K)
+- `id`, `sec_company_id`, `accession_number`, `filing_type`, `filing_date`
+- `fiscal_year`, `fiscal_quarter`, `edgar_url`, `processing_status`
+
+**`sec_filing_sections`** - Parsed sections (MD&A, Risk Factors, etc.)
+- `id`, `filing_id`, `section_type`, `content`, `content_hash`
+
+**`sec_filing_chunks`** - RAG chunks for vector search
+- `id`, `filing_id`, `section_id`, `chunk_index`, `content`, `vector_id`
+
+**`sec_8k_events`** - Parsed material events from 8-K filings
+- `id`, `filing_id`, `item_number`, `headline`, `summary`, `priority`
+
+**`sec_mda_diffs`** - MD&A comparison results
+- `id`, `current_filing_id`, `previous_filing_id`, `ai_summary`, `boilerplate_score`
+
 ---
 
 ## Folder Structure
@@ -110,14 +134,22 @@ bevalc-intelligence/
 ├── .github/workflows/       # GitHub Actions (daily-sync, alerts, reports)
 ├── emails/templates/        # React Email templates (Welcome, WeeklyReport, etc.)
 ├── scripts/
-│   ├── lib/d1_utils.py      # Shared D1 operations
-│   ├── weekly_update.py     # Main scraper
+│   ├── lib/
+│   │   ├── d1_utils.py      # Shared D1 operations
+│   │   ├── sec_edgar.py     # SEC EDGAR API client
+│   │   └── sec_parser.py    # Filing section parser
+│   ├── weekly_update.py     # Main TTB scraper
 │   ├── send_weekly_report.py
 │   ├── send_watchlist_alerts.py
-│   └── sync_permits.py
+│   ├── sync_permits.py
+│   ├── sec_ingest_filings.py    # SEC filing ingestion
+│   ├── sec_process_8k.py        # 8-K event extraction
+│   ├── sec_embed_chunks.py      # Vector embeddings
+│   └── sec_compute_mda_diffs.py # MD&A diff engine
 ├── web/                     # Frontend (Netlify)
 │   ├── index.html           # Landing page
 │   ├── database.html        # Search UI
+│   ├── research.html        # SEC Research (8-K events, RAG, MD&A diffs)
 │   └── account.html         # User settings
 ├── worker/
 │   ├── worker.js            # Cloudflare Worker (API + SSR)
@@ -144,6 +176,24 @@ npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences
 
 # Check user
 npx wrangler d1 execute bevalc-colas --remote --command "SELECT * FROM user_preferences WHERE email = 'user@example.com'"
+
+# SEC Research: Ingest filings for a company
+python scripts/sec_ingest_filings.py --company BF.B --years 1
+
+# SEC Research: Backfill all companies
+python scripts/sec_ingest_filings.py --all --backfill
+
+# SEC Research: Process pending 8-K events
+python scripts/sec_process_8k.py --pending
+
+# SEC Research: Generate embeddings
+python scripts/sec_embed_chunks.py --pending --limit 100
+
+# SEC Research: Compute MD&A diffs
+python scripts/sec_compute_mda_diffs.py --company BF.B
+
+# Apply SEC schema migration
+npx wrangler d1 execute bevalc-colas --remote --file=../scripts/migrations/003_sec_filings_schema.sql
 ```
 
 ---

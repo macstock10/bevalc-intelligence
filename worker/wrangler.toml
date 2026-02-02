@@ -7,6 +7,20 @@ binding = "DB"
 database_name = "bevalc-colas"
 database_id = "377c1210-aca8-43a8-b575-7fc2f7e31616"
 
+# R2 bucket for SEC filings
+[[r2_buckets]]
+binding = "SEC_FILINGS"
+bucket_name = "bevalc-sec-filings"
+
+# Vectorize index for SEC filing embeddings
+[[vectorize]]
+binding = "SEC_VECTORS"
+index_name = "sec-filings-index"
+
+# Workers AI for embeddings
+[ai]
+binding = "AI"
+
 # Secrets (set via wrangler secret put):
 # - STRIPE_SECRET_KEY
 # - STRIPE_WEBHOOK_SECRET          (from Stripe Dashboard > Webhooks > Signing secret)
@@ -14,3 +28,4 @@ database_id = "377c1210-aca8-43a8-b575-7fc2f7e31616"
 # - RESEND_API_KEY                 (for welcome emails)
 # - REPORT_API_KEY                 (for internal report scripts)
 # - LOOPS_API_KEY                  (for email marketing sync)
+# - ANTHROPIC_API_KEY              (for AI summaries in SEC research)

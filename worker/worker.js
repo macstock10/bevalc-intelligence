@@ -369,6 +369,24 @@ export default {
                 response = await handlePermitsContacts(request, env);
             } else if (path === '/api/competitor-activity' && request.method === 'GET') {
                 response = await handleCompetitorActivity(url, env);
+            }
+            // SEC Research endpoints
+            else if (path === '/api/sec/companies') {
+                response = await handleSecCompanies(env);
+            } else if (path === '/api/sec/filings') {
+                response = await handleSecFilings(url, env);
+            } else if (path.startsWith('/api/sec/filing/')) {
+                response = await handleSecFiling(path, env);
+            } else if (path === '/api/sec/8k-events') {
+                response = await handleSec8kEvents(url, env);
+            } else if (path.startsWith('/api/sec/8k-event/')) {
+                response = await handleSec8kEvent(path, url, env);
+            } else if (path === '/api/sec/query' && request.method === 'POST') {
+                response = await handleSecQuery(request, env);
+            } else if (path.startsWith('/api/sec/mda-diff/')) {
+                response = await handleSecMdaDiff(path, url, env);
+            } else if (path === '/api/sec/mda-compare') {
+                response = await handleSecMdaCompare(url, env);
             } else {
                 response = { success: false, error: 'Not found' };
             }
@@ -5393,6 +5411,498 @@ async function handleSitemap(path, env) {
         console.error(`Error fetching sitemap from R2: ${error.message}`);
         return new Response('Error loading sitemap', { status: 500 });
     }
+}
+
+// ==========================================
+// SEC RESEARCH HANDLERS
+// ==========================================
+
+async function handleSecCompanies(env) {
+    const result = await env.DB.prepare(`
+        SELECT id, ticker, cik, company_name, company_id, created_at
+        FROM sec_companies
+        ORDER BY ticker
+    `).all();
+
+    return {
+        success: true,
+        companies: result.results || []
+    };
+}
+
+async function handleSecFilings(url, env) {
+    const ticker = url.searchParams.get('ticker');
+    const filingType = url.searchParams.get('type');
+    const year = url.searchParams.get('year');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
+
+    let whereClause = '1=1';
+    const params = [];
+
+    if (ticker) {
+        whereClause += ' AND sc.ticker = ?';
+        params.push(ticker);
+    }
+
+    if (filingType) {
+        whereClause += ' AND sf.filing_type = ?';
+        params.push(filingType);
+    }
+
+    if (year) {
+        whereClause += ' AND sf.fiscal_year = ?';
+        params.push(parseInt(year));
+    }
+
+    const query = `
+        SELECT
+            sf.id, sf.accession_number, sf.filing_type, sf.filing_date,
+            sf.period_end_date, sf.fiscal_year, sf.fiscal_quarter,
+            sf.edgar_url, sf.processing_status,
+            sc.ticker, sc.company_name
+        FROM sec_filings sf
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE ${whereClause}
+        ORDER BY sf.filing_date DESC
+        LIMIT ? OFFSET ?
+    `;
+
+    params.push(limit, offset);
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+
+    // Get total count
+    const countQuery = `
+        SELECT COUNT(*) as total
+        FROM sec_filings sf
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE ${whereClause}
+    `;
+    const countResult = await env.DB.prepare(countQuery).bind(...params.slice(0, -2)).first();
+
+    return {
+        success: true,
+        filings: result.results || [],
+        total: countResult?.total || 0,
+        limit,
+        offset
+    };
+}
+
+async function handleSecFiling(path, env) {
+    const filingId = path.split('/').pop();
+
+    if (!filingId || isNaN(parseInt(filingId))) {
+        return { success: false, error: 'Invalid filing ID' };
+    }
+
+    // Get filing details
+    const filing = await env.DB.prepare(`
+        SELECT
+            sf.*,
+            sc.ticker, sc.company_name, sc.cik
+        FROM sec_filings sf
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE sf.id = ?
+    `).bind(parseInt(filingId)).first();
+
+    if (!filing) {
+        return { success: false, error: 'Filing not found' };
+    }
+
+    // Get sections
+    const sections = await env.DB.prepare(`
+        SELECT id, section_type, section_title, content_hash,
+               LENGTH(content) as content_length
+        FROM sec_filing_sections
+        WHERE filing_id = ?
+    `).bind(parseInt(filingId)).all();
+
+    return {
+        success: true,
+        filing,
+        sections: sections.results || []
+    };
+}
+
+async function handleSec8kEvents(url, env) {
+    const ticker = url.searchParams.get('ticker');
+    const priority = url.searchParams.get('priority');
+    const days = parseInt(url.searchParams.get('days') || '30');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+
+    let whereClause = `sf.filing_date >= date('now', '-${days} days')`;
+    const params = [];
+
+    if (ticker) {
+        whereClause += ' AND sc.ticker = ?';
+        params.push(ticker);
+    }
+
+    if (priority) {
+        whereClause += ' AND e.priority = ?';
+        params.push(priority);
+    }
+
+    const query = `
+        SELECT
+            e.id, e.item_number, e.item_title, e.headline, e.summary,
+            e.priority, e.created_at,
+            sf.filing_date, sf.accession_number, sf.edgar_url,
+            sc.ticker, sc.company_name
+        FROM sec_8k_events e
+        JOIN sec_filings sf ON e.filing_id = sf.id
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE ${whereClause}
+        ORDER BY
+            CASE e.priority WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+            sf.filing_date DESC
+        LIMIT ?
+    `;
+
+    params.push(limit);
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+
+    return {
+        success: true,
+        events: result.results || []
+    };
+}
+
+async function handleSec8kEvent(path, url, env) {
+    const eventId = path.split('/').pop();
+    const email = url.searchParams.get('email');
+
+    if (!eventId || isNaN(parseInt(eventId))) {
+        return { success: false, error: 'Invalid event ID' };
+    }
+
+    // Check Pro status for full content
+    let isPro = false;
+    if (email) {
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email).first();
+        isPro = user?.is_pro === 1;
+    }
+
+    const event = await env.DB.prepare(`
+        SELECT
+            e.*,
+            sf.filing_date, sf.accession_number, sf.edgar_url,
+            sc.ticker, sc.company_name
+        FROM sec_8k_events e
+        JOIN sec_filings sf ON e.filing_id = sf.id
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE e.id = ?
+    `).bind(parseInt(eventId)).first();
+
+    if (!event) {
+        return { success: false, error: 'Event not found' };
+    }
+
+    // Hide raw_content for non-Pro users
+    if (!isPro) {
+        event.raw_content = null;
+        event.pro_required = true;
+    }
+
+    return {
+        success: true,
+        event
+    };
+}
+
+async function handleSecQuery(request, env) {
+    const body = await request.json();
+    const { query, email, filters = {} } = body;
+
+    if (!query || query.trim().length < 5) {
+        return { success: false, error: 'Query too short' };
+    }
+
+    if (!email) {
+        return { success: false, error: 'Authentication required' };
+    }
+
+    // Check Pro status
+    const user = await env.DB.prepare(
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
+    ).bind(email).first();
+
+    if (!user?.is_pro) {
+        return { success: false, error: 'Pro subscription required' };
+    }
+
+    // Check credits (RAG queries cost 1 credit)
+    if (!user.enhancement_credits || user.enhancement_credits < 1) {
+        return {
+            success: false,
+            error: 'Insufficient credits',
+            credits: user.enhancement_credits || 0
+        };
+    }
+
+    // Check cache
+    const queryHash = await hashText(query + JSON.stringify(filters));
+    const cached = await env.DB.prepare(`
+        SELECT response FROM sec_query_cache
+        WHERE query_hash = ? AND expires_at > datetime('now')
+    `).bind(queryHash).first();
+
+    if (cached) {
+        return {
+            success: true,
+            cached: true,
+            ...JSON.parse(cached.response)
+        };
+    }
+
+    // Build filter conditions for Vectorize
+    let vectorFilter = {};
+    if (filters.ticker) {
+        vectorFilter.ticker = filters.ticker;
+    }
+    if (filters.filing_type) {
+        vectorFilter.filing_type = filters.filing_type;
+    }
+
+    // Generate embedding for query using Workers AI
+    let queryEmbedding;
+    try {
+        const embeddingResponse = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+            text: query
+        });
+        queryEmbedding = embeddingResponse.data[0];
+    } catch (error) {
+        console.error('Failed to generate embedding:', error);
+        return { success: false, error: 'Failed to process query' };
+    }
+
+    // Search Vectorize
+    let vectorResults;
+    try {
+        vectorResults = await env.SEC_VECTORS.query(queryEmbedding, {
+            topK: 10,
+            filter: Object.keys(vectorFilter).length > 0 ? vectorFilter : undefined,
+            returnMetadata: true
+        });
+    } catch (error) {
+        console.error('Vectorize search failed:', error);
+        return { success: false, error: 'Search failed' };
+    }
+
+    if (!vectorResults.matches || vectorResults.matches.length === 0) {
+        return {
+            success: true,
+            answer: 'No relevant filings found for your query.',
+            citations: []
+        };
+    }
+
+    // Fetch chunk content from D1
+    const chunkIds = vectorResults.matches.map(m => m.id);
+    const chunks = await env.DB.prepare(`
+        SELECT
+            c.id, c.content, c.filing_id, c.section_id,
+            sf.filing_type, sf.fiscal_year, sf.edgar_url,
+            sc.ticker, sc.company_name,
+            s.section_type
+        FROM sec_filing_chunks c
+        JOIN sec_filings sf ON c.filing_id = sf.id
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        LEFT JOIN sec_filing_sections s ON c.section_id = s.id
+        WHERE c.vector_id IN (${chunkIds.map(() => '?').join(',')})
+    `).bind(...chunkIds).all();
+
+    // Build context for Claude
+    const contextChunks = chunks.results.map(chunk => {
+        return `[${chunk.company_name} - ${chunk.filing_type} FY${chunk.fiscal_year}${chunk.section_type ? ' - ' + chunk.section_type : ''}]\n${chunk.content}`;
+    }).join('\n\n---\n\n');
+
+    // Generate answer with Claude
+    let answer, citations;
+    try {
+        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 1500,
+                system: `You are a financial analyst assistant helping users understand SEC filings from beverage alcohol companies. Answer questions based on the provided filing excerpts. Always cite your sources with company name, filing type, and fiscal year. Be concise but thorough.`,
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Based on these SEC filing excerpts, answer this question: "${query}"\n\n${contextChunks}\n\nProvide a clear answer with specific citations to the filings.`
+                    }
+                ]
+            })
+        });
+
+        const claudeData = await claudeResponse.json();
+        answer = claudeData.content[0].text;
+
+        // Build citations from chunks
+        citations = chunks.results.map(chunk => ({
+            company: chunk.company_name,
+            ticker: chunk.ticker,
+            filing_type: chunk.filing_type,
+            fiscal_year: chunk.fiscal_year,
+            section: chunk.section_type || 'Filing',
+            excerpt: chunk.content.substring(0, 200) + '...',
+            edgar_url: chunk.edgar_url
+        }));
+
+        // Deduplicate citations
+        citations = [...new Map(citations.map(c => [c.edgar_url, c])).values()];
+
+    } catch (error) {
+        console.error('Claude API error:', error);
+        return { success: false, error: 'Failed to generate answer' };
+    }
+
+    // Deduct credit
+    await env.DB.prepare(
+        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
+    ).bind(email).run();
+
+    // Cache response (1 hour TTL)
+    const responseData = { answer, citations };
+    await env.DB.prepare(`
+        INSERT OR REPLACE INTO sec_query_cache (query_hash, query_text, filters, response, expires_at)
+        VALUES (?, ?, ?, ?, datetime('now', '+1 hour'))
+    `).bind(queryHash, query, JSON.stringify(filters), JSON.stringify(responseData)).run();
+
+    return {
+        success: true,
+        cached: false,
+        answer,
+        citations,
+        credits_remaining: (user.enhancement_credits || 1) - 1
+    };
+}
+
+async function handleSecMdaDiff(path, url, env) {
+    const diffId = path.split('/').pop();
+    const email = url.searchParams.get('email');
+
+    if (!diffId || isNaN(parseInt(diffId))) {
+        return { success: false, error: 'Invalid diff ID' };
+    }
+
+    // Check Pro status
+    let isPro = false;
+    if (email) {
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email).first();
+        isPro = user?.is_pro === 1;
+    }
+
+    if (!isPro) {
+        return { success: false, error: 'Pro subscription required' };
+    }
+
+    const diff = await env.DB.prepare(`
+        SELECT
+            d.*,
+            sc.ticker, sc.company_name,
+            sf1.filing_type as current_filing_type, sf1.fiscal_year as current_year,
+            sf2.fiscal_year as previous_year
+        FROM sec_mda_diffs d
+        JOIN sec_companies sc ON d.sec_company_id = sc.id
+        JOIN sec_filings sf1 ON d.current_filing_id = sf1.id
+        JOIN sec_filings sf2 ON d.previous_filing_id = sf2.id
+        WHERE d.id = ?
+    `).bind(parseInt(diffId)).first();
+
+    if (!diff) {
+        return { success: false, error: 'Diff not found' };
+    }
+
+    // Parse significant_changes JSON
+    if (diff.significant_changes) {
+        try {
+            diff.significant_changes = JSON.parse(diff.significant_changes);
+        } catch (e) {
+            diff.significant_changes = [];
+        }
+    }
+
+    return {
+        success: true,
+        diff
+    };
+}
+
+async function handleSecMdaCompare(url, env) {
+    const currentFilingId = url.searchParams.get('current');
+    const previousFilingId = url.searchParams.get('previous');
+    const email = url.searchParams.get('email');
+
+    if (!currentFilingId || !previousFilingId) {
+        return { success: false, error: 'Both current and previous filing IDs required' };
+    }
+
+    // Check Pro status
+    let isPro = false;
+    if (email) {
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email).first();
+        isPro = user?.is_pro === 1;
+    }
+
+    if (!isPro) {
+        return { success: false, error: 'Pro subscription required' };
+    }
+
+    // Check if diff already exists
+    const existingDiff = await env.DB.prepare(`
+        SELECT id FROM sec_mda_diffs
+        WHERE current_filing_id = ? AND previous_filing_id = ?
+    `).bind(parseInt(currentFilingId), parseInt(previousFilingId)).first();
+
+    if (existingDiff) {
+        return handleSecMdaDiff(`/api/sec/mda-diff/${existingDiff.id}`, url, env);
+    }
+
+    // Get MD&A sections for both filings
+    const currentMda = await env.DB.prepare(`
+        SELECT content FROM sec_filing_sections
+        WHERE filing_id = ? AND section_type = 'mda'
+    `).bind(parseInt(currentFilingId)).first();
+
+    const previousMda = await env.DB.prepare(`
+        SELECT content FROM sec_filing_sections
+        WHERE filing_id = ? AND section_type = 'mda'
+    `).bind(parseInt(previousFilingId)).first();
+
+    if (!currentMda || !previousMda) {
+        return { success: false, error: 'MD&A section not found for one or both filings' };
+    }
+
+    return {
+        success: true,
+        message: 'Diff comparison not yet computed. Run sec_compute_mda_diffs.py to generate.',
+        current_length: currentMda.content?.length || 0,
+        previous_length: previousMda.content?.length || 0
+    };
+}
+
+// Helper to hash text for caching
+async function hashText(text) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ==========================================
