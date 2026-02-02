@@ -387,6 +387,8 @@ export default {
                 response = await handleSecMdaDiff(path, url, env);
             } else if (path === '/api/sec/mda-compare') {
                 response = await handleSecMdaCompare(url, env);
+            } else if (path === '/api/sec/generate-embeddings' && request.method === 'POST') {
+                response = await handleGenerateEmbeddings(request, env);
             } else {
                 response = { success: false, error: 'Not found' };
             }
@@ -5615,19 +5617,564 @@ async function handleSec8kEvent(path, url, env) {
     };
 }
 
+/**
+ * Production SEC RAG Query Handler
+ *
+ * Pipeline:
+ * 1. Parse query intent (detect tickers, date range, doc types)
+ * 2. Search OpenAI File Search vector store (top 50)
+ * 3. Rerank with Cohere (top 15)
+ * 4. Generate grounded answer with Claude (strict citations)
+ * 5. Return structured JSON with citations and debug info
+ */
+
+// Company detection patterns for query intent parsing
+const SEC_COMPANY_PATTERNS = [
+    { patterns: ['brown-forman', 'brown forman', 'jack daniels', 'jack daniel', 'woodford reserve', 'old forester', 'bf.b'], ticker: 'BF.B', name: 'Brown-Forman Corporation' },
+    { patterns: ['constellation', 'corona', 'modelo', 'robert mondavi', 'stz'], ticker: 'STZ', name: 'Constellation Brands, Inc.' },
+    { patterns: ['molson coors', 'molson', 'coors', 'miller lite', 'blue moon', 'tap'], ticker: 'TAP', name: 'Molson Coors Beverage Company' },
+    { patterns: ['boston beer', 'sam adams', 'samuel adams', 'truly', 'twisted tea', 'sam'], ticker: 'SAM', name: 'Boston Beer Company, Inc.' },
+    { patterns: ['mgp ingredients', 'mgp ', 'luxco', 'mgpi'], ticker: 'MGPI', name: 'MGP Ingredients, Inc.' },
+    { patterns: ['diageo', 'johnnie walker', 'guinness', 'smirnoff', 'tanqueray', 'deo'], ticker: 'DEO', name: 'Diageo plc' }
+];
+
+const SEC_ALL_TICKERS = ['BF.B', 'STZ', 'TAP', 'SAM', 'MGPI', 'DEO'];
+
+// Parse query to extract intent (tickers, date range, doc types)
+function parseSecQueryIntent(query, filters = {}) {
+    const queryLower = query.toLowerCase();
+
+    // Detect tickers from query
+    const detectedTickers = [];
+    for (const company of SEC_COMPANY_PATTERNS) {
+        if (company.patterns.some(p => queryLower.includes(p))) {
+            detectedTickers.push(company.ticker);
+        }
+    }
+
+    // Use explicit filters, detected tickers, or default to all
+    const tickers = filters.tickers?.length > 0
+        ? filters.tickers
+        : detectedTickers.length > 0
+            ? detectedTickers
+            : SEC_ALL_TICKERS;
+
+    // Detect doc types from query
+    let docTypes = filters.docTypes || [];
+    if (docTypes.length === 0) {
+        if (queryLower.includes('earnings') || queryLower.includes('call') || queryLower.includes('said')) {
+            docTypes.push('CALL');
+        }
+        if (queryLower.includes('annual') || queryLower.includes('10-k') || queryLower.includes('yearly')) {
+            docTypes.push('10-K', '20-F');
+        }
+        if (queryLower.includes('quarterly') || queryLower.includes('10-q')) {
+            docTypes.push('10-Q');
+        }
+        // Default to main filings + calls
+        if (docTypes.length === 0) {
+            docTypes = ['10-K', '10-Q', '20-F', 'CALL'];
+        }
+    }
+
+    // Date window - default to last 8 quarters (2 years)
+    const endDate = filters.endDate || new Date().toISOString().slice(0, 10);
+    const startDateDefault = new Date();
+    startDateDefault.setMonth(startDateDefault.getMonth() - 24);
+    const startDate = filters.startDate || startDateDefault.toISOString().slice(0, 10);
+
+    return {
+        originalQuery: query,
+        tickers,
+        docTypes,
+        dateWindow: { start: startDate, end: endDate }
+    };
+}
+
+// Search OpenAI File Search vector store using Responses API
+// This uses the file_search tool properly to retrieve chunks with annotations
+async function searchOpenAIVectorStore(query, intent, vectorStoreId, env) {
+    const startTime = Date.now();
+
+    // Build search query with metadata hints for filtering
+    // OpenAI File Search filters via metadata in the uploaded files
+    const tickerHint = intent.tickers.length < SEC_ALL_TICKERS.length
+        ? `Focus on these companies: ${intent.tickers.join(', ')}.`
+        : '';
+    const docTypeHint = intent.docTypes.length > 0
+        ? `Prioritize these document types: ${intent.docTypes.join(', ')}.`
+        : '';
+
+    const searchPrompt = `${query}
+
+${tickerHint}
+${docTypeHint}
+
+Search the SEC filings and return all relevant passages. For each passage, include the full text content.`.trim();
+
+    // Use OpenAI Responses API with file_search tool
+    const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            input: searchPrompt,
+            tools: [{
+                type: 'file_search',
+                vector_store_ids: [vectorStoreId],
+                max_num_results: 50  // Get top 50 for reranking
+            }],
+            include: ['file_search_call.results']  // Include raw search results
+        })
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`OpenAI Responses API error: ${error}`);
+    }
+
+    const data = await response.json();
+
+    // Extract file search results from the response
+    const chunks = [];
+
+    // Find file_search_call in the output
+    if (data.output) {
+        for (const item of data.output) {
+            if (item.type === 'file_search_call' && item.results) {
+                for (const result of item.results) {
+                    // Parse metadata from the file content
+                    // Our uploaded files have [METADATA]...[/METADATA] blocks
+                    const metadata = parseMetadataFromFileContent(result.text || '');
+                    const content = extractContentFromFileContent(result.text || '');
+
+                    if (content && content.length > 50) {
+                        chunks.push({
+                            id: metadata.chunk_id || result.file_id || `chunk-${chunks.length}`,
+                            ticker: metadata.ticker || 'UNKNOWN',
+                            docType: metadata.doc_type || 'UNKNOWN',
+                            filingDate: metadata.filing_date || '',
+                            section: metadata.section || 'Unknown',
+                            sourceUrl: metadata.source_url || '',
+                            score: result.score || 0.5,
+                            content: content
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // If no results from file_search_call, try parsing from text annotations
+    if (chunks.length === 0 && data.output) {
+        for (const item of data.output) {
+            if (item.type === 'message' && item.content) {
+                for (const content of item.content) {
+                    if (content.type === 'text' && content.annotations) {
+                        for (const annotation of content.annotations) {
+                            if (annotation.type === 'file_citation') {
+                                const fileContent = annotation.file_citation?.quote || '';
+                                const metadata = parseMetadataFromFileContent(fileContent);
+                                const textContent = extractContentFromFileContent(fileContent);
+
+                                if (textContent && textContent.length > 50) {
+                                    chunks.push({
+                                        id: metadata.chunk_id || annotation.file_citation?.file_id || `chunk-${chunks.length}`,
+                                        ticker: metadata.ticker || 'UNKNOWN',
+                                        docType: metadata.doc_type || 'UNKNOWN',
+                                        filingDate: metadata.filing_date || '',
+                                        section: metadata.section || 'Unknown',
+                                        sourceUrl: metadata.source_url || '',
+                                        score: 0.5,
+                                        content: textContent
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return {
+        chunks: chunks.sort((a, b) => b.score - a.score),
+        latencyMs: Date.now() - startTime
+    };
+}
+
+// Parse [METADATA]...[/METADATA] block from uploaded file content
+function parseMetadataFromFileContent(text) {
+    const metadataMatch = text.match(/\[METADATA\]([\s\S]*?)\[\/METADATA\]/);
+    if (!metadataMatch) return {};
+
+    const metadata = {};
+    const lines = metadataMatch[1].split('\n');
+
+    for (const line of lines) {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+            const key = line.slice(0, colonIndex).trim();
+            const value = line.slice(colonIndex + 1).trim();
+            if (key && value) {
+                metadata[key] = value;
+            }
+        }
+    }
+
+    return metadata;
+}
+
+// Extract content after [/METADATA] block
+function extractContentFromFileContent(text) {
+    const metadataEnd = text.indexOf('[/METADATA]');
+    if (metadataEnd >= 0) {
+        return text.slice(metadataEnd + 11).trim();
+    }
+    return text.trim();
+}
+
+// Rerank chunks using Cohere
+async function rerankWithCohere(query, chunks, topK, env) {
+    if (chunks.length === 0) return { chunks: [], latencyMs: 0 };
+
+    const startTime = Date.now();
+
+    try {
+        const response = await fetch('https://api.cohere.ai/v1/rerank', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.COHERE_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: 'rerank-english-v3.0',
+                query,
+                documents: chunks.map(c => c.content),
+                top_n: Math.min(topK, chunks.length),
+                return_documents: false
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Cohere rerank failed:', await response.text());
+            // Fall back to original ordering
+            return {
+                chunks: chunks.slice(0, topK),
+                latencyMs: Date.now() - startTime
+            };
+        }
+
+        const data = await response.json();
+
+        // Map rerank results back to chunks
+        const reranked = data.results.map(r => ({
+            ...chunks[r.index],
+            rerankScore: r.relevance_score
+        }));
+
+        return {
+            chunks: reranked.sort((a, b) => b.rerankScore - a.rerankScore),
+            latencyMs: Date.now() - startTime
+        };
+
+    } catch (error) {
+        console.error('Cohere rerank error:', error);
+        return {
+            chunks: chunks.slice(0, topK),
+            latencyMs: Date.now() - startTime
+        };
+    }
+}
+
+// Filter out bullets/sections that have zero validated citations
+// This prevents returning claims that lost all their supporting evidence
+function filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes) {
+    // Split answer into sections by ### headers
+    const sections = answer.split(/(?=^### )/m);
+
+    const filteredSections = sections.filter(section => {
+        // Always keep non-bullet content (intro, ## headers)
+        if (!section.startsWith('### ')) {
+            return true;
+        }
+
+        // Find all CHUNK_N references in this section
+        const chunkRefs = [...section.matchAll(/\[CHUNK_(\d+)\]/g)];
+        if (chunkRefs.length === 0) {
+            // Section has no citations - remove it (unsupported claim)
+            return false;
+        }
+
+        // Check if any of the referenced chunks have valid citations
+        const hasValidCitation = chunkRefs.some(match => {
+            const chunkIndex = parseInt(match[1]);
+            return validChunkIndices.has(chunkIndex);
+        });
+
+        return hasValidCitation;
+    });
+
+    // Count surviving bullets (### sections)
+    const survivingBullets = filteredSections.filter(s => s.startsWith('### ')).length;
+
+    return {
+        text: filteredSections.join(''),
+        bulletCount: survivingBullets,
+        originalBulletCount: sections.filter(s => s.startsWith('### ')).length
+    };
+}
+
+// Generate strictly grounded answer with Claude
+// Includes quote validation to prevent hallucinated citations
+async function generateGroundedAnswer(query, chunks, intent, env) {
+    const startTime = Date.now();
+
+    // Build context with chunk IDs for citation tracking
+    const context = chunks.map((chunk, i) => {
+        const company = SEC_COMPANY_PATTERNS.find(c => c.ticker === chunk.ticker);
+        return `[CHUNK_${i}]
+Company: ${company?.name || chunk.ticker} (${chunk.ticker})
+Document: ${chunk.docType} | Filed: ${chunk.filingDate} | Section: ${chunk.section}
+URL: ${chunk.sourceUrl}
+
+${chunk.content}
+[/CHUNK_${i}]`;
+    }).join('\n\n');
+
+    const systemPrompt = `You are a financial analyst assistant analyzing SEC filings and earnings calls from beverage alcohol companies.
+
+CRITICAL RULES:
+1. ONLY answer based on the provided chunks. If the information isn't in the chunks, say "Insufficient coverage in retrieved materials."
+2. EVERY claim MUST have a citation: [CHUNK_N] where N is the chunk number.
+3. EVERY citation MUST include a VERBATIM quote using this format: "[exact quote from chunk]" [CHUNK_N]
+4. Quotes must be EXACT substrings from the chunk text - do not paraphrase or modify.
+5. If multiple companies discuss the topic, organize by company.
+6. Never make up information or infer beyond what's stated.
+
+OUTPUT FORMAT:
+## Key Themes
+
+### [Theme Name]
+"[Verbatim quote supporting this theme]" [CHUNK_N]
+
+Brief analysis based only on the quoted evidence.
+
+### [Another Theme]
+"[Verbatim quote]" [CHUNK_N]
+
+Analysis.
+
+## Company-by-Company Notes
+(Only if multiple companies are relevant)
+
+### [Company Name] ([Ticker])
+"[Verbatim quote about this company]" [CHUNK_N]
+- Insight derived from the quote
+
+## Changes vs Prior Period
+(Only include if the chunks contain year-over-year or quarter-over-quarter comparisons)`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2500,
+            system: systemPrompt,
+            messages: [{
+                role: 'user',
+                content: `Question: ${query}
+
+Retrieved Documents (${chunks.length} chunks from ${[...new Set(chunks.map(c => c.ticker))].join(', ')}):
+
+${context}
+
+Provide a comprehensive answer. IMPORTANT: Every quote must be an exact substring from the chunk text. Use "[verbatim quote]" [CHUNK_N] format.`
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Claude API error: ${error}`);
+    }
+
+    const data = await response.json();
+    const answer = data.content[0].text;
+
+    // Quote length constraints
+    const MIN_QUOTE_LENGTH = 25;   // Minimum meaningful quote (avoid cherry-picked fragments)
+    const MAX_QUOTE_LENGTH = 240;  // Max quote length - reject (not just truncate) overly long quotes
+
+    // Extract all quotes and their citations from the answer
+    // Pattern: "quote text" [CHUNK_N] or "[quote text]" [CHUNK_N]
+    const quotePattern = /"([^"]+)"\s*\[CHUNK_(\d+)\]/g;
+    const extractedQuotes = [];
+    let quoteMatch;
+    while ((quoteMatch = quotePattern.exec(answer)) !== null) {
+        extractedQuotes.push({
+            quote: quoteMatch[1],
+            chunkIndex: parseInt(quoteMatch[2]),
+            fullMatch: quoteMatch[0],
+            matchIndex: quoteMatch.index
+        });
+    }
+
+    // Validate each quote is a substring of its cited chunk
+    const validatedCitations = [];
+    const invalidQuotes = [];
+    const validChunkIndices = new Set();  // Track which chunks have valid citations
+
+    for (const { quote, chunkIndex, fullMatch, matchIndex } of extractedQuotes) {
+        const chunk = chunks[chunkIndex];
+        if (!chunk) {
+            invalidQuotes.push({ quote, chunkIndex, reason: 'Invalid chunk index' });
+            continue;
+        }
+
+        // Enforce quote length limits - REJECT (not truncate) out-of-range quotes
+        if (quote.length < MIN_QUOTE_LENGTH) {
+            invalidQuotes.push({ quote, chunkIndex, reason: `Quote too short (${quote.length} < ${MIN_QUOTE_LENGTH} chars)` });
+            continue;
+        }
+
+        if (quote.length > MAX_QUOTE_LENGTH) {
+            invalidQuotes.push({ quote: quote.slice(0, 100) + '...', chunkIndex, reason: `Quote too long (${quote.length} > ${MAX_QUOTE_LENGTH} chars)` });
+            continue;
+        }
+
+        // Normalize whitespace for comparison
+        const normalizedQuote = quote.toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalizedContent = chunk.content.toLowerCase().replace(/\s+/g, ' ');
+
+        // Check if quote is a substring of the chunk content
+        // Use first 50 chars for fuzzy matching (handles minor LLM transcription errors)
+        const isValid = normalizedContent.includes(normalizedQuote) ||
+            (normalizedQuote.length >= 50 && normalizedContent.includes(normalizedQuote.slice(0, 50)));
+
+        if (isValid) {
+            const company = SEC_COMPANY_PATTERNS.find(c => c.ticker === chunk.ticker);
+            validChunkIndices.add(chunkIndex);
+
+            validatedCitations.push({
+                ticker: chunk.ticker,
+                company: company?.name || chunk.ticker,
+                docType: chunk.docType,
+                filingDate: chunk.filingDate,
+                section: chunk.section,
+                sourceUrl: chunk.sourceUrl,
+                quote: quote,
+                chunkId: chunk.id,
+                validated: true
+            });
+        } else {
+            invalidQuotes.push({ quote: quote.slice(0, 100), chunkIndex, reason: 'Quote not found in chunk' });
+        }
+    }
+
+    // Per-bullet citation gating: remove sections with zero validated citations
+    // Parse answer into bullets (### headers) and filter out unsupported ones
+    const filteredAnswer = filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes);
+
+    // Deduplicate citations by chunk ID
+    const uniqueCitations = [];
+    const seenChunks = new Set();
+    for (const citation of validatedCitations) {
+        if (!seenChunks.has(citation.chunkId)) {
+            seenChunks.add(citation.chunkId);
+            uniqueCitations.push(citation);
+        }
+    }
+
+    // Log validation failures for debugging
+    if (invalidQuotes.length > 0) {
+        console.log(`Quote validation: ${validatedCitations.length} valid, ${invalidQuotes.length} invalid`);
+        console.log('Invalid quotes:', JSON.stringify(invalidQuotes.slice(0, 3)));
+    }
+
+    // Log per-bullet filtering
+    if (filteredAnswer.bulletCount < filteredAnswer.originalBulletCount) {
+        console.log(`Bullet filtering: ${filteredAnswer.bulletCount}/${filteredAnswer.originalBulletCount} bullets survived`);
+    }
+
+    // Gate the answer on BOTH citation count AND surviving bullet count
+    const MIN_VALID_CITATIONS = 3;
+    const MIN_SURVIVING_BULLETS = 2;
+
+    const insufficientCitations = uniqueCitations.length < MIN_VALID_CITATIONS;
+    const insufficientBullets = filteredAnswer.bulletCount < MIN_SURVIVING_BULLETS;
+
+    if (insufficientCitations || insufficientBullets) {
+        const reason = insufficientCitations
+            ? `only ${uniqueCitations.length} citations could be validated`
+            : `only ${filteredAnswer.bulletCount} claims have supporting evidence`;
+
+        console.log(`Insufficient coverage: ${reason}`);
+        return {
+            answer: `Insufficient coverage in retrieved materials. Found ${chunks.length} relevant chunks but ${reason}.`,
+            citations: uniqueCitations,
+            insufficientCoverage: true,
+            validationStats: {
+                totalQuotes: extractedQuotes.length,
+                validQuotes: validatedCitations.length,
+                invalidQuotes: invalidQuotes.length,
+                uniqueCitations: uniqueCitations.length,
+                bulletsOriginal: filteredAnswer.originalBulletCount,
+                bulletsSurviving: filteredAnswer.bulletCount
+            },
+            tokenUsage: {
+                context: Math.ceil((systemPrompt.length + context.length + query.length) / 4),
+                generation: Math.ceil(answer.length / 4)
+            },
+            latencyMs: Date.now() - startTime
+        };
+    }
+
+    // Calculate token usage (approximate)
+    const inputTokens = Math.ceil((systemPrompt.length + context.length + query.length) / 4);
+    const outputTokens = Math.ceil(filteredAnswer.text.length / 4);
+
+    return {
+        answer: filteredAnswer.text,  // Use filtered answer with unsupported bullets removed
+        citations: uniqueCitations,
+        validationStats: {
+            totalQuotes: extractedQuotes.length,
+            validQuotes: validatedCitations.length,
+            invalidQuotes: invalidQuotes.length,
+            bulletsOriginal: filteredAnswer.originalBulletCount,
+            bulletsSurviving: filteredAnswer.bulletCount
+        },
+        tokenUsage: {
+            context: inputTokens,
+            generation: outputTokens
+        },
+        latencyMs: Date.now() - startTime
+    };
+}
+
 async function handleSecQuery(request, env) {
+    const totalStartTime = Date.now();
     const body = await request.json();
     const { query, email, filters = {} } = body;
 
+    // Validate input
     if (!query || query.trim().length < 5) {
-        return { success: false, error: 'Query too short' };
+        return { success: false, error: 'Query too short (minimum 5 characters)' };
     }
 
     if (!email) {
         return { success: false, error: 'Authentication required' };
     }
 
-    // Check Pro status
+    // Check Pro status and credits
     const user = await env.DB.prepare(
         'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
     ).bind(email).first();
@@ -5636,7 +6183,6 @@ async function handleSecQuery(request, env) {
         return { success: false, error: 'Pro subscription required' };
     }
 
-    // Check credits (RAG queries cost 1 credit)
     if (!user.enhancement_credits || user.enhancement_credits < 1) {
         return {
             success: false,
@@ -5660,111 +6206,75 @@ async function handleSecQuery(request, env) {
         };
     }
 
-    // Build filter conditions for Vectorize
-    let vectorFilter = {};
-    if (filters.ticker) {
-        vectorFilter.ticker = filters.ticker;
-    }
-    if (filters.filing_type) {
-        vectorFilter.filing_type = filters.filing_type;
+    // Parse query intent
+    const intent = parseSecQueryIntent(query, filters);
+
+    // Get vector store ID from env (set in wrangler.toml)
+    const vectorStoreId = env.OPENAI_VECTOR_STORE_ID;
+    if (!vectorStoreId) {
+        return { success: false, error: 'Vector store not configured' };
     }
 
-    // Generate embedding for query using Workers AI
-    let queryEmbedding;
+    // Step 1: Search OpenAI File Search (top 50)
+    let retrievedChunks, retrievalLatency;
     try {
-        const embeddingResponse = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-            text: query
-        });
-        queryEmbedding = embeddingResponse.data[0];
+        const searchResult = await searchOpenAIVectorStore(query, intent, vectorStoreId, env);
+        retrievedChunks = searchResult.chunks;
+        retrievalLatency = searchResult.latencyMs;
     } catch (error) {
-        console.error('Failed to generate embedding:', error);
-        return { success: false, error: 'Failed to process query' };
+        console.error('OpenAI search error:', error);
+        return { success: false, error: 'Search failed: ' + error.message };
     }
 
-    // Search Vectorize
-    let vectorResults;
-    try {
-        vectorResults = await env.SEC_VECTORS.query(queryEmbedding, {
-            topK: 10,
-            filter: Object.keys(vectorFilter).length > 0 ? vectorFilter : undefined,
-            returnMetadata: true
-        });
-    } catch (error) {
-        console.error('Vectorize search failed:', error);
-        return { success: false, error: 'Search failed' };
-    }
-
-    if (!vectorResults.matches || vectorResults.matches.length === 0) {
+    // Check if we have sufficient coverage
+    if (retrievedChunks.length === 0) {
         return {
             success: true,
-            answer: 'No relevant filings found for your query.',
-            citations: []
+            error: 'insufficient_coverage',
+            message: 'Insufficient coverage in retrieved materials.',
+            searched: {
+                tickers: intent.tickers,
+                dateRange: intent.dateWindow,
+                docTypes: intent.docTypes
+            },
+            chunksRetrieved: 0,
+            answer_markdown: 'Insufficient coverage in retrieved materials.',
+            citations: [],
+            retrieval_debug: {
+                query,
+                filters: intent,
+                retrievedChunks: [],
+                rerankedTop: [],
+                tokenUsage: { embedding: 0, context: 0, generation: 0 },
+                latencyMs: { retrieval: retrievalLatency, rerank: 0, generation: 0, total: Date.now() - totalStartTime }
+            }
         };
     }
 
-    // Fetch chunk content from D1
-    const chunkIds = vectorResults.matches.map(m => m.id);
-    const chunks = await env.DB.prepare(`
-        SELECT
-            c.id, c.content, c.filing_id, c.section_id,
-            sf.filing_type, sf.fiscal_year, sf.edgar_url,
-            sc.ticker, sc.company_name,
-            s.section_type
-        FROM sec_filing_chunks c
-        JOIN sec_filings sf ON c.filing_id = sf.id
-        JOIN sec_companies sc ON sf.sec_company_id = sc.id
-        LEFT JOIN sec_filing_sections s ON c.section_id = s.id
-        WHERE c.vector_id IN (${chunkIds.map(() => '?').join(',')})
-    `).bind(...chunkIds).all();
-
-    // Build context for Claude
-    const contextChunks = chunks.results.map(chunk => {
-        return `[${chunk.company_name} - ${chunk.filing_type} FY${chunk.fiscal_year}${chunk.section_type ? ' - ' + chunk.section_type : ''}]\n${chunk.content}`;
-    }).join('\n\n---\n\n');
-
-    // Generate answer with Claude
-    let answer, citations;
+    // Step 2: Rerank with Cohere (top 15)
+    let rerankedChunks, rerankLatency;
     try {
-        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 1500,
-                system: `You are a financial analyst assistant helping users understand SEC filings from beverage alcohol companies. Answer questions based on the provided filing excerpts. Always cite your sources with company name, filing type, and fiscal year. Be concise but thorough.`,
-                messages: [
-                    {
-                        role: 'user',
-                        content: `Based on these SEC filing excerpts, answer this question: "${query}"\n\n${contextChunks}\n\nProvide a clear answer with specific citations to the filings.`
-                    }
-                ]
-            })
-        });
-
-        const claudeData = await claudeResponse.json();
-        answer = claudeData.content[0].text;
-
-        // Build citations from chunks
-        citations = chunks.results.map(chunk => ({
-            company: chunk.company_name,
-            ticker: chunk.ticker,
-            filing_type: chunk.filing_type,
-            fiscal_year: chunk.fiscal_year,
-            section: chunk.section_type || 'Filing',
-            excerpt: chunk.content.substring(0, 200) + '...',
-            edgar_url: chunk.edgar_url
-        }));
-
-        // Deduplicate citations
-        citations = [...new Map(citations.map(c => [c.edgar_url, c])).values()];
-
+        const rerankResult = await rerankWithCohere(query, retrievedChunks, 15, env);
+        rerankedChunks = rerankResult.chunks;
+        rerankLatency = rerankResult.latencyMs;
     } catch (error) {
-        console.error('Claude API error:', error);
-        return { success: false, error: 'Failed to generate answer' };
+        console.error('Rerank error:', error);
+        // Fall back to top 15 from retrieval
+        rerankedChunks = retrievedChunks.slice(0, 15);
+        rerankLatency = 0;
+    }
+
+    // Step 3: Generate grounded answer with Claude
+    let answer, citations, tokenUsage, generationLatency;
+    try {
+        const genResult = await generateGroundedAnswer(query, rerankedChunks, intent, env);
+        answer = genResult.answer;
+        citations = genResult.citations;
+        tokenUsage = genResult.tokenUsage;
+        generationLatency = genResult.latencyMs;
+    } catch (error) {
+        console.error('Generation error:', error);
+        return { success: false, error: 'Failed to generate answer: ' + error.message };
     }
 
     // Deduct credit
@@ -5772,19 +6282,168 @@ async function handleSecQuery(request, env) {
         'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
     ).bind(email).run();
 
+    // Build response
+    const response = {
+        answer_markdown: answer,
+        citations,
+        retrieval_debug: {
+            query,
+            filters: {
+                tickers: intent.tickers,
+                docTypes: intent.docTypes,
+                dateRange: intent.dateWindow
+            },
+            retrievedChunks: retrievedChunks.slice(0, 50).map(c => ({
+                id: c.id,
+                score: c.score,
+                ticker: c.ticker,
+                docType: c.docType,
+                section: c.section
+            })),
+            rerankedTop: rerankedChunks.map(c => ({
+                id: c.id,
+                rerankScore: c.rerankScore || c.score,
+                ticker: c.ticker,
+                docType: c.docType,
+                section: c.section
+            })),
+            tokenUsage: {
+                embedding: 0, // OpenAI handles this
+                ...tokenUsage
+            },
+            latencyMs: {
+                retrieval: retrievalLatency,
+                rerank: rerankLatency,
+                generation: generationLatency,
+                total: Date.now() - totalStartTime
+            }
+        }
+    };
+
     // Cache response (1 hour TTL)
-    const responseData = { answer, citations };
     await env.DB.prepare(`
         INSERT OR REPLACE INTO sec_query_cache (query_hash, query_text, filters, response, expires_at)
         VALUES (?, ?, ?, ?, datetime('now', '+1 hour'))
-    `).bind(queryHash, query, JSON.stringify(filters), JSON.stringify(responseData)).run();
+    `).bind(queryHash, query, JSON.stringify(filters), JSON.stringify(response)).run();
+
+    // Log query for analytics
+    try {
+        await env.DB.prepare(`
+            INSERT INTO sec_rag_queries (email, query, filters, chunks_retrieved, chunks_used, latency_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+            email,
+            query,
+            JSON.stringify(intent),
+            retrievedChunks.length,
+            rerankedChunks.length,
+            Date.now() - totalStartTime
+        ).run();
+    } catch (e) {
+        // Ignore logging errors
+    }
 
     return {
         success: true,
         cached: false,
-        answer,
-        citations,
+        ...response,
         credits_remaining: (user.enhancement_credits || 1) - 1
+    };
+}
+
+async function handleGenerateEmbeddings(request, env) {
+    // Generate embeddings for pending chunks using Workers AI
+    // This runs server-side where we have the AI binding
+    const body = await request.json();
+    const limit = Math.min(body.limit || 50, 100); // Max 100 per batch
+    const ticker = body.ticker; // Optional: filter by company
+
+    // Get pending chunks (no vector_id)
+    let query = `
+        SELECT
+            c.id, c.content, c.filing_id,
+            sf.filing_type, sf.fiscal_year,
+            sc.ticker, sc.company_name
+        FROM sec_filing_chunks c
+        JOIN sec_filings sf ON c.filing_id = sf.id
+        JOIN sec_companies sc ON sf.sec_company_id = sc.id
+        WHERE c.vector_id IS NULL
+    `;
+    const params = [];
+
+    if (ticker) {
+        query += ' AND sc.ticker = ?';
+        params.push(ticker);
+    }
+    query += ` ORDER BY sf.filing_date DESC LIMIT ${limit}`;
+
+    const chunks = await env.DB.prepare(query).bind(...params).all();
+
+    if (!chunks.results || chunks.results.length === 0) {
+        return { success: true, message: 'No pending chunks to embed', processed: 0 };
+    }
+
+    const results = { processed: 0, errors: 0, details: [] };
+
+    // Process in small batches to avoid timeouts
+    const batchSize = 5;
+    for (let i = 0; i < chunks.results.length; i += batchSize) {
+        const batch = chunks.results.slice(i, i + batchSize);
+
+        for (const chunk of batch) {
+            try {
+                // Generate embedding using Workers AI
+                const embeddingResponse = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+                    text: chunk.content
+                });
+
+                if (!embeddingResponse.data || !embeddingResponse.data[0]) {
+                    results.errors++;
+                    results.details.push({ id: chunk.id, error: 'No embedding returned' });
+                    continue;
+                }
+
+                const embedding = embeddingResponse.data[0];
+                const vectorId = `chunk-${chunk.id}`;
+
+                // Upsert to Vectorize
+                await env.SEC_VECTORS.upsert([{
+                    id: vectorId,
+                    values: embedding,
+                    metadata: {
+                        chunk_id: chunk.id,
+                        filing_id: chunk.filing_id,
+                        ticker: chunk.ticker,
+                        company_name: chunk.company_name,
+                        filing_type: chunk.filing_type,
+                        fiscal_year: chunk.fiscal_year
+                    }
+                }]);
+
+                // Update D1 with vector_id
+                await env.DB.prepare(
+                    'UPDATE sec_filing_chunks SET vector_id = ? WHERE id = ?'
+                ).bind(vectorId, chunk.id).run();
+
+                results.processed++;
+                results.details.push({ id: chunk.id, vectorId, ticker: chunk.ticker });
+
+            } catch (error) {
+                results.errors++;
+                results.details.push({ id: chunk.id, error: error.message });
+            }
+        }
+
+        // Small delay between batches to avoid rate limits
+        if (i + batchSize < chunks.results.length) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+
+    return {
+        success: true,
+        ...results,
+        remaining: await env.DB.prepare('SELECT COUNT(*) as count FROM sec_filing_chunks WHERE vector_id IS NULL').first().then(r => r?.count || 0)
     };
 }
 
