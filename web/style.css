@@ -1952,88 +1952,29 @@ a:hover { color: var(--color-primary-hover); }
         display: none;
     }
 
-    /* Mobile table - card layout */
-    .table-container {
-        border: none;
-        background: transparent;
-        border-radius: 0;
+    /* Mobile table - horizontal scroll with columns */
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .results-table {
-        display: block;
+        min-width: 600px;
     }
 
-    .results-table thead {
-        display: none;
-    }
-
-    .results-table tbody {
-        display: block;
-    }
-
-    .results-table tbody tr {
-        display: block;
-        background: white;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .results-table tbody tr:hover {
-        border-color: #0d9488;
-        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.15);
-    }
-
+    .results-table th,
     .results-table td {
-        display: block;
-        padding: 0.375rem 0;
-        border-bottom: none;
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-    }
-
-    /* Brand name - prominent header */
-    .results-table td:first-child {
-        font-size: 1.0625rem;
-        font-weight: 600;
-        color: #0f766e;
-        padding-bottom: 0.25rem;
-    }
-
-    /* Product name - secondary */
-    .results-table td:nth-child(2) {
-        font-size: 0.9375rem;
-        color: #334155;
-        padding-bottom: 0.625rem;
-        margin-bottom: 0.5rem;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    /* Category */
-    .results-table td:nth-child(3) {
+        padding: 0.75rem 0.5rem;
         font-size: 0.8125rem;
-        color: #64748b;
     }
 
-    /* Date */
-    .results-table td:nth-child(4) {
-        font-size: 0.8125rem;
-        color: #64748b;
-    }
-
-    /* Signal */
-    .results-table td:nth-child(5) {
-        font-size: 0.8125rem;
-        color: #64748b;
-        padding-top: 0.5rem;
+    .results-table th {
+        font-size: 0.625rem;
     }
 
     .results-table td:nth-child(5) .signal-badge {
-        font-size: 0.6875rem;
-        padding: 0.2rem 0.5rem;
+        font-size: 0.625rem;
+        padding: 0.15rem 0.4rem;
     }
 }
 
