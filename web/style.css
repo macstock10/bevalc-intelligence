@@ -1994,6 +1994,8 @@ a:hover { color: var(--color-primary-hover); }
         border-bottom: none;
         white-space: normal;
         overflow: visible;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     /* Brand name - prominent */
@@ -2002,33 +2004,62 @@ a:hover { color: var(--color-primary-hover); }
         font-weight: 600;
         color: #0f766e;
         margin-bottom: 0.25rem;
+        word-break: break-word;
     }
 
     /* Product name */
     .results-table td:nth-child(2) {
         font-size: 0.9375rem;
         color: #334155;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
+        word-break: break-word;
+        line-height: 1.4;
     }
 
-    /* Category, Date, Signal - inline row */
+    /* Category, Date, Signal - metadata row with flexbox */
+    .results-table tbody tr {
+        position: relative;
+    }
+
     .results-table td:nth-child(3),
     .results-table td:nth-child(4),
     .results-table td:nth-child(5) {
-        display: inline-block;
-        font-size: 0.8125rem;
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.75rem;
         color: #64748b;
-        padding-right: 1rem;
+        padding: 0.125rem 0;
+        margin-right: 0.75rem;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    /* Add labels for mobile context */
+    .results-table td:nth-child(3)::before {
+        content: "";
+        display: none;
+    }
+
+    .results-table td:nth-child(4)::before {
+        content: "• ";
+        margin-right: 0.25rem;
+        color: #cbd5e1;
     }
 
     /* Signal badge on mobile */
     .results-table td:nth-child(5) {
-        padding-right: 0;
+        margin-right: 0;
+    }
+
+    .results-table td:nth-child(5)::before {
+        content: "• ";
+        margin-right: 0.25rem;
+        color: #cbd5e1;
     }
 
     .results-table td:nth-child(5) .signal-badge {
-        font-size: 0.6875rem;
-        padding: 0.2rem 0.5rem;
+        font-size: 0.625rem;
+        padding: 0.15rem 0.4rem;
     }
 }
 

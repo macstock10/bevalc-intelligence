@@ -134,27 +134,163 @@
         padding: var(--space-sm);
     }
 
+    .database-header {
+        gap: 0.75rem;
+    }
+
+    .database-header h1 {
+        font-size: 1.5rem;
+        line-height: 1.2;
+    }
+
+    .database-stats {
+        margin-top: 0.25rem;
+    }
+
+    .stat-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
     .filters-row {
         flex-direction: column;
         align-items: stretch;
+        gap: 0.5rem;
+        padding: 0.75rem;
     }
 
     .filter-group {
         width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.25rem;
     }
 
     .filter-group label {
         font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+    }
+
+    .filter-select {
+        width: 100%;
+        padding: 0.625rem 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .clear-filters-link {
+        text-align: center;
+        padding: 0.5rem;
+        margin-top: 0.25rem;
     }
 
     .results-header {
         flex-direction: column;
-        gap: var(--space-md);
+        gap: 0.75rem;
         align-items: flex-start;
+        padding: 0.75rem 1rem;
+    }
+
+    .results-count {
+        font-size: 0.875rem;
+    }
+
+    .btn-csv-export {
+        width: 100%;
+        justify-content: center;
+        padding: 0.625rem 1rem;
+    }
+
+    .csv-export-wrapper {
+        width: 100%;
     }
 
     .pagination-controls {
         flex-direction: column;
         gap: var(--space-md);
+        padding: 0.75rem 1rem;
+    }
+
+    .pagination-info {
+        font-size: 0.8125rem;
+        text-align: center;
+    }
+
+    .pagination-buttons {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .pagination-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    /* Saved searches mobile */
+    .saved-searches-wrapper {
+        width: 100%;
+    }
+
+    .saved-searches-dropdown > button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .saved-searches-menu {
+        left: 0;
+        right: 0;
+        min-width: auto;
+        max-width: none;
+    }
+
+    /* Search history mobile */
+    .search-history-dropdown {
+        max-height: 250px;
+    }
+
+    .search-history-item .query {
+        font-size: 0.8125rem;
+    }
+
+    /* Modal detail fixes for mobile */
+    .detail-value {
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .detail-grid {
+        gap: 0.75rem;
+    }
+
+    .detail-item {
+        gap: 0.125rem;
+    }
+
+    .detail-label {
+        font-size: 0.6875rem;
+    }
+
+    .modal {
+        max-height: 90vh;
+        margin: 1rem;
+        width: calc(100% - 2rem);
+    }
+
+    .modal-header {
+        padding: 1rem;
+    }
+
+    .modal-title {
+        font-size: 1.125rem;
+        word-break: break-word;
+    }
+
+    .modal-subtitle {
+        font-size: 0.75rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+        overflow-y: auto;
     }
 }
