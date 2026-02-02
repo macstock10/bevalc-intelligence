@@ -1968,17 +1968,15 @@ a:hover { color: var(--color-primary-hover); }
     }
 
     .results-table tbody {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
+        display: block;
     }
 
     .results-table tbody tr {
-        display: flex;
-        flex-direction: column;
+        display: block;
         background: white;
         border-radius: 12px;
         padding: 1rem;
+        margin-bottom: 0.75rem;
         border: 1px solid #e2e8f0;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
@@ -1990,40 +1988,47 @@ a:hover { color: var(--color-primary-hover); }
 
     .results-table td {
         display: block;
-        padding: 0.25rem 0;
+        padding: 0.375rem 0;
         border-bottom: none;
         white-space: normal;
         overflow: visible;
+        text-overflow: clip;
     }
 
-    /* Brand name - prominent */
+    /* Brand name - prominent header */
     .results-table td:first-child {
         font-size: 1.0625rem;
         font-weight: 600;
         color: #0f766e;
-        margin-bottom: 0.25rem;
+        padding-bottom: 0.25rem;
     }
 
-    /* Product name */
+    /* Product name - secondary */
     .results-table td:nth-child(2) {
         font-size: 0.9375rem;
         color: #334155;
+        padding-bottom: 0.625rem;
         margin-bottom: 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
     }
 
-    /* Category, Date, Signal - inline row */
-    .results-table td:nth-child(3),
-    .results-table td:nth-child(4),
-    .results-table td:nth-child(5) {
-        display: inline-block;
+    /* Category */
+    .results-table td:nth-child(3) {
         font-size: 0.8125rem;
         color: #64748b;
-        padding-right: 1rem;
     }
 
-    /* Signal badge on mobile */
+    /* Date */
+    .results-table td:nth-child(4) {
+        font-size: 0.8125rem;
+        color: #64748b;
+    }
+
+    /* Signal */
     .results-table td:nth-child(5) {
-        padding-right: 0;
+        font-size: 0.8125rem;
+        color: #64748b;
+        padding-top: 0.5rem;
     }
 
     .results-table td:nth-child(5) .signal-badge {
