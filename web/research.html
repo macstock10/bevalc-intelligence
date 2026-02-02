@@ -581,33 +581,9 @@
             </a>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">Home</a>
-                <div class="nav-dropdown" id="browse-dropdown">
-                    <button class="nav-dropdown-toggle" onclick="toggleDropdown('browse-dropdown')">
-                        Browse
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
-                    </button>
-                    <div class="nav-dropdown-menu">
-                        <a href="/whiskey/">Whiskey</a>
-                        <a href="/tequila/">Tequila</a>
-                        <a href="/vodka/">Vodka</a>
-                        <a href="/gin/">Gin</a>
-                        <a href="/rum/">Rum</a>
-                        <a href="/wine/">Wine</a>
-                        <a href="/beer/">Beer</a>
-                        <div class="nav-dropdown-divider"></div>
-                        <div class="nav-dropdown-more">
-                            <a href="#">More <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg></a>
-                            <div class="nav-dropdown-submenu">
-                                <a href="/brandy/">Brandy</a>
-                                <a href="/liqueur/">Liqueur</a>
-                                <a href="/cocktails/">Cocktails</a>
-                                <a href="/other/">Other</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 <a href="database.html" class="nav-link">Database</a>
                 <a href="research.html" class="nav-link active">Research</a>
+                <a href="leads.html" class="nav-link">Permits</a>
                 <a href="index.html#pricing" class="nav-link">Pricing</a>
                 <a href="account.html" class="nav-link">Account</a>
             </div>
@@ -625,6 +601,7 @@
             <a href="index.html" class="mobile-menu-link">Home</a>
             <a href="database.html" class="mobile-menu-link">Database</a>
             <a href="research.html" class="mobile-menu-link">Research</a>
+            <a href="leads.html" class="mobile-menu-link">Permits</a>
             <a href="index.html#pricing" class="mobile-menu-link">Pricing</a>
             <a href="account.html" class="mobile-menu-link">Account</a>
         </div>
@@ -730,9 +707,11 @@
         </div>
     </main>
 
+    <script src="auth.js"></script>
     <script>
         // State
-        let userEmail = localStorage.getItem('bevalc_email');
+        const user = BevAlcAuth.getUser();
+        let userEmail = user.email || null;
         let isPro = false;
         let credits = 0;
         let selectedTicker = '';
