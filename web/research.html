@@ -923,23 +923,36 @@
                 filing_type: document.getElementById('filter-filing-type').value
             };
 
+            if (!userEmail) {
+                alert('Please log in to use this feature');
+                btn.disabled = false;
+                btn.textContent = 'Ask';
+                return;
+            }
+
             try {
+                // Use AbortController for 90-second timeout (queries can take 30-60s)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 90000);
+
                 const response = await fetch(`${API_BASE}/api/sec/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, email: userEmail, filters })
+                    body: JSON.stringify({ query, email: userEmail, filters }),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
                 const data = await response.json();
 
                 if (data.success) {
-                    document.getElementById('query-answer').textContent = data.answer;
+                    document.getElementById('query-answer').innerHTML = data.answer_markdown || data.answer || 'No answer generated';
 
                     const citationList = document.getElementById('citation-list');
                     citationList.innerHTML = (data.citations || []).map(c => `
                         <div class="citation-item">
-                            <span class="citation-source">${c.ticker} ${c.filing_type} FY${c.fiscal_year}</span>
-                            <span class="citation-excerpt">${escapeHtml(c.excerpt)}</span>
+                            <a href="${c.sourceUrl}" target="_blank" class="citation-source">${c.ticker} ${c.docType} ${c.filingDate}</a>
+                            <span class="citation-excerpt">"${escapeHtml(c.quote || c.excerpt || '')}"</span>
                         </div>
                     `).join('');
 
@@ -953,7 +966,12 @@
                     alert(data.error || 'Query failed');
                 }
             } catch (error) {
-                alert('Failed to process query');
+                console.error('Query error:', error);
+                if (error.name === 'AbortError') {
+                    alert('Query timed out. Please try again.');
+                } else {
+                    alert('Failed to process query: ' + error.message);
+                }
             }
 
             btn.disabled = false;

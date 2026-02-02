@@ -12,7 +12,13 @@
  *   npm run ingest -- --clear              # Clear vector store first
  */
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from project root
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+config({ path: resolve(__dirname, '../../.env') });
 import { parseArgs } from 'util';
 import {
   COMPANIES,
@@ -41,6 +47,7 @@ import {
   uploadChunksIndividually,
   clearVectorStore,
 } from './lib/vectorstore.js';
+import { uploadChunksToVectorize } from './lib/vectorize.js';
 import type { DocumentChunk, DocType } from './lib/types.js';
 
 // Parse CLI arguments
@@ -209,10 +216,10 @@ async function processCompany(
     return;
   }
 
-  // Upload to vector store
+  // Upload to Cloudflare Vectorize (fast retrieval)
   if (dedupedChunks.length > 0) {
-    console.log(`\nUploading ${dedupedChunks.length} chunks to vector store...`);
-    const { uploaded, failed } = await uploadChunksIndividually(vectorStoreId, dedupedChunks);
+    console.log(`\nUploading ${dedupedChunks.length} chunks to Cloudflare Vectorize...`);
+    const { uploaded, failed } = await uploadChunksToVectorize(dedupedChunks);
     stats.chunksUploaded += uploaded;
     stats.chunksFailed += failed;
     console.log(`Uploaded: ${uploaded}, Failed: ${failed}`);

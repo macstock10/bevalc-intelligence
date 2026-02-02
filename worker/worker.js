@@ -5691,7 +5691,75 @@ function parseSecQueryIntent(query, filters = {}) {
     };
 }
 
-// Search OpenAI File Search vector store using Responses API
+// Fast search using Cloudflare Vectorize (direct vector query, no LLM in retrieval path)
+// Flow: embed query → query Vectorize → return chunks with metadata
+async function searchVectorize(query, intent, env) {
+    const startTime = Date.now();
+
+    // Step 1: Embed the query using OpenAI
+    const embedResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: query,
+            dimensions: 768
+        })
+    });
+
+    if (!embedResponse.ok) {
+        throw new Error(`OpenAI embedding error: ${await embedResponse.text()}`);
+    }
+
+    const embedData = await embedResponse.json();
+    const queryVector = embedData.data[0].embedding;
+    const embedLatency = Date.now() - startTime;
+
+    // Step 2: Query Vectorize with filters
+    const vectorizeStart = Date.now();
+
+    // Build metadata filter for tickers and doc types
+    const filter = {};
+    if (intent.tickers && intent.tickers.length > 0 && intent.tickers.length < 6) {
+        // Only filter if not querying all companies
+        filter.ticker = { $in: intent.tickers };
+    }
+    if (intent.docTypes && intent.docTypes.length > 0 && intent.docTypes.length < 4) {
+        filter.docType = { $in: intent.docTypes };
+    }
+
+    const results = await env.SEC_VECTORS.query(queryVector, {
+        topK: 20,
+        returnMetadata: 'all'
+        // Note: metadata filtering disabled - currently only BF.B data, will add filter when multi-company
+    });
+
+    const vectorizeLatency = Date.now() - vectorizeStart;
+
+    // Step 3: Extract chunks from results
+    const chunks = results.matches.map(match => ({
+        id: match.id,
+        ticker: match.metadata?.ticker || 'UNKNOWN',
+        docType: match.metadata?.docType || 'UNKNOWN',
+        filingDate: match.metadata?.filingDate || '',
+        section: match.metadata?.section || 'Unknown',
+        sourceUrl: match.metadata?.sourceUrl || '',
+        content: match.metadata?.content || '',
+        score: match.score
+    }));
+
+    return {
+        chunks,
+        latencyMs: Date.now() - startTime,
+        embedLatencyMs: embedLatency,
+        vectorizeLatencyMs: vectorizeLatency
+    };
+}
+
+// Search OpenAI File Search vector store using Responses API (SLOW - deprecated)
 // This uses the file_search tool properly to retrieve chunks with annotations
 async function searchOpenAIVectorStore(query, intent, vectorStoreId, env) {
     const startTime = Date.now();
@@ -5725,7 +5793,7 @@ Search the SEC filings and return all relevant passages. For each passage, inclu
             tools: [{
                 type: 'file_search',
                 vector_store_ids: [vectorStoreId],
-                max_num_results: 50  // Get top 50 for reranking
+                max_num_results: 20  // Get top 20 for reranking (reduced for speed)
             }],
             include: ['file_search_call.results']  // Include raw search results
         })
@@ -5987,7 +6055,7 @@ Analysis.
         },
         body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 2500,
+            max_tokens: 2000,
             system: systemPrompt,
             messages: [{
                 role: 'user',
@@ -6209,20 +6277,15 @@ async function handleSecQuery(request, env) {
     // Parse query intent
     const intent = parseSecQueryIntent(query, filters);
 
-    // Get vector store ID from env (set in wrangler.toml)
-    const vectorStoreId = env.OPENAI_VECTOR_STORE_ID;
-    if (!vectorStoreId) {
-        return { success: false, error: 'Vector store not configured' };
-    }
-
-    // Step 1: Search OpenAI File Search (top 50)
+    // Step 1: Search Cloudflare Vectorize (fast - ~100-200ms total)
     let retrievedChunks, retrievalLatency;
     try {
-        const searchResult = await searchOpenAIVectorStore(query, intent, vectorStoreId, env);
+        const searchResult = await searchVectorize(query, intent, env);
         retrievedChunks = searchResult.chunks;
         retrievalLatency = searchResult.latencyMs;
+        console.log(`Vectorize search: ${searchResult.embedLatencyMs}ms embed + ${searchResult.vectorizeLatencyMs}ms query = ${retrievalLatency}ms total`);
     } catch (error) {
-        console.error('OpenAI search error:', error);
+        console.error('Vectorize search error:', error);
         return { success: false, error: 'Search failed: ' + error.message };
     }
 
@@ -6254,13 +6317,13 @@ async function handleSecQuery(request, env) {
     // Step 2: Rerank with Cohere (top 15)
     let rerankedChunks, rerankLatency;
     try {
-        const rerankResult = await rerankWithCohere(query, retrievedChunks, 15, env);
+        const rerankResult = await rerankWithCohere(query, retrievedChunks, 10, env);
         rerankedChunks = rerankResult.chunks;
         rerankLatency = rerankResult.latencyMs;
     } catch (error) {
         console.error('Rerank error:', error);
-        // Fall back to top 15 from retrieval
-        rerankedChunks = retrievedChunks.slice(0, 15);
+        // Fall back to top 10 from retrieval
+        rerankedChunks = retrievedChunks.slice(0, 10);
         rerankLatency = 0;
     }
 

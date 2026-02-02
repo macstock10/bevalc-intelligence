@@ -27,7 +27,7 @@ export async function getOrCreateVectorStore(): Promise<string> {
   const client = getClient();
 
   // List existing vector stores
-  const stores = await client.beta.vectorStores.list();
+  const stores = await client.vectorStores.list();
   const existing = stores.data.find(s => s.name === OPENAI_CONFIG.vectorStoreName);
 
   if (existing) {
@@ -36,7 +36,7 @@ export async function getOrCreateVectorStore(): Promise<string> {
   }
 
   // Create new vector store
-  const store = await client.beta.vectorStores.create({
+  const store = await client.vectorStores.create({
     name: OPENAI_CONFIG.vectorStoreName,
   });
 
@@ -81,7 +81,7 @@ export async function uploadChunks(
       });
 
       // Add to vector store
-      await client.beta.vectorStores.files.create(vectorStoreId, {
+      await client.vectorStores.files.create(vectorStoreId, {
         file_id: file.id,
       });
 
@@ -116,7 +116,7 @@ async function listAllVectorStoreFiles(client: OpenAI, vectorStoreId: string): P
   let cursor: string | undefined;
 
   do {
-    const response = await client.beta.vectorStores.files.list(vectorStoreId, {
+    const response = await client.vectorStores.files.list(vectorStoreId, {
       limit: 100,
       after: cursor,
     });
@@ -177,7 +177,7 @@ export async function uploadChunksIndividually(
           // Same identity, different content - delete old, upload new
           console.log(`Content changed for ${chunk.id}, replacing...`);
           try {
-            await client.beta.vectorStores.files.del(vectorStoreId, existingFileId);
+            await client.vectorStores.files.del(vectorStoreId, existingFileId);
             await client.files.del(existingFileId);
           } catch (e) {
             // Ignore delete errors
@@ -195,7 +195,7 @@ export async function uploadChunksIndividually(
       });
 
       // Add to vector store
-      await client.beta.vectorStores.files.create(vectorStoreId, {
+      await client.vectorStores.files.create(vectorStoreId, {
         file_id: file.id,
       });
 
@@ -403,14 +403,14 @@ export async function clearVectorStore(vectorStoreId: string): Promise<number> {
   console.log('Clearing all files from vector store (with pagination)...');
 
   do {
-    const files = await client.beta.vectorStores.files.list(vectorStoreId, {
+    const files = await client.vectorStores.files.list(vectorStoreId, {
       limit: 100,
       after: cursor,
     });
 
     for (const file of files.data) {
       try {
-        await client.beta.vectorStores.files.del(vectorStoreId, file.id);
+        await client.vectorStores.files.del(vectorStoreId, file.id);
         await client.files.del(file.id);
         deleted++;
         if (deleted % 50 === 0) {
