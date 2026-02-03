@@ -9,8 +9,8 @@ import { encoding_for_model } from 'tiktoken';
 import { INGESTION_CONFIG } from '../config.js';
 import type { ParsedDocument, ParsedSection, DocumentChunk, ChunkMetadata } from './types.js';
 
-// Initialize tokenizer (using cl100k_base, same as text-embedding-3-small)
-const encoder = encoding_for_model('gpt-4');
+// Initialize tokenizer (match embedding model where possible)
+const encoder = encoding_for_model('text-embedding-3-small');
 
 /**
  * Count tokens in text

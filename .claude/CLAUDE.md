@@ -152,8 +152,9 @@ bevalc-intelligence/
 │   ├── research.html        # SEC Research (8-K events, RAG, MD&A diffs)
 │   └── account.html         # User settings
 ├── worker/
-│   ├── worker.js            # Cloudflare Worker (API + SSR)
-│   └── wrangler.toml
+�   +-- worker.js            # Cloudflare Worker (API + SSR, router)
+�   +-- sec_research.js       # SEC Research handlers + RAG pipeline
+�   +-- wrangler.toml
 └── RUNBOOK.md               # Operational procedures
 ```
 
@@ -177,17 +178,11 @@ npx wrangler d1 execute bevalc-colas --remote --command "UPDATE user_preferences
 # Check user
 npx wrangler d1 execute bevalc-colas --remote --command "SELECT * FROM user_preferences WHERE email = 'user@example.com'"
 
-# SEC Research: Ingest filings for a company
-python scripts/sec_ingest_filings.py --company BF.B --years 1
+# SEC Research: Sync SEC filings (sec-rag pipeline)
+cd scripts/sec-rag && npx tsx ingest.ts --incremental
 
-# SEC Research: Backfill all companies
-python scripts/sec_ingest_filings.py --all --backfill
-
-# SEC Research: Process pending 8-K events
-python scripts/sec_process_8k.py --pending
-
-# SEC Research: Generate embeddings
-python scripts/sec_embed_chunks.py --pending --limit 100
+# SEC Research: Backfill SEC filings
+cd scripts/sec-rag && npx tsx ingest.ts --backfill
 
 # SEC Research: Compute MD&A diffs
 python scripts/sec_compute_mda_diffs.py --company BF.B

@@ -42,6 +42,7 @@ import {
   deduplicateBoilerplate,
   countTokens,
 } from './lib/chunker.js';
+import { upsertRagChunksContent } from './lib/d1.js';
 import {
   getOrCreateVectorStore,
   uploadChunksIndividually,
@@ -210,6 +211,24 @@ async function processCompany(
   console.log(`\nDeduplicating boilerplate across ${allChunks.length} chunks...`);
   const dedupedChunks = deduplicateBoilerplate(allChunks);
   console.log(`After dedup: ${dedupedChunks.length} chunks`);
+
+  // Persist chunk content to D1 for quote validation
+  if (dedupedChunks.length > 0) {
+    console.log(`Storing ${dedupedChunks.length} chunks in D1 (sec_rag_chunks_content)...`);
+    const rows = dedupedChunks.map(chunk => ({
+      id: chunk.id,
+      ticker: chunk.metadata.ticker,
+      doc_type: chunk.metadata.docType,
+      filing_date: chunk.metadata.filingDate,
+      section: chunk.metadata.section,
+      source_url: chunk.metadata.sourceUrl,
+      accession_number: chunk.metadata.accessionNumber,
+      fiscal_year: chunk.metadata.fiscalYear,
+      fiscal_quarter: chunk.metadata.fiscalQuarter,
+      content: chunk.content,
+    }));
+    await upsertRagChunksContent(rows);
+  }
 
   if (args['dry-run']) {
     console.log('\nDry run - skipping upload');

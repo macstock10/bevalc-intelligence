@@ -117,7 +117,7 @@ export const QUERY_DEFAULTS = {
 // OpenAI settings
 export const OPENAI_CONFIG = {
   embeddingModel: 'text-embedding-3-small',
-  embeddingDimensions: 1536,
+  embeddingDimensions: 768,
   vectorStoreName: 'bevalc-sec-filings',
 };
 
