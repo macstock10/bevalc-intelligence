@@ -227,7 +227,7 @@ const SEC_COMPANY_PATTERNS = [
     { patterns: ['diageo', 'johnnie walker', 'guinness', 'smirnoff', 'tanqueray', 'deo'], ticker: 'DEO', name: 'Diageo plc' }
 ];
 
-const SEC_ALL_TICKERS = ['BF.B', 'STZ', 'TAP', 'SAM', 'MGPI', 'DEO'];
+const SEC_ALL_TICKERS = ['BF.B', 'STZ', 'TAP', 'SAM', 'MGPI', 'DEO', 'PRNDY', 'HEINY', 'ABEV'];
 const RAG_RETRIEVE_TOP_K = 50;
 const RAG_RERANK_TOP_K = 15;
 
@@ -641,9 +641,9 @@ async function rerankWithCohere(query, chunks, topK, env) {
     }
 }
 
-// Detect the new Answer/Evidence format (or any non-bulleted narrative)
+// Detect the new Answer/Sources format (or any non-bulleted narrative)
 function isAnswerEvidenceFormat(answer) {
-    const hasLabels = /(^|\n)Answer:\s*/.test(answer) || /(^|\n)Evidence:\s*/.test(answer);
+    const hasLabels = /(^|\n)Answer:\s*/.test(answer) || /(^|\n)Sources:\s*/.test(answer);
     const hasBullets = /(^|\n)###\s+/.test(answer);
     return hasLabels || !hasBullets;
 }
@@ -653,7 +653,7 @@ function isAnswerEvidenceFormat(answer) {
 function filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes) {
     const hasAnswerEvidenceFormat = isAnswerEvidenceFormat(answer);
     if (hasAnswerEvidenceFormat) {
-        const answerBlockMatch = answer.match(/Answer:\s*([\s\S]*?)\nEvidence:/);
+        const answerBlockMatch = answer.match(/Answer:\s*([\s\S]*?)\nSources:/);
         const answerBlock = answerBlockMatch ? answerBlockMatch[1] : '';
         const hasAnswerCitation = /\[CHUNK_\d+\]/.test(answerBlock);
         return {
@@ -720,7 +720,7 @@ function enforceAnalysisCitations(answer) {
                 continue;
             }
 
-            if (trimmed.startsWith('### ') || trimmed.startsWith('## ') || trimmed === 'Answer:' || trimmed === 'Evidence:') {
+            if (trimmed.startsWith('### ') || trimmed.startsWith('## ') || trimmed === 'Answer:' || trimmed === 'Sources:') {
                 kept.push(line);
                 continue;
             }
@@ -758,37 +758,45 @@ function replaceChunkCitations(answer, chunks) {
 
 function normalizeAnswerFormatting(answer) {
     const hasAnswer = /(^|\n)Answer:\s*/.test(answer);
-    const hasEvidence = /(^|\n)Evidence:\s*/.test(answer);
+    const hasSources = /(^|\n)Sources:\s*/.test(answer);
     let text = answer.trim();
 
     // Normalize bold headings and bullet symbols from model output
     text = text.replace(/\*\*Answer:\*\*/gi, 'Answer:');
-    text = text.replace(/\*\*Evidence:\*\*/gi, 'Evidence:');
+    text = text.replace(/\*\*Evidence:\*\*/gi, 'Sources:');
+    text = text.replace(/\*\*Sources:\*\*/gi, 'Sources:');
     text = text.replace(/\u2022/g, '-');
 
     // Ensure headings start on their own lines
     text = text.replace(/(?:^|\n)\s*Answer:\s*/g, '\nAnswer:\n');
-    text = text.replace(/(?:^|\n)\s*Evidence:\s*/g, '\nEvidence:\n');
+    text = text.replace(/(?:^|\n)\s*Evidence:\s*/g, '\nSources:\n');
+    text = text.replace(/(?:^|\n)\s*Sources:\s*/g, '\nSources:\n');
 
-    if (!hasAnswer && !hasEvidence) {
+    if (!hasAnswer && !hasSources) {
         return text;
     }
 
     // Ensure evidence bullets are on separate lines
-    const parts = text.split(/\nEvidence:\n/);
+    const parts = text.split(/\nSources:\n/);
     if (parts.length === 2) {
         let [answerBlock, evidenceBlock] = parts;
         // Remove verbatim quotes from Answer; keep citations only.
         answerBlock = answerBlock.replace(/"[^"]+"\s*(\[[^\]]+\])/g, '$1');
-        // Insert a blank line after each citation in the Answer block for readability.
-        answerBlock = answerBlock.replace(/\]\s*/g, ']\n\n');
+
+        // Fix orphaned periods after citations (e.g., "]\n\n." -> "].")
+        answerBlock = answerBlock.replace(/\]\s*\.\s*/g, ']. ');
+
+        // Add paragraph breaks after complete sentences ending with citations
+        // Pattern: citation followed by period, then next sentence starting with capital
+        answerBlock = answerBlock.replace(/\]\.\s+(?=[A-Z])/g, '].\n\n');
+
         const normalizedEvidence = evidenceBlock
             .split(/\n+/)
             .map(line => line.trim())
             .filter(Boolean)
             .map(line => line.startsWith('-') ? line : `- ${line}`)
             .join('\n');
-        text = `${answerBlock.trim()}\n\nEvidence:\n${normalizedEvidence}`;
+        text = `${answerBlock.trim()}\n\nSources:\n${normalizedEvidence}`;
     }
 
     return text.trim();
@@ -838,21 +846,21 @@ CRITICAL RULES:
 5. ALL analysis sentences must end with a citation in brackets.
 6. If multiple companies discuss the topic, organize by company.
 7. You may infer reasonable implications from cited statements, but label them as "Inference:" and still cite.
-8. Do NOT include verbatim quotes in the Answer section; reserve quotes for Evidence only.
+8. Do NOT include verbatim quotes in the Answer section; reserve quotes for Sources only.
 9. Prefer the most recent sources; avoid using sources older than 12 months unless the user asks for history.
 
 OUTPUT FORMAT:
 Answer:
 - Start with: "Most recent take (YYYY-MM-DD): ..." using the newest relevant source.
-- Provide 1?3 short paragraphs (max 2 sentences each).
-- Synthesize and group related risks; avoid long lists.
-- Include citations at the end of each sentence.
+- Write 2-4 flowing paragraphs of natural prose (not bullet points).
+- Each sentence ends with a citation BEFORE the period: "...statement [CHUNK_N]."
+- Keep paragraphs focused on one theme each.
 - Use at most 6 citations total.
-- No verbatim quotes in Answer.
+- No verbatim quotes in Answer section.
 
-Evidence:
-- 2?5 bullets total, each: "[verbatim quote]" [CHUNK_N]
-- Order evidence newest to oldest.
+Sources:
+- 2-5 bullets total, each: "[verbatim quote]" [CHUNK_N]
+- Order sources newest to oldest.
 - Quotes must be exact substrings from chunks.
 
 Do NOT include a "Changes vs Prior Period" section unless the user explicitly asks for changes/trends/compare or you have direct comparisons in the chunks.`;

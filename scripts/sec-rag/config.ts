@@ -51,10 +51,19 @@ export const COMPANIES: CompanyConfig[] = [
   {
     ticker: 'DEO',
     name: 'Diageo plc',
-    cik: '0001201139',
-    docTypes: ['20-F', '6-K', 'CALL'],  // Foreign filer uses 20-F (annual) and 6-K (current)
+    cik: '0000835403',
+    docTypes: ['20-F', '6-K', 'CALL'],
     isForeignFiler: true,
   },
+  {
+    ticker: 'ABEV',
+    name: 'Ambev S.A.',
+    cik: '0001565025',
+    docTypes: ['20-F', '6-K', 'CALL'],
+    isForeignFiler: true,
+  },
+  // Note: HEINY (Heineken) and PRNDY (Pernod Ricard) are Level 1 ADRs
+  // that don't file with SEC - only earnings calls available
 ];
 
 // Map ticker to company for quick lookup
