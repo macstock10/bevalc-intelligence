@@ -548,6 +548,17 @@ async function fetchChunkContentByIds(env, ids) {
     return contentMap;
 }
 
+async function fetchAvailableTickers(env) {
+    try {
+        const result = await env.DB.prepare('SELECT DISTINCT ticker FROM sec_rag_chunks_content').all();
+        const tickers = (result.results || []).map(r => r.ticker).filter(Boolean);
+        return new Set(tickers);
+    } catch (e) {
+        console.error('Failed to load available tickers:', e);
+        return null;
+    }
+}
+
 async function fetchCallChunksFromD1(env, tickers, limit = 30) {
     const safeTickers = Array.isArray(tickers) && tickers.length > 0 ? tickers : SEC_ALL_TICKERS;
     const placeholders = safeTickers.map(() => '?').join(',');
@@ -757,8 +768,10 @@ function normalizeAnswerFormatting(answer) {
     const parts = text.split(/\nEvidence:\n/);
     if (parts.length === 2) {
         let [answerBlock, evidenceBlock] = parts;
+        // Remove verbatim quotes from Answer; keep citations only.
+        answerBlock = answerBlock.replace(/"[^"]+"\s*(\[[^\]]+\])/g, '$1');
         // Insert a blank line after each citation in the Answer block for readability.
-        answerBlock = answerBlock.replace(/\]\s*(?=[A-Z0-9])/g, ']\n\n');
+        answerBlock = answerBlock.replace(/\]\s*/g, ']\n\n');
         const normalizedEvidence = evidenceBlock
             .split(/\n+/)
             .map(line => line.trim())
@@ -795,9 +808,10 @@ CRITICAL RULES:
 2. EVERY claim MUST have a citation: [CHUNK_N] where N is the chunk number.
 3. EVERY citation MUST include a VERBATIM quote using this format: "[exact quote from chunk]" [CHUNK_N]
 4. Quotes must be EXACT substrings from the chunk text - do not paraphrase or modify.
-5. ALL non-quote analysis sentences must end with a citation in brackets.
+5. ALL analysis sentences must end with a citation in brackets.
 6. If multiple companies discuss the topic, organize by company.
-7. Never make up information or infer beyond what's stated.
+7. You may infer reasonable implications from cited statements, but label them as "Inference:" and still cite.
+8. Do NOT include verbatim quotes in the Answer section; reserve quotes for Evidence only.
 
 OUTPUT FORMAT:
 Answer:
@@ -805,9 +819,10 @@ Answer:
 - Synthesize and group related risks; avoid long lists.
 - Include citations at the end of each sentence.
 - Use at most 6 citations total.
+- No verbatim quotes in Answer.
 
 Evidence:
-- 3–6 bullets total, each: "[verbatim quote]" [CHUNK_N]
+- 2–5 bullets total, each: "[verbatim quote]" [CHUNK_N]
 - Quotes must be exact substrings from chunks.
 
 Do NOT include a "Changes vs Prior Period" section unless the user explicitly asks for changes/trends/compare or you have direct comparisons in the chunks.`;
@@ -1043,6 +1058,12 @@ export async function handleSecQuery(request, env) {
         const start = intent.dateWindow.start;
         const end = intent.dateWindow.end;
         retrievedChunks = retrievedChunks.filter(c => !c.filingDate || (c.filingDate >= start && c.filingDate <= end));
+    }
+
+    // Guard against stale Vectorize data by enforcing known tickers from DB
+    const availableTickers = await fetchAvailableTickers(env);
+    if (availableTickers && availableTickers.size > 0) {
+        retrievedChunks = retrievedChunks.filter(c => availableTickers.has(c.ticker));
     }
 
     // Enforce ticker/docType filters after retrieval (in case Vectorize filter is ignored)
