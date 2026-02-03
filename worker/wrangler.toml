@@ -11,6 +11,7 @@ database_id = "377c1210-aca8-43a8-b575-7fc2f7e31616"
 [[r2_buckets]]
 binding = "SEC_FILINGS"
 bucket_name = "bevalc-sec-filings"
+preview_bucket_name = "bevalc-sec-filings-preview"
 
 # Vectorize index for SEC filing embeddings
 [[vectorize]]
