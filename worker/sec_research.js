@@ -289,7 +289,7 @@ function parseSecQueryIntent(query, filters = {}) {
 
 // Fast search using Cloudflare Vectorize (direct vector query, no LLM in retrieval path)
 // Flow: embed query -> query Vectorize -> return chunks with metadata
-async function searchVectorize(query, intent, env) {
+async function searchVectorize(query, intent, env, options = {}) {
     const startTime = Date.now();
 
     // Step 1: Embed the query using OpenAI
@@ -317,25 +317,33 @@ async function searchVectorize(query, intent, env) {
     // Step 2: Query Vectorize with filters
     const vectorizeStart = Date.now();
 
-    // Build metadata filter for tickers (simple equality for single ticker)
+    // Build metadata filter (simple equality when a single value is specified)
+    // NOTE: Vectorize filtering disabled - metadata keys may not match index schema
+    // Post-retrieval filtering in handleSecQuery handles ticker/docType filtering
     const filter = {};
     if (intent.tickers && intent.tickers.length === 1) {
-        filter.ticker = intent.tickers[0];  // Simple equality
+        filter.ticker = intent.tickers[0];
     }
-    // Skip docType filter for now - may need more testing
+    if (intent.docTypes && intent.docTypes.length === 1) {
+        filter.docType = intent.docTypes[0];
+    }
 
     const queryOptions = {
-        topK: 20,
-        returnMetadata: 'all'
+        topK: options.topK || 20,
+        returnMetadata: options.returnMetadata || 'all'
     };
 
-    // TEMP: Disable all filters
+    // Vectorize filter disabled - rely on post-retrieval filtering
     // if (Object.keys(filter).length > 0) {
     //     queryOptions.filter = filter;
     // }
-    console.log('Filter would be:', JSON.stringify(filter));
+    console.log('Vectorize filter (disabled):', JSON.stringify(filter));
 
-    queryOptions.topK = RAG_RETRIEVE_TOP_K;
+    // Increase topK when CALL is requested (transcripts are sparse, need bigger net)
+    // Vectorize limit: max 50 with returnMetadata='all', max 100 with returnMetadata='indexed'
+    if (!options.topK) {
+        queryOptions.topK = Math.min(intent?.docTypes?.includes('CALL') ? 50 : RAG_RETRIEVE_TOP_K, 50);
+    }
 
     const results = await env.SEC_VECTORS.query(queryVector, queryOptions);
 
@@ -538,6 +546,31 @@ async function fetchChunkContentByIds(env, ids) {
     }
 
     return contentMap;
+}
+
+async function fetchCallChunksFromD1(env, tickers, limit = 30) {
+    const safeTickers = Array.isArray(tickers) && tickers.length > 0 ? tickers : SEC_ALL_TICKERS;
+    const placeholders = safeTickers.map(() => '?').join(',');
+    const query = `
+        SELECT id, ticker, doc_type, filing_date, section, source_url, accession_number, content
+        FROM sec_rag_chunks_content
+        WHERE doc_type = 'CALL'
+          AND ticker IN (${placeholders})
+        ORDER BY filing_date DESC
+        LIMIT ?
+    `;
+    const result = await env.DB.prepare(query).bind(...safeTickers, limit).all();
+    return (result.results || []).map(row => ({
+        id: row.id,
+        ticker: row.ticker || 'UNKNOWN',
+        docType: row.doc_type || 'CALL',
+        filingDate: row.filing_date || '',
+        section: row.section || 'Other',
+        sourceUrl: row.source_url || '',
+        content: row.content || '',
+        score: 0.01,
+        hasFullContent: true
+    }));
 }
 
 // Rerank chunks using Cohere
@@ -993,7 +1026,10 @@ export async function handleSecQuery(request, env) {
     // Step 1: Search Cloudflare Vectorize (fast - ~100-200ms total)
     let retrievedChunks, retrievalLatency;
     try {
-        const searchResult = await searchVectorize(query, intent, env);
+        const retrievalQuery = intent?.docTypes?.includes('CALL')
+            ? `${query} earnings call transcript management said`
+            : query;
+        const searchResult = await searchVectorize(retrievalQuery, intent, env);
         retrievedChunks = searchResult.chunks;
         retrievalLatency = searchResult.latencyMs;
         console.log(`Vectorize search: ${searchResult.embedLatencyMs}ms embed + ${searchResult.vectorizeLatencyMs}ms query = ${retrievalLatency}ms total`);
@@ -1018,6 +1054,45 @@ export async function handleSecQuery(request, env) {
     if (intent?.docTypes?.length) {
         const allowedDocTypes = new Set(intent.docTypes);
         retrievedChunks = retrievedChunks.filter(c => allowedDocTypes.has(c.docType));
+    }
+
+    // If CALL is requested but nothing survived, do a CALL-biased retrieval fallback
+    if (intent?.docTypes?.includes('CALL') && retrievedChunks.length === 0) {
+        console.log('CALL filter returned 0 chunks. Running CALL-biased fallback retrieval...');
+        const callIntent = { ...intent, docTypes: ['CALL'] };
+        const callQuery = `${query} earnings call transcript management said`;
+        try {
+        const callSearch = await searchVectorize(callQuery, callIntent, env, { topK: 50 });
+        let callChunks = callSearch.chunks;
+
+            // Apply ticker/docType filters again (defensive)
+            if (callIntent.tickers?.length && callIntent.tickers.length < SEC_ALL_TICKERS.length) {
+                const allowedTickers = new Set(callIntent.tickers);
+                callChunks = callChunks.filter(c => allowedTickers.has(c.ticker));
+            }
+            callChunks = callChunks.filter(c => c.docType === 'CALL');
+
+            // Merge without duplicates
+            const seen = new Set(retrievedChunks.map(c => c.id));
+            for (const c of callChunks) {
+                if (!seen.has(c.id)) retrievedChunks.push(c);
+            }
+        } catch (e) {
+            console.error('CALL fallback retrieval failed:', e);
+        }
+    }
+
+    // If CALL is requested and still empty, fall back to D1 content (non-vector)
+    if (intent?.docTypes?.includes('CALL') && retrievedChunks.length === 0) {
+        try {
+            console.log('CALL retrieval empty. Falling back to D1 CALL chunks.');
+            const callChunks = await fetchCallChunksFromD1(env, intent.tickers, 30);
+            if (callChunks.length > 0) {
+                retrievedChunks = callChunks;
+            }
+        } catch (e) {
+            console.error('CALL D1 fallback failed:', e);
+        }
     }
 
     // Check if we have sufficient coverage
