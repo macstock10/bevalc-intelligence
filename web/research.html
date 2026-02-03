@@ -125,89 +125,11 @@
             display: block;
         }
 
-        /* 8-K Events */
-        .events-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .event-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 1.25rem;
-            transition: all 0.2s ease;
-        }
-
-        .event-card:hover {
-            border-color: #cbd5e1;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .event-card.priority-high {
-            border-left: 3px solid #ef4444;
-        }
-
-        .event-card.priority-normal {
-            border-left: 3px solid #3b82f6;
-        }
-
-        .event-card.priority-low {
-            border-left: 3px solid #94a3b8;
-        }
-
-        .event-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 1rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .event-company {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #0d9488;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .event-date {
-            font-size: 0.75rem;
-            color: #94a3b8;
-        }
-
-        .event-headline {
-            font-size: 1rem;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-            line-height: 1.4;
-        }
-
-        .event-item-badge {
-            display: inline-block;
-            font-size: 0.6875rem;
-            font-weight: 600;
-            color: #64748b;
-            background: #f1f5f9;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-        }
-
-        .event-summary {
-            font-size: 0.875rem;
-            color: #64748b;
-            line-height: 1.6;
-        }
-
+        /* Links */
         .event-link {
             display: inline-flex;
             align-items: center;
             gap: 0.25rem;
-            margin-top: 0.75rem;
             font-size: 0.8125rem;
             font-weight: 500;
             color: #0d9488;
@@ -468,6 +390,43 @@
             color: #6b21a8;
         }
 
+        /* Pagination */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem 0;
+            margin-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            color: #4338ca;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: #f8fafc;
+            border-color: #4338ca;
+        }
+
+        .pagination-btn:disabled {
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
         /* Pro Gate */
         .pro-gate {
             text-align: center;
@@ -558,11 +517,6 @@
                 padding-bottom: 0.5rem;
             }
 
-            .event-header {
-                flex-direction: column;
-                gap: 0.25rem;
-            }
-
             .diff-stats {
                 flex-direction: column;
                 gap: 0.5rem;
@@ -624,21 +578,13 @@
 
             <!-- Tab Navigation -->
             <div class="research-tabs">
-                <button class="research-tab active" data-tab="8k-events">8-K Event Radar</button>
-                <button class="research-tab" data-tab="ask-filings">Ask Filings <span class="pro-badge">PRO</span></button>
+                <button class="research-tab active" data-tab="ask-filings">Ask Filings <span class="pro-badge">PRO</span></button>
                 <button class="research-tab" data-tab="mda-changes">MD&A Changes <span class="pro-badge">PRO</span></button>
                 <button class="research-tab" data-tab="all-filings">All Filings</button>
             </div>
 
-            <!-- Tab Content: 8-K Events -->
-            <div class="tab-content active" id="tab-8k-events">
-                <div class="events-list" id="events-list">
-                    <div class="loading-spinner"></div>
-                </div>
-            </div>
-
             <!-- Tab Content: Ask Filings (RAG) -->
-            <div class="tab-content" id="tab-ask-filings">
+            <div class="tab-content active" id="tab-ask-filings">
                 <div class="query-section">
                     <div class="credits-display" id="credits-display" style="display: none;">
                         <span>Credits remaining:</span>
@@ -702,6 +648,11 @@
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
+                    <div class="pagination" id="filings-pagination" style="display: none;">
+                        <button class="pagination-btn" id="filings-prev" disabled>← Previous</button>
+                        <span class="pagination-info" id="filings-page-info">Page 1</span>
+                        <button class="pagination-btn" id="filings-next">Next →</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -716,6 +667,9 @@
         let credits = 0;
         let selectedTicker = '';
         let companies = [];
+        let filingsPage = 0;
+        let filingsTotal = 0;
+        const FILINGS_PER_PAGE = 25;
 
         // API Base
         const API_BASE = window.location.hostname === 'localhost'
@@ -825,6 +779,15 @@
                     mobileBtn.classList.toggle('active');
                 });
             }
+
+            // Filings pagination
+            document.getElementById('filings-prev').addEventListener('click', () => {
+                if (filingsPage > 0) loadAllFilings(filingsPage - 1);
+            });
+            document.getElementById('filings-next').addEventListener('click', () => {
+                const totalPages = Math.ceil(filingsTotal / FILINGS_PER_PAGE);
+                if (filingsPage < totalPages - 1) loadAllFilings(filingsPage + 1);
+            });
         }
 
         // Load content for active tab
@@ -833,9 +796,6 @@
             if (!activeTab) return;
 
             switch (activeTab.dataset.tab) {
-                case '8k-events':
-                    load8kEvents();
-                    break;
                 case 'ask-filings':
                     checkRagAccess();
                     break;
@@ -843,58 +803,13 @@
                     loadMdaChanges();
                     break;
                 case 'all-filings':
-                    loadAllFilings();
+                    filingsPage = 0; // Reset pagination when switching
+                    loadAllFilings(0);
                     break;
             }
         }
 
         // Load 8-K events
-        async function load8kEvents() {
-            const container = document.getElementById('events-list');
-            container.innerHTML = '<div class="loading-spinner"></div>';
-
-            try {
-                let url = `${API_BASE}/api/sec/8k-events?days=60&limit=50`;
-                if (selectedTicker) {
-                    url += `&ticker=${encodeURIComponent(selectedTicker)}`;
-                }
-
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (data.success && data.events.length > 0) {
-                    container.innerHTML = data.events.map(event => `
-                        <div class="event-card priority-${event.priority}">
-                            <div class="event-header">
-                                <span class="event-company">${event.ticker}</span>
-                                <span class="event-date">${formatDate(event.filing_date)}</span>
-                            </div>
-                            <div class="event-item-badge">Item ${event.item_number}: ${event.item_title}</div>
-                            <div class="event-headline">${escapeHtml(event.headline || event.item_title)}</div>
-                            <div class="event-summary">${escapeHtml(event.summary || '')}</div>
-                            <a href="${event.edgar_url}" target="_blank" class="event-link">
-                                View Filing
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                    <polyline points="15 3 21 3 21 9"></polyline>
-                                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                                </svg>
-                            </a>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <h3>No recent 8-K events</h3>
-                            <p>Check back later for material event disclosures.</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                container.innerHTML = `<div class="empty-state"><p>Failed to load events</p></div>`;
-            }
-        }
-
         // Check RAG access
         function checkRagAccess() {
             if (!userEmail || !isPro) {
@@ -1004,13 +919,15 @@
             `;
         }
 
-        // Load all filings
-        async function loadAllFilings() {
+        // Load all filings with pagination
+        async function loadAllFilings(page = 0) {
             const tbody = document.getElementById('filings-tbody');
+            const pagination = document.getElementById('filings-pagination');
             tbody.innerHTML = '<tr><td colspan="5"><div class="loading-spinner"></div></td></tr>';
 
             try {
-                let url = `${API_BASE}/api/sec/filings?limit=50`;
+                const offset = page * FILINGS_PER_PAGE;
+                let url = `${API_BASE}/api/sec/filings?limit=${FILINGS_PER_PAGE}&offset=${offset}`;
                 if (selectedTicker) {
                     url += `&ticker=${encodeURIComponent(selectedTicker)}`;
                 }
@@ -1019,6 +936,9 @@
                 const data = await response.json();
 
                 if (data.success && data.filings.length > 0) {
+                    filingsTotal = data.total;
+                    filingsPage = page;
+
                     tbody.innerHTML = data.filings.map(filing => `
                         <tr>
                             <td>${filing.ticker}</td>
@@ -1030,16 +950,39 @@
                             <td>${filing.fiscal_year || ''}${filing.fiscal_quarter ? ' Q' + filing.fiscal_quarter : ''}</td>
                             <td>${formatDate(filing.filing_date)}</td>
                             <td>
-                                <a href="${filing.edgar_url}" target="_blank" class="event-link">View</a>
+                                ${filing.edgar_url ? `<a href="${filing.edgar_url}" target="_blank" class="event-link">View</a>` : '-'}
                             </td>
                         </tr>
                     `).join('');
+
+                    // Update pagination
+                    updateFilingsPagination();
                 } else {
                     tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No filings found</td></tr>';
+                    pagination.style.display = 'none';
                 }
             } catch (error) {
                 tbody.innerHTML = '<tr><td colspan="5">Failed to load filings</td></tr>';
             }
+        }
+
+        function updateFilingsPagination() {
+            const pagination = document.getElementById('filings-pagination');
+            const prevBtn = document.getElementById('filings-prev');
+            const nextBtn = document.getElementById('filings-next');
+            const pageInfo = document.getElementById('filings-page-info');
+
+            const totalPages = Math.ceil(filingsTotal / FILINGS_PER_PAGE);
+
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+
+            pagination.style.display = 'flex';
+            prevBtn.disabled = filingsPage === 0;
+            nextBtn.disabled = filingsPage >= totalPages - 1;
+            pageInfo.textContent = `Page ${filingsPage + 1} of ${totalPages} (${filingsTotal} filings)`;
         }
 
         // Update credits display
