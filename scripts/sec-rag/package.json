@@ -6,7 +6,8 @@
     "ingest": "tsx ingest.ts",
     "ingest:backfill": "tsx ingest.ts --backfill",
     "ingest:incremental": "tsx ingest.ts --incremental",
-    "ingest:transcripts": "tsx transcripts_ingest.ts"
+    "ingest:transcripts": "tsx transcripts_ingest.ts",
+    "ingest:earningscall": "tsx earningscall_ingest.ts"
   },
   "dependencies": {
     "cohere-ai": "^7.14.0",

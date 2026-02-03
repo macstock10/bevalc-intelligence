@@ -264,18 +264,19 @@ function parseSecQueryIntent(query, filters = {}) {
         }
         // Default to main filings + calls
         if (docTypes.length === 0) {
-            docTypes = ['10-K', '10-Q', '20-F', 'CALL'];
+            docTypes = ['CALL', '10-Q', '10-K', '20-F'];
         }
     }
 
-    // Date window - default to last 8 quarters (2 years)
+    // Date window - default to last 12 months for recency
     const endDate = filters.endDate || new Date().toISOString().slice(0, 10);
     const startDateDefault = new Date();
-    startDateDefault.setMonth(startDateDefault.getMonth() - 24);
+    startDateDefault.setMonth(startDateDefault.getMonth() - 12);
     const startDate = filters.startDate || startDateDefault.toISOString().slice(0, 10);
 
     const wantsComparison = /change|trend|compare|versus|vs\.?|year|quarter|prior|previous|over time|increase|decrease/i.test(queryLower);
     const wantsCallPriority = /earnings|call|transcript|said|management|guidance|q&a|question|prepared remarks/i.test(queryLower);
+    const wantsQAPriority = /q&a|question|questions|analyst|operator/i.test(queryLower);
 
     return {
         originalQuery: query,
@@ -283,7 +284,8 @@ function parseSecQueryIntent(query, filters = {}) {
         docTypes,
         dateWindow: { start: startDate, end: endDate },
         wantsComparison,
-        wantsCallPriority
+        wantsCallPriority,
+        wantsQAPriority
     };
 }
 
@@ -559,14 +561,16 @@ async function fetchAvailableTickers(env) {
     }
 }
 
-async function fetchCallChunksFromD1(env, tickers, limit = 30) {
+async function fetchCallChunksFromD1(env, tickers, limit = 30, onlyQa = false) {
     const safeTickers = Array.isArray(tickers) && tickers.length > 0 ? tickers : SEC_ALL_TICKERS;
     const placeholders = safeTickers.map(() => '?').join(',');
+    const qaClause = onlyQa ? "AND (section = 'Q&A' OR section LIKE '%Q&A%')" : '';
     const query = `
         SELECT id, ticker, doc_type, filing_date, section, source_url, accession_number, content
         FROM sec_rag_chunks_content
         WHERE doc_type = 'CALL'
           AND ticker IN (${placeholders})
+          ${qaClause}
         ORDER BY filing_date DESC
         LIMIT ?
     `;
@@ -744,7 +748,8 @@ function formatCitationLabel(chunk) {
 }
 
 function replaceChunkCitations(answer, chunks) {
-    return answer.replace(/\[CHUNK_(\d+)\]/g, (match, idx) => {
+    const normalized = answer.replace(/\[CHUCK_(\d+)\]/g, '[CHUNK_$1]');
+    return normalized.replace(/\[CHUNK_(\d+)\]/g, (match, idx) => {
         const chunk = chunks[parseInt(idx, 10)];
         const label = formatCitationLabel(chunk);
         return `[${label}]`;
@@ -756,13 +761,18 @@ function normalizeAnswerFormatting(answer) {
     const hasEvidence = /(^|\n)Evidence:\s*/.test(answer);
     let text = answer.trim();
 
+    // Normalize bold headings and bullet symbols from model output
+    text = text.replace(/\*\*Answer:\*\*/gi, 'Answer:');
+    text = text.replace(/\*\*Evidence:\*\*/gi, 'Evidence:');
+    text = text.replace(/\u2022/g, '-');
+
+    // Ensure headings start on their own lines
+    text = text.replace(/(?:^|\n)\s*Answer:\s*/g, '\nAnswer:\n');
+    text = text.replace(/(?:^|\n)\s*Evidence:\s*/g, '\nEvidence:\n');
+
     if (!hasAnswer && !hasEvidence) {
         return text;
     }
-
-    // Ensure line breaks around sections
-    text = text.replace(/Answer:\s*/g, 'Answer:\n');
-    text = text.replace(/Evidence:\s*/g, '\nEvidence:\n');
 
     // Ensure evidence bullets are on separate lines
     const parts = text.split(/\nEvidence:\n/);
@@ -782,6 +792,23 @@ function normalizeAnswerFormatting(answer) {
     }
 
     return text.trim();
+}
+
+function parseISODate(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function recencyBoost(dateStr) {
+    const d = parseISODate(dateStr);
+    if (!d) return 0;
+    const now = new Date();
+    const days = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+    if (days <= 90) return 0.45;
+    if (days <= 180) return 0.3;
+    if (days <= 365) return 0.15;
+    return 0;
 }
 
 // Generate strictly grounded answer with Claude
@@ -812,17 +839,20 @@ CRITICAL RULES:
 6. If multiple companies discuss the topic, organize by company.
 7. You may infer reasonable implications from cited statements, but label them as "Inference:" and still cite.
 8. Do NOT include verbatim quotes in the Answer section; reserve quotes for Evidence only.
+9. Prefer the most recent sources; avoid using sources older than 12 months unless the user asks for history.
 
 OUTPUT FORMAT:
 Answer:
-- Provide 1–3 short paragraphs (max 2 sentences each).
+- Start with: "Most recent take (YYYY-MM-DD): ..." using the newest relevant source.
+- Provide 1?3 short paragraphs (max 2 sentences each).
 - Synthesize and group related risks; avoid long lists.
 - Include citations at the end of each sentence.
 - Use at most 6 citations total.
 - No verbatim quotes in Answer.
 
 Evidence:
-- 2–5 bullets total, each: "[verbatim quote]" [CHUNK_N]
+- 2?5 bullets total, each: "[verbatim quote]" [CHUNK_N]
+- Order evidence newest to oldest.
 - Quotes must be exact substrings from chunks.
 
 Do NOT include a "Changes vs Prior Period" section unless the user explicitly asks for changes/trends/compare or you have direct comparisons in the chunks.`;
@@ -1077,6 +1107,27 @@ export async function handleSecQuery(request, env) {
         retrievedChunks = retrievedChunks.filter(c => allowedDocTypes.has(c.docType));
     }
 
+    // Heavily prefer CALL transcripts when the query implies "what management said"
+    if (intent?.wantsCallPriority) {
+        let callChunks = retrievedChunks.filter(c => c.docType === 'CALL');
+        callChunks = callChunks.sort((a, b) => (b.filingDate || '').localeCompare(a.filingDate || ''));
+        const nonCallChunks = retrievedChunks.filter(c => c.docType !== 'CALL');
+        // Keep calls first; only backfill with non-calls if we have too few
+        const MIN_CALL_CHUNKS = 6;
+        let prioritizedCalls = callChunks;
+        if (intent?.wantsQAPriority) {
+            const qa = callChunks.filter(c => String(c.section).toLowerCase().includes('q&a'));
+            const nonQa = callChunks.filter(c => !String(c.section).toLowerCase().includes('q&a'));
+            prioritizedCalls = qa.length > 0 ? [...qa, ...nonQa] : callChunks;
+        }
+
+        if (prioritizedCalls.length >= MIN_CALL_CHUNKS) {
+            retrievedChunks = prioritizedCalls;
+        } else {
+            retrievedChunks = [...prioritizedCalls, ...nonCallChunks.slice(0, MIN_CALL_CHUNKS - prioritizedCalls.length)];
+        }
+    }
+
     // If CALL is requested but nothing survived, do a CALL-biased retrieval fallback
     if (intent?.docTypes?.includes('CALL') && retrievedChunks.length === 0) {
         console.log('CALL filter returned 0 chunks. Running CALL-biased fallback retrieval...');
@@ -1107,7 +1158,7 @@ export async function handleSecQuery(request, env) {
     if (intent?.docTypes?.includes('CALL') && retrievedChunks.length === 0) {
         try {
             console.log('CALL retrieval empty. Falling back to D1 CALL chunks.');
-            const callChunks = await fetchCallChunksFromD1(env, intent.tickers, 30);
+            const callChunks = await fetchCallChunksFromD1(env, intent.tickers, 30, intent?.wantsQAPriority);
             if (callChunks.length > 0) {
                 retrievedChunks = callChunks;
             }
@@ -1173,8 +1224,11 @@ export async function handleSecQuery(request, env) {
         rerankedChunks = rerankedChunks
             .map(chunk => {
                 const base = chunk.rerankScore ?? chunk.score ?? 0;
-                const boost = chunk.docType === 'CALL' ? 0.15 : 0;
-                return { ...chunk, rerankScore: base + boost };
+                const isCall = chunk.docType === 'CALL';
+                const isQa = String(chunk.section).toLowerCase().includes('q&a');
+                const callBoost = isCall ? (isQa && intent?.wantsQAPriority ? 0.5 : 0.35) : 0;
+                const timeBoost = recencyBoost(chunk.filingDate);
+                return { ...chunk, rerankScore: base + callBoost + timeBoost };
             })
             .sort((a, b) => (b.rerankScore ?? b.score ?? 0) - (a.rerankScore ?? a.score ?? 0));
     }

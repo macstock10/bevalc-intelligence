@@ -220,6 +220,41 @@
             color: #334155;
         }
 
+        .query-answer h4 {
+            margin: 1.5rem 0 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .query-answer h4:first-child {
+            margin-top: 0;
+        }
+
+        .query-answer p {
+            margin-bottom: 1rem;
+        }
+
+        .query-answer ul {
+            margin: 0.5rem 0 1rem;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        .query-answer li {
+            margin-bottom: 0.75rem;
+            padding-left: 1rem;
+            border-left: 2px solid #e2e8f0;
+        }
+
+        .query-answer .inline-citation {
+            color: #6366f1;
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+
         .query-citations {
             margin-top: 1.5rem;
         }
@@ -861,7 +896,7 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    document.getElementById('query-answer').innerHTML = data.answer_markdown || data.answer || 'No answer generated';
+                    document.getElementById('query-answer').innerHTML = renderMarkdown(data.answer_markdown || data.answer || 'No answer generated');
 
                     const citationList = document.getElementById('citation-list');
                     citationList.innerHTML = (data.citations || []).map(c => `
@@ -1009,6 +1044,48 @@
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+
+            // Split into paragraphs first
+            const paragraphs = text.split(/\n\n+/);
+
+            return paragraphs.map(p => {
+                p = p.trim();
+                if (!p) return '';
+
+                // Section headers (Answer:, Evidence:)
+                if (/^(Answer|Evidence):/.test(p)) {
+                    const header = p.match(/^(Answer|Evidence):/)[1];
+                    const rest = p.replace(/^(Answer|Evidence):/, '').trim();
+                    return `<h4>${header}</h4>${rest ? '<p>' + formatParagraph(rest) + '</p>' : ''}`;
+                }
+
+                // Bullet lists (lines starting with -)
+                if (p.startsWith('- ') || p.startsWith('• ')) {
+                    const items = p.split(/\n/).map(line => {
+                        line = line.replace(/^[-•]\s*/, '').trim();
+                        return line ? `<li>${formatParagraph(line)}</li>` : '';
+                    }).filter(Boolean).join('');
+                    return `<ul>${items}</ul>`;
+                }
+
+                // Regular paragraph
+                return `<p>${formatParagraph(p)}</p>`;
+            }).join('');
+        }
+
+        function formatParagraph(text) {
+            return text
+                // Bold
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                // Citation brackets - style them
+                .replace(/\[([A-Z]{2,5}[.-]?[A-Z]?\s+(?:CALL|10-[KQ]|8-K|20-F)\s+\d{4}-\d{2}-\d{2})\]/g,
+                         '<span class="inline-citation">[$1]</span>')
+                // Single newlines to <br>
+                .replace(/\n/g, '<br>');
         }
 
         // Nav dropdown (shared with other pages)

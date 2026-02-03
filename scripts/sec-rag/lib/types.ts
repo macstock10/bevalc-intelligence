@@ -15,6 +15,8 @@ export type Section =
   | 'Market Risk'
   | 'Selected Financial Data'
   | 'Exhibit'   // 8-K exhibits (99.1 press releases, earnings releases, etc.)
+  | 'Prepared Remarks'
+  | 'Q&A'
   | 'Other';
 
 // EDGAR filing metadata
