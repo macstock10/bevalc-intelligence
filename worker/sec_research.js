@@ -275,13 +275,15 @@ function parseSecQueryIntent(query, filters = {}) {
     const startDate = filters.startDate || startDateDefault.toISOString().slice(0, 10);
 
     const wantsComparison = /change|trend|compare|versus|vs\.?|year|quarter|prior|previous|over time|increase|decrease/i.test(queryLower);
+    const wantsCallPriority = /earnings|call|transcript|said|management|guidance|q&a|question|prepared remarks/i.test(queryLower);
 
     return {
         originalQuery: query,
         tickers,
         docTypes,
         dateWindow: { start: startDate, end: endDate },
-        wantsComparison
+        wantsComparison,
+        wantsCallPriority
     };
 }
 
@@ -690,6 +692,52 @@ function enforceAnalysisCitations(answer) {
     return updated.join('');
 }
 
+function formatCitationLabel(chunk) {
+    const date = chunk?.filingDate ? chunk.filingDate : 'unknown-date';
+    const doc = chunk?.docType ? chunk.docType : 'Document';
+    const ticker = chunk?.ticker ? chunk.ticker : 'UNK';
+    return `${ticker} ${doc} ${date}`;
+}
+
+function replaceChunkCitations(answer, chunks) {
+    return answer.replace(/\[CHUNK_(\d+)\]/g, (match, idx) => {
+        const chunk = chunks[parseInt(idx, 10)];
+        const label = formatCitationLabel(chunk);
+        return `[${label}]`;
+    });
+}
+
+function normalizeAnswerFormatting(answer) {
+    const hasAnswer = /(^|\n)Answer:\s*/.test(answer);
+    const hasEvidence = /(^|\n)Evidence:\s*/.test(answer);
+    let text = answer.trim();
+
+    if (!hasAnswer && !hasEvidence) {
+        return text;
+    }
+
+    // Ensure line breaks around sections
+    text = text.replace(/Answer:\s*/g, 'Answer:\n');
+    text = text.replace(/Evidence:\s*/g, '\nEvidence:\n');
+
+    // Ensure evidence bullets are on separate lines
+    const parts = text.split(/\nEvidence:\n/);
+    if (parts.length === 2) {
+        let [answerBlock, evidenceBlock] = parts;
+        // Insert a blank line after each citation in the Answer block for readability.
+        answerBlock = answerBlock.replace(/\]\s*(?=[A-Z0-9])/g, ']\n\n');
+        const normalizedEvidence = evidenceBlock
+            .split(/\n+/)
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => line.startsWith('-') ? line : `- ${line}`)
+            .join('\n');
+        text = `${answerBlock.trim()}\n\nEvidence:\n${normalizedEvidence}`;
+    }
+
+    return text.trim();
+}
+
 // Generate strictly grounded answer with Claude
 // Includes quote validation to prevent hallucinated citations
 async function generateGroundedAnswer(query, chunks, intent, env) {
@@ -886,8 +934,10 @@ Provide a concise, synthesized answer. IMPORTANT: Every quote must be an exact s
     const inputTokens = Math.ceil((systemPrompt.length + context.length + query.length) / 4);
     const outputTokens = Math.ceil(filteredAnswer.text.length / 4);
 
+    const formattedAnswer = normalizeAnswerFormatting(replaceChunkCitations(filteredAnswer.text, chunks));
+
     return {
-        answer: filteredAnswer.text,  // Use filtered answer with unsupported bullets removed
+        answer: formattedAnswer,  // Use formatted answer with filing citations
         citations: uniqueCitations,
         validationStats: {
             totalQuotes: extractedQuotes.length,
@@ -935,20 +985,7 @@ export async function handleSecQuery(request, env) {
         };
     }
 
-    // Check cache
     const queryHash = await hashText(query + JSON.stringify(filters));
-    const cached = await env.DB.prepare(`
-        SELECT response FROM sec_query_cache
-        WHERE query_hash = ? AND expires_at > datetime('now')
-    `).bind(queryHash).first();
-
-    if (cached) {
-        return {
-            success: true,
-            cached: true,
-            ...JSON.parse(cached.response)
-        };
-    }
 
     // Parse query intent
     const intent = parseSecQueryIntent(query, filters);
@@ -1034,6 +1071,17 @@ export async function handleSecQuery(request, env) {
         rerankedChunks = retrievedChunks.slice(0, RAG_RERANK_TOP_K);
         rerankLatency = 0;
     }
+ 
+    // Prefer CALL transcripts when the query implies "what management said"
+    if (intent?.wantsCallPriority) {
+        rerankedChunks = rerankedChunks
+            .map(chunk => {
+                const base = chunk.rerankScore ?? chunk.score ?? 0;
+                const boost = chunk.docType === 'CALL' ? 0.15 : 0;
+                return { ...chunk, rerankScore: base + boost };
+            })
+            .sort((a, b) => (b.rerankScore ?? b.score ?? 0) - (a.rerankScore ?? a.score ?? 0));
+    }
 
     // Step 3: Generate grounded answer with Claude
     let answer, citations, tokenUsage, generationLatency;
@@ -1090,12 +1138,6 @@ export async function handleSecQuery(request, env) {
             }
         }
     };
-
-    // Cache response (1 hour TTL)
-    await env.DB.prepare(`
-        INSERT OR REPLACE INTO sec_query_cache (query_hash, query_text, filters, response, expires_at)
-        VALUES (?, ?, ?, ?, datetime('now', '+1 hour'))
-    `).bind(queryHash, query, JSON.stringify(filters), JSON.stringify(response)).run();
 
     // Log query for analytics
     try {

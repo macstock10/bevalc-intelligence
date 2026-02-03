@@ -5,14 +5,16 @@
   "scripts": {
     "ingest": "tsx ingest.ts",
     "ingest:backfill": "tsx ingest.ts --backfill",
-    "ingest:incremental": "tsx ingest.ts --incremental"
+    "ingest:incremental": "tsx ingest.ts --incremental",
+    "ingest:transcripts": "tsx transcripts_ingest.ts"
   },
   "dependencies": {
-    "openai": "^4.73.0",
     "cohere-ai": "^7.14.0",
+    "dotenv": "^16.4.5",
     "node-html-parser": "^6.1.13",
-    "tiktoken": "^1.0.17",
-    "dotenv": "^16.4.5"
+    "openai": "^4.73.0",
+    "pdf-parse": "^1.1.4",
+    "tiktoken": "^1.0.17"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

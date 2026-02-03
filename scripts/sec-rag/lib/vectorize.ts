@@ -84,7 +84,11 @@ async function upsertToVectorize(
     throw new Error(`Vectorize upsert error: ${error}`);
   }
 
-  const data = await response.json() as { success: boolean; result?: { mutationId: string } };
+  const data = await response.json() as { success: boolean; result?: { mutationId: string }; errors?: unknown[] };
+  console.log('Vectorize upsert response:', JSON.stringify(data));
+  if (!data.success) {
+    throw new Error(`Vectorize upsert failed: ${JSON.stringify(data.errors)}`);
+  }
   return { success: data.success, count: vectors.length };
 }
 

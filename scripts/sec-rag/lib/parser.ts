@@ -93,7 +93,15 @@ export function parseFilingHtml(
   const patterns = docType === '20-F' ? SECTION_PATTERNS_20F : SECTION_PATTERNS;
 
   // Find sections
-  const sections = extractSections(text, patterns);
+  let sections = extractSections(text, patterns);
+
+  // Apply includeSections for core filings only (keep 8-K/6-K intact)
+  if (docType === '10-K' || docType === '10-Q' || docType === '20-F') {
+    const allowed = new Set(INGESTION_CONFIG.includeSections || []);
+    if (allowed.size > 0) {
+      sections = sections.filter(s => allowed.has(s.type));
+    }
+  }
 
   // Parse fiscal info from period end date
   const periodEnd = new Date(filing.periodEndDate);

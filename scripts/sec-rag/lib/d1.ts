@@ -8,7 +8,7 @@ type D1Result = {
   errors?: Array<unknown>;
 };
 
-const D1_BATCH_SIZE = 100;
+const D1_BATCH_SIZE = 5; // Small batches due to large content fields (~9KB each)
 
 function getD1Config() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
