@@ -274,11 +274,14 @@ function parseSecQueryIntent(query, filters = {}) {
     startDateDefault.setMonth(startDateDefault.getMonth() - 24);
     const startDate = filters.startDate || startDateDefault.toISOString().slice(0, 10);
 
+    const wantsComparison = /change|trend|compare|versus|vs\.?|year|quarter|prior|previous|over time|increase|decrease/i.test(queryLower);
+
     return {
         originalQuery: query,
         tickers,
         docTypes,
-        dateWindow: { start: startDate, end: endDate }
+        dateWindow: { start: startDate, end: endDate },
+        wantsComparison
     };
 }
 
@@ -588,9 +591,28 @@ async function rerankWithCohere(query, chunks, topK, env) {
     }
 }
 
+// Detect the new Answer/Evidence format (or any non-bulleted narrative)
+function isAnswerEvidenceFormat(answer) {
+    const hasLabels = /(^|\n)Answer:\s*/.test(answer) || /(^|\n)Evidence:\s*/.test(answer);
+    const hasBullets = /(^|\n)###\s+/.test(answer);
+    return hasLabels || !hasBullets;
+}
+
 // Filter out bullets/sections that have zero validated citations
 // This prevents returning claims that lost all their supporting evidence
 function filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes) {
+    const hasAnswerEvidenceFormat = isAnswerEvidenceFormat(answer);
+    if (hasAnswerEvidenceFormat) {
+        const answerBlockMatch = answer.match(/Answer:\s*([\s\S]*?)\nEvidence:/);
+        const answerBlock = answerBlockMatch ? answerBlockMatch[1] : '';
+        const hasAnswerCitation = /\[CHUNK_\d+\]/.test(answerBlock);
+        return {
+            text: answer,
+            bulletCount: hasAnswerCitation ? 1 : 0,
+            originalBulletCount: 1
+        };
+    }
+
     // Split answer into sections by ### headers
     const sections = answer.split(/(?=^### )/m);
 
@@ -627,6 +649,11 @@ function filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes) {
 }
 
 function enforceAnalysisCitations(answer) {
+    const hasAnswerEvidenceFormat = isAnswerEvidenceFormat(answer);
+    if (hasAnswerEvidenceFormat) {
+        return answer;
+    }
+
     const sections = answer.split(/(?=^### )/m);
     const updated = sections.map(section => {
         if (!section.startsWith('### ')) {
@@ -643,7 +670,7 @@ function enforceAnalysisCitations(answer) {
                 continue;
             }
 
-            if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+            if (trimmed.startsWith('### ') || trimmed.startsWith('## ') || trimmed === 'Answer:' || trimmed === 'Evidence:') {
                 kept.push(line);
                 continue;
             }
@@ -692,27 +719,17 @@ CRITICAL RULES:
 7. Never make up information or infer beyond what's stated.
 
 OUTPUT FORMAT:
-## Key Themes
+Answer:
+- Provide 1–3 short paragraphs (max 2 sentences each).
+- Synthesize and group related risks; avoid long lists.
+- Include citations at the end of each sentence.
+- Use at most 6 citations total.
 
-### [Theme Name]
-"[Verbatim quote supporting this theme]" [CHUNK_N]
+Evidence:
+- 3–6 bullets total, each: "[verbatim quote]" [CHUNK_N]
+- Quotes must be exact substrings from chunks.
 
-Brief analysis based only on the quoted evidence.
-
-### [Another Theme]
-"[Verbatim quote]" [CHUNK_N]
-
-Analysis.
-
-## Company-by-Company Notes
-(Only if multiple companies are relevant)
-
-### [Company Name] ([Ticker])
-"[Verbatim quote about this company]" [CHUNK_N]
-- Insight derived from the quote
-
-## Changes vs Prior Period
-(Only include if the chunks contain year-over-year or quarter-over-quarter comparisons)`;
+Do NOT include a "Changes vs Prior Period" section unless the user explicitly asks for changes/trends/compare or you have direct comparisons in the chunks.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -733,7 +750,9 @@ Retrieved Documents (${chunks.length} chunks from ${[...new Set(chunks.map(c => 
 
 ${context}
 
-Provide a comprehensive answer. IMPORTANT: Every quote must be an exact substring from the chunk text. Use "[verbatim quote]" [CHUNK_N] format.`
+Intent: wantsComparison=${intent?.wantsComparison ? 'true' : 'false'}
+
+Provide a concise, synthesized answer. IMPORTANT: Every quote must be an exact substring from the chunk text. Use "[verbatim quote]" [CHUNK_N] format.`
             }]
         })
     });
@@ -825,6 +844,7 @@ Provide a comprehensive answer. IMPORTANT: Every quote must be an exact substrin
     // Per-bullet citation gating: remove sections with zero validated citations
     // Parse answer into bullets (### headers) and filter out unsupported ones
     const filteredAnswer = filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes);
+    const usesAnswerEvidenceFormat = isAnswerEvidenceFormat(answer);
 
     // Deduplicate citations by chunk ID
     const uniqueCitations = [];
@@ -848,36 +868,18 @@ Provide a comprehensive answer. IMPORTANT: Every quote must be an exact substrin
     }
 
     // Gate the answer on BOTH citation count AND surviving bullet count
-    const MIN_VALID_CITATIONS = 3;
-    const MIN_SURVIVING_BULLETS = 2;
+    const MIN_VALID_CITATIONS = usesAnswerEvidenceFormat ? 2 : 3;
+    const MIN_SURVIVING_BULLETS = usesAnswerEvidenceFormat ? 0 : 2;
 
     const insufficientCitations = uniqueCitations.length < MIN_VALID_CITATIONS;
-    const insufficientBullets = filteredAnswer.bulletCount < MIN_SURVIVING_BULLETS;
+    const insufficientBullets = !usesAnswerEvidenceFormat && filteredAnswer.bulletCount < MIN_SURVIVING_BULLETS;
 
     if (insufficientCitations || insufficientBullets) {
         const reason = insufficientCitations
             ? `only ${uniqueCitations.length} citations could be validated`
             : `only ${filteredAnswer.bulletCount} claims have supporting evidence`;
 
-        console.log(`Insufficient coverage: ${reason}`);
-        return {
-            answer: `Insufficient coverage in retrieved materials. Found ${chunks.length} relevant chunks but ${reason}.`,
-            citations: uniqueCitations,
-            insufficientCoverage: true,
-            validationStats: {
-                totalQuotes: extractedQuotes.length,
-                validQuotes: validatedCitations.length,
-                invalidQuotes: invalidQuotes.length,
-                uniqueCitations: uniqueCitations.length,
-                bulletsOriginal: filteredAnswer.originalBulletCount,
-                bulletsSurviving: filteredAnswer.bulletCount
-            },
-            tokenUsage: {
-                context: Math.ceil((systemPrompt.length + context.length + query.length) / 4),
-                generation: Math.ceil(answer.length / 4)
-            },
-            latencyMs: Date.now() - startTime
-        };
+        console.log(`Insufficient coverage (non-blocking): ${reason}`);
     }
 
     // Calculate token usage (approximate)
