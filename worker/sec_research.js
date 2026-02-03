@@ -312,24 +312,23 @@ async function searchVectorize(query, intent, env) {
     // Step 2: Query Vectorize with filters
     const vectorizeStart = Date.now();
 
-    // Build metadata filter for tickers and doc types
+    // Build metadata filter for tickers (simple equality for single ticker)
     const filter = {};
-    if (intent.tickers && intent.tickers.length > 0 && intent.tickers.length < 6) {
-        // Only filter if not querying all companies
-        filter.ticker = { $in: intent.tickers };
+    if (intent.tickers && intent.tickers.length === 1) {
+        filter.ticker = intent.tickers[0];  // Simple equality
     }
-    if (intent.docTypes && intent.docTypes.length > 0 && intent.docTypes.length < 4) {
-        filter.docType = { $in: intent.docTypes };
-    }
+    // Skip docType filter for now - may need more testing
 
     const queryOptions = {
         topK: 20,
         returnMetadata: 'all'
     };
 
-    if (Object.keys(filter).length > 0) {
-        queryOptions.filter = filter;
-    }
+    // TEMP: Disable all filters
+    // if (Object.keys(filter).length > 0) {
+    //     queryOptions.filter = filter;
+    // }
+    console.log('Filter would be:', JSON.stringify(filter));
 
     queryOptions.topK = RAG_RETRIEVE_TOP_K;
 
@@ -627,6 +626,43 @@ function filterUnsupportedBullets(answer, validChunkIndices, extractedQuotes) {
     };
 }
 
+function enforceAnalysisCitations(answer) {
+    const sections = answer.split(/(?=^### )/m);
+    const updated = sections.map(section => {
+        if (!section.startsWith('### ')) {
+            return section;
+        }
+
+        const lines = section.split('\n');
+        const kept = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                kept.push(line);
+                continue;
+            }
+
+            if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+                kept.push(line);
+                continue;
+            }
+
+            // Keep quoted evidence lines and any line that already has citations
+            if (trimmed.includes('[CHUNK_')) {
+                kept.push(line);
+                continue;
+            }
+
+            // Drop analysis lines without citations
+        }
+
+        return kept.join('\n');
+    });
+
+    return updated.join('');
+}
+
 // Generate strictly grounded answer with Claude
 // Includes quote validation to prevent hallucinated citations
 async function generateGroundedAnswer(query, chunks, intent, env) {
@@ -651,8 +687,9 @@ CRITICAL RULES:
 2. EVERY claim MUST have a citation: [CHUNK_N] where N is the chunk number.
 3. EVERY citation MUST include a VERBATIM quote using this format: "[exact quote from chunk]" [CHUNK_N]
 4. Quotes must be EXACT substrings from the chunk text - do not paraphrase or modify.
-5. If multiple companies discuss the topic, organize by company.
-6. Never make up information or infer beyond what's stated.
+5. ALL non-quote analysis sentences must end with a citation in brackets.
+6. If multiple companies discuss the topic, organize by company.
+7. Never make up information or infer beyond what's stated.
 
 OUTPUT FORMAT:
 ## Key Themes
@@ -707,7 +744,7 @@ Provide a comprehensive answer. IMPORTANT: Every quote must be an exact substrin
     }
 
     const data = await response.json();
-    const answer = data.content[0].text;
+    const answer = enforceAnalysisCitations(data.content[0].text);
 
     // Quote length constraints
     const MIN_QUOTE_LENGTH = 25;   // Minimum meaningful quote (avoid cherry-picked fragments)
@@ -926,6 +963,24 @@ export async function handleSecQuery(request, env) {
         return { success: false, error: 'Search failed: ' + error.message };
     }
 
+    // Filter by date window if filing_date is present
+    if (intent?.dateWindow?.start && intent?.dateWindow?.end) {
+        const start = intent.dateWindow.start;
+        const end = intent.dateWindow.end;
+        retrievedChunks = retrievedChunks.filter(c => !c.filingDate || (c.filingDate >= start && c.filingDate <= end));
+    }
+
+    // Enforce ticker/docType filters after retrieval (in case Vectorize filter is ignored)
+    if (intent?.tickers?.length && intent.tickers.length < SEC_ALL_TICKERS.length) {
+        const allowedTickers = new Set(intent.tickers);
+        retrievedChunks = retrievedChunks.filter(c => allowedTickers.has(c.ticker));
+    }
+
+    if (intent?.docTypes?.length) {
+        const allowedDocTypes = new Set(intent.docTypes);
+        retrievedChunks = retrievedChunks.filter(c => allowedDocTypes.has(c.docType));
+    }
+
     // Check if we have sufficient coverage
     if (retrievedChunks.length === 0) {
         return {
@@ -1066,99 +1121,15 @@ export async function handleSecQuery(request, env) {
 }
 
 export async function handleGenerateEmbeddings(request, env) {
-    // Generate embeddings for pending chunks using Workers AI
-    // This runs server-side where we have the AI binding
-    const body = await request.json();
-    const limit = Math.min(body.limit || 50, 100); // Max 100 per batch
-    const ticker = body.ticker; // Optional: filter by company
-
-    // Get pending chunks (no vector_id)
-    let query = `
-        SELECT
-            c.id, c.content, c.filing_id,
-            sf.filing_type, sf.fiscal_year,
-            sc.ticker, sc.company_name
-        FROM sec_filing_chunks c
-        JOIN sec_filings sf ON c.filing_id = sf.id
-        JOIN sec_companies sc ON sf.sec_company_id = sc.id
-        WHERE c.vector_id IS NULL
-    `;
-    const params = [];
-
-    if (ticker) {
-        query += ' AND sc.ticker = ?';
-        params.push(ticker);
-    }
-    query += ` ORDER BY sf.filing_date DESC LIMIT ${limit}`;
-
-    const chunks = await env.DB.prepare(query).bind(...params).all();
-
-    if (!chunks.results || chunks.results.length === 0) {
-        return { success: true, message: 'No pending chunks to embed', processed: 0 };
-    }
-
-    const results = { processed: 0, errors: 0, details: [] };
-
-    // Process in small batches to avoid timeouts
-    const batchSize = 5;
-    for (let i = 0; i < chunks.results.length; i += batchSize) {
-        const batch = chunks.results.slice(i, i + batchSize);
-
-        for (const chunk of batch) {
-            try {
-                // Generate embedding using Workers AI
-                const embeddingResponse = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-                    text: chunk.content
-                });
-
-                if (!embeddingResponse.data || !embeddingResponse.data[0]) {
-                    results.errors++;
-                    results.details.push({ id: chunk.id, error: 'No embedding returned' });
-                    continue;
-                }
-
-                const embedding = embeddingResponse.data[0];
-                const vectorId = `chunk-${chunk.id}`;
-
-                // Upsert to Vectorize
-                await env.SEC_VECTORS.upsert([{
-                    id: vectorId,
-                    values: embedding,
-                    metadata: {
-                        chunk_id: chunk.id,
-                        filing_id: chunk.filing_id,
-                        ticker: chunk.ticker,
-                        company_name: chunk.company_name,
-                        filing_type: chunk.filing_type,
-                        fiscal_year: chunk.fiscal_year
-                    }
-                }]);
-
-                // Update D1 with vector_id
-                await env.DB.prepare(
-                    'UPDATE sec_filing_chunks SET vector_id = ? WHERE id = ?'
-                ).bind(vectorId, chunk.id).run();
-
-                results.processed++;
-                results.details.push({ id: chunk.id, vectorId, ticker: chunk.ticker });
-
-            } catch (error) {
-                results.errors++;
-                results.details.push({ id: chunk.id, error: error.message });
-            }
-        }
-
-        // Small delay between batches to avoid rate limits
-        if (i + batchSize < chunks.results.length) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-    }
-
+    // Deprecated: legacy embedding pipeline uses different metadata/IDs.
+    // Keeping endpoint but returning a clear error to avoid index contamination.
     return {
-        success: true,
-        ...results,
-        remaining: await env.DB.prepare('SELECT COUNT(*) as count FROM sec_filing_chunks WHERE vector_id IS NULL').first().then(r => r?.count || 0)
+        success: false,
+        error: 'Deprecated endpoint. Use scripts/sec-rag/ingest.ts to generate embeddings.',
     };
+
+    void request;
+    void env;
 }
 
 export async function handleSecMdaDiff(path, url, env) {
