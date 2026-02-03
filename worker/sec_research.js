@@ -277,6 +277,7 @@ function parseSecQueryIntent(query, filters = {}) {
     const wantsComparison = /change|trend|compare|versus|vs\.?|year|quarter|prior|previous|over time|increase|decrease/i.test(queryLower);
     const wantsCallPriority = /earnings|call|transcript|said|management|guidance|q&a|question|prepared remarks/i.test(queryLower);
     const wantsQAPriority = /q&a|question|questions|analyst|operator/i.test(queryLower);
+    const wantsCurrent = /current|currently|right now|now|latest|recent|today|this quarter/i.test(queryLower);
 
     return {
         originalQuery: query,
@@ -285,7 +286,8 @@ function parseSecQueryIntent(query, filters = {}) {
         dateWindow: { start: startDate, end: endDate },
         wantsComparison,
         wantsCallPriority,
-        wantsQAPriority
+        wantsQAPriority,
+        wantsCurrent
     };
 }
 
@@ -819,6 +821,47 @@ function recencyBoost(dateStr) {
     return 0;
 }
 
+function applyTickerDiversity(chunks, maxPerTicker, targetCount) {
+    if (!Array.isArray(chunks) || chunks.length === 0) return chunks;
+    if (!maxPerTicker || maxPerTicker < 1) return chunks.slice(0, targetCount);
+
+    const byTicker = new Map();
+    const ordered = [];
+
+    for (const chunk of chunks) {
+        const ticker = chunk.ticker || 'UNKNOWN';
+        if (!byTicker.has(ticker)) byTicker.set(ticker, []);
+        byTicker.get(ticker).push(chunk);
+    }
+
+    // Round-robin pick up to maxPerTicker per ticker
+    let added = true;
+    while (ordered.length < targetCount && added) {
+        added = false;
+        for (const [ticker, list] of byTicker) {
+            const countForTicker = ordered.filter(c => (c.ticker || 'UNKNOWN') === ticker).length;
+            if (countForTicker >= maxPerTicker) continue;
+            const next = list.shift();
+            if (next) {
+                ordered.push(next);
+                added = true;
+                if (ordered.length >= targetCount) break;
+            }
+        }
+    }
+
+    // If still short, fill with remaining highest-ranked chunks
+    if (ordered.length < targetCount) {
+        const remaining = [];
+        for (const list of byTicker.values()) {
+            remaining.push(...list);
+        }
+        ordered.push(...remaining.slice(0, targetCount - ordered.length));
+    }
+
+    return ordered;
+}
+
 // Generate strictly grounded answer with Claude
 // Includes quote validation to prevent hallucinated citations
 async function generateGroundedAnswer(query, chunks, intent, env) {
@@ -1093,8 +1136,17 @@ export async function handleSecQuery(request, env) {
 
     // Filter by date window if filing_date is present
     if (intent?.dateWindow?.start && intent?.dateWindow?.end) {
-        const start = intent.dateWindow.start;
+        let start = intent.dateWindow.start;
         const end = intent.dateWindow.end;
+
+        // If the query is explicitly "current", tighten to last 180 days
+        if (intent?.wantsCurrent) {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 180);
+            const cutoffStr = cutoff.toISOString().slice(0, 10);
+            if (cutoffStr > start) start = cutoffStr;
+        }
+
         retrievedChunks = retrievedChunks.filter(c => !c.filingDate || (c.filingDate >= start && c.filingDate <= end));
     }
 
@@ -1119,6 +1171,17 @@ export async function handleSecQuery(request, env) {
     if (intent?.wantsCallPriority) {
         let callChunks = retrievedChunks.filter(c => c.docType === 'CALL');
         callChunks = callChunks.sort((a, b) => (b.filingDate || '').localeCompare(a.filingDate || ''));
+
+        // If asking for "current", prefer last 180 days of calls if available
+        if (intent?.wantsCurrent) {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 180);
+            const cutoffStr = cutoff.toISOString().slice(0, 10);
+            const recentCalls = callChunks.filter(c => (c.filingDate || '') >= cutoffStr);
+            if (recentCalls.length > 0) {
+                callChunks = recentCalls;
+            }
+        }
         const nonCallChunks = retrievedChunks.filter(c => c.docType !== 'CALL');
         // Keep calls first; only backfill with non-calls if we have too few
         const MIN_CALL_CHUNKS = 6;
@@ -1239,6 +1302,11 @@ export async function handleSecQuery(request, env) {
                 return { ...chunk, rerankScore: base + callBoost + timeBoost };
             })
             .sort((a, b) => (b.rerankScore ?? b.score ?? 0) - (a.rerankScore ?? a.score ?? 0));
+    }
+
+    // Enforce ticker diversity for multi-company questions
+    if (intent?.tickers?.length && intent.tickers.length > 1) {
+        rerankedChunks = applyTickerDiversity(rerankedChunks, 3, RAG_RERANK_TOP_K);
     }
 
     // Step 3: Generate grounded answer with Claude
