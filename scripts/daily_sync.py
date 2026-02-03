@@ -50,6 +50,7 @@ from lib.d1_utils import (
     update_brand_slugs,
     add_new_companies,
     get_company_id,
+    normalize_company_for_match,
 )
 
 # =============================================================================
@@ -160,6 +161,23 @@ def sync_to_d1(records: List[Dict], dry_run: bool = False) -> Dict:
 # CLASSIFICATION
 # =============================================================================
 
+def load_company_aliases_map() -> Dict[str, int]:
+    """Load company_aliases into memory as uppercase map."""
+    alias_map: Dict[str, int] = {}
+    result = d1_execute("SELECT raw_name, company_id FROM company_aliases")
+    if result.get("success") and result.get("result"):
+        rows = result["result"][0].get("results", [])
+        for row in rows:
+            raw = (row.get("raw_name") or "").strip()
+            cid = row.get("company_id")
+            if raw:
+                alias_map[raw.upper()] = cid
+                normalized = normalize_company_for_match(raw)
+                if normalized:
+                    alias_map[normalized] = cid
+    return alias_map
+
+
 def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
     """
     Classify records using normalized company IDs.
@@ -186,6 +204,15 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
         'refiles': 0
     }
 
+    # Load aliases once (case-insensitive lookup)
+    alias_map = load_company_aliases_map()
+
+    def normalize_company_key(company_name: str) -> str:
+        return normalize_company_for_match(company_name)
+
+    def get_company_id_cached(company_name: str) -> Optional[int]:
+        return alias_map.get(normalize_company_key(company_name))
+
     # Get all TTB IDs in this batch to exclude from D1 queries
     batch_ttb_ids = set(r.get('ttb_id') for r in records if r.get('ttb_id'))
 
@@ -204,34 +231,38 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
 
     for record in records:
         ttb_id = record.get('ttb_id')
-        company_name = record.get('company_name', '') or ''
-        brand_name = record.get('brand_name', '') or ''
-        fanciful_name = record.get('fanciful_name', '') or ''
+        company_name = (record.get('company_name', '') or '').strip()
+        brand_name = (record.get('brand_name', '') or '').strip()
+        fanciful_name = (record.get('fanciful_name', '') or '').strip()
 
         if not company_name or not brand_name:
             classifications.append((ttb_id, 'REFILE'))
             stats['refiles'] += 1
             continue
 
-        company_id = get_company_id(company_name)
+        company_id = get_company_id_cached(company_name)
 
         if company_id is None:
             # Company not in aliases table - track by company_name
-            if company_name not in seen_unknown_companies:
+            company_key_unknown = normalize_company_key(company_name)
+            brand_key_unknown = (company_key_unknown, brand_name.lower())
+            sku_key_unknown = (company_key_unknown, brand_name.lower(), fanciful_name.lower())
+
+            if company_key_unknown not in seen_unknown_companies:
                 classifications.append((ttb_id, 'NEW_COMPANY'))
                 stats['new_companies'] += 1
-                seen_unknown_companies.add(company_name)
-                seen_unknown_brands.add((company_name, brand_name))
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
-            elif (company_name, brand_name) not in seen_unknown_brands:
+                seen_unknown_companies.add(company_key_unknown)
+                seen_unknown_brands.add(brand_key_unknown)
+                seen_unknown_skus.add(sku_key_unknown)
+            elif brand_key_unknown not in seen_unknown_brands:
                 classifications.append((ttb_id, 'NEW_BRAND'))
                 stats['new_brands'] += 1
-                seen_unknown_brands.add((company_name, brand_name))
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
-            elif (company_name, brand_name, fanciful_name) not in seen_unknown_skus:
+                seen_unknown_brands.add(brand_key_unknown)
+                seen_unknown_skus.add(sku_key_unknown)
+            elif sku_key_unknown not in seen_unknown_skus:
                 classifications.append((ttb_id, 'NEW_SKU'))
                 stats['new_skus'] += 1
-                seen_unknown_skus.add((company_name, brand_name, fanciful_name))
+                seen_unknown_skus.add(sku_key_unknown)
             else:
                 classifications.append((ttb_id, 'REFILE'))
                 stats['refiles'] += 1
@@ -255,7 +286,7 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
                 # Actually we need to check if records exist outside our batch
                 # Query count excluding our batch
                 company_result2 = d1_execute(
-                    f"""SELECT COUNT(*) as cnt FROM colas c
+                    """SELECT COUNT(*) as cnt FROM colas c
                        JOIN company_aliases ca ON c.company_name = ca.raw_name
                        WHERE ca.company_id = ?""",
                     [company_id]
@@ -263,63 +294,72 @@ def classify_records(records: List[Dict], dry_run: bool = False) -> Dict:
                 if company_result2.get("success") and company_result2.get("result"):
                     total_cnt = company_result2["result"][0].get("results", [{}])[0].get("cnt", 0)
                     # Count how many are in our batch
-                    batch_cnt = sum(1 for r in records if get_company_id(r.get('company_name', '')) == company_id)
+                    batch_cnt = sum(
+                        1 for r in records
+                        if get_company_id_cached(r.get('company_name', '')) == company_id
+                    )
                     company_existed_before = (total_cnt - batch_cnt) > 0
 
         if not company_existed_before and company_id not in seen_companies:
             classifications.append((ttb_id, 'NEW_COMPANY'))
             stats['new_companies'] += 1
             seen_companies.add(company_id)
-            seen_brands.add((company_id, brand_name))
-            seen_skus.add((company_id, brand_name, fanciful_name))
+            seen_brands.add((company_id, brand_name.lower()))
+            seen_skus.add((company_id, brand_name.lower(), fanciful_name.lower()))
             continue
 
         seen_companies.add(company_id)
 
         # Check if brand existed BEFORE this batch
-        brand_key = (company_id, brand_name)
+        brand_key = (company_id, brand_name.lower())
         brand_existed_before = False
         if brand_key not in seen_brands:
             brand_result = d1_execute(
-                f"""SELECT COUNT(*) as cnt FROM colas c
+                """SELECT COUNT(*) as cnt FROM colas c
                    JOIN company_aliases ca ON c.company_name = ca.raw_name
-                   WHERE ca.company_id = ? AND c.brand_name = ?""",
+                   WHERE ca.company_id = ? AND UPPER(c.brand_name) = UPPER(?)""",
                 [company_id, brand_name]
             )
             if brand_result.get("success") and brand_result.get("result"):
                 total_cnt = brand_result["result"][0].get("results", [{}])[0].get("cnt", 0)
                 # Count how many are in our batch with this company+brand
-                batch_cnt = sum(1 for r in records
-                               if get_company_id(r.get('company_name', '')) == company_id
-                               and r.get('brand_name', '') == brand_name)
+                batch_cnt = sum(
+                    1 for r in records
+                    if get_company_id_cached(r.get('company_name', '')) == company_id
+                    and (r.get('brand_name', '') or '').strip().lower() == brand_name.lower()
+                )
                 brand_existed_before = (total_cnt - batch_cnt) > 0
 
         if not brand_existed_before and brand_key not in seen_brands:
             classifications.append((ttb_id, 'NEW_BRAND'))
             stats['new_brands'] += 1
             seen_brands.add(brand_key)
-            seen_skus.add((company_id, brand_name, fanciful_name))
+            seen_skus.add((company_id, brand_name.lower(), fanciful_name.lower()))
             continue
 
         seen_brands.add(brand_key)
 
         # Check if SKU existed BEFORE this batch
-        sku_key = (company_id, brand_name, fanciful_name)
+        sku_key = (company_id, brand_name.lower(), fanciful_name.lower())
         sku_existed_before = False
         if sku_key not in seen_skus:
             sku_result = d1_execute(
-                f"""SELECT COUNT(*) as cnt FROM colas c
+                """SELECT COUNT(*) as cnt FROM colas c
                    JOIN company_aliases ca ON c.company_name = ca.raw_name
-                   WHERE ca.company_id = ? AND c.brand_name = ? AND c.fanciful_name = ?""",
+                   WHERE ca.company_id = ?
+                   AND UPPER(c.brand_name) = UPPER(?)
+                   AND UPPER(COALESCE(c.fanciful_name, '')) = UPPER(?)""",
                 [company_id, brand_name, fanciful_name]
             )
             if sku_result.get("success") and sku_result.get("result"):
                 total_cnt = sku_result["result"][0].get("results", [{}])[0].get("cnt", 0)
                 # Count how many are in our batch with this exact combo
-                batch_cnt = sum(1 for r in records
-                               if get_company_id(r.get('company_name', '')) == company_id
-                               and r.get('brand_name', '') == brand_name
-                               and (r.get('fanciful_name', '') or '') == fanciful_name)
+                batch_cnt = sum(
+                    1 for r in records
+                    if get_company_id_cached(r.get('company_name', '')) == company_id
+                    and (r.get('brand_name', '') or '').strip().lower() == brand_name.lower()
+                    and (r.get('fanciful_name', '') or '').strip().lower() == fanciful_name.lower()
+                )
                 sku_existed_before = (total_cnt - batch_cnt) > 0
 
         if not sku_existed_before and sku_key not in seen_skus:

@@ -8,7 +8,14 @@ import os
 import sys
 import requests
 from datetime import datetime, timedelta
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Ensure scripts/ is on path for lib imports
+SCRIPT_DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.d1_utils import normalize_company_for_match
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +38,25 @@ def d1_execute(sql: str, params: list = None):
 
     response = requests.post(D1_API_URL, headers=headers, json=payload)
     return response.json()
+
+def load_company_aliases_map():
+    """Load company_aliases into memory as uppercase map."""
+    alias_map = {}
+    result = d1_execute("SELECT raw_name, company_id FROM company_aliases")
+    if result.get("success") and result.get("result"):
+        rows = result["result"][0].get("results", [])
+        for row in rows:
+            raw = (row.get("raw_name") or "").strip()
+            cid = row.get("company_id")
+            if raw:
+                alias_map[raw.upper()] = cid
+                normalized = normalize_company_for_match(raw)
+                if normalized:
+                    alias_map[normalized] = cid
+    return alias_map
+
+def normalize_company_key(company_name: str) -> str:
+    return normalize_company_for_match(company_name) or (company_name or '').strip().upper()
 
 def get_records_to_classify(months: int = 3):
     """Fetch records from last N months that need classification."""
@@ -57,41 +83,79 @@ def get_records_to_classify(months: int = 3):
         print(f"Error fetching records: {result}")
         return []
 
-def classify_record(record: dict) -> str:
+def classify_record(record: dict, alias_map: dict) -> str:
     """Determine classification for a single record."""
     ttb_id = record.get('ttb_id')
-    company_name = record.get('company_name', '') or ''
-    brand_name = record.get('brand_name', '') or ''
-    fanciful_name = record.get('fanciful_name', '') or ''
+    company_name = (record.get('company_name', '') or '').strip()
+    brand_name = (record.get('brand_name', '') or '').strip()
+    fanciful_name = (record.get('fanciful_name', '') or '').strip()
 
     if not company_name or not brand_name:
         return 'REFILE'
 
+    company_id = alias_map.get(normalize_company_key(company_name))
+
     # Check 1: Is this a new company?
-    company_result = d1_execute(
-        "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND ttb_id != ?",
-        [company_name, ttb_id]
-    )
+    if company_id is not None:
+        company_result = d1_execute(
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ? AND c.ttb_id != ?""",
+            [company_id, ttb_id]
+        )
+    else:
+        company_result = d1_execute(
+            "SELECT COUNT(*) as cnt FROM colas WHERE UPPER(company_name) = UPPER(?) AND ttb_id != ?",
+            [company_name, ttb_id]
+        )
     if company_result.get("success") and company_result.get("result"):
         cnt = company_result["result"][0].get("results", [{}])[0].get("cnt", 0)
         if cnt == 0:
             return 'NEW_COMPANY'
 
     # Check 2: Has this company+brand filed before?
-    brand_result = d1_execute(
-        "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND ttb_id != ?",
-        [company_name, brand_name, ttb_id]
-    )
+    if company_id is not None:
+        brand_result = d1_execute(
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ?
+               AND UPPER(c.brand_name) = UPPER(?)
+               AND c.ttb_id != ?""",
+            [company_id, brand_name, ttb_id]
+        )
+    else:
+        brand_result = d1_execute(
+            """SELECT COUNT(*) as cnt FROM colas
+               WHERE UPPER(company_name) = UPPER(?)
+               AND UPPER(brand_name) = UPPER(?)
+               AND ttb_id != ?""",
+            [company_name, brand_name, ttb_id]
+        )
     if brand_result.get("success") and brand_result.get("result"):
         cnt = brand_result["result"][0].get("results", [{}])[0].get("cnt", 0)
         if cnt == 0:
             return 'NEW_BRAND'
 
     # Check 3: Has this company+brand+fanciful filed before?
-    sku_result = d1_execute(
-        "SELECT COUNT(*) as cnt FROM colas WHERE company_name = ? AND brand_name = ? AND fanciful_name = ? AND ttb_id != ?",
-        [company_name, brand_name, fanciful_name, ttb_id]
-    )
+    if company_id is not None:
+        sku_result = d1_execute(
+            """SELECT COUNT(*) as cnt FROM colas c
+               JOIN company_aliases ca ON c.company_name = ca.raw_name
+               WHERE ca.company_id = ?
+               AND UPPER(c.brand_name) = UPPER(?)
+               AND UPPER(COALESCE(c.fanciful_name, '')) = UPPER(?)
+               AND c.ttb_id != ?""",
+            [company_id, brand_name, fanciful_name, ttb_id]
+        )
+    else:
+        sku_result = d1_execute(
+            """SELECT COUNT(*) as cnt FROM colas
+               WHERE UPPER(company_name) = UPPER(?)
+               AND UPPER(brand_name) = UPPER(?)
+               AND UPPER(COALESCE(fanciful_name, '')) = UPPER(?)
+               AND ttb_id != ?""",
+            [company_name, brand_name, fanciful_name, ttb_id]
+        )
     if sku_result.get("success") and sku_result.get("result"):
         cnt = sku_result["result"][0].get("results", [{}])[0].get("cnt", 0)
         if cnt == 0:
@@ -124,11 +188,13 @@ def backfill_signals(months: int = 3, dry_run: bool = False):
         'errors': 0
     }
 
+    alias_map = load_company_aliases_map()
+
     for i, record in enumerate(records):
         ttb_id = record.get('ttb_id')
 
         try:
-            signal = classify_record(record)
+            signal = classify_record(record, alias_map)
 
             if signal == 'NEW_COMPANY':
                 stats['new_companies'] += 1

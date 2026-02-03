@@ -36,6 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Set, List, Any, Tuple, Union
 from collections import defaultdict
+from lib.d1_utils import normalize_company_for_match
 
 # Setup paths
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -168,6 +169,9 @@ def load_company_aliases_map() -> Dict[str, int]:
             cid = row.get("company_id")
             if raw and cid:
                 alias_map[raw.upper()] = cid
+                normalized = normalize_company_for_match(raw)
+                if normalized:
+                    alias_map[normalized] = cid
 
         offset += batch_size
         if len(rows) < batch_size:

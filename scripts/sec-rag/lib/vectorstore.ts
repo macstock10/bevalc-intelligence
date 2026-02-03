@@ -228,14 +228,20 @@ chunk_id: ${chunk.id}
 ticker: ${m.ticker}
 company: ${m.company}
 doc_type: ${m.docType}
+original_form: ${m.originalForm || 'N/A'}
+is_amendment: ${m.isAmendment ? 'true' : 'false'}
 filing_date: ${m.filingDate}
 period_end: ${m.periodEnd}
 fiscal_year: ${m.fiscalYear}
 fiscal_quarter: ${m.fiscalQuarter ? `Q${m.fiscalQuarter}` : 'N/A'}
 section: ${m.section}
+section_title: ${m.sectionTitle || 'N/A'}
+section_confidence: ${m.sectionConfidence ?? 'N/A'}
 accession_number: ${m.accessionNumber}
 source_url: ${m.sourceUrl}
 chunk_index: ${m.chunkIndex}
+chunk_start_char: ${m.chunkStartChar ?? 'N/A'}
+chunk_end_char: ${m.chunkEndChar ?? 'N/A'}
 token_count: ${chunk.tokenCount}
 [/METADATA]
 

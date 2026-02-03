@@ -366,6 +366,69 @@ def normalize_company_name(company_name: str) -> str:
     return name
 
 
+def normalize_company_for_match(company_name: str) -> str:
+    """
+    Normalize company name for matching variants.
+
+    - Uppercase
+    - Replace & with AND
+    - Remove punctuation
+    - Collapse whitespace
+    - Strip common legal suffixes
+    """
+    if not company_name:
+        return ''
+
+    def strip_suffixes(value: str) -> str:
+        # Iteratively strip common legal suffixes from the end
+        suffix_pattern = re.compile(
+            r'\b('
+            r'LLC|L\s+L\s+C|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|'
+            r'LTD|LIMITED|LP|L\s+P|LLP|L\s+L\s+P|LLLP|L\s+L\s+L\s+P|'
+            r'PLC|P\s+L\s+C|PC|P\s+C'
+            r')\b$'
+        )
+        while True:
+            stripped = re.sub(suffix_pattern, '', value).strip()
+            stripped = re.sub(r'\s+', ' ', stripped).strip()
+            if stripped == value:
+                break
+            value = stripped
+        return value
+
+    name = company_name.upper().strip().replace('&', ' AND ')
+
+    # Handle comma-separated duplicates like "Name, Name LLC"
+    if ',' in name:
+        parts = [p.strip() for p in name.split(',') if p.strip()]
+        norm_parts = []
+        for p in parts:
+            p = re.sub(r'[^A-Z0-9 ]+', ' ', p)
+            p = re.sub(r'\s+', ' ', p).strip()
+            p = strip_suffixes(p)
+            if p:
+                norm_parts.append(p)
+        if norm_parts:
+            if len(set(norm_parts)) == 1:
+                return norm_parts[0]
+            # Fall back to first part as primary
+            return norm_parts[0]
+
+    # General normalization
+    name = re.sub(r'[^A-Z0-9 ]+', ' ', name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    name = strip_suffixes(name)
+
+    # Collapse exact duplicated halves: "A B A B" -> "A B"
+    tokens = name.split(' ')
+    if len(tokens) % 2 == 0 and len(tokens) > 0:
+        half = len(tokens) // 2
+        if tokens[:half] == tokens[half:]:
+            name = ' '.join(tokens[:half])
+
+    return name
+
+
 def get_company_name_variants(company_name: str) -> List[str]:
     """
     Get all variants of a company name to check against existing aliases.
@@ -386,6 +449,42 @@ def get_company_name_variants(company_name: str) -> List[str]:
         for part in parts:
             if part and part not in variants:
                 variants.append(part)
+
+    # Add normalized variants for matching (uppercased)
+    normalized = normalize_company_for_match(company_name)
+    if normalized and normalized not in variants:
+        variants.append(normalized)
+
+    # Add normalized variants for each part
+    for part in list(variants):
+        norm_part = normalize_company_for_match(part)
+        if norm_part and norm_part not in variants:
+            variants.append(norm_part)
+
+    return variants
+
+
+def build_company_alias_variants(company_name: str, max_variants: int = 12) -> List[str]:
+    """
+    Build a bounded list of alias variants for a company name.
+    Used when inserting aliases to reduce false NEW_COMPANY signals.
+    """
+    if not company_name:
+        return []
+
+    variants = []
+    seen = set()
+
+    for v in get_company_name_variants(company_name):
+        v = (v or '').strip()
+        if not v:
+            continue
+        key = v.upper()
+        if key not in seen:
+            seen.add(key)
+            variants.append(v)
+        if len(variants) >= max_variants:
+            break
 
     return variants
 
@@ -434,7 +533,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     all_variants = set()
     company_to_variants = {}  # company_name -> [variants]
     for company_name in company_names:
-        variants = get_company_name_variants(company_name)
+        variants = build_company_alias_variants(company_name)
         company_to_variants[company_name] = variants
         for v in variants:
             all_variants.add(v.upper())
@@ -576,6 +675,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
         # Build companies insert values
         company_values = []
         alias_values = []
+        alias_seen = set()
         seen_normalized = set()  # Track normalized names we're adding in this batch
 
         for company_name in batch:
@@ -587,9 +687,14 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             # This catches TTB's comma-separated name formats like "Name, Name LLC"
             if company_name in variant_matched:
                 existing_id = variant_matched[company_name]
-                alias_values.append(
-                    f"({escape_sql_value(company_name)}, {existing_id})"
-                )
+                for alias in build_company_alias_variants(company_name):
+                    key = alias.upper()
+                    if key in alias_seen:
+                        continue
+                    alias_seen.add(key)
+                    alias_values.append(
+                        f"({escape_sql_value(alias)}, {existing_id})"
+                    )
                 continue
 
             # PRIORITY 1: Check if this company was matched via brand analysis
@@ -597,18 +702,28 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             if company_name in brand_matched_companies:
                 # Link alias to existing company (detected via shared brand)
                 existing_id = brand_matched_companies[company_name]
-                alias_values.append(
-                    f"({escape_sql_value(company_name)}, {existing_id})"
-                )
+                for alias in build_company_alias_variants(company_name):
+                    key = alias.upper()
+                    if key in alias_seen:
+                        continue
+                    alias_seen.add(key)
+                    alias_values.append(
+                        f"({escape_sql_value(alias)}, {existing_id})"
+                    )
                 continue
 
             # PRIORITY 2: Check if normalized company already exists (either in DB or in this batch)
             if normalized_upper in existing_normalized:
                 # Link alias to existing company
                 existing_id = existing_normalized[normalized_upper]
-                alias_values.append(
-                    f"({escape_sql_value(company_name)}, {existing_id})"
-                )
+                for alias in build_company_alias_variants(company_name):
+                    key = alias.upper()
+                    if key in alias_seen:
+                        continue
+                    alias_seen.add(key)
+                    alias_values.append(
+                        f"({escape_sql_value(alias)}, {existing_id})"
+                    )
             elif normalized_upper in seen_normalized:
                 # Already adding this normalized company in this batch, just add alias
                 # We need to find the ID we assigned
@@ -626,10 +741,15 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     f"{escape_sql_value(slug)}, {escape_sql_value(normalized_upper)}, 1, 1, NULL, NULL)"
                 )
 
-                # Insert alias for raw name -> new company
-                alias_values.append(
-                    f"({escape_sql_value(company_name)}, {company_id})"
-                )
+                # Insert alias variants for raw name -> new company
+                for alias in build_company_alias_variants(company_name):
+                    key = alias.upper()
+                    if key in alias_seen:
+                        continue
+                    alias_seen.add(key)
+                    alias_values.append(
+                        f"({escape_sql_value(alias)}, {company_id})"
+                    )
 
                 # Track for subsequent raw names that normalize to the same thing
                 existing_normalized[normalized_upper] = company_id

@@ -243,10 +243,13 @@ function parseSecQueryIntent(query, filters = {}) {
         }
     }
 
+    const hasExplicitTickers = Array.isArray(filters.tickers) && filters.tickers.length > 0;
+    const hasDetectedTickers = detectedTickers.length > 0;
+
     // Use explicit filters, detected tickers, or default to all
-    const tickers = filters.tickers?.length > 0
+    const tickers = hasExplicitTickers
         ? filters.tickers
-        : detectedTickers.length > 0
+        : hasDetectedTickers
             ? detectedTickers
             : SEC_ALL_TICKERS;
 
@@ -287,7 +290,9 @@ function parseSecQueryIntent(query, filters = {}) {
         wantsComparison,
         wantsCallPriority,
         wantsQAPriority,
-        wantsCurrent
+        wantsCurrent,
+        hasExplicitTickers,
+        hasDetectedTickers
     };
 }
 
@@ -322,8 +327,6 @@ async function searchVectorize(query, intent, env, options = {}) {
     const vectorizeStart = Date.now();
 
     // Build metadata filter (simple equality when a single value is specified)
-    // NOTE: Vectorize filtering disabled - metadata keys may not match index schema
-    // Post-retrieval filtering in handleSecQuery handles ticker/docType filtering
     const filter = {};
     if (intent.tickers && intent.tickers.length === 1) {
         filter.ticker = intent.tickers[0];
@@ -337,11 +340,10 @@ async function searchVectorize(query, intent, env, options = {}) {
         returnMetadata: options.returnMetadata || 'all'
     };
 
-    // Vectorize filter disabled - rely on post-retrieval filtering
-    // if (Object.keys(filter).length > 0) {
-    //     queryOptions.filter = filter;
-    // }
-    console.log('Vectorize filter (disabled):', JSON.stringify(filter));
+    if (Object.keys(filter).length > 0) {
+        queryOptions.filter = filter;
+    }
+    console.log('Vectorize filter:', JSON.stringify(filter));
 
     // Increase topK when CALL is requested (transcripts are sparse, need bigger net)
     // Vectorize limit: max 50 with returnMetadata='all', max 100 with returnMetadata='indexed'
@@ -349,7 +351,29 @@ async function searchVectorize(query, intent, env, options = {}) {
         queryOptions.topK = Math.min(intent?.docTypes?.includes('CALL') ? 50 : RAG_RETRIEVE_TOP_K, 50);
     }
 
-    const results = await env.SEC_VECTORS.query(queryVector, queryOptions);
+    let results;
+    try {
+        results = await env.SEC_VECTORS.query(queryVector, queryOptions);
+    } catch (error) {
+        if (queryOptions.filter) {
+            console.warn('Vectorize filter failed, retrying without filter:', error?.message || error);
+            const retryOptions = { ...queryOptions };
+            delete retryOptions.filter;
+            results = await env.SEC_VECTORS.query(queryVector, retryOptions);
+        } else {
+            throw error;
+        }
+    }
+
+    // If filter yields zero matches, retry once without it
+    if (queryOptions.filter && results?.matches?.length === 0) {
+        const retryOptions = { ...queryOptions };
+        delete retryOptions.filter;
+        const retryResults = await env.SEC_VECTORS.query(queryVector, retryOptions);
+        if (retryResults?.matches?.length > 0) {
+            results = retryResults;
+        }
+    }
 
     // Debug: log first result's metadata keys and content length
     if (results.matches.length > 0) {
@@ -364,10 +388,21 @@ async function searchVectorize(query, intent, env, options = {}) {
     const chunks = results.matches.map(match => ({
         id: match.id,
         ticker: match.metadata?.ticker || 'UNKNOWN',
+        company: match.metadata?.company || '',
         docType: match.metadata?.docType || 'UNKNOWN',
+        originalForm: match.metadata?.originalForm || '',
+        isAmendment: match.metadata?.isAmendment === true || match.metadata?.isAmendment === 'true',
         filingDate: match.metadata?.filingDate || '',
+        periodEnd: match.metadata?.periodEnd || '',
+        fiscalYear: match.metadata?.fiscalYear ? Number(match.metadata.fiscalYear) : undefined,
+        fiscalQuarter: match.metadata?.fiscalQuarter ? Number(match.metadata.fiscalQuarter) : undefined,
         section: match.metadata?.section || 'Unknown',
+        sectionTitle: match.metadata?.sectionTitle || '',
+        sectionConfidence: match.metadata?.sectionConfidence ? Number(match.metadata.sectionConfidence) : undefined,
         sourceUrl: match.metadata?.sourceUrl || '',
+        accessionNumber: match.metadata?.accessionNumber || '',
+        chunkStartChar: match.metadata?.chunkStartChar ? Number(match.metadata.chunkStartChar) : undefined,
+        chunkEndChar: match.metadata?.chunkEndChar ? Number(match.metadata.chunkEndChar) : undefined,
         content: match.metadata?.content || '',
         score: match.score,
         hasFullContent: false
@@ -810,15 +845,85 @@ function parseISODate(value) {
     return Number.isNaN(d.getTime()) ? null : d;
 }
 
+const SEC_KEYWORD_STOPWORDS = new Set([
+    'about', 'after', 'again', 'also', 'among', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'before', 'being',
+    'but', 'by', 'can', 'could', 'did', 'do', 'does', 'for', 'from', 'had', 'has', 'have', 'he', 'her', 'here', 'hers',
+    'him', 'his', 'how', 'if', 'in', 'into', 'is', 'it', 'its', 'just', 'like', 'may', 'more', 'most', 'not', 'of',
+    'on', 'or', 'our', 'over', 'said', 'she', 'should', 'since', 'so', 'than', 'that', 'the', 'their', 'them', 'then',
+    'there', 'these', 'they', 'this', 'those', 'to', 'under', 'was', 'we', 'were', 'what', 'when', 'which', 'who',
+    'will', 'with', 'you', 'your'
+]);
+
+function extractKeywords(query) {
+    if (!query) return [];
+    return query
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .map(w => w.trim())
+        .filter(w => w.length >= 4 && !SEC_KEYWORD_STOPWORDS.has(w));
+}
+
+function keywordOverlapScore(query, text) {
+    const keywords = extractKeywords(query);
+    if (keywords.length === 0 || !text) return 0;
+    const haystack = text.toLowerCase();
+    let hits = 0;
+    for (const k of keywords) {
+        if (haystack.includes(k)) hits += 1;
+    }
+    return hits / keywords.length;
+}
+
 function recencyBoost(dateStr) {
     const d = parseISODate(dateStr);
     if (!d) return 0;
     const now = new Date();
     const days = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (days <= 90) return 0.45;
-    if (days <= 180) return 0.3;
-    if (days <= 365) return 0.15;
-    return 0;
+    if (days <= 90) return 0.6;
+    if (days <= 180) return 0.45;
+    if (days <= 365) return 0.25;
+    if (days <= 730) return 0.1;
+    return 0.02;
+}
+
+function buildCoverageSummary(chunks, retrievedCount, intent) {
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+        return 'No chunks available for coverage summary.';
+    }
+
+    const tickers = [...new Set(chunks.map(c => c.ticker).filter(Boolean))];
+    const docTypes = [...new Set(chunks.map(c => c.docType).filter(Boolean))];
+    const dates = chunks.map(c => c.filingDate).filter(Boolean).sort();
+    const startDate = dates[0] || 'unknown';
+    const endDate = dates[dates.length - 1] || 'unknown';
+    const amendmentCount = chunks.filter(c => c.isAmendment).length;
+    const exhibitCount = chunks.filter(c => String(c.section).toLowerCase() === 'exhibit').length;
+
+    const lines = [
+        `- Chunks used: ${chunks.length} (retrieved: ${retrievedCount})`,
+        `- Tickers covered: ${tickers.length > 0 ? tickers.join(', ') : 'unknown'}`,
+        `- Doc types covered: ${docTypes.length > 0 ? docTypes.join(', ') : 'unknown'}`,
+        `- Filing dates in evidence: ${startDate} to ${endDate}`,
+    ];
+
+    if (amendmentCount > 0) {
+        lines.push(`- Amendments included: ${amendmentCount}`);
+    }
+    if (exhibitCount > 0) {
+        lines.push(`- Exhibit 99.1 sections included: ${exhibitCount}`);
+    }
+
+    if (intent?.wantsCurrent && startDate !== 'unknown') {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 180);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        if (endDate < cutoffStr) {
+            lines.push(`- Note: No evidence within the last 180 days.`);
+        }
+    }
+
+    return lines.join('\n');
 }
 
 function applyTickerDiversity(chunks, maxPerTicker, targetCount) {
@@ -870,8 +975,9 @@ async function generateGroundedAnswer(query, chunks, intent, env) {
     // Build context with chunk IDs for citation tracking
     const context = chunks.map((chunk, i) => {
         const company = SEC_COMPANY_PATTERNS.find(c => c.ticker === chunk.ticker);
+        const companyName = chunk.company || company?.name || chunk.ticker;
         return `[CHUNK_${i}]
-Company: ${company?.name || chunk.ticker} (${chunk.ticker})
+Company: ${companyName} (${chunk.ticker})
 Document: ${chunk.docType} | Filed: ${chunk.filingDate} | Section: ${chunk.section}
 URL: ${chunk.sourceUrl}
 
@@ -1289,6 +1395,22 @@ export async function handleSecQuery(request, env) {
         rerankedChunks = retrievedChunks.slice(0, RAG_RERANK_TOP_K);
         rerankLatency = 0;
     }
+
+    // Apply lightweight relevance boosts based on metadata and keyword overlap
+    rerankedChunks = rerankedChunks
+        .map(chunk => {
+            const base = chunk.rerankScore ?? chunk.score ?? 0;
+            const overlap = keywordOverlapScore(query, chunk.content);
+            const overlapBoost = Math.min(overlap * 0.2, 0.2);
+            const timeBoost = recencyBoost(chunk.filingDate);
+            const confidencePenalty = chunk.sectionConfidence !== undefined && chunk.sectionConfidence < 0.5 ? -0.05 : 0;
+            const amendmentPenalty = chunk.isAmendment ? -0.05 : 0;
+            return {
+                ...chunk,
+                rerankScore: base + overlapBoost + timeBoost + confidencePenalty + amendmentPenalty
+            };
+        })
+        .sort((a, b) => (b.rerankScore ?? b.score ?? 0) - (a.rerankScore ?? a.score ?? 0));
  
     // Prefer CALL transcripts when the query implies "what management said"
     if (intent?.wantsCallPriority) {
@@ -1297,16 +1419,17 @@ export async function handleSecQuery(request, env) {
                 const base = chunk.rerankScore ?? chunk.score ?? 0;
                 const isCall = chunk.docType === 'CALL';
                 const isQa = String(chunk.section).toLowerCase().includes('q&a');
-                const callBoost = isCall ? (isQa && intent?.wantsQAPriority ? 0.5 : 0.35) : 0;
-                const timeBoost = recencyBoost(chunk.filingDate);
-                return { ...chunk, rerankScore: base + callBoost + timeBoost };
+                const callBoost = isCall ? (isQa && intent?.wantsQAPriority ? 0.7 : 0.5) : 0;
+                return { ...chunk, rerankScore: base + callBoost };
             })
             .sort((a, b) => (b.rerankScore ?? b.score ?? 0) - (a.rerankScore ?? a.score ?? 0));
     }
 
     // Enforce ticker diversity for multi-company questions
     if (intent?.tickers?.length && intent.tickers.length > 1) {
-        rerankedChunks = applyTickerDiversity(rerankedChunks, 3, RAG_RERANK_TOP_K);
+        const prefersBroadCoverage = !intent.hasExplicitTickers && !intent.hasDetectedTickers;
+        const maxPerTicker = prefersBroadCoverage ? 2 : 3;
+        rerankedChunks = applyTickerDiversity(rerankedChunks, maxPerTicker, RAG_RERANK_TOP_K);
     }
 
     // Step 3: Generate grounded answer with Claude
@@ -1322,6 +1445,9 @@ export async function handleSecQuery(request, env) {
         return { success: false, error: 'Failed to generate answer: ' + error.message };
     }
 
+    const coverageSummary = buildCoverageSummary(rerankedChunks, retrievedChunks.length, intent);
+    const answerWithCoverage = `${answer}\n\nCoverage:\n${coverageSummary}`;
+
     // Deduct credit
     await env.DB.prepare(
         'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
@@ -1329,7 +1455,7 @@ export async function handleSecQuery(request, env) {
 
     // Build response
     const response = {
-        answer_markdown: answer,
+        answer_markdown: answerWithCoverage,
         citations,
         retrieval_debug: {
             query,

@@ -48,33 +48,35 @@ function chunkSection(
 
   const chunks: DocumentChunk[] = [];
   const text = section.content;
-  const sentences = splitIntoSentences(text);
+  const sentences = splitIntoSentencesWithOffsets(text);
 
-  let currentChunk: string[] = [];
+  let currentChunk: SentenceWithOffset[] = [];
   let currentTokens = 0;
   let chunkIndex = startIndex;
 
   for (let i = 0; i < sentences.length; i++) {
     const sentence = sentences[i];
-    const sentenceTokens = countTokens(sentence);
+    const sentenceTokens = countTokens(sentence.text);
 
     // If adding this sentence would exceed max, save current chunk
     if (currentTokens + sentenceTokens > chunkMaxTokens && currentTokens >= chunkMinTokens) {
       // Save chunk
-      const chunkText = currentChunk.join(' ');
-      chunks.push(createChunk(chunkText, doc, section, chunkIndex));
+      const chunkText = currentChunk.map(s => s.text).join(' ');
+      const chunkStart = currentChunk[0]?.start ?? null;
+      const chunkEnd = currentChunk[currentChunk.length - 1]?.end ?? null;
+      chunks.push(createChunk(chunkText, doc, section, chunkIndex, chunkStart, chunkEnd));
       chunkIndex++;
 
       // Calculate overlap - keep last N tokens worth of sentences
-      let overlapText = '';
+      const overlapSentences: SentenceWithOffset[] = [];
       let overlapCount = 0;
       for (let j = currentChunk.length - 1; j >= 0 && overlapCount < overlapTokens; j--) {
-        overlapText = currentChunk[j] + ' ' + overlapText;
-        overlapCount += countTokens(currentChunk[j]);
+        overlapSentences.unshift(currentChunk[j]);
+        overlapCount += countTokens(currentChunk[j].text);
       }
 
       // Start new chunk with overlap
-      currentChunk = overlapText.trim() ? [overlapText.trim()] : [];
+      currentChunk = overlapSentences;
       currentTokens = overlapCount;
     }
 
@@ -85,8 +87,10 @@ function chunkSection(
 
   // Save final chunk if it meets minimum
   if (currentTokens >= chunkMinTokens / 2) {  // Allow smaller final chunk
-    const chunkText = currentChunk.join(' ');
-    chunks.push(createChunk(chunkText, doc, section, chunkIndex));
+    const chunkText = currentChunk.map(s => s.text).join(' ');
+    const chunkStart = currentChunk[0]?.start ?? null;
+    const chunkEnd = currentChunk[currentChunk.length - 1]?.end ?? null;
+    chunks.push(createChunk(chunkText, doc, section, chunkIndex, chunkStart, chunkEnd));
   }
 
   return chunks;
@@ -99,7 +103,9 @@ function createChunk(
   content: string,
   doc: ParsedDocument,
   section: ParsedSection,
-  chunkIndex: number
+  chunkIndex: number,
+  chunkStart: number | null,
+  chunkEnd: number | null
 ): DocumentChunk {
   const id = `${doc.ticker}-${doc.docType}-${doc.filingDate}-${section.type}-${chunkIndex}`
     .toLowerCase()
@@ -109,14 +115,20 @@ function createChunk(
     ticker: doc.ticker,
     company: doc.company,
     docType: doc.docType,
+    originalForm: doc.originalForm,
+    isAmendment: doc.isAmendment,
     filingDate: doc.filingDate,
     periodEnd: doc.periodEnd,
     fiscalYear: doc.fiscalYear,
     fiscalQuarter: doc.fiscalQuarter,
     section: section.type,
-    sourceUrl: doc.sourceUrl,
+    sectionTitle: section.title,
+    sectionConfidence: section.confidence,
+    sourceUrl: section.sourceUrl || doc.sourceUrl,
     accessionNumber: doc.accessionNumber,
     chunkIndex,
+    chunkStartChar: chunkStart !== null ? section.startIndex + chunkStart : undefined,
+    chunkEndChar: chunkEnd !== null ? section.startIndex + chunkEnd : undefined,
   };
 
   return {
@@ -157,6 +169,51 @@ function splitIntoSentences(text: string): string[] {
       .trim()
     )
     .filter(s => s.length > 0);
+}
+
+type SentenceWithOffset = { text: string; start: number; end: number };
+
+/**
+ * Split text into sentences with start/end offsets in the original text
+ */
+function splitIntoSentencesWithOffsets(text: string): SentenceWithOffset[] {
+  // Handle common abbreviations that shouldn't split
+  const preserved = text
+    .replace(/Mr\./g, 'Mr\u0000')
+    .replace(/Mrs\./g, 'Mrs\u0000')
+    .replace(/Ms\./g, 'Ms\u0000')
+    .replace(/Dr\./g, 'Dr\u0000')
+    .replace(/Inc\./g, 'Inc\u0000')
+    .replace(/Corp\./g, 'Corp\u0000')
+    .replace(/Ltd\./g, 'Ltd\u0000')
+    .replace(/Co\./g, 'Co\u0000')
+    .replace(/vs\./g, 'vs\u0000')
+    .replace(/etc\./g, 'etc\u0000')
+    .replace(/U\.S\./g, 'U\u0000S\u0000')
+    .replace(/(\d)\.(\d)/g, '$1\u0001$2');  // Preserve decimals
+
+  const parts = preserved.split(/(?<=[.!?])\s+/);
+  const sentences: SentenceWithOffset[] = [];
+  let cursor = 0;
+
+  for (const part of parts) {
+    if (!part) continue;
+    const index = preserved.indexOf(part, cursor);
+    const start = index >= 0 ? index : cursor;
+    const end = start + part.length;
+    cursor = end;
+
+    const restored = part
+      .replace(/\u0000/g, '.')
+      .replace(/\u0001/g, '.')
+      .trim();
+
+    if (restored.length > 0) {
+      sentences.push({ text: restored, start, end });
+    }
+  }
+
+  return sentences;
 }
 
 /**

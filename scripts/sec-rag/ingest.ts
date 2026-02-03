@@ -32,12 +32,16 @@ import {
   getCompanyFilings,
   filterFilingsByDate,
   downloadFiling,
+  downloadFilingByUrl,
+  getFilingIndex,
+  getFilingDocumentUrl,
   type EdgarFiling,
 } from './lib/edgar.js';
 import {
   parseFilingHtml,
   parse8K,
   parse6K,
+  parseExhibitHtml,
 } from './lib/parser.js';
 import {
   chunkDocument,
@@ -52,6 +56,7 @@ import {
 } from './lib/vectorstore.js';
 import { uploadChunksToVectorize } from './lib/vectorize.js';
 import type { DocumentChunk, DocType } from './lib/types.js';
+import { ingestXbrlFactsForFilings } from './lib/xbrl.js';
 
 // Parse CLI arguments
 const { values: args } = parseArgs({
@@ -63,6 +68,7 @@ const { values: args } = parseArgs({
     year: { type: 'string' },
     clear: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'skip-xbrl': { type: 'boolean', default: false },
   },
 });
 
@@ -142,7 +148,7 @@ async function processCompany(
   company: CompanyConfig,
   vectorStoreId: string,
   stats: typeof stats,
-  args: { backfill?: boolean; incremental?: boolean; 'dry-run'?: boolean; year?: string }
+  args: { backfill?: boolean; incremental?: boolean; 'dry-run'?: boolean; year?: string; 'skip-xbrl'?: boolean }
 ) {
   // Fetch filing list from EDGAR
   console.log(`Fetching filings from EDGAR...`);
@@ -187,6 +193,20 @@ async function processCompany(
     return;
   }
 
+  if (!args['dry-run'] && !args['skip-xbrl']) {
+    try {
+      console.log('Fetching XBRL company facts...');
+      const xbrlResult = await ingestXbrlFactsForFilings(
+        company.cik,
+        company.ticker,
+        filings.map(f => ({ accessionNumber: f.accessionNumber, form: f.form }))
+      );
+      console.log(`XBRL facts: ${xbrlResult.storedFacts} stored (scanned ${xbrlResult.totalFacts})`);
+    } catch (error) {
+      console.error('XBRL ingestion failed (non-fatal):', error);
+    }
+  }
+
   // Process each filing
   const allChunks: DocumentChunk[] = [];
 
@@ -202,6 +222,27 @@ async function processCompany(
       let parsed;
       if (filing.form === '8-K') {
         parsed = parse8K(html, filing, company.ticker, company.name);
+
+        // Attempt to pull Exhibit 99.1 from filing index (press release / earnings release)
+        try {
+          const index = await getFilingIndex(company.cik, filing.accessionNumber);
+          const exhibitFile = findExhibit99File(index?.directory?.item || []);
+          if (exhibitFile) {
+            const exhibitUrl = getFilingDocumentUrl(company.cik, filing.accessionNumber, exhibitFile.name);
+            const exhibitHtml = await downloadFilingByUrl(exhibitUrl);
+            const exhibitSection = parseExhibitHtml(
+              exhibitHtml,
+              `Exhibit 99.1 (${exhibitFile.name})`,
+              exhibitUrl
+            );
+            if (exhibitSection) {
+              parsed.sections.push(exhibitSection);
+              console.log(`  Added Exhibit 99.1 section from ${exhibitFile.name}`);
+            }
+          }
+        } catch (e) {
+          console.warn('  Exhibit 99.1 fetch failed (non-fatal):', e?.message || e);
+        }
       } else if (filing.form === '6-K') {
         parsed = parse6K(html, filing, company.ticker, company.name);
       } else {
@@ -279,3 +320,26 @@ main().catch(error => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
+
+function findExhibit99File(items: Array<{ name: string; type: string; size: number }>): { name: string } | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const candidates = items.filter(item => {
+    const name = item.name.toLowerCase();
+    if (!name.endsWith('.htm') && !name.endsWith('.html') && !name.endsWith('.txt')) {
+      return false;
+    }
+    return (
+      /ex-?99\.?0?1/.test(name) ||
+      /ex99\.?0?1/.test(name) ||
+      /exhibit-?99\.?0?1/.test(name) ||
+      /(^|[^0-9])99\.?0?1/.test(name)
+    );
+  });
+
+  if (candidates.length === 0) return null;
+
+  // Prefer explicit exhibit naming over generic 99.1
+  const preferred = candidates.find(c => c.name.toLowerCase().includes('ex-99')) || candidates[0];
+  return { name: preferred.name };
+}

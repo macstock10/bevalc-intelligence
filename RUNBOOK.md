@@ -119,6 +119,22 @@ The script:
 3. Updates signal and refile_count for all records
 4. Uses normalized company_id via company_aliases table
 
+### Company Name Normalization (Accuracy Fixes)
+If you see duplicate NEW_COMPANY signals due to company name variants (LLC/Inc/comma DBAs),
+run this sequence:
+
+```bash
+cd scripts
+python backfill_company_alias_variants.py
+python merge_all_normalized_company_duplicates.py --apply
+python batch_classify.py
+```
+
+Notes:
+- `backfill_company_alias_variants.py` adds normalized alias variants to `company_aliases`
+- `merge_all_normalized_company_duplicates.py` strictly merges all aliases with the same normalized key
+- `batch_classify.py` recomputes signals after the merges
+
 ## Common Issues
 
 ### "CAPTCHA detected" in scraper logs
@@ -318,3 +334,27 @@ Use `/spirits-report` in Claude Code to generate articles interactively.
 - **Netlify Dashboard**: https://app.netlify.com
 - **Resend Dashboard**: https://resend.com/emails
 - **GitHub Repo**: https://github.com/macstock10/bevalc-intelligence
+
+---
+
+## SEC XBRL Financial Data
+
+XBRL facts are pulled from the SEC companyfacts API and stored in D1 for structured numeric queries.
+
+### Schema Migration
+Apply the migration:
+```bash
+cd scripts
+npx wrangler d1 execute bevalc-colas --remote --file=./migrations/006_sec_xbrl_facts.sql
+```
+
+### Ingestion
+The SEC RAG ingestion now pulls XBRL facts for the filings being processed.
+
+```bash
+cd scripts/sec-rag
+npm run ingest -- --backfill
+```
+
+Flags:
+- `--skip-xbrl` to skip XBRL facts if you only want narrative RAG chunks.

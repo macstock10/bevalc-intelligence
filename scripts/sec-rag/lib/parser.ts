@@ -8,60 +8,69 @@
 import { parse as parseHtml, HTMLElement } from 'node-html-parser';
 import { INGESTION_CONFIG } from '../config.js';
 import type { ParsedDocument, ParsedSection, Section, DocType, EdgarFiling } from './types.js';
-import { TICKER_MAP, CIK_MAP } from '../config.js';
 
 // Section patterns for 10-K/10-Q
 // Conservative matching: only detect high-confidence sections
 // Default to 'Other' rather than guessing
-const SECTION_PATTERNS: Array<{ pattern: RegExp; section: Section }> = [
+const SECTION_PATTERNS: Array<{ pattern: RegExp; section: Section; confidence: number }> = [
   // MD&A - most important section for analysis
   {
     pattern: /item\s+7[.\s]+management['']?s?\s+discussion\s+and\s+analysis/i,
     section: 'MD&A',
+    confidence: 0.9,
   },
   {
     pattern: /item\s+2[.\s]+management['']?s?\s+discussion\s+and\s+analysis/i,  // 10-Q
     section: 'MD&A',
+    confidence: 0.9,
   },
   // Risk Factors - important for understanding challenges
   {
     pattern: /item\s+1a[.\s]+risk\s+factors/i,
     section: 'Risk Factors',
+    confidence: 0.9,
   },
   // Financial Statements - for numerical context
   {
     pattern: /item\s+8[.\s]+financial\s+statements/i,
     section: 'Financial Statements',
+    confidence: 0.9,
   },
   // Business description
   {
     pattern: /item\s+1[.\s]+business\s*$/im,  // Exact match to avoid false positives
     section: 'Business',
+    confidence: 0.85,
   },
 ];
 
 // 20-F section patterns (foreign filers like Diageo)
 // More lenient matching needed due to varied formatting
-const SECTION_PATTERNS_20F: Array<{ pattern: RegExp; section: Section }> = [
+const SECTION_PATTERNS_20F: Array<{ pattern: RegExp; section: Section; confidence: number }> = [
   {
     pattern: /item\s+5[.\s]+operating\s+and\s+financial\s+review/i,
     section: 'MD&A',
+    confidence: 0.8,
   },
   {
     pattern: /operating\s+and\s+financial\s+review\s+and\s+prospects/i,
     section: 'MD&A',
+    confidence: 0.75,
   },
   {
     pattern: /item\s+3[.\s]*d?[.\s]+risk\s+factors/i,
     section: 'Risk Factors',
+    confidence: 0.8,
   },
   {
     pattern: /item\s+4[.\s]+information\s+on\s+the\s+company/i,
     section: 'Business',
+    confidence: 0.75,
   },
   {
     pattern: /item\s+18[.\s]+financial\s+statements/i,
     section: 'Financial Statements',
+    confidence: 0.8,
   },
 ];
 
@@ -121,6 +130,8 @@ export function parseFilingHtml(
     ticker,
     company: companyName,
     docType,
+    originalForm: filing.originalForm,
+    isAmendment: filing.isAmendment,
     filingDate: filing.filingDate,
     periodEnd: filing.periodEndDate,
     fiscalYear,
@@ -136,10 +147,10 @@ export function parseFilingHtml(
  */
 function extractSections(
   text: string,
-  patterns: Array<{ pattern: RegExp; section: Section }>
+  patterns: Array<{ pattern: RegExp; section: Section; confidence: number }>
 ): ParsedSection[] {
   const sections: ParsedSection[] = [];
-  const matches: Array<{ section: Section; title: string; index: number }> = [];
+  const matches: Array<{ section: Section; title: string; index: number; confidence: number }> = [];
 
   // Find all section headers
   for (const { pattern, section } of patterns) {
@@ -149,6 +160,7 @@ function extractSections(
         section,
         title: match[0].trim(),
         index: match.index,
+        confidence,
       });
     }
   }
@@ -175,6 +187,7 @@ function extractSections(
     sections.push({
       type: current.section,
       title: current.title,
+      confidence: current.confidence,
       content,
       startIndex,
       endIndex,
@@ -188,6 +201,7 @@ function extractSections(
       sections.push({
         type: 'Other',
         title: 'Document Content',
+        confidence: 0.2,
         content,
         startIndex: 0,
         endIndex: text.length,
@@ -257,6 +271,8 @@ export function parse6K(html: string, filing: EdgarFiling, ticker: string, compa
     ticker,
     company: companyName,
     docType: '6-K',
+    originalForm: filing.originalForm,
+    isAmendment: filing.isAmendment,
     filingDate: filing.filingDate,
     periodEnd: filing.periodEndDate,
     fiscalYear: periodEnd.getFullYear(),
@@ -265,6 +281,7 @@ export function parse6K(html: string, filing: EdgarFiling, ticker: string, compa
     sections: content.length >= 500 ? [{
       type: 'Other',
       title: 'Report Content',
+      confidence: 0.4,
       content,
       startIndex: 0,
       endIndex: content.length,
@@ -334,6 +351,7 @@ export function parse8K(html: string, filing: EdgarFiling, ticker: string, compa
       items.push({
         type: current.isExhibit ? 'Exhibit' : 'Other',
         title: current.item.trim(),
+        confidence: current.isExhibit ? 0.6 : 0.8,
         content: cleaned,
         startIndex: current.index,
         endIndex: next?.index || text.length,
@@ -347,11 +365,40 @@ export function parse8K(html: string, filing: EdgarFiling, ticker: string, compa
     ticker,
     company: companyName,
     docType: '8-K',
+    originalForm: filing.originalForm,
+    isAmendment: filing.isAmendment,
     filingDate: filing.filingDate,
     periodEnd: filing.periodEndDate,
     fiscalYear: periodEnd.getFullYear(),
     accessionNumber: filing.accessionNumber,
     sourceUrl: filing.fileUrl,
     sections: items,
+  };
+}
+
+/**
+ * Parse Exhibit 99.1 (press release / earnings release) HTML
+ */
+export function parseExhibitHtml(
+  html: string,
+  title: string,
+  sourceUrl?: string
+): ParsedSection | null {
+  const root = parseHtml(html);
+  root.querySelectorAll('script, style, noscript').forEach(el => el.remove());
+
+  const text = cleanText(root.textContent || '');
+  const content = removeBoilerplate(text);
+
+  if (content.length < 200) return null;
+
+  return {
+    type: 'Exhibit',
+    title,
+    confidence: 0.95,
+    content,
+    sourceUrl,
+    startIndex: 0,
+    endIndex: content.length,
   };
 }

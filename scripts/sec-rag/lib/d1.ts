@@ -9,6 +9,7 @@ type D1Result = {
 };
 
 const D1_BATCH_SIZE = 5; // Small batches due to large content fields (~9KB each)
+const D1_XBRL_BATCH_SIZE = 20;
 
 function getD1Config() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -75,6 +76,42 @@ export async function upsertRagChunksContent(rows: Array<Record<string, unknown>
     const sql = `
       INSERT OR REPLACE INTO sec_rag_chunks_content
       (id, ticker, doc_type, filing_date, section, source_url, accession_number, fiscal_year, fiscal_quarter, content)
+      VALUES ${values.join(',')}
+    `;
+
+    await d1Execute(sql);
+  }
+}
+
+export async function upsertXbrlFacts(rows: Array<Record<string, unknown>>): Promise<void> {
+  if (rows.length === 0) return;
+
+  for (let i = 0; i < rows.length; i += D1_XBRL_BATCH_SIZE) {
+    const batch = rows.slice(i, i + D1_XBRL_BATCH_SIZE);
+    const values = batch.map(r => `(
+      ${escapeSqlValue(r.id)},
+      ${escapeSqlValue(r.cik)},
+      ${escapeSqlValue(r.ticker)},
+      ${escapeSqlValue(r.accession_number)},
+      ${escapeSqlValue(r.form)},
+      ${escapeSqlValue(r.filing_date)},
+      ${escapeSqlValue(r.period_start)},
+      ${escapeSqlValue(r.period_end)},
+      ${escapeSqlValue(r.fiscal_year)},
+      ${escapeSqlValue(r.fiscal_period)},
+      ${escapeSqlValue(r.taxonomy)},
+      ${escapeSqlValue(r.concept)},
+      ${escapeSqlValue(r.label)},
+      ${escapeSqlValue(r.unit)},
+      ${escapeSqlValue(r.value_text)},
+      ${escapeSqlValue(r.value_num)},
+      ${escapeSqlValue(r.frame)},
+      ${escapeSqlValue(r.segment_json)}
+    )`);
+
+    const sql = `
+      INSERT OR REPLACE INTO sec_xbrl_facts
+      (id, cik, ticker, accession_number, form, filing_date, period_start, period_end, fiscal_year, fiscal_period, taxonomy, concept, label, unit, value_text, value_num, frame, segment_json)
       VALUES ${values.join(',')}
     `;
 

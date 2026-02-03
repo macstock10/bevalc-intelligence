@@ -119,6 +119,8 @@ export async function getCompanyFilings(
       filingDate: recent.filingDate[i],
       periodEndDate: recent.reportDate[i] || recent.filingDate[i],
       form: docType,
+      originalForm: form,
+      isAmendment: form.endsWith('/A'),
       fileUrl: `${EDGAR_BASE}/Archives/edgar/data/${cik}/${accessionFormatted}/${primaryDoc}`,
       cik,
     });
@@ -149,6 +151,26 @@ export function filterFilingsByDate(
 export async function downloadFiling(filing: EdgarFiling): Promise<string> {
   const response = await edgarFetch(filing.fileUrl);
   return response.text();
+}
+
+/**
+ * Download filing content by direct URL
+ */
+export async function downloadFilingByUrl(url: string): Promise<string> {
+  const response = await edgarFetch(url);
+  return response.text();
+}
+
+/**
+ * Build a filing document URL from CIK/accession/filename
+ */
+export function getFilingDocumentUrl(
+  cik: string,
+  accessionNumber: string,
+  filename: string
+): string {
+  const accessionFormatted = accessionNumber.replace(/-/g, '');
+  return `${EDGAR_BASE}/Archives/edgar/data/${cik}/${accessionFormatted}/${filename}`;
 }
 
 /**

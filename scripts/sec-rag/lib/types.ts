@@ -25,6 +25,8 @@ export interface EdgarFiling {
   filingDate: string;      // YYYY-MM-DD
   periodEndDate: string;   // YYYY-MM-DD
   form: string;            // 10-K, 10-Q, etc.
+  originalForm?: string;   // 10-K/A, 8-K/A, etc.
+  isAmendment?: boolean;
   fileUrl: string;         // Direct link to filing HTML
   cik: string;
 }
@@ -34,6 +36,8 @@ export interface ParsedDocument {
   ticker: string;
   company: string;
   docType: DocType;
+  originalForm?: string;
+  isAmendment?: boolean;
   filingDate: string;
   periodEnd: string;
   fiscalYear: number;
@@ -47,6 +51,8 @@ export interface ParsedSection {
   type: Section;
   title: string;
   content: string;
+  confidence?: number;     // 0-1 confidence of section detection
+  sourceUrl?: string;      // Optional override for exhibit files
   startIndex: number;
   endIndex: number;
 }
@@ -65,14 +71,20 @@ export interface ChunkMetadata {
   ticker: string;
   company: string;
   docType: DocType;
+  originalForm?: string;
+  isAmendment?: boolean;
   filingDate: string;      // YYYY-MM-DD
   periodEnd: string;       // YYYY-MM-DD
   fiscalYear: number;
   fiscalQuarter?: number;
   section: Section;
+  sectionTitle?: string;
+  sectionConfidence?: number;
   sourceUrl: string;
   accessionNumber: string;
   chunkIndex: number;      // Position within document
+  chunkStartChar?: number;
+  chunkEndChar?: number;
 }
 
 // Earnings call specific

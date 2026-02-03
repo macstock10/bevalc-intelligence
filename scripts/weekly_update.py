@@ -52,6 +52,7 @@ from lib.d1_utils import (
     update_brand_slugs,
     add_new_companies,
     get_company_id,
+    normalize_company_for_match,
 )
 
 # ============================================================================
@@ -585,13 +586,20 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
     company_aliases = {}
     if aliases_result.get("success") and aliases_result.get("result"):
         for row in aliases_result["result"][0].get("results", []):
-            raw_name = row.get('raw_name', '')
-            company_aliases[raw_name] = row.get('company_id')
+            raw_name = (row.get('raw_name') or '').strip()
+            if raw_name:
+                company_aliases[raw_name.upper()] = row.get('company_id')
+                normalized = normalize_company_for_match(raw_name)
+                if normalized:
+                    company_aliases[normalized] = row.get('company_id')
     logger.info(f"  Loaded {len(company_aliases):,} company aliases")
 
-    # Helper to get company_id from local cache
+    # Helpers to normalize names and get company_id from local cache
+    def normalize_company_key(company_name: str) -> str:
+        return normalize_company_for_match(company_name)
+
     def get_company_id_cached(company_name: str) -> int:
-        return company_aliases.get(company_name)
+        return company_aliases.get(normalize_company_key(company_name))
 
     # Step 2: Get all unique company_ids from new records
     batch_company_ids = set()
@@ -688,9 +696,9 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
 
     for record in new_records:
         ttb_id = record.get('ttb_id')
-        company_name = record.get('company_name', '') or ''
-        brand_name = record.get('brand_name', '') or ''
-        fanciful_name = record.get('fanciful_name', '') or ''
+        company_name = (record.get('company_name', '') or '').strip()
+        brand_name = (record.get('brand_name', '') or '').strip()
+        fanciful_name = (record.get('fanciful_name', '') or '').strip()
 
         if not company_name or not brand_name:
             classifications.append((ttb_id, 'REFILE'))
@@ -701,7 +709,7 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
 
         if company_id is None:
             # Company not in aliases table - track by normalized company_name (uppercase for consistency)
-            company_key_unknown = company_name.upper()
+            company_key_unknown = normalize_company_key(company_name)
             brand_key_unknown = (company_key_unknown, brand_name.lower())
             sku_key_unknown = (company_key_unknown, brand_name.lower(), fanciful_name.lower())
 

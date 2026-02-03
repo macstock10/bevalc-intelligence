@@ -117,15 +117,23 @@ export async function uploadChunksToVectorize(
         values: embeddings[idx],
         metadata: {
           ticker: chunk.metadata.ticker,
+          company: chunk.metadata.company,
           docType: chunk.metadata.docType,
+          originalForm: chunk.metadata.originalForm || '',
+          isAmendment: String(chunk.metadata.isAmendment ?? ''),
           filingDate: chunk.metadata.filingDate,
+          periodEnd: chunk.metadata.periodEnd,
           section: chunk.metadata.section,
+          sectionTitle: chunk.metadata.sectionTitle || '',
+          sectionConfidence: String(chunk.metadata.sectionConfidence ?? ''),
           sourceUrl: chunk.metadata.sourceUrl,
           // Truncate content to fit Vectorize metadata limits (10KB per field)
           content: chunk.content.slice(0, 9000),
           accessionNumber: chunk.metadata.accessionNumber,
           fiscalYear: String(chunk.metadata.fiscalYear || ''),
           fiscalQuarter: String(chunk.metadata.fiscalQuarter || ''),
+          chunkStartChar: String(chunk.metadata.chunkStartChar ?? ''),
+          chunkEndChar: String(chunk.metadata.chunkEndChar ?? ''),
         },
       }));
 
