@@ -76,6 +76,45 @@ function normalizeTranscriptText(text: string): string {
   return cleaned.trim();
 }
 
+function splitTranscriptSections(content: string): ParsedSection[] {
+  const normalized = content.replace(/\r/g, '');
+  const qaMatch = normalized.search(/question[-\s]*and[-\s]*answer|q&a|questions\s+and\s+answers/i);
+
+  if (qaMatch === -1) {
+    return [{
+      type: 'Other' as Section,
+      title: 'Earnings Call Transcript',
+      content: normalized.trim(),
+      startIndex: 0,
+      endIndex: normalized.length,
+    }];
+  }
+
+  const prepared = normalized.slice(0, qaMatch).trim();
+  const qa = normalized.slice(qaMatch).trim();
+  const sections: ParsedSection[] = [];
+
+  if (prepared.length > 200) {
+    sections.push({
+      type: 'Prepared Remarks' as Section,
+      title: 'Prepared Remarks',
+      content: prepared,
+      startIndex: 0,
+      endIndex: qaMatch,
+    });
+  }
+
+  sections.push({
+    type: 'Q&A' as Section,
+    title: 'Q&A',
+    content: qa,
+    startIndex: qaMatch,
+    endIndex: normalized.length,
+  });
+
+  return sections;
+}
+
 function buildParsedDocument(
   content: string,
   metadata: {
@@ -87,13 +126,7 @@ function buildParsedDocument(
     sourceUrl: string;
   }
 ): ParsedDocument {
-  const section: ParsedSection = {
-    type: 'Other' as Section,
-    title: 'Earnings Call Transcript',
-    content,
-    startIndex: 0,
-    endIndex: content.length,
-  };
+  const sections = splitTranscriptSections(content);
 
   return {
     ticker: metadata.ticker,
@@ -105,7 +138,7 @@ function buildParsedDocument(
     fiscalQuarter: metadata.fiscalQuarter,
     accessionNumber: `CALL-${metadata.callDate}`,
     sourceUrl: metadata.sourceUrl,
-    sections: [section],
+    sections,
   };
 }
 

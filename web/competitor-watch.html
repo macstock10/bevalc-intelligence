@@ -533,7 +533,9 @@
 
             // Fetch competitor activity
             try {
-                const response = await fetch(`${API_BASE}/api/competitor-activity?email=${encodeURIComponent(userEmail)}&token=${encodeURIComponent(userToken)}`);
+                const response = await fetch(`${API_BASE}/api/competitor-activity?email=${encodeURIComponent(userEmail)}`, {
+                    headers: { 'Authorization': `Bearer ${userToken}` }
+                });
                 const data = await response.json();
 
                 loadingState.style.display = 'none';

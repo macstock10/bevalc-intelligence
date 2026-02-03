@@ -316,7 +316,7 @@ export default {
             }
             // User preferences endpoints
             else if (path === '/api/user/preferences' && request.method === 'GET') {
-                response = await handleGetPreferences(url, env);
+                response = await handleGetPreferences(request, url, env);
             } else if (path === '/api/user/preferences' && request.method === 'POST') {
                 response = await handleSavePreferences(request, env);
             } else if (path === '/api/user/send-preferences-link' && request.method === 'POST') {
@@ -342,11 +342,11 @@ export default {
             }
             // Saved searches endpoints
             else if (path === '/api/saved-searches' && request.method === 'GET') {
-                response = await handleGetSavedSearches(url, env);
+                response = await handleGetSavedSearches(request, url, env);
             } else if (path === '/api/saved-searches' && request.method === 'POST') {
                 response = await handleSaveSavedSearch(request, env);
             } else if (path === '/api/saved-searches' && request.method === 'DELETE') {
-                response = await handleDeleteSavedSearch(url, env);
+                response = await handleDeleteSavedSearch(request, url, env);
             }
             // Database endpoints
             else if (path === '/api/search') {
@@ -380,7 +380,7 @@ export default {
             } else if (path === '/api/permits/contacts' && request.method === 'POST') {
                 response = await handlePermitsContacts(request, env);
             } else if (path === '/api/competitor-activity' && request.method === 'GET') {
-                response = await handleCompetitorActivity(url, env);
+                response = await handleCompetitorActivity(request, url, env);
             }
             // SEC Research endpoints
             else if (path === '/api/sec/companies') {
@@ -951,8 +951,13 @@ async function syncToLoops(email, categories, isPro, receiveFreeReport, env) {
     }
 }
 
-async function handleGetPreferences(url, env) {
-    const token = url.searchParams.get('token');
+function getBearerToken(request) {
+    const authHeader = request.headers.get('authorization') || '';
+    return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+}
+
+async function handleGetPreferences(request, url, env) {
+    const token = getBearerToken(request) || url.searchParams.get('token');
     const email = url.searchParams.get('email');
     
     if (!token && !email) {
@@ -1169,17 +1174,20 @@ async function handleSendPreferencesLink(request, env) {
         
         // Here you would integrate with Loops to send the email
         // For now, just return the token (in production, send via email only)
-        const preferencesUrl = `https://bevalcintel.com/preferences.html?token=${user.preferences_token}`;
+        const preferencesUrl = `https://bevalcintel.com/preferences.html#token=${user.preferences_token}`;
         
         // TODO: Send email via Loops API
         // await sendLoopsEmail(email, 'preferences_link', { url: preferencesUrl });
         
-        return {
+        const response = {
             success: true,
-            message: 'Preferences link sent to your email',
-            // Remove this in production - only for testing
-            _debug_url: preferencesUrl
+            message: 'Preferences link sent to your email'
         };
+        // Only include debug URL when explicitly enabled
+        if (env.DEBUG_PREFS_LINK === 'true') {
+            response._debug_url = preferencesUrl;
+        }
+        return response;
     } catch (e) {
         return { success: false, error: e.message };
     }
@@ -1188,9 +1196,12 @@ async function handleSendPreferencesLink(request, env) {
 async function handleListUsersByCategory(url, env) {
     const category = url.searchParams.get('category');
     const apiKey = url.searchParams.get('api_key');
+    const authHeader = request.headers.get('authorization') || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const providedKey = bearerToken || apiKey;
     
     // Simple API key check for your report scripts
-    if (apiKey !== env.REPORT_API_KEY) {
+    if (providedKey !== env.REPORT_API_KEY) {
         return { success: false, error: 'Unauthorized' };
     }
     
@@ -1665,9 +1676,9 @@ async function syncWatchlistToLoops(email, type, value, isAdding, env) {
 // SAVED SEARCHES HANDLERS
 // ==========================================
 
-async function handleGetSavedSearches(url, env) {
+async function handleGetSavedSearches(request, url, env) {
     const email = url.searchParams.get('email');
-    const token = url.searchParams.get('token');
+    const token = getBearerToken(request) || url.searchParams.get('token');
 
     if (!email) {
         return { success: false, error: 'Email required' };
@@ -1762,10 +1773,10 @@ async function handleSaveSavedSearch(request, env) {
     }
 }
 
-async function handleDeleteSavedSearch(url, env) {
+async function handleDeleteSavedSearch(request, url, env) {
     const email = url.searchParams.get('email');
     const id = url.searchParams.get('id');
-    const token = url.searchParams.get('token');
+    const token = getBearerToken(request) || url.searchParams.get('token');
 
     if (!email || !id) {
         return { success: false, error: 'Email and id required' };
@@ -1797,9 +1808,9 @@ async function handleDeleteSavedSearch(url, env) {
 // COMPETITOR ACTIVITY HANDLER
 // ==========================================
 
-async function handleCompetitorActivity(url, env) {
+async function handleCompetitorActivity(request, url, env) {
     const email = url.searchParams.get('email');
-    const token = url.searchParams.get('token');
+    const token = getBearerToken(request) || url.searchParams.get('token');
 
     if (!email) {
         return { success: false, error: 'Email required' };

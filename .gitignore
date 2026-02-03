@@ -48,6 +48,8 @@ tests/videos/
 # Claude temp files
 tmpclaude-*
 nul
+# Local Claude settings (may contain secrets)
+.claude/settings.local.json
 
 # Backup folders
 web/old/

@@ -2607,7 +2607,9 @@ async function loadSavedSearches() {
     if (!userEmail || !elements.savedSearchesList) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&token=${encodeURIComponent(userToken)}`);
+        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}`, {
+            headers: { 'Authorization': `Bearer ${userToken}` }
+        });
         const data = await response.json();
 
         if (data.success && data.searches) {
@@ -2726,8 +2728,9 @@ async function deleteSavedSearch(id) {
     if (!userEmail) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&id=${id}&token=${encodeURIComponent(userToken)}`, {
-            method: 'DELETE'
+        const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${userToken}` }
         });
 
         const data = await response.json();

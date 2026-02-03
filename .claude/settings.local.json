@@ -69,7 +69,9 @@
       "Bash(start \"\" \"C:\\\\Projects\\\\bevalc-intelligence\\\\skills\\\\salableskills\\\\debug-sellsheet.html\")",
       "Bash(start \"\" \"C:\\\\Projects\\\\bevalc-intelligence\\\\brand-brain-demo\\\\index.html\")",
       "Bash(cd:*)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(git log:*)",
+      "Bash(python3:*)"
     ]
   }
 }

@@ -228,12 +228,21 @@
         }
 
         async function loadPreferences() {
+            const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
             const urlParams = new URLSearchParams(window.location.search);
-            currentToken = urlParams.get('token');
+            currentToken = hashParams.get('token') || urlParams.get('token');
             if (!currentToken) { showState('error'); document.getElementById('error-message').textContent = 'No preferences token provided.'; return; }
+
+            // If token came from query params, move it to hash to avoid sending it in requests/referrers
+            if (urlParams.get('token')) {
+                const newUrl = `${window.location.pathname}#token=${encodeURIComponent(currentToken)}`;
+                window.history.replaceState({}, document.title, newUrl);
+            }
             
             try {
-                const response = await fetch(`${API_BASE}/api/user/preferences?token=${currentToken}`);
+                const response = await fetch(`${API_BASE}/api/user/preferences`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
                 const data = await response.json();
                 if (!data.success) { showState('error'); document.getElementById('error-message').textContent = data.error || 'Could not load preferences.'; return; }
                 if (!data.is_pro) { showState('not-pro'); return; }
@@ -251,7 +260,14 @@
             const categories = Array.from(document.querySelectorAll('#category-grid input:checked')).map(cb => cb.value);
             const receiveFreeReport = document.getElementById('receive-free-report').checked;
             try {
-                const response = await fetch(`${API_BASE}/api/user/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: currentToken, categories, receive_free_report: receiveFreeReport }) });
+                const response = await fetch(`${API_BASE}/api/user/preferences`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ token: currentToken, categories, receive_free_report: receiveFreeReport })
+                });
                 const data = await response.json();
                 if (data.success) { showState('success'); } else { alert(data.error || 'Could not save.'); saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences'; }
             } catch (e) { alert('Could not connect.'); saveBtn.disabled = false; saveBtn.textContent = 'Save Preferences'; }

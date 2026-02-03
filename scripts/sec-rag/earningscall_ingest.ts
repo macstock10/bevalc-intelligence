@@ -130,7 +130,7 @@ function buildParsedDocument(
     periodEnd: metadata.callDate,
     fiscalYear: metadata.fiscalYear,
     fiscalQuarter: metadata.fiscalQuarter,
-    accessionNumber: `CALL-${metadata.fiscalYear}Q${metadata.fiscalQuarter}`,
+    accessionNumber: `${metadata.ticker}-CALL-${metadata.fiscalYear}Q${metadata.fiscalQuarter}`,
     sourceUrl: metadata.sourceUrl,
     sections,
   };

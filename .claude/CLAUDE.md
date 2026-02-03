@@ -184,6 +184,8 @@ cd scripts/sec-rag && npx tsx ingest.ts --incremental
 # SEC Research: Backfill SEC filings
 cd scripts/sec-rag && npx tsx ingest.ts --backfill
 
+# NOTE: /api/sec/generate-embeddings is deprecated (legacy pipeline)
+
 # SEC Research: Compute MD&A diffs
 python scripts/sec_compute_mda_diffs.py --company BF.B
 

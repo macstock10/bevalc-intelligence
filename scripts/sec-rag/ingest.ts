@@ -9,6 +9,8 @@
  *   npm run ingest -- --backfill           # Full historical backfill
  *   npm run ingest -- --incremental        # Last 7 days only
  *   npm run ingest -- --ticker BF.B        # Single company
+ *   npm run ingest -- --tickers STZ,TAP    # Multiple companies
+ *   npm run ingest -- --year 2025          # Only filings from a specific year
  *   npm run ingest -- --clear              # Clear vector store first
  */
 
@@ -57,6 +59,8 @@ const { values: args } = parseArgs({
     backfill: { type: 'boolean', default: false },
     incremental: { type: 'boolean', default: false },
     ticker: { type: 'string' },
+    tickers: { type: 'string' },
+    year: { type: 'string' },
     clear: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
   },
@@ -72,7 +76,17 @@ async function main() {
 
   // Determine which companies to process
   let companies: CompanyConfig[];
-  if (args.ticker) {
+  if (args.tickers) {
+    const tickerList = String(args.tickers)
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    const unknown = tickerList.filter(t => !TICKER_MAP.has(t));
+    if (unknown.length > 0) {
+      throw new Error(`Unknown tickers: ${unknown.join(', ')}`);
+    }
+    companies = tickerList.map(t => TICKER_MAP.get(t)!);
+  } else if (args.ticker) {
     const company = TICKER_MAP.get(args.ticker);
     if (!company) {
       throw new Error(`Unknown ticker: ${args.ticker}`);
@@ -128,7 +142,7 @@ async function processCompany(
   company: CompanyConfig,
   vectorStoreId: string,
   stats: typeof stats,
-  args: { backfill?: boolean; incremental?: boolean; 'dry-run'?: boolean }
+  args: { backfill?: boolean; incremental?: boolean; 'dry-run'?: boolean; year?: string }
 ) {
   // Fetch filing list from EDGAR
   console.log(`Fetching filings from EDGAR...`);
@@ -160,6 +174,12 @@ async function processCompany(
     const cutoffStr = cutoff.toISOString().slice(0, 10);
     filings = allFilings.filter(f => f.filingDate >= cutoffStr);
     console.log(`Default mode: ${filings.length} filings in last year`);
+  }
+
+  if (args.year) {
+    const yearStr = String(args.year);
+    filings = filings.filter(f => f.filingDate.startsWith(`${yearStr}-`));
+    console.log(`Year filter: ${filings.length} filings in ${yearStr}`);
   }
 
   if (filings.length === 0) {

@@ -339,7 +339,7 @@
             const loading = document.getElementById('preferences-loading');
             const note = document.getElementById('preferences-note');
             
-            link.href = `preferences.html?token=${token}`;
+            link.href = `preferences.html#token=${encodeURIComponent(token)}`;
             link.style.display = 'inline-block';
             loading.style.display = 'none';
             note.style.display = 'block';

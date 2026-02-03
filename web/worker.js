@@ -844,7 +844,7 @@ async function handleSendPreferencesLink(request, env) {
         
         // Here you would integrate with Loops to send the email
         // For now, just return the token (in production, send via email only)
-        const preferencesUrl = `https://bevalcintel.com/preferences.html?token=${user.preferences_token}`;
+        const preferencesUrl = `https://bevalcintel.com/preferences.html#token=${user.preferences_token}`;
         
         // TODO: Send email via Loops API
         // await sendLoopsEmail(email, 'preferences_link', { url: preferencesUrl });
