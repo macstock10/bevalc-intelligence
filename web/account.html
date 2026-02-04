@@ -275,6 +275,21 @@
                     </div>
                 </div>
 
+                <div class="account-section" id="account-verify-section" style="display: none;">
+                    <h2><span class="section-icon">✅</span> Verify Email</h2>
+                    <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                        Enter the 6-digit code we email you to enable watchlist, saved searches, and credits.
+                    </p>
+                    <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <input id="verify-code-input" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="flex: 1; padding: 0.75rem 0.9rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-bg-tertiary); color: var(--color-text-primary);">
+                        <button class="btn btn-glow" id="verify-code-btn" style="min-width: 140px;">Verify</button>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <button class="btn" id="send-code-btn" style="border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary);">Send code</button>
+                        <span id="verify-status" style="color: var(--color-text-secondary); font-size: 0.875rem;"></span>
+                    </div>
+                </div>
+
                 <div class="account-section">
                     <h2><span class="section-icon">⭐</span> Watchlist</h2>
                     <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
@@ -545,7 +560,8 @@
                 const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'];
                 
                 currentToken = getStoredToken() || null;
-
+                const verifySection = document.getElementById('account-verify-section');
+                
                 if (prefsData.success) {
                     // Preferences exist - load them
                     document.getElementById('user-email').textContent = prefsData.email;
@@ -567,11 +583,13 @@
                     buildCategoryUI(prefsData.available_categories || defaultCategories, prefsData.categories || []);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
                     if (!currentToken) {
-                        requestPreferencesLink(user.email);
+                        if (verifySection) verifySection.style.display = 'block';
                         const saveStatus = document.getElementById('save-status');
                         const saveBtn = document.getElementById('save-btn');
-                        if (saveStatus) saveStatus.textContent = 'Check your email for a preferences link to enable saving.';
+                        if (saveStatus) saveStatus.textContent = 'Verify your email to enable saving.';
                         if (saveBtn) saveBtn.disabled = true;
+                    } else if (verifySection) {
+                        verifySection.style.display = 'none';
                     }
                 } else {
                     // User is Pro but preferences record doesn't exist yet
@@ -581,10 +599,10 @@
                     buildCategoryGrid(defaultCategories, []);
                     document.getElementById('receive-free-report').checked = true;
                     
-                    requestPreferencesLink(user.email);
+                    if (verifySection) verifySection.style.display = 'block';
                     const saveStatus = document.getElementById('save-status');
                     const saveBtn = document.getElementById('save-btn');
-                    if (saveStatus) saveStatus.textContent = 'Check your email for a preferences link to enable saving.';
+                    if (saveStatus) saveStatus.textContent = 'Verify your email to enable saving.';
                     if (saveBtn) saveBtn.disabled = true;
                 }
                 showState('account');
@@ -605,7 +623,7 @@
         async function savePreferences() {
             const saveBtn = document.getElementById('save-btn'), saveStatus = document.getElementById('save-status');
             if (!currentToken) currentToken = getStoredToken();
-            if (!currentToken) { saveStatus.textContent = 'Check your email for a preferences link to enable saving.'; return; }
+            if (!currentToken) { saveStatus.textContent = 'Verify your email to enable saving.'; return; }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; saveStatus.textContent = '';
 
             const receiveFreeReport = document.getElementById('receive-free-report').checked;
@@ -639,7 +657,7 @@
             const balanceEl = document.getElementById('account-credit-balance');
             try {
                 const token = getStoredToken();
-                if (!token) { balanceEl.textContent = 'Check email for access'; return; }
+                if (!token) { balanceEl.textContent = 'Verify email to enable credits'; return; }
                 const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(user.email)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -798,7 +816,7 @@
             try {
                 const token = getStoredToken();
                 if (!token) {
-                    loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Check email to manage watchlist</span>';
+                    loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Verify email to manage watchlist</span>';
                     return;
                 }
                 const response = await fetch(`${API_BASE}/api/watchlist?email=${encodeURIComponent(user.email)}`, {
@@ -816,6 +834,67 @@
             } catch (e) {
                 console.error('Error loading watchlist:', e);
                 loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Could not load watchlist</span>';
+            }
+        }
+
+        async function sendVerificationCode() {
+            const statusEl = document.getElementById('verify-status');
+            const email = currentEmail || BevAlcAuth.getUser()?.email;
+            if (!email) return;
+            if (statusEl) statusEl.textContent = 'Sending code...';
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/send-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                if (statusEl) statusEl.textContent = data.success ? 'Code sent. Check your email.' : (data.error || 'Could not send code');
+            } catch (e) {
+                if (statusEl) statusEl.textContent = 'Could not send code';
+            }
+        }
+
+        async function verifyCode() {
+            const statusEl = document.getElementById('verify-status');
+            const input = document.getElementById('verify-code-input');
+            const email = currentEmail || BevAlcAuth.getUser()?.email;
+            const code = (input?.value || '').trim();
+            if (!email || code.length < 6) {
+                if (statusEl) statusEl.textContent = 'Enter the 6-digit code';
+                return;
+            }
+            if (statusEl) statusEl.textContent = 'Verifying...';
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/verify-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                const data = await response.json();
+                if (!data.success || !data.token) {
+                    if (statusEl) statusEl.textContent = data.error || 'Invalid code';
+                    return;
+                }
+                currentToken = data.token;
+                localStorage.setItem('bevalc_prefs_token', data.token);
+                try {
+                    const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                    user.token = data.token;
+                    localStorage.setItem('bevalc_user', JSON.stringify(user));
+                } catch (e) {}
+
+                const verifySection = document.getElementById('account-verify-section');
+                if (verifySection) verifySection.style.display = 'none';
+                const saveBtn = document.getElementById('save-btn');
+                const saveStatus = document.getElementById('save-status');
+                if (saveBtn) saveBtn.disabled = false;
+                if (saveStatus) saveStatus.textContent = '';
+                loadCredits();
+                loadWatchlist();
+                if (statusEl) statusEl.textContent = 'Verified';
+            } catch (e) {
+                if (statusEl) statusEl.textContent = 'Verification failed';
             }
         }
 
@@ -907,6 +986,8 @@
         document.getElementById('select-all')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = true; cb.closest('.category-option').classList.add('selected'); }); });
         document.getElementById('select-none')?.addEventListener('click', () => { document.querySelectorAll('#category-grid input').forEach(cb => { cb.checked = false; cb.closest('.category-option').classList.remove('selected'); }); });
         document.getElementById('save-btn')?.addEventListener('click', savePreferences);
+        document.getElementById('send-code-btn')?.addEventListener('click', sendVerificationCode);
+        document.getElementById('verify-code-btn')?.addEventListener('click', verifyCode);
         document.addEventListener('DOMContentLoaded', () => { loadAccount(); loadWatchlist(); checkCreditPurchaseSuccess(); });
 
         // Dropdown toggle

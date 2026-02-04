@@ -184,6 +184,19 @@
                     <p id="preferences-note" style="display: none; margin-top: 1rem; font-size: 0.875rem; color: var(--color-text-secondary);">
                         Select which category reports you want to receive each week.
                     </p>
+                    <div id="verify-section" style="display: none; margin-top: 1.25rem;">
+                        <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 0.75rem;">
+                            Enter the 6-digit code we email you to activate your account.
+                        </p>
+                        <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <input id="verify-code-input" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="flex: 1; padding: 0.75rem 0.9rem; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-bg-tertiary); color: var(--color-text-primary);">
+                            <button class="btn btn-glow" id="verify-code-btn" style="min-width: 140px;">Verify</button>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <button class="btn btn-secondary" id="send-code-btn" style="border: 1px solid var(--color-border);">Send code</button>
+                            <span id="verify-status" style="color: var(--color-text-secondary); font-size: 0.875rem;"></span>
+                        </div>
+                    </div>
                 </div>
                 
                 <a href="database.html" class="btn btn-secondary">Go to Database</a>
@@ -248,6 +261,7 @@
     <script src="auth.js"></script>
     <script>
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
+        let verifiedEmail = null;
         
         // Create particles
         function createParticles() {
@@ -300,6 +314,7 @@
                 
                 if (data.success && data.status === 'complete') {
                     const customerEmail = data.customer_email;
+                    verifiedEmail = customerEmail;
 
                     // Save user info locally
                     localStorage.setItem('bevalc_user', JSON.stringify({
@@ -338,11 +353,13 @@
             const link = document.getElementById('preferences-link');
             const loading = document.getElementById('preferences-loading');
             const note = document.getElementById('preferences-note');
+            const verifySection = document.getElementById('verify-section');
             
             link.href = `preferences.html#token=${encodeURIComponent(token)}`;
             link.style.display = 'inline-block';
             loading.style.display = 'none';
             note.style.display = 'block';
+            if (verifySection) verifySection.style.display = 'none';
             localStorage.setItem('bevalc_prefs_token', token);
             try {
                 const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
@@ -356,24 +373,66 @@
             loading.innerHTML = '📧 Check your email for a link to choose your categories.';
         }
         
+        async function sendVerificationCode(email) {
+            const statusEl = document.getElementById('verify-status');
+            if (statusEl) statusEl.textContent = 'Sending code...';
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/send-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+                if (statusEl) statusEl.textContent = data.success ? 'Code sent. Check your email.' : (data.error || 'Could not send code');
+            } catch (e) {
+                if (statusEl) statusEl.textContent = 'Could not send code';
+            }
+        }
+
+        async function verifyCode(email) {
+            const statusEl = document.getElementById('verify-status');
+            const input = document.getElementById('verify-code-input');
+            const code = (input?.value || '').trim();
+            if (code.length < 6) {
+                if (statusEl) statusEl.textContent = 'Enter the 6-digit code';
+                return;
+            }
+            if (statusEl) statusEl.textContent = 'Verifying...';
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/verify-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                const data = await response.json();
+                if (!data.success || !data.token) {
+                    if (statusEl) statusEl.textContent = data.error || 'Invalid code';
+                    return;
+                }
+                showPreferencesLink(data.token);
+                if (statusEl) statusEl.textContent = 'Verified';
+            } catch (e) {
+                if (statusEl) statusEl.textContent = 'Verification failed';
+            }
+        }
+
         // Fetch preferences token in background
         async function fetchPreferencesToken(email) {
             if (!email) {
                 showPreferencesError();
                 return;
             }
-            
-            try {
-                await fetch(`${API_BASE}/api/user/send-preferences-link`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                showPreferencesError();
-            } catch (e) {
-                showPreferencesError();
-            }
+            const verifySection = document.getElementById('verify-section');
+            if (verifySection) verifySection.style.display = 'block';
+            await sendVerificationCode(email);
         }
+
+        document.getElementById('send-code-btn')?.addEventListener('click', () => {
+            if (verifiedEmail) sendVerificationCode(verifiedEmail);
+        });
+        document.getElementById('verify-code-btn')?.addEventListener('click', () => {
+            if (verifiedEmail) verifyCode(verifiedEmail);
+        });
 
         // Dropdown toggle
         function toggleDropdown(id) {

@@ -327,6 +327,10 @@ export default {
                 response = await handleCheckUserExists(url, env);
             } else if (path === '/api/user/signup-free' && request.method === 'POST') {
                 response = await handleSignupFree(request, env);
+            } else if (path === '/api/auth/send-code' && request.method === 'POST') {
+                response = await handleSendAuthCode(request, env);
+            } else if (path === '/api/auth/verify-code' && request.method === 'POST') {
+                response = await handleVerifyAuthCode(request, env);
             }
             // Watchlist endpoints
             else if (path === '/api/watchlist' && request.method === 'GET') {
@@ -1427,6 +1431,84 @@ async function sendPreferencesLinkEmail(toEmail, preferencesUrl, env) {
     }
 }
 
+function generateNumericCode(length = 6) {
+    let code = '';
+    for (let i = 0; i < length; i++) {
+        code += Math.floor(Math.random() * 10).toString();
+    }
+    return code;
+}
+
+async function hashVerificationCode(_email, code, _env) {
+    return code;
+}
+
+async function sendVerificationCodeEmail(toEmail, code, env) {
+    const resendApiKey = env.RESEND_API_KEY;
+    if (!resendApiKey) {
+        console.log('RESEND_API_KEY not configured, skipping verification code email');
+        return { success: false, error: 'Email not configured' };
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <div style="background: #0d9488; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">BevAlc Intelligence</h1>
+        </div>
+        <div style="padding: 32px; text-align: center;">
+            <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 12px 0;">Your verification code</h2>
+            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                Enter this code to confirm your email and enable your account features.
+            </p>
+            <div style="display: inline-block; font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #0f172a; background: #f1f5f9; padding: 12px 20px; border-radius: 8px;">
+                ${code}
+            </div>
+            <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0;">
+                This code expires in 15 minutes. If you didn’t request this, you can ignore it.
+            </p>
+        </div>
+        <div style="background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">&copy; 2026 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    try {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${resendApiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: env.FROM_EMAIL || 'BevAlc Intelligence <hello@bevalcintel.com>',
+                to: toEmail,
+                subject: 'Your BevAlc verification code',
+                html: html,
+            }),
+        });
+
+        if (response.ok) {
+            return { success: true };
+        }
+
+        const error = await response.text();
+        console.error(`Failed to send verification code email: ${error}`);
+        return { success: false, error };
+    } catch (e) {
+        console.error('Verification code email error:', e.message);
+        return { success: false, error: e.message };
+    }
+}
+
 // Sign up a free user
 async function handleSignupFree(request, env) {
     try {
@@ -1459,6 +1541,150 @@ async function handleSignupFree(request, env) {
         return { success: true, message: 'User created', existing: false, emailSent: true };
     } catch (e) {
         console.error('Signup free error:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+// ==========================================
+// AUTH CODE HANDLERS
+// ==========================================
+
+async function handleSendAuthCode(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const email = body.email?.toLowerCase()?.trim();
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    try {
+        const existing = await env.DB.prepare(
+            'SELECT send_count, send_window_start FROM email_verification_codes WHERE email = ?'
+        ).bind(email).first();
+
+        let sendCount = 0;
+        let windowStart = now;
+
+        if (existing?.send_window_start) {
+            const windowStartDate = new Date(existing.send_window_start);
+            const elapsedMs = now - windowStartDate;
+            if (elapsedMs <= 60 * 60 * 1000) {
+                sendCount = existing.send_count || 0;
+                windowStart = windowStartDate;
+            }
+        }
+
+        if (sendCount >= 3) {
+            return { success: false, error: 'Too many requests. Try again later.' };
+        }
+
+        const code = generateNumericCode(6);
+        const codeHash = await hashVerificationCode(email, code, env);
+
+        const newCount = sendCount + 1;
+        const windowStartIso = windowStart.toISOString();
+
+        await env.DB.prepare(`
+            INSERT INTO email_verification_codes (email, code_hash, expires_at, attempts, created_at, last_sent_at, send_count, send_window_start)
+            VALUES (?, ?, datetime('now', '+15 minutes'), 0, ?, ?, ?, ?)
+            ON CONFLICT(email) DO UPDATE SET
+                code_hash = excluded.code_hash,
+                expires_at = excluded.expires_at,
+                attempts = 0,
+                last_sent_at = excluded.last_sent_at,
+                send_count = excluded.send_count,
+                send_window_start = excluded.send_window_start
+        `).bind(email, codeHash, nowIso, nowIso, newCount, windowStartIso).run();
+
+        const emailResult = await sendVerificationCodeEmail(email, code, env);
+        if (!emailResult.success) {
+            return { success: false, error: emailResult.error || 'Failed to send email' };
+        }
+
+        return { success: true, message: 'Verification code sent' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function handleVerifyAuthCode(request, env) {
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return { success: false, error: 'Invalid JSON' };
+    }
+
+    const email = body.email?.toLowerCase()?.trim();
+    const code = body.code?.trim();
+    if (!email || !code) {
+        return { success: false, error: 'Email and code required' };
+    }
+
+
+    try {
+        const record = await env.DB.prepare(
+            'SELECT code_hash, expires_at, attempts FROM email_verification_codes WHERE email = ?'
+        ).bind(email).first();
+
+        if (!record) {
+            return { success: false, error: 'Code not found. Request a new one.' };
+        }
+
+        if (record.attempts >= 5) {
+            return { success: false, error: 'Too many attempts. Request a new code.' };
+        }
+
+        if (record.expires_at) {
+            const expiresAt = new Date(record.expires_at);
+            if (Date.now() > expiresAt.getTime()) {
+                return { success: false, error: 'Code expired. Request a new one.' };
+            }
+        }
+
+        const codeHash = await hashVerificationCode(email, code, env);
+        if (!codeHash || codeHash !== record.code_hash) {
+            await env.DB.prepare(
+                'UPDATE email_verification_codes SET attempts = attempts + 1 WHERE email = ?'
+            ).bind(email).run();
+            return { success: false, error: 'Invalid code' };
+        }
+
+        // Ensure user exists
+        const user = await env.DB.prepare(
+            'SELECT preferences_token, is_pro FROM user_preferences WHERE email = ?'
+        ).bind(email).first();
+
+        let token = user?.preferences_token;
+        if (!token) {
+            token = generateToken();
+            if (user) {
+                await env.DB.prepare(
+                    'UPDATE user_preferences SET preferences_token = ?, updated_at = datetime(\'now\') WHERE email = ?'
+                ).bind(token, email).run();
+            } else {
+                await env.DB.prepare(`
+                    INSERT INTO user_preferences (email, is_pro, preferences_token, categories, receive_free_report, updated_at)
+                    VALUES (?, 0, ?, '[]', 1, datetime('now'))
+                `).bind(email, token).run();
+            }
+        }
+
+        await env.DB.prepare(
+            'DELETE FROM email_verification_codes WHERE email = ?'
+        ).bind(email).run();
+
+        return { success: true, token };
+    } catch (e) {
         return { success: false, error: e.message };
     }
 }
