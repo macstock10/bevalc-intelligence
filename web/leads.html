@@ -480,7 +480,7 @@
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         let currentPage = 1;
         let totalPages = 1;
-        let currentFilters = { permit_type: '', state: '', new_only: '', has_cola: '', search: '' };
+        let currentFilters = { permit_type: '', state: '', new_only: '', search: '' };
         let userEmail = null;
         let isPro = false;
         let permitsData = []; // Store permit data for modal access
@@ -628,12 +628,6 @@
                         <option value="">All States</option>
                         ${stateOptions}
                     </select>
-                    <label for="filter-cola">COLA Status</label>
-                    <select id="filter-cola" onchange="filterChanged()">
-                        <option value="">All Permits</option>
-                        <option value="0">No COLA filings (Leads)</option>
-                        <option value="1">Has COLA filings</option>
-                    </select>
                     <label for="filter-new">
                         <input type="checkbox" id="filter-new" onchange="filterChanged()" style="margin-right: 4px;">
                         New this week
@@ -683,7 +677,6 @@
             if (currentFilters.permit_type) params.set('permit_type', currentFilters.permit_type);
             if (currentFilters.state) params.set('state', currentFilters.state);
             if (currentFilters.new_only) params.set('new_only', '1');
-            if (currentFilters.has_cola) params.set('has_cola', currentFilters.has_cola);
             if (currentFilters.search) params.set('search', currentFilters.search);
 
             try {
@@ -755,7 +748,6 @@
         function filterChanged() {
             currentFilters.permit_type = document.getElementById('filter-type').value;
             currentFilters.state = document.getElementById('filter-state').value;
-            currentFilters.has_cola = document.getElementById('filter-cola').value;
             currentFilters.new_only = document.getElementById('filter-new').checked ? '1' : '';
             currentPage = 1;
             loadLeads();
