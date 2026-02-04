@@ -38,6 +38,17 @@ const state = {
 // DOM Elements
 const elements = {};
 
+function getUserToken() {
+    try {
+        const stored = localStorage.getItem('bevalc_user');
+        if (stored) {
+            const user = JSON.parse(stored);
+            if (user && user.token) return user.token;
+        }
+    } catch (e) {}
+    return localStorage.getItem('bevalc_prefs_token') || '';
+}
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -1125,6 +1136,8 @@ function buildLabelImagesField(ttbUrl, isPro) {
 
 async function loadWatchlistStates(record, userEmail, isPro) {
     if (!isPro) return;
+    const userToken = getUserToken();
+    if (!userToken) return;
     
     const types = [
         { type: 'brand', value: record.brand_name },
@@ -1136,7 +1149,8 @@ async function loadWatchlistStates(record, userEmail, isPro) {
         
         try {
             const response = await fetch(
-                `${API_BASE}/api/watchlist/check?email=${encodeURIComponent(userEmail)}&type=${item.type}&value=${encodeURIComponent(item.value)}`
+                `${API_BASE}/api/watchlist/check?email=${encodeURIComponent(userEmail)}&type=${item.type}&value=${encodeURIComponent(item.value)}`,
+                { headers: { 'Authorization': `Bearer ${userToken}` } }
             );
             const data = await response.json();
             
@@ -1205,6 +1219,11 @@ async function toggleWatchlist(type, value) {
         showProUpgradePrompt();
         return;
     }
+    const userToken = getUserToken();
+    if (!userToken) {
+        showProUpgradePrompt();
+        return;
+    }
     
     const pill = document.getElementById(`pill-${type}`);
     if (!pill) return;
@@ -1226,7 +1245,10 @@ async function toggleWatchlist(type, value) {
     try {
         const response = await fetch(`${API_BASE}/api/watchlist/${endpoint}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`
+            },
             body: JSON.stringify({ email: userEmail, type, value })
         });
         
@@ -2140,7 +2162,14 @@ async function loadCreditBalance(email) {
     if (!email) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(email)}`);
+        const token = getUserToken();
+        if (!token) {
+            balanceEl.innerHTML = `<a href="/account.html" style="color: var(--color-primary);">Check email to enable credits</a>`;
+            return;
+        }
+        const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(email)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
 
         if (data.success) {
@@ -2564,14 +2593,21 @@ async function saveCurrentSearch() {
     }
 
     const searchParams = getCurrentSearchParams();
+    if (!userToken) userToken = getUserToken();
+    if (!userToken) {
+        alert('Please open your preferences link from email to enable saved searches.');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_BASE}/api/saved-searches`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`
+            },
             body: JSON.stringify({
                 email: userEmail,
-                token: userToken,
                 name: name,
                 search_params: searchParams
             })
@@ -2605,6 +2641,8 @@ async function loadSavedSearches() {
     }
 
     if (!userEmail || !elements.savedSearchesList) return;
+    if (!userToken) userToken = getUserToken();
+    if (!userToken) return;
 
     try {
         const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}`, {
@@ -2726,6 +2764,8 @@ async function deleteSavedSearch(id) {
     }
 
     if (!userEmail) return;
+    if (!userToken) userToken = getUserToken();
+    if (!userToken) return;
 
     try {
         const response = await fetch(`${API_BASE}/api/saved-searches?email=${encodeURIComponent(userEmail)}&id=${id}`, {

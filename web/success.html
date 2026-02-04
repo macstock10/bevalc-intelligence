@@ -343,6 +343,12 @@
             link.style.display = 'inline-block';
             loading.style.display = 'none';
             note.style.display = 'block';
+            localStorage.setItem('bevalc_prefs_token', token);
+            try {
+                const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                user.token = token;
+                localStorage.setItem('bevalc_user', JSON.stringify(user));
+            } catch (e) {}
         }
         
         function showPreferencesError() {
@@ -357,47 +363,16 @@
                 return;
             }
             
-            // Retry a few times since webhook might be delayed
-            let attempts = 0;
-            const maxAttempts = 3;
-            const delay = 2000; // 2 seconds between attempts
-            
-            while (attempts < maxAttempts) {
-                try {
-                    const response = await fetch(`${API_BASE}/api/user/preferences?email=${encodeURIComponent(email)}`);
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // Need to get token - fetch it via send-preferences-link endpoint
-                        const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email: email })
-                        });
-                        const tokenData = await tokenResponse.json();
-                        
-                        if (tokenData.success && tokenData._debug_url) {
-                            // Extract token from URL
-                            const url = new URL(tokenData._debug_url);
-                            const token = url.searchParams.get('token');
-                            if (token) {
-                                showPreferencesLink(token);
-                                return;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.log(`Attempt ${attempts + 1} failed:`, e);
-                }
-                
-                attempts++;
-                if (attempts < maxAttempts) {
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
+            try {
+                await fetch(`${API_BASE}/api/user/send-preferences-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                showPreferencesError();
+            } catch (e) {
+                showPreferencesError();
             }
-            
-            // All attempts failed
-            showPreferencesError();
         }
 
         // Dropdown toggle

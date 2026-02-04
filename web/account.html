@@ -454,6 +454,24 @@
         const CATEGORY_ICONS = { 'Whiskey': '🥃', 'Vodka': '🍸', 'Tequila': '🌵', 'Rum': '🏝️', 'Gin': '🫒', 'Brandy': '🍇', 'Wine': '🍷', 'Beer': '🍺', 'Liqueur': '🍬', 'RTD/Cocktails': '🥤', 'Other': '📦' };
         let currentToken = null, currentEmail = null;
 
+        function getStoredToken() {
+            try {
+                const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                if (user && user.token) return user.token;
+            } catch (e) {}
+            return localStorage.getItem('bevalc_prefs_token') || '';
+        }
+
+        async function requestPreferencesLink(email) {
+            try {
+                await fetch(`${API_BASE}/api/user/send-preferences-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+            } catch (e) {}
+        }
+
         function showState(state) {
             document.getElementById('loading-state').style.display = state === 'loading' ? 'block' : 'none';
             document.getElementById('free-account-content').style.display = state === 'free' ? 'block' : 'none';
@@ -526,15 +544,10 @@
                 // Default categories list if preferences don't exist yet
                 const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'];
                 
+                currentToken = getStoredToken() || null;
+
                 if (prefsData.success) {
                     // Preferences exist - load them
-                    const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
-                    const tokenData = await tokenResponse.json();
-                    if (tokenData._debug_url) {
-                        const url = new URL(tokenData._debug_url);
-                        currentToken = url.searchParams.get('token');
-                        localStorage.setItem('bevalc_prefs_token', currentToken);
-                    }
                     document.getElementById('user-email').textContent = prefsData.email;
 
                     // Show Pro badge
@@ -553,6 +566,13 @@
 
                     buildCategoryUI(prefsData.available_categories || defaultCategories, prefsData.categories || []);
                     document.getElementById('receive-free-report').checked = prefsData.receive_free_report !== false;
+                    if (!currentToken) {
+                        requestPreferencesLink(user.email);
+                        const saveStatus = document.getElementById('save-status');
+                        const saveBtn = document.getElementById('save-btn');
+                        if (saveStatus) saveStatus.textContent = 'Check your email for a preferences link to enable saving.';
+                        if (saveBtn) saveBtn.disabled = true;
+                    }
                 } else {
                     // User is Pro but preferences record doesn't exist yet
                     // Show account page with defaults - record will be created on first save
@@ -561,16 +581,11 @@
                     buildCategoryGrid(defaultCategories, []);
                     document.getElementById('receive-free-report').checked = true;
                     
-                    // Try to get/create token for saving
-                    try {
-                        const tokenResponse = await fetch(`${API_BASE}/api/user/send-preferences-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
-                        const tokenData = await tokenResponse.json();
-                        if (tokenData._debug_url) { 
-                            const url = new URL(tokenData._debug_url); 
-                            currentToken = url.searchParams.get('token'); 
-                            localStorage.setItem('bevalc_prefs_token', currentToken); 
-                        }
-                    } catch (e) { console.log('Could not get preferences token:', e); }
+                    requestPreferencesLink(user.email);
+                    const saveStatus = document.getElementById('save-status');
+                    const saveBtn = document.getElementById('save-btn');
+                    if (saveStatus) saveStatus.textContent = 'Check your email for a preferences link to enable saving.';
+                    if (saveBtn) saveBtn.disabled = true;
                 }
                 showState('account');
                 loadCredits();
@@ -589,8 +604,8 @@
 
         async function savePreferences() {
             const saveBtn = document.getElementById('save-btn'), saveStatus = document.getElementById('save-status');
-            if (!currentToken) currentToken = localStorage.getItem('bevalc_prefs_token');
-            if (!currentToken) { saveStatus.textContent = 'Error: Please refresh'; return; }
+            if (!currentToken) currentToken = getStoredToken();
+            if (!currentToken) { saveStatus.textContent = 'Check your email for a preferences link to enable saving.'; return; }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; saveStatus.textContent = '';
 
             const receiveFreeReport = document.getElementById('receive-free-report').checked;
@@ -623,7 +638,11 @@
 
             const balanceEl = document.getElementById('account-credit-balance');
             try {
-                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(user.email)}`);
+                const token = getStoredToken();
+                if (!token) { balanceEl.textContent = 'Check email for access'; return; }
+                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(user.email)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 const data = await response.json();
                 if (data.success) {
                     balanceEl.textContent = `${data.credits} credit${data.credits !== 1 ? 's' : ''}`;
@@ -777,7 +796,14 @@
             const contentEl = document.getElementById('watchlist-content');
 
             try {
-                const response = await fetch(`${API_BASE}/api/watchlist?email=${encodeURIComponent(user.email)}`);
+                const token = getStoredToken();
+                if (!token) {
+                    loadingEl.innerHTML = '<span style="color: var(--color-text-secondary);">Check email to manage watchlist</span>';
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/api/watchlist?email=${encodeURIComponent(user.email)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 const data = await response.json();
 
                 if (data.success) {
@@ -845,9 +871,14 @@
             itemEl.style.opacity = '0.5';
 
             try {
+                const token = getStoredToken();
+                if (!token) { itemEl.style.opacity = '1'; return; }
                 const response = await fetch(`${API_BASE}/api/watchlist/remove`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ email: user.email, type, value })
                 });
 

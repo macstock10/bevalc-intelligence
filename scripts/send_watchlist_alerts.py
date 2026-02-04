@@ -3,7 +3,7 @@
 send_watchlist_alerts.py - Send watchlist alerts for recent filings
 
 Runs daily at 11:30am ET (after the 9pm ET sync completes).
-Checks records from the last 3 days against user watchlists and sends alerts.
+Checks records from the last 7 days against user watchlists and sends alerts.
 Tracks sent alerts to prevent duplicates.
 
 Usage:
@@ -315,7 +315,7 @@ if (result.error) {{
 def main():
     parser = argparse.ArgumentParser(description='Send watchlist alerts')
     parser.add_argument('--dry-run', action='store_true', help='Preview without sending')
-    parser.add_argument('--days', type=int, default=3, help='Days to look back (default: 3)')
+    parser.add_argument('--days', type=int, default=7, help='Days to look back (default: 7)')
     args = parser.parse_args()
 
     logger.info("=" * 60)

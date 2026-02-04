@@ -330,9 +330,9 @@ export default {
             }
             // Watchlist endpoints
             else if (path === '/api/watchlist' && request.method === 'GET') {
-                response = await handleGetWatchlist(url, env);
+                response = await handleGetWatchlist(request, url, env);
             } else if (path === '/api/watchlist/check' && request.method === 'GET') {
-                response = await handleCheckWatchlist(url, env);
+                response = await handleCheckWatchlist(request, url, env);
             } else if (path === '/api/watchlist/counts' && request.method === 'GET') {
                 response = await handleWatchlistCounts(url, env);
             } else if (path === '/api/watchlist/add' && request.method === 'POST') {
@@ -368,7 +368,7 @@ export default {
             } else if (path === '/api/enhance/status' && request.method === 'GET') {
                 response = await handleEnhanceStatus(url, env);
             } else if (path === '/api/credits' && request.method === 'GET') {
-                response = await handleGetCredits(url, env);
+                response = await handleGetCredits(request, url, env);
             } else if (path === '/api/credits/checkout' && request.method === 'POST') {
                 response = await handleCreditCheckout(request, env);
             } else if (path === '/api/company-lookup' && request.method === 'GET') {
@@ -956,6 +956,15 @@ function getBearerToken(request) {
     return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 }
 
+function getRequestToken(request, url, bodyToken = '') {
+    return getBearerToken(request) || bodyToken || (url ? url.searchParams.get('token') : '') || '';
+}
+
+async function requireValidToken(email, token, env) {
+    if (!email || !token) return false;
+    return await verifyUserToken(email, token, env);
+}
+
 async function handleGetPreferences(request, url, env) {
     const token = getBearerToken(request) || url.searchParams.get('token');
     const email = url.searchParams.get('email');
@@ -1172,17 +1181,14 @@ async function handleSendPreferencesLink(request, env) {
             return { success: false, error: 'Pro subscription required' };
         }
         
-        // Here you would integrate with Loops to send the email
-        // For now, just return the token (in production, send via email only)
         const preferencesUrl = `https://bevalcintel.com/preferences.html#token=${user.preferences_token}`;
-        
-        // TODO: Send email via Loops API
-        // await sendLoopsEmail(email, 'preferences_link', { url: preferencesUrl });
-        
-        const response = {
-            success: true,
-            message: 'Preferences link sent to your email'
-        };
+
+        const emailResult = await sendPreferencesLinkEmail(email, preferencesUrl, env);
+        if (!emailResult.success) {
+            return { success: false, error: emailResult.error || 'Failed to send email' };
+        }
+
+        const response = { success: true, message: 'Preferences link sent to your email' };
         // Only include debug URL when explicitly enabled
         if (env.DEBUG_PREFS_LINK === 'true') {
             response._debug_url = preferencesUrl;
@@ -1354,6 +1360,73 @@ async function sendWelcomeEmail(toEmail, env) {
     }
 }
 
+// Send preferences link email via Resend API
+async function sendPreferencesLinkEmail(toEmail, preferencesUrl, env) {
+    const resendApiKey = env.RESEND_API_KEY;
+    if (!resendApiKey) {
+        console.log('RESEND_API_KEY not configured, skipping preferences link email');
+        return { success: false, error: 'Email not configured' };
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <div style="background: #0d9488; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">BevAlc Intelligence</h1>
+        </div>
+        <div style="padding: 32px;">
+            <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 12px 0;">Manage your report preferences</h2>
+            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                Use the secure link below to select the categories you want in your weekly report.
+            </p>
+            <div style="text-align: center; margin: 24px 0;">
+                <a href="${preferencesUrl}" style="display: inline-block; background: #0d9488; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px;">Open Preferences</a>
+            </div>
+            <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 24px 0 0 0;">
+                If you didn’t request this email, you can safely ignore it.
+            </p>
+        </div>
+        <div style="background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">&copy; 2026 BevAlc Intelligence. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    try {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${resendApiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: env.FROM_EMAIL || 'BevAlc Intelligence <hello@bevalcintel.com>',
+                to: toEmail,
+                subject: 'Your BevAlc Preferences Link',
+                html: html,
+            }),
+        });
+
+        if (response.ok) {
+            return { success: true };
+        }
+
+        const error = await response.text();
+        console.error(`Failed to send preferences link email: ${error}`);
+        return { success: false, error };
+    } catch (e) {
+        console.error('Preferences link email error:', e.message);
+        return { success: false, error: e.message };
+    }
+}
+
 // Sign up a free user
 async function handleSignupFree(request, env) {
     try {
@@ -1394,9 +1467,9 @@ async function handleSignupFree(request, env) {
 // WATCHLIST HANDLERS
 // ==========================================
 
-async function handleGetWatchlist(url, env) {
+async function handleGetWatchlist(request, url, env) {
     const email = url.searchParams.get('email');
-    const token = url.searchParams.get('token');
+    const token = getRequestToken(request, url);
 
     if (!email) {
         return { success: false, error: 'Email required' };
@@ -1412,15 +1485,12 @@ async function handleGetWatchlist(url, env) {
             return { success: false, error: 'Pro subscription required' };
         }
 
-        // If token is provided, verify it matches
-        if (token && user.preferences_token && token !== user.preferences_token) {
+        if (!token) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, token, env))) {
             console.warn(`Invalid token attempt for watchlist GET: ${email}`);
             return { success: false, error: 'Invalid token' };
-        }
-
-        // Log when token is not provided (for monitoring)
-        if (!token) {
-            console.warn(`Watchlist GET without token for: ${email}`);
         }
 
         // Get all watchlist items for this user
@@ -1453,16 +1523,23 @@ async function handleGetWatchlist(url, env) {
     }
 }
 
-async function handleCheckWatchlist(url, env) {
+async function handleCheckWatchlist(request, url, env) {
     const email = url.searchParams.get('email');
     const type = url.searchParams.get('type');
     const value = url.searchParams.get('value');
+    const token = getRequestToken(request, url);
 
     if (!email || !type || !value) {
         return { success: false, error: 'Email, type, and value required' };
     }
 
     try {
+        if (!token) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, token, env))) {
+            return { success: false, error: 'Invalid token' };
+        }
         const result = await env.DB.prepare(`
             SELECT 1 FROM watchlist WHERE email = ? AND type = ? AND value = ?
         `).bind(email.toLowerCase(), type, value).first();
@@ -1528,6 +1605,7 @@ async function handleAddToWatchlist(request, env) {
     }
 
     const { email, type, value, token } = body;
+    const authToken = getRequestToken(request, null, token);
 
     if (!email || !type || !value) {
         return { success: false, error: 'Email, type, and value required' };
@@ -1548,15 +1626,12 @@ async function handleAddToWatchlist(request, env) {
             return { success: false, error: 'Pro subscription required' };
         }
 
-        // If token is provided, verify it matches
-        if (token && user.preferences_token && token !== user.preferences_token) {
+        if (!authToken) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, authToken, env))) {
             console.warn(`Invalid token attempt for watchlist ADD: ${email}`);
             return { success: false, error: 'Invalid token' };
-        }
-
-        // Log when token is not provided (for monitoring)
-        if (!token) {
-            console.warn(`Watchlist ADD without token for: ${email}`);
         }
 
         // Add to watchlist (INSERT OR IGNORE handles duplicates)
@@ -1583,6 +1658,7 @@ async function handleRemoveFromWatchlist(request, env) {
     }
 
     const { email, type, value, token } = body;
+    const authToken = getRequestToken(request, null, token);
 
     if (!email || !type || !value) {
         return { success: false, error: 'Email, type, and value required' };
@@ -1594,15 +1670,12 @@ async function handleRemoveFromWatchlist(request, env) {
             'SELECT preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
 
-        // If token is provided, verify it matches
-        if (token && user && user.preferences_token && token !== user.preferences_token) {
+        if (!authToken) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, authToken, env))) {
             console.warn(`Invalid token attempt for watchlist REMOVE: ${email}`);
             return { success: false, error: 'Invalid token' };
-        }
-
-        // Log when token is not provided (for monitoring)
-        if (!token) {
-            console.warn(`Watchlist REMOVE without token for: ${email}`);
         }
 
         await env.DB.prepare(`
@@ -1678,7 +1751,7 @@ async function syncWatchlistToLoops(email, type, value, isAdding, env) {
 
 async function handleGetSavedSearches(request, url, env) {
     const email = url.searchParams.get('email');
-    const token = getBearerToken(request) || url.searchParams.get('token');
+    const token = getRequestToken(request, url);
 
     if (!email) {
         return { success: false, error: 'Email required' };
@@ -1694,8 +1767,10 @@ async function handleGetSavedSearches(request, url, env) {
             return { success: false, error: 'Pro subscription required' };
         }
 
-        // Verify token if provided
-        if (token && user.preferences_token && token !== user.preferences_token) {
+        if (!token) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, token, env))) {
             return { success: false, error: 'Invalid token' };
         }
 
@@ -1726,6 +1801,7 @@ async function handleSaveSavedSearch(request, env) {
     }
 
     const { email, name, search_params, token } = body;
+    const authToken = getRequestToken(request, null, token);
 
     if (!email || !name || !search_params) {
         return { success: false, error: 'Email, name, and search_params required' };
@@ -1745,8 +1821,10 @@ async function handleSaveSavedSearch(request, env) {
             return { success: false, error: 'Pro subscription required' };
         }
 
-        // Verify token if provided
-        if (token && user.preferences_token && token !== user.preferences_token) {
+        if (!authToken) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, authToken, env))) {
             return { success: false, error: 'Invalid token' };
         }
 
@@ -1776,7 +1854,7 @@ async function handleSaveSavedSearch(request, env) {
 async function handleDeleteSavedSearch(request, url, env) {
     const email = url.searchParams.get('email');
     const id = url.searchParams.get('id');
-    const token = getBearerToken(request) || url.searchParams.get('token');
+    const token = getRequestToken(request, url);
 
     if (!email || !id) {
         return { success: false, error: 'Email and id required' };
@@ -1788,8 +1866,10 @@ async function handleDeleteSavedSearch(request, url, env) {
             'SELECT preferences_token FROM user_preferences WHERE email = ?'
         ).bind(email.toLowerCase()).first();
 
-        // Verify token if provided
-        if (token && user && user.preferences_token && token !== user.preferences_token) {
+        if (!token) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, token, env))) {
             return { success: false, error: 'Invalid token' };
         }
 
@@ -1810,7 +1890,7 @@ async function handleDeleteSavedSearch(request, url, env) {
 
 async function handleCompetitorActivity(request, url, env) {
     const email = url.searchParams.get('email');
-    const token = getBearerToken(request) || url.searchParams.get('token');
+    const token = getRequestToken(request, url);
 
     if (!email) {
         return { success: false, error: 'Email required' };
@@ -1826,8 +1906,10 @@ async function handleCompetitorActivity(request, url, env) {
             return { success: false, error: 'Pro subscription required' };
         }
 
-        // Verify token if provided
-        if (token && user.preferences_token && token !== user.preferences_token) {
+        if (!token) {
+            return { success: false, error: 'Token required' };
+        }
+        if (!(await requireValidToken(email, token, env))) {
             return { success: false, error: 'Invalid token' };
         }
 
@@ -5570,10 +5652,18 @@ async function handleEnhanceStatus(url, env) {
     return { success: true, status: 'not_found' };
 }
 
-async function handleGetCredits(url, env) {
+async function handleGetCredits(request, url, env) {
     const email = url.searchParams.get('email')?.toLowerCase();
+    const token = getRequestToken(request, url);
     if (!email) {
         return { success: false, error: 'Missing email' };
+    }
+
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
+    if (!(await requireValidToken(email, token, env))) {
+        return { success: false, error: 'Invalid token' };
     }
 
     const user = await env.DB.prepare(

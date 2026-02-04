@@ -1025,7 +1025,7 @@ def get_pro_subscribers() -> List[Dict]:
     """Get Pro subscribers with their watchlist and subscribed categories."""
     # Get Pro users with their category subscriptions
     pro_users = d1_query("""
-        SELECT email, stripe_customer_id, categories FROM user_preferences
+        SELECT email, stripe_customer_id, categories, preferences_token FROM user_preferences
         WHERE is_pro = 1
     """)
 
@@ -1050,6 +1050,7 @@ def get_pro_subscribers() -> List[Dict]:
 
         pro_subscribers.append({
             "email": email,
+            "preferencesToken": user.get("preferences_token"),
             "watchlist": watchlist,
             "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
             "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
@@ -1164,7 +1165,7 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
     if single_email:
         # Check if single email is a Pro user
         pro_check = d1_query(f"""
-            SELECT is_pro, categories FROM user_preferences
+            SELECT is_pro, categories, preferences_token FROM user_preferences
             WHERE email = '{single_email.replace(chr(39), chr(39)+chr(39))}'
         """)
         is_pro = pro_check[0].get("is_pro", 0) if pro_check else 0
@@ -1182,6 +1183,7 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
             """)
             pro_subscribers = [{
                 "email": single_email,
+                "preferencesToken": pro_check[0].get("preferences_token") if pro_check else None,
                 "watchlist": watchlist,
                 "watchedCompaniesCount": len([w for w in watchlist if w.get("type") == "company"]),
                 "watchedBrandsCount": len([w for w in watchlist if w.get("type") == "brand"]),
@@ -1239,6 +1241,12 @@ def run_send_report(dry_run: bool = False, single_email: str = None, pro_only: b
                 pro_metrics["firstName"] = ""  # Could extract from email or store in DB
                 pro_metrics["watchedCompaniesCount"] = subscriber["watchedCompaniesCount"]
                 pro_metrics["watchedBrandsCount"] = subscriber["watchedBrandsCount"]
+                prefs_token = subscriber.get("preferencesToken")
+                pro_metrics["accountUrl"] = "https://bevalcintel.com/account.html"
+                if prefs_token:
+                    pro_metrics["preferencesUrl"] = f"https://bevalcintel.com/preferences.html#token={prefs_token}"
+                else:
+                    pro_metrics["preferencesUrl"] = "https://bevalcintel.com/account.html"
 
                 if dry_run:
                     logger.info(f"  [DRY RUN] Would send Pro report to: {email}")

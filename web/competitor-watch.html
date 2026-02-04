@@ -511,6 +511,9 @@
                     isPro = user.isPro === true;
                     userEmail = user.email || '';
                     userToken = user.token || '';
+                    if (!userToken) {
+                        userToken = localStorage.getItem('bevalc_prefs_token') || '';
+                    }
 
                     // Show Pro badge
                     if (isPro) {

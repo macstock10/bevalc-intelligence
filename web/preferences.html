@@ -233,6 +233,14 @@
             currentToken = hashParams.get('token') || urlParams.get('token');
             if (!currentToken) { showState('error'); document.getElementById('error-message').textContent = 'No preferences token provided.'; return; }
 
+            // Persist token for other authenticated requests
+            localStorage.setItem('bevalc_prefs_token', currentToken);
+            try {
+                const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
+                user.token = currentToken;
+                localStorage.setItem('bevalc_user', JSON.stringify(user));
+            } catch (e) {}
+
             // If token came from query params, move it to hash to avoid sending it in requests/referrers
             if (urlParams.get('token')) {
                 const newUrl = `${window.location.pathname}#token=${encodeURIComponent(currentToken)}`;

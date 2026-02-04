@@ -1,7 +1,7 @@
 name: Watchlist Alerts
 
 # Sends watchlist alerts daily at 11:30am ET, after the 9pm ET sync completes.
-# Checks records from the last 3 days against user watchlists.
+# Checks records from the last 7 days against user watchlists.
 
 on:
   schedule:
@@ -15,9 +15,9 @@ on:
         default: false
         type: boolean
       days:
-        description: 'Days to look back (default: 3)'
+        description: 'Days to look back (default: 7)'
         required: false
-        default: '3'
+        default: '7'
         type: string
 
 jobs:
@@ -61,7 +61,7 @@ jobs:
         run: |
           cd scripts
 
-          DAYS="${{ inputs.days || '3' }}"
+          DAYS="${{ inputs.days || '7' }}"
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python send_watchlist_alerts.py --days $DAYS --dry-run
