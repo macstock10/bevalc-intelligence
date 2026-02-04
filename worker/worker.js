@@ -2700,12 +2700,15 @@ async function handleStats(env) {
 async function handlePermitLeads(url, env) {
     const params = url.searchParams;
     const page = Math.max(1, parseInt(params.get('page')) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 50));
+    const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 20));
     const offset = (page - 1) * limit;
 
     // Filter options
-    const permitType = params.get('permit_type'); // Importer, Distillery, Winery
+    const permitType = params.get('permit_type'); // Importer, Distillery, Winery, Wholesaler
     const state = params.get('state');
+    const newOnly = params.get('new_only') === '1';
+    const search = params.get('search')?.trim();
+    const hasColaFilings = params.get('has_cola'); // '1' = matched, '0' = unmatched, '' = all
 
     // Check Pro access
     const email = params.get('email');
@@ -2720,21 +2723,24 @@ async function handlePermitLeads(url, env) {
     }
 
     if (!isPro) {
-        return { success: false, error: 'Pro subscription required for leads access' };
+        return { success: false, error: 'Pro subscription required for permits access' };
     }
 
-    // Build WHERE clause for permits without COLA companies
-    let whereClause = 'company_id IS NULL';
+    // Build WHERE clause - show ALL permits by default
+    let whereClause = '1=1';
     const queryParams = [];
 
-    // Exclude wholesalers by default (they don't file COLAs)
-    whereClause += " AND industry_type != 'Wholesaler (Alcohol)'";
+    // Exclude wholesalers by default unless explicitly requested
+    if (permitType !== 'Wholesaler') {
+        whereClause += " AND industry_type != 'Wholesaler (Alcohol)'";
+    }
 
     if (permitType) {
         const typeMap = {
             'Importer': 'Importer (Alcohol)',
             'Distillery': 'Distilled Spirits Plant',
-            'Winery': 'Wine Producer'
+            'Winery': 'Wine Producer',
+            'Wholesaler': 'Wholesaler (Alcohol)'
         };
         const dbType = typeMap[permitType] || permitType;
         whereClause += ' AND industry_type = ?';
@@ -2746,15 +2752,31 @@ async function handlePermitLeads(url, env) {
         queryParams.push(state.toUpperCase());
     }
 
+    if (newOnly) {
+        whereClause += ' AND is_new = 1';
+    }
+
+    if (search && search.length >= 2) {
+        whereClause += ' AND (owner_name LIKE ? OR operating_name LIKE ? OR permit_number LIKE ?)';
+        const searchPattern = `%${search}%`;
+        queryParams.push(searchPattern, searchPattern, searchPattern);
+    }
+
+    if (hasColaFilings === '1') {
+        whereClause += ' AND company_id IS NOT NULL';
+    } else if (hasColaFilings === '0') {
+        whereClause += ' AND company_id IS NULL';
+    }
+
     // Count total
     const countResult = await env.DB.prepare(
         `SELECT COUNT(*) as total FROM permits WHERE ${whereClause}`
     ).bind(...queryParams).first();
     const total = countResult?.total || 0;
 
-    // Get leads
+    // Get permits
     const dataResult = await env.DB.prepare(`
-        SELECT permit_number, owner_name, operating_name, street, city, state, zip, county, industry_type, is_new, first_seen_at, updated_at
+        SELECT permit_number, owner_name, operating_name, street, city, state, zip, county, industry_type, is_new, company_id, first_seen_at, updated_at
         FROM permits
         WHERE ${whereClause}
         ORDER BY is_new DESC, owner_name ASC

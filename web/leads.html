@@ -476,7 +476,7 @@
         const API_BASE = 'https://bevalc-api.mac-rowan.workers.dev';
         let currentPage = 1;
         let totalPages = 1;
-        let currentFilters = { permit_type: '', state: '' };
+        let currentFilters = { permit_type: '', state: '', new_only: '', has_cola: '', search: '' };
         let userEmail = null;
         let isPro = false;
         let permitsData = []; // Store permit data for modal access
@@ -561,7 +561,7 @@
                     const stats = data.stats;
                     const byType = {};
                     for (const t of stats.byType) {
-                        byType[t.industry_type] = t.leads;
+                        byType[t.industry_type] = t.count;  // Show total count, not just leads
                     }
                     document.getElementById('stat-importers').textContent = (byType['Importer (Alcohol)'] || 0).toLocaleString();
                     document.getElementById('stat-wineries').textContent = (byType['Wine Producer'] || 0).toLocaleString();
@@ -606,19 +606,33 @@
         function showLeadsUI() {
             const stateOptions = US_STATES.map(([code,name]) => `<option value="${code}">${name}</option>`).join('');
             document.getElementById('content').innerHTML = `
-                <div class="filters-bar">
-                    <label for="filter-type">Permit Type</label>
+                <div class="filters-bar" style="flex-wrap: wrap;">
+                    <input type="text" id="filter-search" placeholder="Search company name..."
+                           style="padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); font-size: 0.9rem; min-width: 200px;"
+                           onkeyup="debounceSearch(event)">
+                    <label for="filter-type">Type</label>
                     <select id="filter-type" onchange="filterChanged()">
                         <option value="">All Types</option>
                         <option value="Importer">Importers</option>
                         <option value="Winery">Wineries</option>
                         <option value="Distillery">Distilleries</option>
+                        <option value="Wholesaler">Wholesalers</option>
                     </select>
                     <label for="filter-state">State</label>
                     <select id="filter-state" onchange="filterChanged()">
                         <option value="">All States</option>
                         ${stateOptions}
                     </select>
+                    <label for="filter-cola">COLA Status</label>
+                    <select id="filter-cola" onchange="filterChanged()">
+                        <option value="">All Permits</option>
+                        <option value="0">No COLA filings (Leads)</option>
+                        <option value="1">Has COLA filings</option>
+                    </select>
+                    <label for="filter-new">
+                        <input type="checkbox" id="filter-new" onchange="filterChanged()" style="margin-right: 4px;">
+                        New this week
+                    </label>
                     <button class="export-btn" onclick="exportLeads()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7,10 12,15 17,10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         Export CSV
@@ -642,17 +656,30 @@
             `;
         }
 
+        let searchTimeout = null;
+        function debounceSearch(event) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentFilters.search = event.target.value;
+                currentPage = 1;
+                loadLeads();
+            }, 300);
+        }
+
         async function loadLeads() {
             const tbody = document.getElementById('leads-body');
             tbody.innerHTML = '<tr><td colspan="5" class="loading"><span class="loading-spinner"></span>Loading...</td></tr>';
 
             const params = new URLSearchParams({
                 page: currentPage,
-                limit: 50,
+                limit: 20,
                 email: userEmail
             });
             if (currentFilters.permit_type) params.set('permit_type', currentFilters.permit_type);
             if (currentFilters.state) params.set('state', currentFilters.state);
+            if (currentFilters.new_only) params.set('new_only', '1');
+            if (currentFilters.has_cola) params.set('has_cola', currentFilters.has_cola);
+            if (currentFilters.search) params.set('search', currentFilters.search);
 
             try {
                 const res = await fetch(`${API_BASE}/api/permits/leads?${params}`);
@@ -723,6 +750,8 @@
         function filterChanged() {
             currentFilters.permit_type = document.getElementById('filter-type').value;
             currentFilters.state = document.getElementById('filter-state').value;
+            currentFilters.has_cola = document.getElementById('filter-cola').value;
+            currentFilters.new_only = document.getElementById('filter-new').checked ? '1' : '';
             currentPage = 1;
             loadLeads();
         }

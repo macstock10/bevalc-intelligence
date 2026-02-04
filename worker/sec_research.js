@@ -379,7 +379,7 @@ async function searchVectorize(query, intent, env, options = {}) {
     if (results.matches.length > 0) {
         const first = results.matches[0];
         console.log('Vectorize metadata keys:', Object.keys(first.metadata || {}));
-        console.log('Content length:', (first.metadata?.content || '').length);
+        console.log('Content preview length:', (first.metadata?.content_preview || '').length);
     }
 
     const vectorizeLatency = Date.now() - vectorizeStart;
@@ -403,7 +403,7 @@ async function searchVectorize(query, intent, env, options = {}) {
         accessionNumber: match.metadata?.accessionNumber || '',
         chunkStartChar: match.metadata?.chunkStartChar ? Number(match.metadata.chunkStartChar) : undefined,
         chunkEndChar: match.metadata?.chunkEndChar ? Number(match.metadata.chunkEndChar) : undefined,
-        content: match.metadata?.content || '',
+        content: match.metadata?.content_preview || '',
         score: match.score,
         hasFullContent: false
     }));
@@ -813,27 +813,28 @@ function normalizeAnswerFormatting(answer) {
         return text;
     }
 
+    // Remove any Coverage/debug blocks the model may add
+    text = text.replace(/\nCoverage:[\s\S]*?(?=\nSources:|\nAnswer:|$)/g, '\n');
+
     // Ensure evidence bullets are on separate lines
     const parts = text.split(/\nSources:\n/);
-    if (parts.length === 2) {
-        let [answerBlock, evidenceBlock] = parts;
-        // Remove verbatim quotes from Answer; keep citations only.
-        answerBlock = answerBlock.replace(/"[^"]+"\s*(\[[^\]]+\])/g, '$1');
-
+    if (parts.length >= 2) {
+        const answerBlock = parts.shift();
+        const evidenceBlock = parts.shift();
         // Fix orphaned periods after citations (e.g., "]\n\n." -> "].")
-        answerBlock = answerBlock.replace(/\]\s*\.\s*/g, ']. ');
+        let normalizedAnswer = (answerBlock || '').replace(/\]\s*\.\s*/g, ']. ');
 
         // Add paragraph breaks after complete sentences ending with citations
         // Pattern: citation followed by period, then next sentence starting with capital
-        answerBlock = answerBlock.replace(/\]\.\s+(?=[A-Z])/g, '].\n\n');
+        normalizedAnswer = normalizedAnswer.replace(/\]\.\s+(?=[A-Z])/g, '].\n\n');
 
-        const normalizedEvidence = evidenceBlock
+        const normalizedEvidence = (evidenceBlock || '')
             .split(/\n+/)
             .map(line => line.trim())
             .filter(Boolean)
             .map(line => line.startsWith('-') ? line : `- ${line}`)
             .join('\n');
-        text = `${answerBlock.trim()}\n\nSources:\n${normalizedEvidence}`;
+        text = `${normalizedAnswer.trim()}\n\nSources:\n${normalizedEvidence}`;
     }
 
     return text.trim();
@@ -997,6 +998,7 @@ CRITICAL RULES:
 7. You may infer reasonable implications from cited statements, but label them as "Inference:" and still cite.
 8. Do NOT include verbatim quotes in the Answer section; reserve quotes for Sources only.
 9. Prefer the most recent sources; avoid using sources older than 12 months unless the user asks for history.
+10. Do not end a sentence with a dangling phrase before a citation (e.g., "as [CHUNK_N]", "their [CHUNK_N]", "to [CHUNK_N]"). Each sentence must be a complete clause.
 
 OUTPUT FORMAT:
 Answer:

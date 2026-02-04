@@ -153,7 +153,7 @@ function extractSections(
   const matches: Array<{ section: Section; title: string; index: number; confidence: number }> = [];
 
   // Find all section headers
-  for (const { pattern, section } of patterns) {
+  for (const { pattern, section, confidence } of patterns) {
     const match = text.match(pattern);
     if (match && match.index !== undefined) {
       matches.push({
