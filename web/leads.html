@@ -381,8 +381,12 @@
 
     <div class="leads-hero">
         <h1>Federal Permits</h1>
-        <p>Browse TTB permit holders - importers, wineries, and distilleries licensed to operate in the US. Filter to find businesses that haven't filed product labels yet.</p>
-        <div class="stats-grid" id="stats-grid">
+        <p>Browse 82,000+ TTB permit holders - importers, wineries, distilleries, and wholesalers licensed to operate in the US.</p>
+        <div class="stats-grid" id="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+            <div class="stat-card">
+                <div class="value" id="stat-total">-</div>
+                <div class="label">Total Permits</div>
+            </div>
             <div class="stat-card">
                 <div class="value" id="stat-importers">-</div>
                 <div class="label">Importers</div>
@@ -561,8 +565,9 @@
                     const stats = data.stats;
                     const byType = {};
                     for (const t of stats.byType) {
-                        byType[t.industry_type] = t.count;  // Show total count, not just leads
+                        byType[t.industry_type] = t.count;
                     }
+                    document.getElementById('stat-total').textContent = (stats.total || 0).toLocaleString();
                     document.getElementById('stat-importers').textContent = (byType['Importer (Alcohol)'] || 0).toLocaleString();
                     document.getElementById('stat-wineries').textContent = (byType['Wine Producer'] || 0).toLocaleString();
                     document.getElementById('stat-distilleries').textContent = (byType['Distilled Spirits Plant'] || 0).toLocaleString();
