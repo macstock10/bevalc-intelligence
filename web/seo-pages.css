@@ -659,3 +659,12 @@
 @media (max-width: 480px) {
     .state-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================
+   COMPARISON PAGES
+   ========================================== */
+.compare-table td.compare-winner {
+    color: #059669;
+    font-weight: 700;
+    background: #f0fdf4;
+}

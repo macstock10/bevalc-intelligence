@@ -14,6 +14,9 @@
 /locations/   https://bevalc-api.mac-rowan.workers.dev/locations/    200
 /locations/*  https://bevalc-api.mac-rowan.workers.dev/locations/:splat  200
 
+# Comparison pages — SSR via worker
+/compare/*  https://bevalc-api.mac-rowan.workers.dev/compare/:splat  200
+
 # Proxy SEO pages to Cloudflare Worker
 /company/*  https://bevalc-api.mac-rowan.workers.dev/company/:splat  200
 /brand/*    https://bevalc-api.mac-rowan.workers.dev/brand/:splat    200
@@ -56,6 +59,7 @@
 /sitemap-brands-7.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-7.xml 200
 /sitemap-brands-8.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-8.xml 200
 /sitemap-locations.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-locations.xml 200
+/sitemap-comparisons.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-comparisons.xml 200
 
 # Proxy API routes to Cloudflare Worker
 /api/*      https://bevalc-api.mac-rowan.workers.dev/api/:splat      200

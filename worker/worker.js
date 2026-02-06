@@ -304,6 +304,11 @@ export default {
                 return await handleLocationPage(path, env);
             }
 
+            // Comparison pages
+            if (path.startsWith('/compare/')) {
+                return await handleComparisonPage(path, env);
+            }
+
             // Hub pages (e.g., /whiskey/, /tequila/)
             const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
             if (hubMatch) {
@@ -6002,6 +6007,314 @@ async function handleStateCategoryPage(originCode, categorySlug, categoryName, e
     }
 }
 
+// ==========================================
+// COMPARISON PAGE HANDLER
+// ==========================================
+
+async function handleComparisonPage(path, env) {
+    const slug = path.replace('/compare/', '').replace(/\/$/, '');
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    // Parse "brand-a-vs-brand-b" from the slug
+    const vsIndex = slug.indexOf('-vs-');
+    if (vsIndex === -1) {
+        return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+    }
+
+    const slugA = slug.substring(0, vsIndex);
+    const slugB = slug.substring(vsIndex + 4);
+
+    if (!slugA || !slugB || slugA === slugB) {
+        return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+    }
+
+    try {
+        // Look up both brands in brand_slugs
+        const [brandA, brandB] = await Promise.all([
+            env.DB.prepare('SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?').bind(slugA).first(),
+            env.DB.prepare('SELECT brand_name, filing_count as cnt FROM brand_slugs WHERE slug = ?').bind(slugB).first(),
+        ]);
+
+        if (!brandA || !brandB) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Require 10+ filings each
+        if (brandA.cnt < 10 || brandB.cnt < 10) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Run queries for both brands in parallel
+        const [
+            catsA, catsB,
+            companiesA, companiesB,
+            recentA, recentB,
+            trendA, trendB,
+            statesA, statesB
+        ] = await Promise.all([
+            // Category breakdown
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND category IS NOT NULL GROUP BY category ORDER BY cnt DESC').bind(brandA.brand_name).all(),
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND category IS NOT NULL GROUP BY category ORDER BY cnt DESC').bind(brandB.brand_name).all(),
+            // Parent company (top company by filings)
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE co.brand_name = ?
+                GROUP BY c.id ORDER BY cnt DESC LIMIT 1
+            `).bind(brandA.brand_name).first(),
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE co.brand_name = ?
+                GROUP BY c.id ORDER BY cnt DESC LIMIT 1
+            `).bind(brandB.brand_name).first(),
+            // Most recent filing
+            env.DB.prepare('SELECT approval_date, fanciful_name, signal FROM colas WHERE brand_name = ? ORDER BY approval_date DESC LIMIT 1').bind(brandA.brand_name).first(),
+            env.DB.prepare('SELECT approval_date, fanciful_name, signal FROM colas WHERE brand_name = ? ORDER BY approval_date DESC LIMIT 1').bind(brandB.brand_name).first(),
+            // Year trend (last 5 years)
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(brandA.brand_name).all(),
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(brandB.brand_name).all(),
+            // Top states
+            env.DB.prepare('SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandA.brand_name).all(),
+            env.DB.prepare('SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandB.brand_name).all(),
+        ]);
+
+        const categoriesA = catsA.results || [];
+        const categoriesB = catsB.results || [];
+        const yearsA = trendA.results || [];
+        const yearsB = trendB.results || [];
+        const topStatesA = (statesA.results || []).map(s => STATE_DATA[s.origin]?.name || s.origin).slice(0, 3);
+        const topStatesB = (statesB.results || []).map(s => STATE_DATA[s.origin]?.name || s.origin).slice(0, 3);
+
+        const primaryCatA = categoriesA.length > 0 ? categoriesA[0].category : 'Unknown';
+        const primaryCatB = categoriesB.length > 0 ? categoriesB[0].category : 'Unknown';
+        const companyNameA = companiesA?.canonical_name || 'Unknown';
+        const companyNameB = companiesB?.canonical_name || 'Unknown';
+        const companySlugA = companiesA?.slug || '';
+        const companySlugB = companiesB?.slug || '';
+
+        // Compute YoY trend direction
+        function getTrend(years) {
+            if (years.length < 2) return 'stable';
+            return years[0].cnt > years[1].cnt ? 'up' : years[0].cnt < years[1].cnt ? 'down' : 'stable';
+        }
+        const trendDirA = getTrend(yearsA);
+        const trendDirB = getTrend(yearsB);
+        const trendLabelA = trendDirA === 'up' ? 'Trending Up' : trendDirA === 'down' ? 'Trending Down' : 'Stable';
+        const trendLabelB = trendDirB === 'up' ? 'Trending Up' : trendDirB === 'down' ? 'Trending Down' : 'Stable';
+
+        // Format display names (title case)
+        const nameA = brandA.brand_name;
+        const nameB = brandB.brand_name;
+        const displayA = fixDisplayName(nameA);
+        const displayB = fixDisplayName(nameB);
+
+        // Generate verdict
+        const moreActive = brandA.cnt > brandB.cnt ? displayA : brandB.cnt > brandA.cnt ? displayB : null;
+        const ratio = Math.max(brandA.cnt, brandB.cnt) / Math.min(brandA.cnt, brandB.cnt);
+        const sameCat = primaryCatA === primaryCatB;
+        const sameCompany = companyNameA === companyNameB && companyNameA !== 'Unknown';
+
+        let verdict = '';
+        if (moreActive) {
+            verdict += `<strong>${escapeHtml(moreActive)}</strong> has ${formatNumber(Math.max(brandA.cnt, brandB.cnt))} total TTB filings compared to ${formatNumber(Math.min(brandA.cnt, brandB.cnt))} for ${escapeHtml(moreActive === displayA ? displayB : displayA)}, making it roughly ${ratio.toFixed(1)}x more active in label submissions. `;
+        } else {
+            verdict += `Both brands have exactly ${formatNumber(brandA.cnt)} TTB filings, indicating comparable market activity. `;
+        }
+        if (sameCat) {
+            verdict += `Both brands compete primarily in the <strong>${escapeHtml(primaryCatA)}</strong> category. `;
+        } else {
+            verdict += `${escapeHtml(displayA)} is primarily a <strong>${escapeHtml(primaryCatA).toLowerCase()}</strong> brand while ${escapeHtml(displayB)} focuses on <strong>${escapeHtml(primaryCatB).toLowerCase()}</strong>. `;
+        }
+        if (trendDirA === 'up' && trendDirB !== 'up') {
+            verdict += `${escapeHtml(displayA)} shows increasing filing activity year-over-year, suggesting growing market momentum.`;
+        } else if (trendDirB === 'up' && trendDirA !== 'up') {
+            verdict += `${escapeHtml(displayB)} shows increasing filing activity year-over-year, suggesting growing market momentum.`;
+        } else if (trendDirA === 'up' && trendDirB === 'up') {
+            verdict += `Both brands show increasing filing activity, reflecting growth in their respective segments.`;
+        }
+
+        // Comparison table
+        const comparisonRows = [
+            ['Total Filings', formatNumber(brandA.cnt), formatNumber(brandB.cnt), brandA.cnt > brandB.cnt ? 'a' : brandB.cnt > brandA.cnt ? 'b' : ''],
+            ['Primary Category', escapeHtml(primaryCatA), escapeHtml(primaryCatB), ''],
+            ['Parent Company',
+                companySlugA ? `<a href="/company/${companySlugA}/">${escapeHtml(companyNameA)}</a>` : escapeHtml(companyNameA),
+                companySlugB ? `<a href="/company/${companySlugB}/">${escapeHtml(companyNameB)}</a>` : escapeHtml(companyNameB),
+                ''],
+            ['Most Recent Filing', recentA?.approval_date || '—', recentB?.approval_date || '—', ''],
+            ['Categories', String(categoriesA.length), String(categoriesB.length), categoriesA.length > categoriesB.length ? 'a' : categoriesB.length > categoriesA.length ? 'b' : ''],
+            ['YoY Trend', trendLabelA, trendLabelB, trendDirA === 'up' && trendDirB !== 'up' ? 'a' : trendDirB === 'up' && trendDirA !== 'up' ? 'b' : ''],
+            ['Top States', topStatesA.join(', ') || '—', topStatesB.join(', ') || '—', ''],
+        ];
+
+        const comparisonTableHtml = `
+            <section class="seo-card">
+                <h2>Side-by-Side Comparison</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table compare-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th><a href="/brand/${slugA}/">${escapeHtml(displayA)}</a></th>
+                                <th><a href="/brand/${slugB}/">${escapeHtml(displayB)}</a></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${comparisonRows.map(([label, valA, valB, winner]) => `
+                                <tr>
+                                    <td><strong>${label}</strong></td>
+                                    <td${winner === 'a' ? ' class="compare-winner"' : ''}>${valA}</td>
+                                    <td${winner === 'b' ? ' class="compare-winner"' : ''}>${valB}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        `;
+
+        // Category breakdown side-by-side
+        const allCats = new Set([...categoriesA.map(c => c.category), ...categoriesB.map(c => c.category)]);
+        const catMapA = Object.fromEntries(categoriesA.map(c => [c.category, c.cnt]));
+        const catMapB = Object.fromEntries(categoriesB.map(c => [c.category, c.cnt]));
+
+        const categoryCompareHtml = allCats.size > 0 ? `
+            <section class="seo-card">
+                <h2>Category Breakdown</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>Category</th><th>${escapeHtml(displayA)}</th><th>${escapeHtml(displayB)}</th></tr></thead>
+                        <tbody>
+                            ${[...allCats].map(cat => {
+                                const cntA = catMapA[cat] || 0;
+                                const cntB = catMapB[cat] || 0;
+                                return `<tr>
+                                    <td>${escapeHtml(cat)}</td>
+                                    <td${cntA > cntB ? ' class="compare-winner"' : ''}>${formatNumber(cntA)}</td>
+                                    <td${cntB > cntA ? ' class="compare-winner"' : ''}>${formatNumber(cntB)}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Year trend side-by-side
+        const allYears = new Set([...yearsA.map(y => y.year), ...yearsB.map(y => y.year)]);
+        const yearMapA = Object.fromEntries(yearsA.map(y => [y.year, y.cnt]));
+        const yearMapB = Object.fromEntries(yearsB.map(y => [y.year, y.cnt]));
+        const sortedYears = [...allYears].sort((a, b) => b - a);
+
+        const yearCompareHtml = sortedYears.length > 0 ? `
+            <section class="seo-card">
+                <h2>Filing Timeline</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>Year</th><th>${escapeHtml(displayA)}</th><th>${escapeHtml(displayB)}</th></tr></thead>
+                        <tbody>
+                            ${sortedYears.map(yr => {
+                                const cntA = yearMapA[yr] || 0;
+                                const cntB = yearMapB[yr] || 0;
+                                return `<tr>
+                                    <td>${yr}</td>
+                                    <td${cntA > cntB ? ' class="compare-winner"' : ''}>${formatNumber(cntA)}</td>
+                                    <td${cntB > cntA ? ' class="compare-winner"' : ''}>${formatNumber(cntB)}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        const dateModified = new Date().toISOString().split('T')[0];
+        const canonicalUrl = `${BASE_URL}/compare/${slugA}-vs-${slugB}/`;
+        const title = `${displayA} vs ${displayB} — Brand Comparison`;
+        const description = `Compare ${displayA} and ${displayB}: ${formatNumber(brandA.cnt)} vs ${formatNumber(brandB.cnt)} TTB filings. Side-by-side analysis of categories, companies, filing trends, and market activity.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "dateModified": dateModified
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Compare", "item": `${BASE_URL}/compare/` },
+                    { "@type": "ListItem", "position": 3, "name": `${displayA} vs ${displayB}` }
+                ]
+            }
+        ];
+
+        const extraHead = `<meta property="article:modified_time" content="${dateModified}">`;
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / Compare / ${escapeHtml(displayA)} vs ${escapeHtml(displayB)}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>${escapeHtml(displayA)} vs ${escapeHtml(displayB)}</h1>
+                    <div class="meta">
+                        <span><a href="/brand/${slugA}/">${escapeHtml(displayA)}</a>: <strong>${formatNumber(brandA.cnt)}</strong> filings</span>
+                        <span><a href="/brand/${slugB}/">${escapeHtml(displayB)}</a>: <strong>${formatNumber(brandB.cnt)}</strong> filings</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card">
+                <h2>Verdict</h2>
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    ${verdict}
+                </p>
+            </section>
+
+            ${comparisonTableHtml}
+            ${categoryCompareHtml}
+            ${yearCompareHtml}
+
+            <section class="seo-card">
+                <h2>About This Comparison</h2>
+                <p style="line-height: 1.75; color: #475569; margin: 0;">
+                    This comparison is based on TTB (Alcohol and Tobacco Tax and Trade Bureau) Certificate of Label Approval data. Each filing represents a label approval for a specific product SKU. More filings generally indicate a broader product portfolio or more frequent label updates, which can signal active market participation and brand investment. This data helps service providers — such as label printers, compliance consultants, and co-packers — understand which brands are most actively expanding their product lines.
+                </p>
+            </section>
+
+            <div class="related-links">
+                <div class="related-heading">Explore These Brands</div>
+                <a href="/brand/${slugA}/">${escapeHtml(displayA)} Brand Page</a>
+                <a href="/brand/${slugB}/">${escapeHtml(displayB)} Brand Page</a>
+                ${companySlugA ? `<a href="/company/${companySlugA}/">${escapeHtml(companyNameA)}</a>` : ''}
+                ${companySlugB && companySlugB !== companySlugA ? `<a href="/company/${companySlugB}/">${escapeHtml(companyNameB)}</a>` : ''}
+            </div>
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`Comparison page error for ${slug}:`, error.message);
+        return new Response('Error loading comparison', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
 // Sitemap Handler - serves pre-generated sitemaps from R2
 const R2_SITEMAP_URL = 'https://pub-1c889ae594b041a3b752c6c891eb718e.r2.dev/sitemaps';
 
@@ -6012,9 +6325,12 @@ async function handleSitemap(path, env) {
         'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
     };
 
-    // Dynamic sitemap: location pages
+    // Dynamic sitemaps
     if (path === '/sitemap-locations.xml') {
         return await generateLocationsSitemap(env, cacheHeaders);
+    }
+    if (path === '/sitemap-comparisons.xml') {
+        return await generateComparisonsSitemap(env, cacheHeaders);
     }
 
     // Map path to R2 file
@@ -6048,8 +6364,11 @@ async function handleSitemap(path, env) {
         // Inject dynamic sitemap references into the sitemap index
         if (path === '/sitemap.xml') {
             const today = new Date().toISOString().split('T')[0];
-            const locationEntry = `  <sitemap>\n    <loc>${BASE_URL}/sitemap-locations.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>\n`;
-            xml = xml.replace('</sitemapindex>', locationEntry + '</sitemapindex>');
+            const dynamicEntries = [
+                `  <sitemap>\n    <loc>${BASE_URL}/sitemap-locations.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
+                `  <sitemap>\n    <loc>${BASE_URL}/sitemap-comparisons.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
+            ].join('\n');
+            xml = xml.replace('</sitemapindex>', dynamicEntries + '\n</sitemapindex>');
         }
 
         return new Response(xml, { headers: cacheHeaders });
@@ -6104,6 +6423,58 @@ ${urls}</urlset>`;
         return new Response(xml, { headers: cacheHeaders });
     } catch (error) {
         console.error('Error generating locations sitemap:', error.message);
+        return new Response('Error generating sitemap', { status: 500 });
+    }
+}
+
+async function generateComparisonsSitemap(env, cacheHeaders) {
+    try {
+        // Get top 200 brands with 10+ filings, including their primary category and parent company
+        const topBrands = await env.DB.prepare(`
+            SELECT bs.slug, bs.brand_name, bs.filing_count,
+                   (SELECT category FROM colas WHERE brand_name = bs.brand_name AND category IS NOT NULL GROUP BY category ORDER BY COUNT(*) DESC LIMIT 1) as primary_category,
+                   (SELECT ca.company_id FROM colas co JOIN company_aliases ca ON co.company_name = ca.raw_name WHERE co.brand_name = bs.brand_name GROUP BY ca.company_id ORDER BY COUNT(*) DESC LIMIT 1) as company_id
+            FROM brand_slugs bs
+            WHERE bs.filing_count >= 10
+            ORDER BY bs.filing_count DESC
+            LIMIT 200
+        `).all();
+
+        const brands = topBrands.results || [];
+        const today = new Date().toISOString().split('T')[0];
+        let urls = '';
+        const pairsSeen = new Set();
+
+        // Generate meaningful pairs: same category or same parent company
+        for (let i = 0; i < brands.length; i++) {
+            for (let j = i + 1; j < brands.length; j++) {
+                const a = brands[i];
+                const b = brands[j];
+
+                // Must share category or company
+                const sameCategory = a.primary_category && a.primary_category === b.primary_category;
+                const sameCompany = a.company_id && a.company_id === b.company_id;
+
+                if (!sameCategory && !sameCompany) continue;
+
+                // Canonical order: alphabetical by slug
+                const [first, second] = a.slug < b.slug ? [a.slug, b.slug] : [b.slug, a.slug];
+                const pairKey = `${first}-vs-${second}`;
+
+                if (pairsSeen.has(pairKey)) continue;
+                pairsSeen.add(pairKey);
+
+                urls += `  <url><loc>${BASE_URL}/compare/${first}-vs-${second}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>\n`;
+            }
+        }
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}</urlset>`;
+
+        return new Response(xml, { headers: cacheHeaders });
+    } catch (error) {
+        console.error('Error generating comparisons sitemap:', error.message);
         return new Response('Error generating sitemap', { status: 500 });
     }
 }
