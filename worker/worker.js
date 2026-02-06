@@ -4558,9 +4558,9 @@ async function handleHubPage(categorySlug, env, headers) {
 
         // Top states for this category (for cross-linking section)
         const topStatesResult = await env.DB.prepare(`
-            SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt
+            SELECT origin_code as origin, COUNT(*) as cnt
             FROM colas WHERE category = ? AND origin_code IS NOT NULL AND TRIM(origin_code) != ''
-            GROUP BY UPPER(TRIM(origin_code))
+            GROUP BY origin_code
             ORDER BY cnt DESC LIMIT 6
         `).bind(category).all();
         const topStates = (topStatesResult?.results || []).filter(r => STATE_DATA[r.origin]);
@@ -5481,7 +5481,7 @@ async function handleLocationsIndex(env) {
     try {
         // Get state counts using origin_code (uppercase state names like "CALIFORNIA")
         const stateStats = await env.DB.prepare(`
-            SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as total, COUNT(DISTINCT company_name) as companies
+            SELECT origin_code as origin, COUNT(*) as total, COUNT(DISTINCT company_name) as companies
             FROM colas
             WHERE origin_code IS NOT NULL AND origin_code != ''
             GROUP BY origin
@@ -5490,7 +5490,7 @@ async function handleLocationsIndex(env) {
 
         // Get top category per state
         const topCategories = await env.DB.prepare(`
-            SELECT UPPER(TRIM(origin_code)) as origin, category, COUNT(*) as cnt
+            SELECT origin_code as origin, category, COUNT(*) as cnt
             FROM colas
             WHERE origin_code IS NOT NULL AND origin_code != '' AND category IS NOT NULL
             GROUP BY origin, category
@@ -5623,21 +5623,21 @@ async function handleStatePage(originCode, env) {
     try {
         // Run all queries in parallel — use origin_code for colas, state (2-letter abbr) for permits
         const [totalRes, companiesRes, categoryRes, topCompaniesRes, topBrandsRes, permitRes, yearTrendRes] = await Promise.all([
-            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ?').bind(originCode).first(),
-            env.DB.prepare('SELECT COUNT(DISTINCT company_name) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ?').bind(originCode).first(),
-            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category IS NOT NULL GROUP BY category ORDER BY cnt DESC').bind(originCode).all(),
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE origin_code = ?').bind(originCode).first(),
+            env.DB.prepare('SELECT COUNT(DISTINCT company_name) as cnt FROM colas WHERE origin_code = ?').bind(originCode).first(),
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE origin_code = ? AND category IS NOT NULL GROUP BY category ORDER BY cnt DESC').bind(originCode).all(),
             env.DB.prepare(`
                 SELECT c.canonical_name, c.slug, COUNT(*) as cnt
                 FROM colas co
                 JOIN company_aliases ca ON co.company_name = ca.raw_name
                 JOIN companies c ON ca.company_id = c.id
-                WHERE UPPER(TRIM(co.origin_code)) = ?
+                WHERE co.origin_code = ?
                 GROUP BY c.id
                 ORDER BY cnt DESC LIMIT 10
             `).bind(originCode).all(),
-            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode).all(),
+            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE origin_code = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode).all(),
             env.DB.prepare('SELECT COUNT(*) as cnt FROM permits WHERE UPPER(TRIM(state)) = ?').bind(state.abbr).first(),
-            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode).all(),
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE origin_code = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode).all(),
         ]);
 
         const totalFilings = totalRes?.cnt || 0;
@@ -5863,20 +5863,20 @@ async function handleStateCategoryPage(originCode, categorySlug, categoryName, e
     try {
         // Run all queries in parallel — use origin_code for colas
         const [totalRes, topCompaniesRes, topBrandsRes, recentRes, yearTrendRes, otherCatsRes] = await Promise.all([
-            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ?').bind(originCode, categoryName).first(),
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE origin_code = ? AND category = ?').bind(originCode, categoryName).first(),
             env.DB.prepare(`
                 SELECT c.canonical_name, c.slug, COUNT(*) as cnt
                 FROM colas co
                 JOIN company_aliases ca ON co.company_name = ca.raw_name
                 JOIN companies c ON ca.company_id = c.id
-                WHERE UPPER(TRIM(co.origin_code)) = ? AND co.category = ?
+                WHERE co.origin_code = ? AND co.category = ?
                 GROUP BY c.id
                 ORDER BY cnt DESC LIMIT 10
             `).bind(originCode, categoryName).all(),
-            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode, categoryName).all(),
-            env.DB.prepare('SELECT ttb_id, brand_name, fanciful_name, company_name, approval_date, signal FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? ORDER BY approval_date DESC LIMIT 10').bind(originCode, categoryName).all(),
-            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode, categoryName).all(),
-            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category IS NOT NULL AND category != ? GROUP BY category HAVING cnt >= 10 ORDER BY cnt DESC').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE origin_code = ? AND category = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT ttb_id, brand_name, fanciful_name, company_name, approval_date, signal FROM colas WHERE origin_code = ? AND category = ? ORDER BY approval_date DESC LIMIT 10').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE origin_code = ? AND category = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE origin_code = ? AND category IS NOT NULL AND category != ? GROUP BY category HAVING cnt >= 10 ORDER BY cnt DESC').bind(originCode, categoryName).all(),
         ]);
 
         const totalFilings = totalRes?.cnt || 0;
@@ -6133,8 +6133,8 @@ async function handleComparisonPage(path, env) {
             env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(brandA.brand_name).all(),
             env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(brandB.brand_name).all(),
             // Top states
-            env.DB.prepare('SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandA.brand_name).all(),
-            env.DB.prepare('SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandB.brand_name).all(),
+            env.DB.prepare('SELECT origin_code as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandA.brand_name).all(),
+            env.DB.prepare('SELECT origin_code as origin, COUNT(*) as cnt FROM colas WHERE brand_name = ? AND origin_code IS NOT NULL GROUP BY origin ORDER BY cnt DESC LIMIT 3').bind(brandB.brand_name).all(),
         ]);
 
         const categoriesA = catsA.results || [];
@@ -7156,7 +7156,7 @@ async function generateLocationsSitemap(env, cacheHeaders) {
     try {
         // Get all valid state+category combos with 10+ filings
         const combos = await env.DB.prepare(`
-            SELECT UPPER(TRIM(origin_code)) as origin, category, COUNT(*) as cnt
+            SELECT origin_code as origin, category, COUNT(*) as cnt
             FROM colas
             WHERE origin_code IS NOT NULL AND origin_code != '' AND category IS NOT NULL
             GROUP BY origin, category
