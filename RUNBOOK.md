@@ -29,6 +29,12 @@
 - **Config**: `worker/wrangler.toml` contains D1 binding (database_id)
 - **Note**: Worker code in `worker/worker.js` - do NOT edit in Cloudflare dashboard
 
+### Auth Code Verification (Required Table)
+Verification codes are stored in D1. Run once:
+```bash
+npx wrangler d1 execute bevalc-colas --remote --file web/migrations/003_add_email_verification_codes.sql
+```
+
 ### GitHub Actions (Scheduled)
 - **Daily TTB Sync**: Daily 9pm ET (2am UTC)
 - **Weekly Report**: Fridays 2pm ET (7pm UTC)
@@ -136,6 +142,11 @@ Notes:
 - `batch_classify.py` recomputes signals after the merges
 
 ## Common Issues
+
+### "Verification code not working"
+- Ensure `email_verification_codes` table exists (see migration above)
+- Ensure Resend is configured and sending emails
+- Codes expire in 15 minutes and allow 5 attempts
 
 ### "CAPTCHA detected" in scraper logs
 - TTB is blocking. Script will wait 30s and retry.

@@ -37,7 +37,7 @@ BevAlc Intelligence tracks all TTB (Alcohol and Tobacco Tax and Trade Bureau) la
 - Syncs to Cloudflare D1
 - Classifies records: NEW_COMPANY → NEW_BRAND → NEW_SKU → REFILE
 
-**Daily (11:30am ET):** Watchlist alerts sent to subscribers
+**Daily (11:30am ET):** Watchlist alerts sent to subscribers (last 7 days)
 
 **Friday (2pm ET):** Weekly report emails sent
 
@@ -101,9 +101,15 @@ Required secrets (set in GitHub Actions and Cloudflare):
 | CLOUDFLARE_ACCOUNT_ID | D1 database access |
 | CLOUDFLARE_D1_DATABASE_ID | D1 database ID |
 | CLOUDFLARE_API_TOKEN | Cloudflare API |
-| RESEND_API_KEY | Email delivery |
+| RESEND_API_KEY | Email delivery (weekly reports + verification codes) |
 | STRIPE_SECRET_KEY | Payment processing |
 | ANTHROPIC_API_KEY | AI enhancement |
+
+## Auth & Verification
+
+- Users confirm email via a **6-digit code** sent by Resend.
+- Verification stores a token locally for watchlist, saved searches, and credits.
+- Code entries are stored in D1 table `email_verification_codes` (see `web/migrations/003_add_email_verification_codes.sql`).
 
 ## Pricing Tiers
 

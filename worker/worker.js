@@ -290,6 +290,13 @@ export default {
                 return await handleCategoryPage(path, env, allHeaders);
             }
 
+            // Glossary pages
+            if (path === '/glossary' || path === '/glossary/') {
+                return await handleGlossaryIndex(env);
+            } else if (path.startsWith('/glossary/')) {
+                return await handleGlossaryTerm(path, env);
+            }
+
             // Hub pages (e.g., /whiskey/, /tequila/)
             const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
             if (hubMatch) {
@@ -1464,14 +1471,14 @@ async function sendVerificationCodeEmail(toEmail, code, env) {
         </div>
         <div style="padding: 32px; text-align: center;">
             <h2 style="color: #1e293b; font-size: 22px; margin: 0 0 12px 0;">Your verification code</h2>
-            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                Enter this code to confirm your email and enable your account features.
+            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+                Enter this code to verify your email and activate your account.
             </p>
-            <div style="display: inline-block; font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #0f172a; background: #f1f5f9; padding: 12px 20px; border-radius: 8px;">
-                ${code}
+            <div style="background: #f0fdfa; border: 2px dashed #0d9488; border-radius: 8px; padding: 20px; margin: 0 0 24px 0;">
+                <span style="font-size: 32px; letter-spacing: 8px; font-weight: 700; color: #0d9488; font-family: 'SF Mono', Monaco, 'Courier New', monospace;">${code}</span>
             </div>
-            <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0;">
-                This code expires in 15 minutes. If you didn’t request this, you can ignore it.
+            <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0;">
+                This code expires in 15 minutes.<br>If you didn't request this, you can safely ignore it.
             </p>
         </div>
         <div style="background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
@@ -3239,7 +3246,69 @@ function formatNumber(num) {
     return new Intl.NumberFormat().format(num || 0);
 }
 
-function getPageLayout(title, description, content, jsonLd = null, canonical = null) {
+function fixDisplayName(name) {
+    if (!name) return name;
+    const upperWords = new Set(['LLC', 'USA', 'DBA', 'LP', 'LLP', 'INC']);
+    const properWords = { 'inc': 'Inc', 'co': 'Co', 'corp': 'Corp', 'ltd': 'Ltd' };
+    return name.replace(/\b\w+/g, word => {
+        const upper = word.toUpperCase();
+        if (upperWords.has(upper)) return upper;
+        const lower = word.toLowerCase();
+        if (properWords[lower]) return properWords[lower];
+        return word;
+    });
+}
+
+// Parse TTB state field ("OWENSBORO, KY 42303") into structured address parts
+function parseLocation(stateStr) {
+    if (!stateStr) return null;
+    const s = stateStr.trim();
+    // Pattern: "CITY, ST ZIP" or "CITY, ST" or "ST ZIP" or "ST"
+    const fullMatch = s.match(/^(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+    if (fullMatch) {
+        return {
+            addressLocality: fullMatch[1].replace(/\b\w+/g, w => w.charAt(0) + w.slice(1).toLowerCase()),
+            addressRegion: fullMatch[2],
+            postalCode: fullMatch[3]
+        };
+    }
+    const cityStateMatch = s.match(/^(.+?),\s*([A-Z]{2})$/);
+    if (cityStateMatch) {
+        return {
+            addressLocality: cityStateMatch[1].replace(/\b\w+/g, w => w.charAt(0) + w.slice(1).toLowerCase()),
+            addressRegion: cityStateMatch[2]
+        };
+    }
+    const stateZipMatch = s.match(/^([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+    if (stateZipMatch) {
+        return { addressRegion: stateZipMatch[1], postalCode: stateZipMatch[2] };
+    }
+    const stateOnly = s.match(/^([A-Z]{2})$/);
+    if (stateOnly) {
+        return { addressRegion: stateOnly[1] };
+    }
+    return { addressRegion: s };
+}
+
+// Convert "MM/DD/YYYY" approval_date to ISO "YYYY-MM-DD"
+function approvalDateToISO(approvalDate) {
+    if (!approvalDate) return null;
+    const parts = approvalDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!parts) return null;
+    return `${parts[3]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+}
+
+// Convert numeric date (20260115) to ISO "YYYY-MM-DD"
+function numericDateToISO(num) {
+    if (!num) return null;
+    const y = Math.floor(num / 10000);
+    const m = Math.floor((num % 10000) / 100);
+    const d = num % 100;
+    if (y < 2000 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function getPageLayout(title, description, content, jsonLd = null, canonical = null, extraHead = '') {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3247,6 +3316,13 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(title)} | BevAlc Intelligence</title>
     <meta name="description" content="${escapeHtml(description)}">
+    <meta property="og:title" content="${escapeHtml(title)}">
+    <meta property="og:description" content="${escapeHtml(description)}">
+    <meta property="og:url" content="${canonical || BASE_URL}">
+    <meta property="og:image" content="${BASE_URL}/favicon-192.png">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    ${extraHead}
     <link rel="canonical" href="${canonical || BASE_URL}">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
@@ -3255,414 +3331,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
-    <style>
-        /* Navigation styles */
-        .nav { background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0,0,0,0.06); position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
-        .nav-container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
-        .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--color-text); text-decoration: none; }
-        .nav-links { display: flex; gap: 24px; }
-        .nav-links a { color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; }
-        .nav-links a:hover { color: var(--color-primary); }
-        .nav-home { color: #0d9488 !important; font-weight: 600; }
-
-        .seo-page { padding-top: 80px; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-bottom: 64px; }
-
-        /* Modern hero header */
-        .seo-header {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            margin: 0 -24px 48px -24px;
-            padding: 56px 24px 48px;
-            position: relative;
-            overflow: hidden;
-        }
-        .seo-header::before {
-            content: '';
-            position: absolute;
-            top: 0; right: 0; bottom: 0; left: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            opacity: 0.5;
-            pointer-events: none;
-        }
-        .seo-header::after {
-            content: '';
-            position: absolute;
-            top: -50%; right: -20%;
-            width: 500px; height: 500px;
-            background: radial-gradient(circle, rgba(13,148,136,0.15) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        .seo-header-inner { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
-        .seo-header h1 {
-            font-family: var(--font-display);
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-            color: #ffffff;
-            line-height: 1.15;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        .seo-header .meta {
-            color: rgba(255,255,255,0.7);
-            font-size: 1rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px 20px;
-            align-items: center;
-        }
-        .seo-header .meta a { color: #5eead4; font-weight: 500; text-decoration: none; }
-        .seo-header .meta a:hover { color: #99f6e4; text-decoration: underline; }
-        .seo-header .meta strong { color: #fff; }
-        .category-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.15);
-            padding: 8px 16px;
-            border-radius: 24px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #fff;
-        }
-        .category-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 8px rgba(45,212,191,0.5); }
-        .meta-stats { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
-        .meta-line { margin: 0; color: rgba(255,255,255,0.6); font-size: 0.9rem; display: flex; align-items: center; gap: 10px; }
-        .meta-line strong { color: #fff; font-weight: 600; }
-        .meta-icon { font-size: 1rem; opacity: 0.8; }
-
-        /* Sleek stat cards */
-        .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 40px; }
-        .seo-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 28px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02);
-            transition: all 0.25s ease;
-            position: relative;
-        }
-        .seo-card:hover {
-            box-shadow: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-            transform: translateY(-2px);
-            border-color: #cbd5e1;
-        }
-        .seo-card h2 {
-            font-size: 0.7rem;
-            color: #0d9488;
-            margin-bottom: 16px;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .seo-card h2::before {
-            content: '';
-            width: 3px;
-            height: 14px;
-            background: linear-gradient(180deg, #0d9488, #14b8a6);
-            border-radius: 2px;
-        }
-        .stat-value {
-            font-size: 2.75rem;
-            font-weight: 800;
-            color: #0f172a;
-            line-height: 1.1;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-label { font-size: 0.875rem; color: #64748b; margin-top: 8px; }
-        .stat-label a { color: #0d9488; font-weight: 600; text-decoration: none; }
-        .stat-label a:hover { text-decoration: underline; }
-
-        /* Modern brand chips */
-        .brand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-        .brand-chip {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 14px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.2s ease;
-            text-decoration: none;
-        }
-        .brand-chip:hover {
-            border-color: #0d9488;
-            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(13,148,136,0.15);
-        }
-        .brand-chip a { color: #1e293b; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; text-decoration: none; font-size: 0.9rem; }
-        .brand-chip .count {
-            color: #0d9488;
-            font-size: 0.75rem;
-            flex-shrink: 0;
-            margin-left: 12px;
-            font-weight: 700;
-            background: #f0fdfa;
-            padding: 4px 10px;
-            border-radius: 12px;
-        }
-
-        /* Clean tables */
-        .filings-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-        .filings-table th {
-            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-            font-weight: 700;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #475569;
-            padding: 16px 18px;
-            text-align: left;
-            border-bottom: 2px solid #e2e8f0;
-        }
-        .filings-table th:first-child { border-radius: 8px 0 0 0; }
-        .filings-table th:last-child { border-radius: 0 8px 0 0; }
-        .filings-table td {
-            padding: 16px 18px;
-            border-bottom: 1px solid #f1f5f9;
-            color: #334155;
-            font-size: 0.9rem;
-        }
-        .filings-table tbody tr { transition: all 0.15s ease; }
-        .filings-table tbody tr:hover { background: #f0fdfa; }
-        .filings-table a { color: #0d9488; font-weight: 600; text-decoration: none; }
-        .filings-table a:hover { text-decoration: underline; }
-
-        /* Signal badges */
-        .signal-badge { display: inline-block; padding: 5px 12px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; }
-        .signal-new-company { background: linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%); color: #7c3aed; }
-        .signal-new-brand { background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%); color: #059669; }
-        .signal-new-sku { background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); color: #4f46e5; }
-        .signal-refile { background: #f1f5f9; color: #64748b; }
-
-        /* Modern bar charts */
-        .bar-chart { margin: 12px 0; }
-        .bar-row { display: flex; align-items: center; margin-bottom: 12px; }
-        .bar-label { width: 70px; font-size: 0.8rem; color: #64748b; font-weight: 600; }
-        .bar-container { flex: 1; height: 32px; background: linear-gradient(90deg, #f1f5f9, #f8fafc); border-radius: 8px; overflow: hidden; margin: 0 14px; position: relative; }
-        .bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
-            border-radius: 8px;
-            min-width: 8px;
-            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 2px 8px rgba(13,148,136,0.3);
-        }
-        .bar-value { width: 50px; text-align: right; font-size: 0.85rem; font-weight: 700; color: #0f172a; }
-
-        /* Related links */
-        .related-links { margin-top: 56px; padding-top: 40px; border-top: 2px solid #f1f5f9; }
-        .related-links h3 { margin-bottom: 20px; font-size: 1.1rem; color: #1e293b; font-weight: 700; }
-        .related-links a {
-            display: inline-block;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            color: #0d9488;
-            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            border: 1px solid transparent;
-        }
-        .related-links a:hover { background: #ccfbf1; border-color: #5eead4; text-decoration: none; transform: translateY(-1px); }
-
-        /* Breadcrumb */
-        .breadcrumb { margin-bottom: 12px; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
-        .breadcrumb a { color: rgba(255,255,255,0.6); text-decoration: none; transition: color 0.15s; }
-        .breadcrumb a:hover { color: #5eead4; }
-
-        /* Email gate blur styles */
-        .gated-table { position: relative; min-height: 280px; }
-        .gated-table tbody tr:nth-child(n+4) { filter: blur(4px); user-select: none; pointer-events: none; }
-        .gated-table tbody tr:nth-child(n+6) { filter: blur(6px); }
-        .gated-table tbody tr:nth-child(n+8) { filter: blur(8px); }
-        .gated-table tbody tr a { pointer-events: auto; }
-        .gated-table tbody tr:nth-child(n+4) a { pointer-events: none; }
-        .gate-overlay {
-            position: absolute;
-            top: 80px; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.98) 40%, white 100%);
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding-top: 32px;
-        }
-        .gate-content {
-            text-align: center;
-            padding: 32px 48px;
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.04);
-        }
-        .gate-content h3 { margin: 0 0 10px 0; font-size: 1.2rem; color: #0f172a; font-weight: 700; }
-        .gate-content p { margin: 0 0 20px 0; color: #64748b; font-size: 0.95rem; }
-        .gate-content .btn {
-            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-            color: white;
-            padding: 14px 32px;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 700;
-            display: inline-block;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 12px rgba(13,148,136,0.3);
-        }
-        .gate-content .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13,148,136,0.4); }
-
-        /* Full page paywall */
-        .page-paywall { min-height: 400px; position: relative; }
-        .page-paywall .seo-blur { filter: blur(12px) !important; pointer-events: none !important; user-select: none !important; }
-        .page-paywall::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.3);
-            z-index: 99;
-        }
-        .page-paywall .page-overlay {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 40px 48px;
-            border-radius: 16px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.3);
-            max-width: 420px;
-            width: 90%;
-            z-index: 100;
-        }
-        .page-paywall .page-overlay h3 { font-size: 1.4rem; margin: 0 0 12px 0; }
-        .page-paywall .page-overlay p { font-size: 1rem; line-height: 1.5; }
-        .page-paywall .page-overlay .btn { padding: 14px 32px; font-size: 1rem; }
-
-        /* Mobile responsive tables */
-        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-        /* Mobile menu styles */
-        .mobile-menu-btn {
-            display: none;
-            flex-direction: column;
-            justify-content: space-between;
-            width: 24px;
-            height: 18px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0;
-        }
-        .hamburger-line {
-            width: 100%;
-            height: 2px;
-            background-color: var(--color-text);
-            transition: all 0.3s ease;
-        }
-        .mobile-menu {
-            display: none;
-            flex-direction: column;
-            background: white;
-            border-top: 1px solid var(--color-border);
-            padding: 12px 20px;
-        }
-        .mobile-menu.active { display: flex; }
-        .mobile-menu-link {
-            padding: 10px 0;
-            color: var(--color-text);
-            text-decoration: none;
-            border-bottom: 1px solid var(--color-border);
-            font-size: 0.95rem;
-        }
-        .mobile-menu-link:last-child { border-bottom: none; }
-        .mobile-menu-link:hover { color: var(--color-primary); }
-        .mobile-menu-section { padding: 10px 0 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
-        .mobile-menu-divider { height: 1px; background: var(--color-border); margin: 6px 0; }
-        .mobile-menu-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-        .mobile-menu-categories a { padding: 8px 0; color: var(--color-text); text-decoration: none; font-size: 0.9rem; }
-        .mobile-menu-categories a:hover { color: var(--color-primary); }
-
-        /* Nav Dropdown */
-        .nav-dropdown { position: relative; }
-        .nav-dropdown-toggle { display: flex; align-items: center; gap: 0.375rem; font-size: 0.9rem; color: var(--color-text-secondary); background: none; border: none; cursor: pointer; padding: 0; }
-        .nav-dropdown-toggle:hover { color: var(--color-primary); }
-        .nav-dropdown-toggle svg { width: 14px; height: 14px; transition: transform 0.2s ease; }
-        .nav-dropdown.open .nav-dropdown-toggle svg { transform: rotate(180deg); }
-        .nav-dropdown-menu { position: absolute; top: calc(100% + 0.75rem); left: 50%; transform: translateX(-50%); min-width: 180px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); padding: 0.5rem 0; opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease; z-index: 1000; }
-        .nav-dropdown.open .nav-dropdown-menu { opacity: 1; visibility: visible; }
-        .nav-dropdown-menu a { display: block; padding: 0.625rem 1rem; color: var(--color-text-secondary); text-decoration: none; font-size: 0.9rem; transition: background 0.15s ease, color 0.15s ease; }
-        .nav-dropdown-menu a:hover { background: #f8fafc; color: var(--color-text); }
-        .nav-dropdown-more { position: relative; }
-        .nav-dropdown-more > a { display: flex; align-items: center; justify-content: space-between; }
-        .nav-dropdown-more > a svg { width: 12px; height: 12px; }
-        .nav-dropdown-submenu { position: absolute; left: 100%; top: 0; min-width: 160px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); padding: 0.5rem 0; opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s ease; }
-        .nav-dropdown-more:hover .nav-dropdown-submenu { opacity: 1; visibility: visible; }
-
-        /* Footer */
-        .site-footer { padding: 48px 24px; border-top: 1px solid var(--color-border); background: #fff; }
-        .site-footer .footer-container { max-width: 1200px; margin: 0 auto; }
-        .site-footer .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 32px; }
-        .site-footer .footer-brand { }
-        .site-footer .footer-brand-name { font-weight: 700; font-size: 1.125rem; color: var(--color-text); margin-bottom: 8px; }
-        .site-footer .footer-tagline { font-size: 0.875rem; color: var(--color-text-secondary); line-height: 1.5; }
-        .site-footer .footer-column h4 { font-size: 0.75rem; font-weight: 600; color: var(--color-text); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .site-footer .footer-column ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-        .site-footer .footer-column a { font-size: 0.875rem; color: var(--color-text-secondary); text-decoration: none; }
-        .site-footer .footer-column a:hover { color: var(--color-primary); }
-        .site-footer .footer-bottom { padding-top: 24px; border-top: 1px solid var(--color-border); text-align: center; }
-        .site-footer .footer-bottom p { font-size: 0.75rem; color: var(--color-text-tertiary); margin: 0; }
-
-        @media (max-width: 768px) {
-            .seo-page { padding-left: 16px; padding-right: 16px; padding-bottom: 48px; }
-            .seo-header { margin: 0 -16px 36px -16px; padding: 40px 16px 32px; }
-            .seo-header h1 { font-size: 1.75rem; }
-            .seo-header .meta { font-size: 0.9rem; gap: 10px 14px; }
-            .category-badge { padding: 6px 14px; font-size: 0.8rem; }
-            .seo-grid { grid-template-columns: 1fr; gap: 16px; }
-            .seo-card { padding: 22px; overflow: hidden; border-radius: 14px; }
-            .stat-value { font-size: 2.25rem; }
-            .brand-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-            .brand-chip { padding: 12px 14px; border-radius: 8px; }
-            .filings-table { min-width: 550px; }
-            .filings-table th, .filings-table td { padding: 12px 14px; font-size: 0.85rem; }
-            .bar-label { width: 55px; font-size: 0.75rem; }
-            .bar-container { height: 28px; margin: 0 10px; }
-            .bar-value { width: 45px; font-size: 0.8rem; }
-            .related-links { margin-top: 40px; padding-top: 28px; }
-            .related-links a { padding: 7px 14px; font-size: 0.8rem; margin-right: 8px; }
-            .nav-links { display: none; }
-            .mobile-menu-btn { display: flex; }
-            .gate-content { padding: 24px 28px; margin: 0 16px; }
-            .gate-content h3 { font-size: 1.1rem; }
-            .gate-content .btn { padding: 12px 24px; font-size: 0.9rem; }
-            .site-footer .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
-            .site-footer .footer-brand { grid-column: 1 / -1; text-align: center; }
-        }
-        @media (max-width: 480px) {
-            .seo-header h1 { font-size: 1.5rem; }
-            .seo-header .meta { gap: 8px 12px; }
-            .brand-grid { grid-template-columns: 1fr; }
-            .brand-chip { padding: 12px 14px; }
-            .brand-chip .count { padding: 3px 8px; }
-            .meta-stats { gap: 6px; }
-            .meta-line { font-size: 0.85rem; }
-            .seo-card h2 { font-size: 0.65rem; }
-            .stat-value { font-size: 2rem; }
-        }
-    </style>
+    <link rel="stylesheet" href="/seo-pages.css">
 </head>
 <body>
     <nav class="nav">
@@ -3736,7 +3405,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                     <p class="footer-tagline">Track every TTB label approval. The industry's most comprehensive COLA database.</p>
                 </div>
                 <div class="footer-column">
-                    <h4>Categories</h4>
+                    <div class="footer-heading">Categories</div>
                     <ul>
                         <li><a href="/whiskey/">Whiskey</a></li>
                         <li><a href="/tequila/">Tequila</a></li>
@@ -3752,15 +3421,15 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                     </ul>
                 </div>
                 <div class="footer-column">
-                    <h4>Resources</h4>
+                    <div class="footer-heading">Resources</div>
                     <ul>
                         <li><a href="/database.html">Search Database</a></li>
-                        <li><a href="/glossary.html">Glossary</a></li>
+                        <li><a href="/glossary/">Glossary</a></li>
                         <li><a href="/#pricing">Pricing</a></li>
                     </ul>
                 </div>
                 <div class="footer-column">
-                    <h4>Legal</h4>
+                    <div class="footer-heading">Legal</div>
                     <ul>
                         <li><a href="/legal.html#terms">Terms of Service</a></li>
                         <li><a href="/legal.html#privacy">Privacy Policy</a></li>
@@ -3772,115 +3441,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
             </div>
         </div>
     </footer>
-    <script>
-        // Mobile menu toggle
-        (function() {
-            const menuBtn = document.getElementById('mobile-menu-btn');
-            const mobileMenu = document.getElementById('mobile-menu');
-            if (menuBtn && mobileMenu) {
-                menuBtn.addEventListener('click', function() {
-                    mobileMenu.classList.toggle('active');
-                });
-            }
-        })();
-
-        // Dropdown toggle
-        function toggleDropdown(id) {
-            const dropdown = document.getElementById(id);
-            const isOpen = dropdown.classList.contains('open');
-            document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
-            if (!isOpen) dropdown.classList.add('open');
-        }
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.nav-dropdown')) {
-                document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
-            }
-        });
-
-        // Check Pro status and unlock content
-        (function() {
-            function unlockContent() {
-                document.querySelectorAll('.seo-blur').forEach(el => el.classList.remove('seo-blur'));
-                document.querySelectorAll('.pro-overlay').forEach(el => el.style.display = 'none');
-                document.querySelectorAll('.pro-locked').forEach(el => el.classList.remove('pro-locked'));
-                document.querySelectorAll('.page-paywall').forEach(el => el.classList.remove('page-paywall'));
-                // Remove email gate on company/brand pages for Pro users
-                document.querySelectorAll('.gate-overlay').forEach(el => el.style.display = 'none');
-                document.querySelectorAll('.gated-table').forEach(el => el.classList.remove('gated-table'));
-                // Replace "Upgrade" badges with actual signal values for Pro users
-                document.querySelectorAll('td[data-signal] .signal-upgrade').forEach(el => {
-                    const signal = el.closest('td').dataset.signal;
-                    if (signal) {
-                        const signalClasses = {
-                            'NEW_COMPANY': 'signal-new-company',
-                            'NEW_BRAND': 'signal-new-brand',
-                            'NEW_SKU': 'signal-new-sku',
-                            'REFILE': 'signal-refile'
-                        };
-                        const signalLabels = {
-                            'NEW_COMPANY': 'New Company',
-                            'NEW_BRAND': 'New Brand',
-                            'NEW_SKU': 'New SKU',
-                            'REFILE': 'Refile'
-                        };
-                        const span = document.createElement('span');
-                        span.className = 'signal-badge ' + (signalClasses[signal] || 'signal-refile');
-                        span.textContent = signalLabels[signal] || signal;
-                        el.replaceWith(span);
-                    }
-                });
-            }
-
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-
-                // Allow granting/revoking Pro access for testing
-                if (urlParams.get('pro') === 'grant') {
-                    document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
-                    unlockContent();
-                    return;
-                }
-                if (urlParams.get('pro') === 'revoke') {
-                    document.cookie = 'bevalc_pro=; path=/; max-age=0';
-                    const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
-                    delete user.isPro;
-                    delete user.is_pro;
-                    localStorage.setItem('bevalc_user', JSON.stringify(user));
-                    return;
-                }
-
-                // Check Pro cookie (only set for verified Pro users)
-                if (document.cookie.includes('bevalc_pro=1')) {
-                    unlockContent();
-                    return;
-                }
-
-                const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
-
-                // Immediate check from localStorage
-                if (user.isPro || user.is_pro) {
-                    unlockContent();
-                    return;
-                }
-
-                // If user has email but no Pro flag, verify with API
-                if (user.email) {
-                    fetch('https://bevalc-api.mac-rowan.workers.dev/api/stripe/customer-status?email=' + encodeURIComponent(user.email))
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success && data.status === 'pro') {
-                                // Update localStorage and set Pro cookie
-                                user.isPro = true;
-                                localStorage.setItem('bevalc_user', JSON.stringify(user));
-                                document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
-                                unlockContent();
-                            }
-                        })
-                        .catch(() => {});
-                }
-            } catch(e) { console.error('Pro check error:', e); }
-        })();
-    </script>
+    <script src="/seo-pages.js"></script>
 </body>
 </html>`;
 }
@@ -3976,6 +3537,8 @@ async function handleCompanyPage(path, env, headers) {
     if (!company) {
         return new Response('Company not found', { status: 404 });
     }
+
+    company.display_name = fixDisplayName(company.display_name);
 
     // Determine if we have a normalized company (with id) or a virtual one (from colas search)
     const hasCompanyId = company.id !== null;
@@ -4184,6 +3747,34 @@ async function handleCompanyPage(path, env, headers) {
         ? topBrandNames.slice(0, -1).join(', ') + (topBrandNames.length > 1 ? ' and ' : '') + topBrandNames[topBrandNames.length - 1]
         : '';
 
+    // Generate narrative sentences from data
+    const companyNarrative = (() => {
+        const sentences = [];
+        // Category dominance sentence
+        if (categoryBars.length > 0 && categoryBars[0].pct >= 60) {
+            sentences.push(`${categoryBars[0].name} accounts for <strong>${categoryBars[0].pct}%</strong> of their portfolio, making it their dominant product category.`);
+        } else if (categoryBars.length >= 2) {
+            sentences.push(`Their product mix spans <strong>${categoryBars[0].name}</strong> (${categoryBars[0].pct}%) and <strong>${categoryBars[1].name}</strong> (${categoryBars[1].pct}%), showing a diversified portfolio.`);
+        }
+        // Recent signal activity
+        const newBrandCount = recentFilings.filter(f => f.signal === 'NEW_BRAND').length;
+        const newSkuCount = recentFilings.filter(f => f.signal === 'NEW_SKU').length;
+        if (newBrandCount >= 2) {
+            sentences.push(`Among their most recent filings, <strong>${newBrandCount}</strong> are new brand launches — a sign of active market expansion.`);
+        } else if (newSkuCount >= 3) {
+            sentences.push(`Their latest filings include <strong>${newSkuCount}</strong> new product variants, indicating ongoing line extensions.`);
+        }
+        // Scale context
+        const total = company.total_filings;
+        if (total >= 500) {
+            sentences.push(`With <strong>${formatNumber(total)}</strong> total filings, this is one of the more prolific filers in the beverage alcohol industry.`);
+        } else if (total >= 50 && earliestYear) {
+            const span = new Date().getFullYear() - earliestYear;
+            if (span > 0) sentences.push(`Over <strong>${span} years</strong> of filing history, they have built a steady portfolio of <strong>${formatNumber(total)}</strong> products.`);
+        }
+        return sentences.join(' ');
+    })();
+
     const title = `${company.display_name} Brands & Portfolio`;
 
     // SEO-optimized meta description (max 155 chars)
@@ -4192,37 +3783,52 @@ async function handleCompanyPage(path, env, headers) {
     if (earliestYear) metaDesc += ` since ${earliestYear}`;
     metaDesc += `, ${formatNumber(brands.length)}+ brands`;
     if (primaryLocation) metaDesc += `, based in ${primaryLocation}`;
-    metaDesc += `. See their full portfolio and latest launches.`;
+    const descSuffix = 'See their full portfolio and latest launches.';
+    metaDesc = metaDesc.replace(/\.+$/, '') + `. ${descSuffix}`;
     // Truncate intelligently if over 155 chars
     if (metaDesc.length > 155) {
         metaDesc = `${company.display_name}: ${formatNumber(company.total_filings)} filings, ${formatNumber(brands.length)}+ brands. See their full portfolio.`;
     }
     const description = metaDesc;
 
-    // Schema markup with address if available
-    const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": company.canonical_name,
-        "url": `${BASE_URL}/company/${slug}`,
-        "description": `Beverage alcohol company with ${formatNumber(company.total_filings)} product filings and ${formatNumber(brands.length)}+ brands`,
-        ...(primaryLocation && {
-            "address": {
-                "@type": "PostalAddress",
-                "addressRegion": primaryLocation
-            }
-        }),
-        "brand": brands.slice(0, 10).map(b => ({
-            "@type": "Brand",
-            "name": b.brand_name
-        }))
-    };
+    // Schema markup with structured address
+    const parsedAddr = parseLocation(primaryLocation);
+    const latestCompanyDate = approvalDateToISO(recentFilings[0]?.approval_date);
+    const jsonLd = [
+        {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": company.canonical_name,
+            "url": `${BASE_URL}/company/${slug}`,
+            "description": `Beverage alcohol company with ${formatNumber(company.total_filings)} product filings and ${formatNumber(brands.length)}+ brands`,
+            ...(parsedAddr && {
+                "address": {
+                    "@type": "PostalAddress",
+                    ...parsedAddr
+                }
+            }),
+            ...(latestCompanyDate && { "dateModified": latestCompanyDate }),
+            "brand": brands.slice(0, 10).map(b => ({
+                "@type": "Brand",
+                "name": b.brand_name
+            }))
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                { "@type": "ListItem", "position": 2, "name": "Database", "item": `${BASE_URL}/database.html` },
+                { "@type": "ListItem", "position": 3, "name": company.display_name }
+            ]
+        }
+    ];
 
     const content = `
         <header class="seo-header">
             <div class="seo-header-inner">
                 <div class="breadcrumb">
-                    <a href="/">Home</a> / <a href="/database.html">Database</a> / Company
+                    <a href="/">Home</a> / <a href="/database.html">Database</a> / ${escapeHtml(company.display_name)}
                 </div>
                 <h1>${escapeHtml(company.display_name)}</h1>
                 <div class="meta">
@@ -4245,6 +3851,7 @@ async function handleCompanyPage(path, env, headers) {
                         ${escapeHtml(company.display_name)} is a beverage alcohol company with <strong>${formatNumber(company.total_filings)}</strong> TTB COLA filings.
                         ${brands.length > 0 ? `Their portfolio includes brands such as <strong>${brands.slice(0, 3).map(b => escapeHtml(b.brand_name)).join('</strong>, <strong>')}</strong>${brands.length > 3 ? `, <strong>${escapeHtml(brands[3].brand_name)}</strong>` : ''}${brands.length > 4 ? `, and more` : ''}.` : ''}
                         ${categoryBars.length > 0 ? `The company primarily operates in the <strong>${categoryBars.slice(0, 2).map(c => c.name.toLowerCase()).join('</strong> and <strong>')}</strong> ${categoryBars.length > 1 ? 'categories' : 'category'}.` : ''}
+                        ${companyNarrative}
                     </p>
                     ${permits.length > 0 ? (() => {
                         // Group permits by type and count
@@ -4337,13 +3944,17 @@ async function handleCompanyPage(path, env, headers) {
                                 <tbody>
                                     ${recentFilings.map(f => {
                                         const filingEntity = f.filing_entity ? f.filing_entity.split(',')[0].trim() : '-';
+                                        const signalClasses = { 'NEW_COMPANY': 'signal-new-company', 'NEW_BRAND': 'signal-new-brand', 'NEW_SKU': 'signal-new-sku', 'REFILE': 'signal-refile' };
+                                        const signalLabels = { 'NEW_COMPANY': 'New Company', 'NEW_BRAND': 'New Brand', 'NEW_SKU': 'New SKU', 'REFILE': 'Refile' };
+                                        const sigClass = signalClasses[f.signal] || 'signal-refile';
+                                        const sigLabel = signalLabels[f.signal] || f.signal || '-';
                                         return `
                                         <tr>
                                             <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
                                             <td>${escapeHtml(f.fanciful_name || '-')}</td>
                                             <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                             <td>${escapeHtml(f.approval_date)}</td>
-                                            <td data-signal="${f.signal || ''}"><a href="/#pricing" class="signal-badge signal-upgrade" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                            <td><span class="signal-gated"><span class="signal-badge ${sigClass}">${sigLabel}</span><span class="signal-lock" onclick="window.location.href='/#pricing'">PRO</span></span></td>
                                         </tr>
                                     `}).join('')}
                                 </tbody>
@@ -4351,7 +3962,7 @@ async function handleCompanyPage(path, env, headers) {
                         </div>
                         <div class="gate-overlay">
                             <div class="gate-content">
-                                <h3>Sign Up to View All Filings</h3>
+                                <div class="gate-title">Sign Up to View All Filings</div>
                                 <p>Get free access to ${escapeHtml(company.display_name)}'s complete filing history</p>
                                 <a href="/#signup" class="btn">Get Free Access</a>
                             </div>
@@ -4360,7 +3971,7 @@ async function handleCompanyPage(path, env, headers) {
                 </div>
 
                 <div class="related-links">
-                    <h3>Related Companies</h3>
+                    <div class="related-heading">Related Companies</div>
                     ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
                 </div>
             </div>
@@ -4438,7 +4049,7 @@ async function handleBrandPage(path, env, headers) {
 
     // Get ALL companies for this brand (brand names can be used by multiple companies)
     const companiesResult = await env.DB.prepare(`
-        SELECT co.company_name, c.canonical_name, c.slug, COUNT(*) as filing_count
+        SELECT co.company_name, c.id as company_id, c.canonical_name, c.slug, COUNT(*) as filing_count
         FROM colas co
         LEFT JOIN company_aliases ca ON co.company_name = ca.raw_name
         LEFT JOIN companies c ON ca.company_id = c.id
@@ -4481,8 +4092,41 @@ async function handleBrandPage(path, env, headers) {
     `).bind(...brandVariants).all();
     const products = productsResult.results || [];
 
-    // Skip related brands query for performance - would require precomputed table
-    const relatedBrands = [];
+    // Related brands (same category) + other brands from same company — parallel queries
+    const [relatedBrandsResult, companyBrandsResult] = await Promise.all([
+        categoryResult?.class_type_code ? env.DB.prepare(`
+            SELECT brand_name, COUNT(*) as cnt
+            FROM colas
+            WHERE class_type_code = ? AND brand_name NOT IN (${placeholders})
+            GROUP BY brand_name
+            ORDER BY cnt DESC
+            LIMIT 8
+        `).bind(categoryResult.class_type_code, ...brandVariants).all() : Promise.resolve({ results: [] }),
+        companyResult?.company_id ? env.DB.prepare(`
+            SELECT co.brand_name, COUNT(*) as cnt
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ? AND co.brand_name NOT IN (${placeholders})
+            GROUP BY co.brand_name
+            ORDER BY cnt DESC
+            LIMIT 8
+        `).bind(companyResult.company_id, ...brandVariants).all() : Promise.resolve({ results: [] })
+    ]);
+    // Deduplicate related brands by slug to prevent misspelling variants (e.g., MARKERS MARK vs MAKER'S MARK)
+    const dedupeBySlug = (brands, currentSlug) => {
+        const seen = new Set([currentSlug]);
+        const dupes = [];
+        const unique = brands.filter(b => {
+            const s = makeSlug(b.brand_name);
+            if (seen.has(s)) { dupes.push(b.brand_name); return false; }
+            seen.add(s);
+            return true;
+        });
+        if (dupes.length > 0) console.log(`[brand-dedup] ${currentSlug}: filtered ${dupes.length} variant(s): ${dupes.join(', ')}`);
+        return unique;
+    };
+    const relatedBrands = dedupeBySlug(relatedBrandsResult.results || [], slug);
+    const companyBrands = dedupeBySlug(companyBrandsResult.results || [], slug);
 
     const maxTimeline = Math.max(...timeline.map(t => t.cnt), 1);
     const earliestYear = timeline.length > 0 ? Math.min(...timeline.map(t => t.year).filter(y => y)) : null;
@@ -4494,33 +4138,81 @@ async function handleBrandPage(path, env, headers) {
     let metaDesc = `${brand.brand_name}: ${formatNumber(brand.cnt)} product ${brand.cnt === 1 ? 'filing' : 'filings'}`;
     if (earliestYear) metaDesc += ` since ${earliestYear}`;
     metaDesc += `, ${primaryCategory}`;
-    if (companyResult?.canonical_name) metaDesc += `. By ${companyResult.canonical_name}`;
+    if (companyResult?.canonical_name) {
+        const compName = companyResult.canonical_name.replace(/\.+$/, '');
+        metaDesc += `. By ${compName}`;
+    }
     metaDesc += `. See product timeline and latest launches.`;
     if (metaDesc.length > 155) {
         metaDesc = `${brand.brand_name}: ${formatNumber(brand.cnt)} ${primaryCategory} ${brand.cnt === 1 ? 'filing' : 'filings'}. See product timeline.`;
     }
     const description = metaDesc;
 
-    const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Brand",
-        "name": brand.brand_name,
-        "category": primaryCategory,
-        "description": description,
-        "url": `${BASE_URL}/brand/${slug}`,
-        ...(companyResult?.canonical_name && {
-            "manufacturer": {
-                "@type": "Organization",
-                "name": companyResult.canonical_name
+    // Generate narrative sentences from existing data
+    const brandNarrative = (() => {
+        const sentences = [];
+        // Origin and history
+        if (earliestYear && products[0]?.approval_date) {
+            const latestDate = products[0].approval_date;
+            sentences.push(`${escapeHtml(brand.brand_name)} first appeared in TTB filings in <strong>${earliestYear}</strong>, with the most recent filing on <strong>${latestDate}</strong>.`);
+        } else if (earliestYear) {
+            sentences.push(`${escapeHtml(brand.brand_name)} first appeared in TTB filings in <strong>${earliestYear}</strong>.`);
+        }
+        // YoY trend from timeline
+        if (timeline.length >= 2) {
+            const current = timeline[0];
+            const previous = timeline[1];
+            if (current.cnt > 0 && previous.cnt > 0) {
+                const change = Math.round(((current.cnt - previous.cnt) / previous.cnt) * 100);
+                if (change > 10) {
+                    sentences.push(`Filing activity increased <strong>${change}%</strong> in ${current.year} compared to ${previous.year}, suggesting accelerating product development.`);
+                } else if (change < -10) {
+                    sentences.push(`Filing activity decreased <strong>${Math.abs(change)}%</strong> in ${current.year} versus ${previous.year}.`);
+                } else {
+                    sentences.push(`Filing volume held steady between ${previous.year} and ${current.year}, with <strong>${current.cnt}</strong> filings in the latest year.`);
+                }
             }
-        })
-    };
+        }
+        // New SKU count
+        if (timeline.length > 0 && timeline[0].new_skus >= 2) {
+            sentences.push(`In ${timeline[0].year}, <strong>${timeline[0].new_skus}</strong> new product variants were introduced under this brand.`);
+        }
+        return sentences.join(' ');
+    })();
+
+    const latestBrandDate = approvalDateToISO(products[0]?.approval_date);
+    const jsonLd = [
+        {
+            "@context": "https://schema.org",
+            "@type": "Brand",
+            "name": brand.brand_name,
+            "category": primaryCategory,
+            "description": description,
+            "url": `${BASE_URL}/brand/${slug}`,
+            ...(companyResult?.canonical_name && {
+                "manufacturer": {
+                    "@type": "Organization",
+                    "name": companyResult.canonical_name
+                }
+            }),
+            ...(latestBrandDate && { "dateModified": latestBrandDate })
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                { "@type": "ListItem", "position": 2, "name": "Database", "item": `${BASE_URL}/database.html` },
+                { "@type": "ListItem", "position": 3, "name": brand.brand_name }
+            ]
+        }
+    ];
 
     const content = `
         <header class="seo-header">
             <div class="seo-header-inner">
                 <div class="breadcrumb">
-                    <a href="/">Home</a> / <a href="/database.html">Database</a> / Brand
+                    <a href="/">Home</a> / <a href="/database.html">Database</a> / ${escapeHtml(brand.brand_name)}
                 </div>
                 <h1>${escapeHtml(brand.brand_name)}</h1>
                 ${companies.length > 1 ? `
@@ -4542,6 +4234,11 @@ async function handleBrandPage(path, env, headers) {
 
         <div>
             <div>
+                ${brandNarrative ? `<section class="seo-card" style="margin-bottom: 32px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+                    <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                        ${brandNarrative}
+                    </p>
+                </section>` : ''}
                 <div class="seo-grid">
                     <div class="seo-card">
                         <h2>Total Filings</h2>
@@ -4582,21 +4279,26 @@ async function handleBrandPage(path, env, headers) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${products.map(p => `
+                                    ${products.map(p => {
+                                        const signalClasses = { 'NEW_COMPANY': 'signal-new-company', 'NEW_BRAND': 'signal-new-brand', 'NEW_SKU': 'signal-new-sku', 'REFILE': 'signal-refile' };
+                                        const signalLabels = { 'NEW_COMPANY': 'New Company', 'NEW_BRAND': 'New Brand', 'NEW_SKU': 'New SKU', 'REFILE': 'Refile' };
+                                        const sigClass = signalClasses[p.signal] || 'signal-refile';
+                                        const sigLabel = signalLabels[p.signal] || p.signal || '-';
+                                        return `
                                         <tr>
                                             <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
                                             <td>${escapeHtml(p.fanciful_name || '-')}</td>
                                             <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                             <td>${escapeHtml(p.approval_date)}</td>
-                                            <td data-signal="${p.signal || ''}"><a href="/#pricing" class="signal-badge signal-upgrade" style="background: #0d9488; color: white; text-decoration: none;">Upgrade</a></td>
+                                            <td><span class="signal-gated"><span class="signal-badge ${sigClass}">${sigLabel}</span><span class="signal-lock" onclick="window.location.href='/#pricing'">PRO</span></span></td>
                                         </tr>
-                                    `).join('')}
+                                    `}).join('')}
                                 </tbody>
                             </table>
                         </div>
                         <div class="gate-overlay">
                             <div class="gate-content">
-                                <h3>Sign Up to View All Products</h3>
+                                <div class="gate-title">Sign Up to View All Products</div>
                                 <p>Get free access to ${escapeHtml(brand.brand_name)}'s complete product history</p>
                                 <a href="/#signup" class="btn">Get Free Access</a>
                             </div>
@@ -4604,15 +4306,25 @@ async function handleBrandPage(path, env, headers) {
                     </div>
                 </div>
 
+                ${companyBrands.length > 0 ? `
                 <div class="related-links">
-                    <h3>More ${primaryCategory} Brands</h3>
+                    <div class="related-heading">More from ${escapeHtml(companyResult?.canonical_name || 'This Company')}</div>
+                    ${companyBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
+                </div>` : ''}
+                ${relatedBrands.length > 0 ? `
+                <div class="related-links">
+                    <div class="related-heading">More ${primaryCategory} Brands</div>
                     ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
-                </div>
+                </div>` : ''}
             </div>
         </div>
     `;
 
-    return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`), {
+    const noindex = brand.cnt < 5;
+    if (noindex) console.log(`[noindex] brand/${slug} — ${brand.cnt} filings`);
+    const extraHead = noindex ? '<meta name="robots" content="noindex, follow">' : '';
+
+    return new Response(getPageLayout(title, description, content, jsonLd, `${BASE_URL}/brand/${slug}`, extraHead), {
         headers: {
             'Content-Type': 'text/html',
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
@@ -4815,7 +4527,7 @@ async function handleHubPage(categorySlug, env, headers) {
 
         const filings = recentFilings?.results || [];
 
-        // Signal badge helper - renders both states, JS will show correct one
+        // Signal badge helper - renders real values in HTML (for Googlebot), gated via CSS for free users
         const getSignalBadge = (signal) => {
             const badges = {
                 'NEW_COMPANY': { class: 'signal-new-company', label: 'New Company' },
@@ -4825,11 +4537,8 @@ async function handleHubPage(categorySlug, env, headers) {
             };
             const badge = badges[signal];
             if (!badge) return '<span class="signal-badge">-</span>';
-            // Render both locked (free) and unlocked (pro) states
-            return `<span class="signal-badge-wrapper" data-signal="${signal}">
-                <span class="signal-badge ${badge.class} signal-unlocked" style="display:none;">${badge.label}</span>
-                <span class="signal-badge signal-locked" onclick="showUpgradeModal()">PRO</span>
-            </span>`;
+            // Real signal value in HTML, CSS blur gates it for free users
+            return `<span class="signal-gated"><span class="signal-badge ${badge.class}">${badge.label}</span><span class="signal-lock" onclick="showUpgradeModal()">PRO</span></span>`;
         };
 
         // Format last filing date from numeric
@@ -4845,6 +4554,7 @@ async function handleHubPage(categorySlug, env, headers) {
         const description = `Search ${formatNumber(totalFilings)}+ ${category.toLowerCase()} labels in the TTB database. ${newThisWeek} new filings this week. Track new ${category.toLowerCase()} brands, companies, and product launches.`;
         const canonicalUrl = `${BASE_URL}/${categorySlug}/`;
 
+        const latestHubDate = approvalDateToISO(filings[0]?.approval_date);
         const jsonLd = {
             "@context": "https://schema.org",
             "@type": "CollectionPage",
@@ -4852,6 +4562,7 @@ async function handleHubPage(categorySlug, env, headers) {
             "description": description,
             "url": canonicalUrl,
             "numberOfItems": totalFilings,
+            ...(latestHubDate && { "dateModified": latestHubDate }),
             "provider": {
                 "@type": "Organization",
                 "name": "BevAlc Intelligence",
@@ -4860,7 +4571,7 @@ async function handleHubPage(categorySlug, env, headers) {
         };
 
         const content = `
-            <div class="hub-page">
+            <div class="hub-page" data-category="${category}">
                 <header class="hub-header">
                     <div class="hub-header-inner">
                         <nav class="hub-breadcrumb">
@@ -5000,7 +4711,7 @@ async function handleHubPage(categorySlug, env, headers) {
                 </section>
 
                 <nav class="hub-category-nav">
-                    <h3>Browse All Categories</h3>
+                    <div class="related-heading">Browse All Categories</div>
                     <div class="hub-category-links">
                         ${Object.entries(categoryMap).map(([slug, name]) =>
                             slug === categorySlug
@@ -5014,502 +4725,18 @@ async function handleHubPage(categorySlug, env, headers) {
             <!-- Upgrade Modal -->
             <div class="upgrade-modal-overlay" id="upgrade-modal">
                 <div class="upgrade-modal">
-                    <h3>Unlock Pro Features</h3>
+                    <div class="gate-title">Unlock Pro Features</div>
                     <p>Get full access to signal data, CSV exports, watchlist alerts, and more. See which brands are NEW vs refiles at a glance.</p>
                     <a href="/#pricing" class="btn-primary">View Pro Plans</a>
                     <button class="btn-close" onclick="closeUpgradeModal()">Maybe later</button>
                 </div>
             </div>
 
-            <script>
-                // Unlock Pro content
-                function unlockProContent() {
-                    // Show real signals, hide locked badges
-                    document.querySelectorAll('.signal-unlocked').forEach(el => el.style.display = 'inline-block');
-                    document.querySelectorAll('.signal-locked').forEach(el => el.style.display = 'none');
-
-                    // Update export button
-                    const exportBtn = document.getElementById('export-csv-btn');
-                    if (exportBtn) {
-                        exportBtn.classList.remove('locked');
-                        const proTag = document.getElementById('export-pro-tag');
-                        if (proTag) proTag.style.display = 'none';
-                    }
-
-                    // Hide upgrade banner
-                    const banner = document.getElementById('upgrade-banner');
-                    if (banner) banner.classList.add('hidden');
-                }
-
-                // Check Pro status and update UI
-                (function() {
-                    // Check cookie first (fastest)
-                    if (document.cookie.includes('bevalc_pro=1')) {
-                        unlockProContent();
-                        return;
-                    }
-
-                    // Check localStorage for user data
-                    try {
-                        const user = JSON.parse(localStorage.getItem('bevalc_user') || '{}');
-                        if (user.isPro || user.is_pro) {
-                            // Set cookie and reload to get real-time data
-                            document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
-                            window.location.reload();
-                            return;
-                        }
-
-                        // If we have an email, verify Pro status via API
-                        if (user.email) {
-                            fetch('https://bevalc-api.mac-rowan.workers.dev/api/stripe/customer-status?email=' + encodeURIComponent(user.email))
-                                .then(r => r.json())
-                                .then(data => {
-                                    if (data.is_pro) {
-                                        // Update localStorage
-                                        user.isPro = true;
-                                        user.is_pro = true;
-                                        localStorage.setItem('bevalc_user', JSON.stringify(user));
-                                        // Set cookie and reload to get real-time data
-                                        document.cookie = 'bevalc_pro=1; path=/; max-age=31536000; SameSite=Lax';
-                                        window.location.reload();
-                                    }
-                                })
-                                .catch(() => {});
-                        }
-                    } catch (e) {}
-                })();
-
-                function showUpgradeModal() {
-                    document.getElementById('upgrade-modal').classList.add('active');
-                }
-
-                function closeUpgradeModal() {
-                    document.getElementById('upgrade-modal').classList.remove('active');
-                }
-
-                function handleExportClick() {
-                    const isPro = document.cookie.includes('bevalc_pro=1');
-                    if (isPro) {
-                        // Redirect to database with export params
-                        window.location.href = '/database?category=${encodeURIComponent(category)}&export=csv';
-                    } else {
-                        showUpgradeModal();
-                    }
-                }
-
-                // Close modal on overlay click
-                document.getElementById('upgrade-modal').addEventListener('click', function(e) {
-                    if (e.target === this) closeUpgradeModal();
-                });
-            </script>
         `;
 
-        // Custom styles for hub pages
-        const hubStyles = `
-            .hub-page { padding-bottom: 48px; }
+        const extraHead = '<link rel="stylesheet" href="/hub-pages.css"><script src="/hub-pages.js" defer><\/script>';
 
-            .hub-breadcrumb {
-                margin-bottom: 16px;
-                font-size: 0.875rem;
-                color: rgba(255,255,255,0.6);
-            }
-            .hub-breadcrumb a {
-                color: rgba(255,255,255,0.7);
-                text-decoration: none;
-                transition: color 0.15s ease;
-            }
-            .hub-breadcrumb a:hover {
-                color: #5eead4;
-            }
-            .hub-breadcrumb .breadcrumb-sep {
-                margin: 0 8px;
-                color: rgba(255,255,255,0.4);
-            }
-
-            .hub-header {
-                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-                margin: 0 -24px 0 -24px;
-                padding: 48px 24px 40px;
-                position: relative;
-            }
-            .hub-header::before {
-                content: '';
-                position: absolute;
-                top: 0; right: 0; bottom: 0; left: 0;
-                background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-                opacity: 0.5;
-            }
-            .hub-header-inner { max-width: 900px; margin: 0 auto; position: relative; z-index: 1; text-align: center; }
-            .hub-header h1 {
-                font-family: var(--font-display);
-                font-size: 2.5rem;
-                color: #fff;
-                margin-bottom: 16px;
-                font-weight: 700;
-            }
-            .hub-intro {
-                color: rgba(255,255,255,0.8);
-                font-size: 1.1rem;
-                line-height: 1.6;
-                max-width: 700px;
-                margin: 0 auto 20px;
-            }
-            .hub-subcategories {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center;
-                align-items: center;
-                gap: 8px;
-                margin-top: 16px;
-            }
-            .subcategory-label { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin-right: 8px; }
-            .hub-subcategories a {
-                color: #5eead4;
-                text-decoration: none;
-                font-size: 0.9rem;
-                font-weight: 500;
-            }
-            .hub-subcategories a:hover { color: #99f6e4; text-decoration: underline; }
-            .subcategory-sep { color: rgba(255,255,255,0.3); }
-
-            .hub-stats {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 24px;
-                max-width: 800px;
-                margin: -24px auto 40px;
-                padding: 0 24px;
-                position: relative;
-                z-index: 2;
-            }
-            .hub-stat {
-                background: #fff;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 24px;
-                text-align: center;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            }
-            .hub-stat-value {
-                font-size: 2rem;
-                font-weight: 700;
-                color: #0f172a;
-                line-height: 1;
-            }
-            .hub-stat-label {
-                font-size: 0.85rem;
-                color: #64748b;
-                margin-top: 8px;
-            }
-
-            .hub-section { margin-bottom: 40px; }
-            .hub-section h2 {
-                font-size: 1.25rem;
-                font-weight: 600;
-                color: #0f172a;
-                margin-bottom: 16px;
-                padding-bottom: 12px;
-                border-bottom: 2px solid #e2e8f0;
-            }
-            .delay-badge {
-                display: inline-block;
-                font-size: 0.7rem;
-                font-weight: 500;
-                color: #d97706;
-                background: #fef3c7;
-                padding: 2px 8px;
-                border-radius: 4px;
-                margin-left: 8px;
-                vertical-align: middle;
-            }
-
-            .hub-table-wrapper { overflow-x: auto; }
-            .hub-table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 0.9rem;
-            }
-            .hub-table th {
-                text-align: left;
-                padding: 12px 16px;
-                background: #f8fafc;
-                color: #64748b;
-                font-weight: 600;
-                font-size: 0.8rem;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            .hub-table td {
-                padding: 12px 16px;
-                border-bottom: 1px solid #f1f5f9;
-                color: #334155;
-            }
-            .hub-table tr:hover td { background: #f8fafc; }
-            .hub-table a { color: #0d9488; text-decoration: none; }
-            .hub-table a:hover { text-decoration: underline; }
-            .hub-table strong { color: #0f172a; }
-
-            .hub-table-compact { font-size: 0.85rem; }
-            .hub-table-compact th, .hub-table-compact td { padding: 10px 12px; }
-
-            .hub-table-cta {
-                margin-top: 16px;
-                text-align: center;
-            }
-            .btn-secondary {
-                display: inline-block;
-                padding: 10px 20px;
-                background: #f1f5f9;
-                color: #0f172a;
-                text-decoration: none;
-                border-radius: 8px;
-                font-weight: 500;
-                font-size: 0.9rem;
-                transition: background 0.2s;
-            }
-            .btn-secondary:hover { background: #e2e8f0; }
-
-            .signal-badge {
-                display: inline-block;
-                padding: 4px 10px;
-                border-radius: 4px;
-                font-size: 0.75rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.03em;
-            }
-            .signal-new-company { background: #dcfce7; color: #166534; }
-            .signal-new-brand { background: #dbeafe; color: #1e40af; }
-            .signal-new-sku { background: #fef9c3; color: #854d0e; }
-            .signal-refile { background: #f1f5f9; color: #64748b; }
-
-            .hub-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 32px;
-                margin-bottom: 40px;
-            }
-
-            .hub-cta {
-                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-                margin: 48px -24px;
-                padding: 48px 24px;
-                text-align: center;
-                border-radius: 0;
-            }
-            .hub-cta h2 { color: #fff; font-size: 1.5rem; margin-bottom: 12px; border: none; padding: 0; }
-            .hub-cta p { color: rgba(255,255,255,0.7); margin-bottom: 20px; }
-            .btn-primary {
-                display: inline-block;
-                padding: 14px 28px;
-                background: #0d9488;
-                color: #fff;
-                text-decoration: none;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 1rem;
-                transition: background 0.2s;
-            }
-            .btn-primary:hover { background: #0f766e; }
-
-            .hub-category-nav {
-                padding-top: 32px;
-                border-top: 1px solid #e2e8f0;
-            }
-            .hub-category-nav h3 {
-                font-size: 0.9rem;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                margin-bottom: 16px;
-            }
-            .hub-category-links {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 12px;
-            }
-            .hub-category-links a, .hub-category-links .current {
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-size: 0.9rem;
-                text-decoration: none;
-            }
-            .hub-category-links a {
-                background: #f1f5f9;
-                color: #334155;
-            }
-            .hub-category-links a:hover { background: #e2e8f0; }
-            .hub-category-links .current {
-                background: #0d9488;
-                color: #fff;
-                font-weight: 500;
-            }
-
-            /* Stat links */
-            .hub-stat-link {
-                text-decoration: none;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-            .hub-stat-link:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-            }
-
-            /* Data updated timestamp */
-            .hub-data-updated {
-                text-align: center;
-                color: #64748b;
-                font-size: 0.85rem;
-                margin-bottom: 24px;
-            }
-
-            /* Upgrade banner */
-            .hub-upgrade-banner {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 12px;
-                background: linear-gradient(90deg, #fef3c7 0%, #fef9c3 100%);
-                border: 1px solid #fbbf24;
-                border-radius: 8px;
-                padding: 16px 24px;
-                margin-bottom: 32px;
-                font-size: 0.95rem;
-                color: #92400e;
-            }
-            .hub-upgrade-banner.hidden { display: none; }
-            .upgrade-icon { font-size: 1.2rem; }
-            .upgrade-link {
-                color: #d97706;
-                font-weight: 600;
-                text-decoration: none;
-                white-space: nowrap;
-            }
-            .upgrade-link:hover { text-decoration: underline; }
-
-            /* Intro links */
-            .intro-link {
-                color: #5eead4;
-                text-decoration: none;
-                font-weight: 500;
-            }
-            .intro-link:hover { color: #99f6e4; text-decoration: underline; }
-
-            /* Signal badge locked state */
-            .signal-locked {
-                background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-                color: #fff;
-                cursor: pointer;
-                transition: transform 0.15s, box-shadow 0.15s;
-            }
-            .signal-locked:hover {
-                transform: scale(1.05);
-                box-shadow: 0 2px 8px rgba(13, 148, 136, 0.4);
-            }
-
-            /* Export CSV button */
-            .hub-export-row {
-                display: flex;
-                justify-content: flex-end;
-                margin-top: 16px;
-                gap: 12px;
-            }
-            .btn-export {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 8px 16px;
-                background: #0d9488;
-                color: #fff;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 0.85rem;
-                cursor: pointer;
-                border: none;
-                transition: background 0.2s;
-            }
-            .btn-export:hover { background: #0f766e; }
-            .btn-export.locked {
-                background: #64748b;
-            }
-            .btn-export.locked:hover { background: #475569; }
-            .pro-tag {
-                background: #fbbf24;
-                color: #78350f;
-                font-size: 0.65rem;
-                padding: 2px 5px;
-                border-radius: 3px;
-                font-weight: 700;
-                margin-left: 4px;
-            }
-
-            /* Upgrade modal */
-            .upgrade-modal-overlay {
-                display: none;
-                position: fixed;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.6);
-                z-index: 1000;
-                align-items: center;
-                justify-content: center;
-            }
-            .upgrade-modal-overlay.active { display: flex; }
-            .upgrade-modal {
-                background: #fff;
-                border-radius: 12px;
-                padding: 32px;
-                max-width: 420px;
-                width: 90%;
-                text-align: center;
-                box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-            }
-            .upgrade-modal h3 {
-                font-size: 1.5rem;
-                color: #0f172a;
-                margin-bottom: 12px;
-            }
-            .upgrade-modal p {
-                color: #64748b;
-                margin-bottom: 24px;
-                line-height: 1.5;
-            }
-            .upgrade-modal .btn-primary {
-                width: 100%;
-                margin-bottom: 12px;
-            }
-            .upgrade-modal .btn-close {
-                background: transparent;
-                border: none;
-                color: #64748b;
-                cursor: pointer;
-                font-size: 0.9rem;
-            }
-            .upgrade-modal .btn-close:hover { color: #0f172a; }
-
-            @media (max-width: 768px) {
-                .hub-header h1 { font-size: 1.75rem; }
-                .hub-intro { font-size: 1rem; }
-                .hub-stats { grid-template-columns: 1fr; gap: 16px; margin-top: -16px; }
-                .hub-stat { padding: 20px; }
-                .hub-stat-value { font-size: 1.5rem; }
-                .hub-grid { grid-template-columns: 1fr; }
-                .hub-table { font-size: 0.8rem; }
-                .hub-table th, .hub-table td { padding: 10px 12px; }
-                .signal-badge { padding: 3px 8px; font-size: 0.7rem; }
-                .hub-upgrade-banner {
-                    flex-direction: column;
-                    text-align: center;
-                    gap: 8px;
-                }
-                .hub-export-row { justify-content: center; }
-            }
-        `;
-
-        const fullContent = `<style>${hubStyles}</style>${content}`;
-
-        return new Response(getPageLayout(title, description, fullContent, jsonLd, canonicalUrl), {
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
             headers: {
                 'Content-Type': 'text/html',
                 'Cache-Control': 'public, max-age=300',  // 5 min cache - stats update after precompute
@@ -5545,51 +4772,34 @@ async function handleCategoryPage(path, env, headers) {
     }
 
     try {
-    // Get patterns for this category
-    const categoryPatterns = {
-        'Whiskey': ['%WHISK%', '%BOURBON%', '%SCOTCH%', '%RYE%'],
-        'Vodka': ['%VODKA%'],
-        'Tequila': ['%TEQUILA%', '%MEZCAL%', '%AGAVE%'],
-        'Rum': ['%RUM%', '%CACHACA%'],
-        'Gin': ['%GIN%'],
-        'Brandy': ['%BRANDY%', '%COGNAC%', '%ARMAGNAC%', '%GRAPPA%', '%PISCO%'],
-        'Wine': ['%WINE%', '%CHAMPAGNE%', '%PORT%', '%SHERRY%', '%VERMOUTH%', '%SAKE%', '%CIDER%', '%MEAD%'],
-        'Beer': ['%BEER%', '%ALE%', '%MALT%', '%STOUT%', '%PORTER%'],
-        'Liqueur': ['%LIQUEUR%', '%CORDIAL%', '%SCHNAPPS%', '%AMARETTO%', '%CREME DE%'],
-        'Cocktails': ['%COCKTAIL%', '%MARTINI%', '%DAIQUIRI%', '%MARGARITA%']
-    };
-
-    const patterns = categoryPatterns[category] || [`%${category.toUpperCase()}%`];
-    const patternCondition = patterns.map(() => 'class_type_code LIKE ?').join(' OR ');
-
     // Get total filings for this year
     const totalResult = await env.DB.prepare(`
         SELECT COUNT(*) as cnt FROM colas
-        WHERE year = ? AND (${patternCondition})
-    `).bind(year, ...patterns).first();
+        WHERE year = ? AND category = ?
+    `).bind(year, category).first();
     const totalFilings = totalResult?.cnt || 0;
 
     // Get previous year for comparison
     const prevResult = await env.DB.prepare(`
         SELECT COUNT(*) as cnt FROM colas
-        WHERE year = ? AND (${patternCondition})
-    `).bind(year - 1, ...patterns).first();
+        WHERE year = ? AND category = ?
+    `).bind(year - 1, category).first();
     const prevFilings = prevResult?.cnt || 1;
     const yoyChange = Math.round(((totalFilings - prevFilings) / prevFilings) * 100);
 
     // Get new brands count
     const newBrandsResult = await env.DB.prepare(`
         SELECT COUNT(DISTINCT brand_name) as cnt FROM colas
-        WHERE year = ? AND signal = 'NEW_BRAND' AND (${patternCondition})
-    `).bind(year, ...patterns).first();
+        WHERE year = ? AND signal = 'NEW_BRAND' AND category = ?
+    `).bind(year, category).first();
     const newBrands = newBrandsResult?.cnt || 0;
 
     // Get monthly trend
     const monthlyResult = await env.DB.prepare(`
         SELECT month, COUNT(*) as cnt FROM colas
-        WHERE year = ? AND (${patternCondition})
+        WHERE year = ? AND category = ?
         GROUP BY month ORDER BY month
-    `).bind(year, ...patterns).all();
+    `).bind(year, category).all();
     const monthly = monthlyResult.results || [];
     const maxMonthly = Math.max(...monthly.map(m => m.cnt), 1);
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -5600,49 +4810,106 @@ async function handleCategoryPage(path, env, headers) {
         FROM colas co
         JOIN company_aliases ca ON co.company_name = ca.raw_name
         JOIN companies c ON ca.company_id = c.id
-        WHERE co.year = ? AND (${patternCondition})
+        WHERE co.year = ? AND co.category = ?
         GROUP BY c.id
         ORDER BY cnt DESC
         LIMIT 10
-    `).bind(year, ...patterns).all();
+    `).bind(year, category).all();
     const topCompanies = topCompaniesResult.results || [];
 
     // Get top new brands
     const topBrandsResult = await env.DB.prepare(`
         SELECT brand_name, COUNT(*) as cnt
         FROM colas
-        WHERE year = ? AND signal IN ('NEW_BRAND', 'NEW_SKU') AND (${patternCondition})
+        WHERE year = ? AND signal IN ('NEW_BRAND', 'NEW_SKU') AND category = ?
         GROUP BY brand_name
         ORDER BY cnt DESC
         LIMIT 10
-    `).bind(year, ...patterns).all();
+    `).bind(year, category).all();
     const topBrands = topBrandsResult.results || [];
 
-    // Available years
-    const yearsResult = await env.DB.prepare(`
-        SELECT DISTINCT year FROM colas WHERE year >= 2020 ORDER BY year DESC
-    `).all();
+    // Available years + latest filing date (parallel)
+    const [yearsResult, latestDateResult] = await Promise.all([
+        env.DB.prepare(`
+            SELECT DISTINCT year FROM colas WHERE year >= 2020 ORDER BY year DESC
+        `).all(),
+        env.DB.prepare(`
+            SELECT MAX(year * 10000 + month * 100 + day) as latest_date
+            FROM colas WHERE year = ? AND category = ?
+        `).bind(year, category).first()
+    ]);
     const years = (yearsResult.results || []).map(r => r.year);
+    const latestCatDate = numericDateToISO(latestDateResult?.latest_date);
+
+    // Generate narrative sentences from existing data
+    const categoryNarrative = (() => {
+        const sentences = [];
+        // YoY direction
+        if (yoyChange > 10) {
+            sentences.push(`The ${category.toLowerCase()} category saw a <strong>${yoyChange}%</strong> increase in filing activity in ${year} compared to ${year - 1}, signaling growing market momentum.`);
+        } else if (yoyChange < -10) {
+            sentences.push(`Filing activity in the ${category.toLowerCase()} category declined <strong>${Math.abs(yoyChange)}%</strong> in ${year} versus ${year - 1}.`);
+        } else {
+            sentences.push(`The ${category.toLowerCase()} category filed <strong>${formatNumber(totalFilings)}</strong> products in ${year}, roughly in line with ${year - 1} levels.`);
+        }
+        // Top filer
+        if (topCompanies.length > 0) {
+            const top = topCompanies[0];
+            const topPct = totalFilings > 0 ? Math.round((top.cnt / totalFilings) * 100) : 0;
+            sentences.push(`<strong>${escapeHtml(top.canonical_name)}</strong> led the category with <strong>${formatNumber(top.cnt)}</strong> filings (${topPct}% of total).`);
+        }
+        // Peak month
+        if (monthly.length > 0) {
+            const peakMonth = monthly.reduce((max, m) => m.cnt > max.cnt ? m : max, monthly[0]);
+            sentences.push(`Activity peaked in <strong>${monthNames[peakMonth.month - 1]}</strong> with <strong>${formatNumber(peakMonth.cnt)}</strong> filings.`);
+        }
+        return sentences.join(' ');
+    })();
 
     const title = `${category} Filings ${year}`;
     const description = `${formatNumber(totalFilings)} ${category} TTB COLA filings in ${year}. ${yoyChange >= 0 ? '+' : ''}${yoyChange}% vs ${year-1}. View top filers, new brands, and monthly trends.`;
 
-    const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": `${category} Industry TTB Filings - ${year}`,
-        "description": description,
-        "url": `${BASE_URL}/category/${categorySlug}/${year}`
-    };
+    const jsonLd = [
+        {
+            "@context": "https://schema.org",
+            "@type": "Dataset",
+            "name": `${category} Industry TTB Filings - ${year}`,
+            "description": description,
+            "url": `${BASE_URL}/category/${categorySlug}/${year}`,
+            "datePublished": `${year}-01-01`,
+            ...(latestCatDate && { "dateModified": latestCatDate }),
+            "provider": {
+                "@type": "Organization",
+                "name": "BevAlc Intelligence",
+                "url": BASE_URL
+            }
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                { "@type": "ListItem", "position": 2, "name": "Database", "item": `${BASE_URL}/database.html` },
+                { "@type": "ListItem", "position": 3, "name": category, "item": `${BASE_URL}/${categorySlug}/` },
+                { "@type": "ListItem", "position": 4, "name": String(year) }
+            ]
+        }
+    ];
 
     const content = `
         <div class="breadcrumb">
-            <a href="/">Home</a> / <a href="/database.html">Database</a> / Category
+            <a href="/">Home</a> / <a href="/database.html">Database</a> / <a href="/${categorySlug}/">${category}</a> / ${year}
         </div>
         <header class="seo-header">
             <h1>${category} Filings in ${year}</h1>
             <p class="meta">${formatNumber(totalFilings)} Total Filings · ${formatNumber(newBrands)} New Brands · ${yoyChange >= 0 ? '+' : ''}${yoyChange}% vs ${year - 1}</p>
         </header>
+
+        ${categoryNarrative ? `<section class="seo-card" style="margin-bottom: 32px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+            <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                ${categoryNarrative}
+            </p>
+        </section>` : ''}
 
         <div class="seo-grid">
             <div class="seo-card">
@@ -5701,9 +4968,9 @@ async function handleCategoryPage(path, env, headers) {
         </div>
 
         <div class="related-links">
-            <h3>Browse by Year</h3>
+            <div class="related-heading">Browse by Year</div>
             ${years.map(y => y === year ? `<strong>${y}</strong>` : `<a href="/category/${categorySlug}/${y}">${y}</a>`).join(' ')}
-            <h3 style="margin-top: 24px;">Other Categories</h3>
+            <div class="related-heading" style="margin-top: 24px;">Other Categories</div>
             ${Object.entries(categoryMap).filter(([s]) => s !== categorySlug).map(([s, n]) => `<a href="/category/${s}/${year}">${n}</a>`).join('')}
         </div>
     `;
@@ -5721,6 +4988,316 @@ async function handleCategoryPage(path, env, headers) {
             status: 500,
             headers: { 'Content-Type': 'text/plain', ...headers }
         });
+    }
+}
+
+// ============================================================
+// Glossary Handlers
+// ============================================================
+
+const GLOSSARY_CATEGORY_ORDER = [
+    'TTB Basics', 'Product Information', 'Labeling Terms', 'Company Information',
+    'Wine-Specific', 'Application Types', 'Status Definitions', 'Intelligence Signals',
+    'Federal Permits', 'Production Terms', 'Distribution Terms', 'Business Terms'
+];
+
+// Glossary Index Page — /glossary/
+async function handleGlossaryIndex(env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        const result = await env.DB.prepare(`
+            SELECT term_slug, term_name, category, definition
+            FROM glossary_terms
+            ORDER BY category, term_name
+        `).all();
+        const terms = result.results || [];
+
+        // Group by category
+        const grouped = {};
+        for (const t of terms) {
+            if (!grouped[t.category]) grouped[t.category] = [];
+            grouped[t.category].push(t);
+        }
+
+        // Build category sections
+        const categorySections = GLOSSARY_CATEGORY_ORDER
+            .filter(cat => grouped[cat] && grouped[cat].length > 0)
+            .map(cat => {
+                const catTerms = grouped[cat];
+                const termCards = catTerms.map(t => `
+                    <a href="/glossary/${t.term_slug}/" class="glossary-index-card">
+                        <strong>${escapeHtml(t.term_name)}</strong>
+                        <span>${escapeHtml(t.definition.substring(0, 140))}${t.definition.length > 140 ? '...' : ''}</span>
+                    </a>
+                `).join('');
+                return `
+                    <section class="seo-card glossary-index-section">
+                        <h2>${escapeHtml(cat)}</h2>
+                        <div class="glossary-index-grid">${termCards}</div>
+                    </section>
+                `;
+            }).join('');
+
+        const title = 'Beverage Alcohol Glossary';
+        const description = `${terms.length} beverage alcohol terms defined — TTB regulatory terminology, production methods, distribution law, and industry business terms. Each with plain-English explanations and practical context.`;
+        const canonicalUrl = `${BASE_URL}/glossary/`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "DefinedTermSet",
+                "name": "BevAlc Intelligence Glossary",
+                "description": description,
+                "url": canonicalUrl,
+                "hasDefinedTerm": terms.map(t => ({
+                    "@type": "DefinedTerm",
+                    "name": t.term_name,
+                    "url": `${BASE_URL}/glossary/${t.term_slug}/`
+                }))
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "numberOfItems": terms.length,
+                "provider": {
+                    "@type": "Organization",
+                    "name": "BevAlc Intelligence",
+                    "url": BASE_URL
+                }
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Glossary" }
+                ]
+            }
+        ];
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / Glossary
+            </div>
+            <header class="seo-header">
+                <h1>Beverage Alcohol Glossary</h1>
+                <p class="meta">${terms.length} Terms · TTB Regulation · Production · Distribution · Business</p>
+            </header>
+
+            <section class="seo-card" style="margin-bottom: 32px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    A comprehensive reference covering every term you'll encounter in the beverage alcohol industry — from
+                    <a href="/glossary/cola/">TTB label approvals</a> and <a href="/glossary/federal-basic-permit/">federal permits</a>
+                    to <a href="/glossary/three-tier-system/">distribution law</a> and <a href="/glossary/distillation/">production methods</a>.
+                    Each entry includes a plain-English explanation, technical regulatory detail, and practical context for
+                    distillers, importers, compliance professionals, and investors.
+                </p>
+            </section>
+
+            <nav class="glossary-toc-nav">
+                ${GLOSSARY_CATEGORY_ORDER.filter(cat => grouped[cat]).map(cat =>
+                    `<a href="#${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')}">${cat}</a>`
+                ).join('')}
+            </nav>
+
+            ${GLOSSARY_CATEGORY_ORDER
+                .filter(cat => grouped[cat] && grouped[cat].length > 0)
+                .map(cat => {
+                    const catTerms = grouped[cat];
+                    const anchor = cat.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    const termCards = catTerms.map(t => `
+                        <a href="/glossary/${t.term_slug}/" class="glossary-index-card">
+                            <strong>${escapeHtml(t.term_name)}</strong>
+                            <span>${escapeHtml(t.definition.substring(0, 140))}${t.definition.length > 140 ? '...' : ''}</span>
+                        </a>
+                    `).join('');
+                    return `
+                        <section class="seo-card glossary-index-section" id="${anchor}">
+                            <h2>${escapeHtml(cat)} <span class="glossary-cat-count">${catTerms.length}</span></h2>
+                            <div class="glossary-index-grid">${termCards}</div>
+                        </section>
+                    `;
+                }).join('')}
+
+            <section class="seo-card" style="text-align: center; padding: 32px;">
+                <p style="color: #64748b; margin-bottom: 16px;">Use this glossary alongside our database to understand what you're seeing in TTB filings.</p>
+                <a href="/database.html" class="btn-primary" style="margin-right: 12px;">Search the Database</a>
+                <a href="/whiskey/" class="btn-secondary">Browse Categories</a>
+            </section>
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error('Glossary index error:', error.message);
+        return new Response('Error loading glossary', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// Glossary Term Page — /glossary/[slug]/
+async function handleGlossaryTerm(path, env) {
+    const slug = path.replace('/glossary/', '').replace(/\/$/, '');
+    if (!slug) return await handleGlossaryIndex(env);
+
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        const term = await env.DB.prepare(`
+            SELECT * FROM glossary_terms WHERE term_slug = ?
+        `).bind(slug).first();
+
+        if (!term) {
+            return new Response('Term not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+        }
+
+        // Parse JSON fields
+        let relatedSlugs = [];
+        try { relatedSlugs = JSON.parse(term.related_terms || '[]'); } catch (e) {}
+        let faqs = [];
+        try { faqs = JSON.parse(term.faqs || '[]'); } catch (e) {}
+
+        // Fetch related terms
+        let relatedTerms = [];
+        if (relatedSlugs.length > 0) {
+            const placeholders = relatedSlugs.map(() => '?').join(',');
+            const relResult = await env.DB.prepare(`
+                SELECT term_slug, term_name, definition FROM glossary_terms WHERE term_slug IN (${placeholders})
+            `).bind(...relatedSlugs).all();
+            relatedTerms = relResult.results || [];
+        }
+
+        const title = term.term_name;
+        const description = term.definition.substring(0, 155).replace(/\.?\s*$/, '.');
+        const canonicalUrl = `${BASE_URL}/glossary/${slug}/`;
+        const dateModified = term.updated_at ? term.updated_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+
+        // JSON-LD: DefinedTerm + BreadcrumbList + FAQPage
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "DefinedTerm",
+                "name": term.term_name,
+                "description": term.definition,
+                "inDefinedTermSet": {
+                    "@type": "DefinedTermSet",
+                    "name": "BevAlc Intelligence Glossary",
+                    "url": `${BASE_URL}/glossary/`
+                },
+                "url": canonicalUrl
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Glossary", "item": `${BASE_URL}/glossary/` },
+                    { "@type": "ListItem", "position": 3, "name": term.term_name }
+                ]
+            }
+        ];
+
+        if (faqs.length > 0) {
+            jsonLd.push({
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                "mainEntity": faqs.map(f => ({
+                    "@type": "Question",
+                    "name": f.q,
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": f.a
+                    }
+                }))
+            });
+        }
+
+        // Build related terms HTML
+        const relatedHtml = relatedTerms.length > 0 ? `
+            <section class="seo-card">
+                <h2>Related Terms</h2>
+                <div class="glossary-related-grid">
+                    ${relatedTerms.map(r => `
+                        <a href="/glossary/${r.term_slug}/" class="glossary-related-card">
+                            <strong>${escapeHtml(r.term_name)}</strong>
+                            <span>${escapeHtml(r.definition.substring(0, 100))}${r.definition.length > 100 ? '...' : ''}</span>
+                        </a>
+                    `).join('')}
+                </div>
+            </section>
+        ` : '';
+
+        // Build FAQ HTML
+        const faqHtml = faqs.length > 0 ? `
+            <section class="seo-card">
+                <h2>Frequently Asked Questions</h2>
+                ${faqs.map(f => `
+                    <div class="glossary-faq">
+                        <h3>${escapeHtml(f.q)}</h3>
+                        <p>${escapeHtml(f.a)}</p>
+                    </div>
+                `).join('')}
+            </section>
+        ` : '';
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/glossary/">Glossary</a> / ${escapeHtml(term.term_name)}
+            </div>
+            <header class="seo-header">
+                <h1>${escapeHtml(term.term_name)}</h1>
+                <p class="meta">${escapeHtml(term.category)} · Updated ${dateModified}</p>
+            </header>
+
+            <section class="glossary-lead">
+                <p>${escapeHtml(term.definition)}</p>
+            </section>
+
+            <section class="seo-card">
+                <h2>In Plain English</h2>
+                <p>${escapeHtml(term.plain_english)}</p>
+            </section>
+
+            <section class="seo-card">
+                <h2>Technical Detail</h2>
+                <p>${escapeHtml(term.technical_detail)}</p>
+            </section>
+
+            <section class="seo-card">
+                <h2>Why It Matters</h2>
+                <p>${escapeHtml(term.why_it_matters)}</p>
+            </section>
+
+            ${relatedHtml}
+            ${faqHtml}
+
+            <div class="glossary-back-nav">
+                <a href="/glossary/">← Back to Full Glossary</a>
+            </div>
+        `;
+
+        const extraHead = `<meta property="article:modified_time" content="${dateModified}">`;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`Glossary term error for ${slug}:`, error.message);
+        return new Response('Error loading glossary term', { status: 500, headers: { 'Content-Type': 'text/plain' } });
     }
 }
 

@@ -1,6 +1,6 @@
 # BevAlc Intelligence - Product Specification
 
-*Last updated: January 2026*
+*Last updated: February 4, 2026*
 
 ---
 
@@ -174,7 +174,7 @@ BevAlc Intelligence is a B2B SaaS product providing competitive intelligence on 
 - CSV export generation under 30 seconds (10K records)
 
 ### Security Requirements
-- All endpoints require authentication for sensitive data
+- All endpoints require authentication for sensitive data (Bearer token after email verification)
 - Stripe webhook signature verification (implemented)
 - CORS restricted to bevalcintel.com (implemented)
 - Rate limiting on all API endpoints (implemented)
@@ -278,3 +278,9 @@ BevAlc Intelligence is a B2B SaaS product providing competitive intelligence on 
 - **Risk tolerance:** Willing to invest in monitoring tools once revenue starts
 - **Technical reliance:** Depending on Claude for debugging and technical decisions
 - **Biggest fear:** TTB blocks scraping and data source is lost
+#### 6. Email Verification (Access Enablement)
+- **Requirement:** Users verify email via a 6-digit code sent by Resend
+- **Acceptance Criteria:**
+  - Code expires in 15 minutes
+  - Max 5 attempts per code, 3 sends per hour
+  - Verified users get a persistent token used for watchlist, saved searches, and credits

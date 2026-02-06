@@ -127,8 +127,8 @@ export async function uploadChunksToVectorize(
           sectionTitle: chunk.metadata.sectionTitle || '',
           sectionConfidence: String(chunk.metadata.sectionConfidence ?? ''),
           sourceUrl: chunk.metadata.sourceUrl,
-          // Truncate content to fit Vectorize metadata limits (10KB per field)
-          content: chunk.content.slice(0, 9000),
+          // Store only a small preview to avoid Vectorize metadata limits (10KB total)
+          content_preview: chunk.content.slice(0, 1000),
           accessionNumber: chunk.metadata.accessionNumber,
           fiscalYear: String(chunk.metadata.fiscalYear || ''),
           fiscalQuarter: String(chunk.metadata.fiscalQuarter || ''),

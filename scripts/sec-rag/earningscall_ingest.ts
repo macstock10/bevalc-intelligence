@@ -159,7 +159,7 @@ async function fetchTranscript(
   year: number,
   quarter: number,
   level?: string
-): Promise<string | null> {
+): Promise<{ text: string; callDate?: string } | null> {
   const params = new URLSearchParams({
     apikey: apiKey,
     exchange,
@@ -177,7 +177,8 @@ async function fetchTranscript(
   }
   const data = await resp.json();
   const text = data?.text || data?.transcript || data?.content || '';
-  return text ? String(text).trim() : null;
+  const callDate = data?.date || data?.call_date || data?.callDate || data?.event_date || null;
+  return text ? { text: String(text).trim(), callDate: callDate ? String(callDate).slice(0, 10) : undefined } : null;
 }
 
 async function main() {
@@ -233,8 +234,8 @@ async function main() {
         continue;
       }
 
-      const callDate = quarterEndDate(year, q);
-      const parsed = buildParsedDocument(transcript, {
+      const callDate = transcript.callDate || quarterEndDate(year, q);
+      const parsed = buildParsedDocument(transcript.text, {
         ticker,
         company,
         callDate,

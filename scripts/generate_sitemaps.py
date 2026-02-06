@@ -117,12 +117,15 @@ def generate_brand_sitemaps():
     """Generate paginated sitemaps for brand pages."""
     print("  Generating brand sitemaps...")
 
-    # Get total brand count
-    count_result = query_d1("SELECT COUNT(*) as cnt FROM brand_slugs")
+    # Get brand counts — only include brands with >= 5 filings in sitemap (thin pages get noindex)
+    count_result = query_d1("SELECT COUNT(*) as cnt FROM brand_slugs WHERE filing_count >= 5")
     total_brands = count_result[0]['cnt'] if count_result else 0
+    excluded_result = query_d1("SELECT COUNT(*) as cnt FROM brand_slugs WHERE filing_count < 5")
+    excluded_brands = excluded_result[0]['cnt'] if excluded_result else 0
     num_sitemaps = (total_brands + BRANDS_PER_SITEMAP - 1) // BRANDS_PER_SITEMAP
 
-    print(f"    {total_brands} brands -> {num_sitemaps} sitemap files")
+    print(f"    {total_brands} brands (>= 5 filings) -> {num_sitemaps} sitemap files")
+    print(f"    {excluded_brands} brands excluded (< 5 filings, noindex)")
 
     sitemaps = {}
     for i in range(1, num_sitemaps + 1):
@@ -130,7 +133,7 @@ def generate_brand_sitemaps():
         print(f"    Fetching brands {offset + 1} to {min(offset + BRANDS_PER_SITEMAP, total_brands)}...")
 
         results = query_d1(
-            f"SELECT slug FROM brand_slugs ORDER BY filing_count DESC LIMIT {BRANDS_PER_SITEMAP} OFFSET {offset}"
+            f"SELECT slug FROM brand_slugs WHERE filing_count >= 5 ORDER BY filing_count DESC LIMIT {BRANDS_PER_SITEMAP} OFFSET {offset}"
         )
         urls = [{'loc': f'{BASE_URL}/brand/{r["slug"]}', 'priority': '0.6'} for r in results]
         sitemaps[f'sitemap-brands-{i}.xml'] = generate_urlset_xml(urls)
