@@ -1,8 +1,9 @@
 # Redirect extensionless URLs to .html (for email links, etc.)
 # Cache buster: 2026-01-08
 /database   /database.html   301
-# Retire static glossary — redirect to SSR version
-/glossary.html  /glossary/  301
+# Glossary — SSR via worker (force overrides static glossary.html)
+/glossary.html  /glossary/  301!
+/glossary   https://bevalc-api.mac-rowan.workers.dev/glossary/   200!
 /account    /account.html    301
 /legal      /legal.html      301
 /preferences /preferences.html 301
@@ -12,8 +13,8 @@
 /company/*  https://bevalc-api.mac-rowan.workers.dev/company/:splat  200
 /brand/*    https://bevalc-api.mac-rowan.workers.dev/brand/:splat    200
 /category/* https://bevalc-api.mac-rowan.workers.dev/category/:splat 200
-/glossary/  https://bevalc-api.mac-rowan.workers.dev/glossary/       200
-/glossary/* https://bevalc-api.mac-rowan.workers.dev/glossary/:splat 200
+/glossary/  https://bevalc-api.mac-rowan.workers.dev/glossary/       200!
+/glossary/* https://bevalc-api.mac-rowan.workers.dev/glossary/:splat 200!
 
 # Hub pages (category landing pages)
 /whiskey/   https://bevalc-api.mac-rowan.workers.dev/whiskey/   200
