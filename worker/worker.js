@@ -6043,7 +6043,15 @@ async function handleSitemap(path, env) {
             console.error(`Failed to fetch sitemap from R2: ${r2Response.status}`);
             return new Response('Sitemap not found', { status: 404 });
         }
-        const xml = await r2Response.text();
+        let xml = await r2Response.text();
+
+        // Inject dynamic sitemap references into the sitemap index
+        if (path === '/sitemap.xml') {
+            const today = new Date().toISOString().split('T')[0];
+            const locationEntry = `  <sitemap>\n    <loc>${BASE_URL}/sitemap-locations.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>\n`;
+            xml = xml.replace('</sitemapindex>', locationEntry + '</sitemapindex>');
+        }
+
         return new Response(xml, { headers: cacheHeaders });
     } catch (error) {
         console.error(`Error fetching sitemap from R2: ${error.message}`);
