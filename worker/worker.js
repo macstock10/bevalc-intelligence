@@ -297,6 +297,13 @@ export default {
                 return await handleGlossaryTerm(path, env);
             }
 
+            // Location pages
+            if (path === '/locations' || path === '/locations/') {
+                return await handleLocationsIndex(env);
+            } else if (path.startsWith('/locations/')) {
+                return await handleLocationPage(path, env);
+            }
+
             // Hub pages (e.g., /whiskey/, /tequila/)
             const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
             if (hubMatch) {
@@ -3425,6 +3432,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                     <ul>
                         <li><a href="/database.html">Search Database</a></li>
                         <li><a href="/glossary/">Glossary</a></li>
+                        <li><a href="/locations/">Locations</a></li>
                         <li><a href="/#pricing">Pricing</a></li>
                     </ul>
                 </div>
@@ -5301,6 +5309,699 @@ async function handleGlossaryTerm(path, env) {
     }
 }
 
+// ==========================================
+// LOCATION PAGE HANDLERS
+// ==========================================
+
+// Keyed by UPPERCASE origin_code values as stored in the colas table
+const STATE_DATA = {
+    'ALABAMA': { name: 'Alabama', slug: 'alabama', abbr: 'AL', control: true, model: 'Control state (ABC stores)' },
+    'ALASKA': { name: 'Alaska', slug: 'alaska', abbr: 'AK', control: false, model: 'License state' },
+    'ARIZONA': { name: 'Arizona', slug: 'arizona', abbr: 'AZ', control: false, model: 'License state' },
+    'ARKANSAS': { name: 'Arkansas', slug: 'arkansas', abbr: 'AR', control: false, model: 'License state' },
+    'CALIFORNIA': { name: 'California', slug: 'california', abbr: 'CA', control: false, model: 'License state' },
+    'COLORADO': { name: 'Colorado', slug: 'colorado', abbr: 'CO', control: false, model: 'License state' },
+    'CONNECTICUT': { name: 'Connecticut', slug: 'connecticut', abbr: 'CT', control: false, model: 'License state' },
+    'DELAWARE': { name: 'Delaware', slug: 'delaware', abbr: 'DE', control: false, model: 'License state' },
+    'FLORIDA': { name: 'Florida', slug: 'florida', abbr: 'FL', control: false, model: 'License state' },
+    'GEORGIA': { name: 'Georgia', slug: 'georgia', abbr: 'GA', control: false, model: 'License state' },
+    'HAWAII': { name: 'Hawaii', slug: 'hawaii', abbr: 'HI', control: false, model: 'License state' },
+    'IDAHO': { name: 'Idaho', slug: 'idaho', abbr: 'ID', control: true, model: 'Control state (state liquor stores)' },
+    'ILLINOIS': { name: 'Illinois', slug: 'illinois', abbr: 'IL', control: false, model: 'License state' },
+    'INDIANA': { name: 'Indiana', slug: 'indiana', abbr: 'IN', control: false, model: 'License state' },
+    'IOWA': { name: 'Iowa', slug: 'iowa', abbr: 'IA', control: true, model: 'Control state (state-run spirits)' },
+    'KANSAS': { name: 'Kansas', slug: 'kansas', abbr: 'KS', control: false, model: 'License state' },
+    'KENTUCKY': { name: 'Kentucky', slug: 'kentucky', abbr: 'KY', control: false, model: 'License state' },
+    'LOUISIANA': { name: 'Louisiana', slug: 'louisiana', abbr: 'LA', control: false, model: 'License state' },
+    'MAINE': { name: 'Maine', slug: 'maine', abbr: 'ME', control: true, model: 'Control state (state-run spirits)' },
+    'MARYLAND': { name: 'Maryland', slug: 'maryland', abbr: 'MD', control: false, model: 'License state' },
+    'MASSACHUSETTS': { name: 'Massachusetts', slug: 'massachusetts', abbr: 'MA', control: false, model: 'License state' },
+    'MICHIGAN': { name: 'Michigan', slug: 'michigan', abbr: 'MI', control: true, model: 'Control state (MLCC)' },
+    'MINNESOTA': { name: 'Minnesota', slug: 'minnesota', abbr: 'MN', control: false, model: 'License state' },
+    'MISSISSIPPI': { name: 'Mississippi', slug: 'mississippi', abbr: 'MS', control: true, model: 'Control state (ABC)' },
+    'MISSOURI': { name: 'Missouri', slug: 'missouri', abbr: 'MO', control: false, model: 'License state' },
+    'MONTANA': { name: 'Montana', slug: 'montana', abbr: 'MT', control: true, model: 'Control state (state liquor stores)' },
+    'NEBRASKA': { name: 'Nebraska', slug: 'nebraska', abbr: 'NE', control: false, model: 'License state' },
+    'NEVADA': { name: 'Nevada', slug: 'nevada', abbr: 'NV', control: false, model: 'License state' },
+    'NEW HAMPSHIRE': { name: 'New Hampshire', slug: 'new-hampshire', abbr: 'NH', control: true, model: 'Control state (state liquor stores)' },
+    'NEW JERSEY': { name: 'New Jersey', slug: 'new-jersey', abbr: 'NJ', control: false, model: 'License state' },
+    'NEW MEXICO': { name: 'New Mexico', slug: 'new-mexico', abbr: 'NM', control: false, model: 'License state' },
+    'NEW YORK': { name: 'New York', slug: 'new-york', abbr: 'NY', control: false, model: 'License state' },
+    'NORTH CAROLINA': { name: 'North Carolina', slug: 'north-carolina', abbr: 'NC', control: true, model: 'Control state (ABC stores)' },
+    'NORTH DAKOTA': { name: 'North Dakota', slug: 'north-dakota', abbr: 'ND', control: false, model: 'License state' },
+    'OHIO': { name: 'Ohio', slug: 'ohio', abbr: 'OH', control: true, model: 'Control state (state-run spirits)' },
+    'OKLAHOMA': { name: 'Oklahoma', slug: 'oklahoma', abbr: 'OK', control: false, model: 'License state' },
+    'OREGON': { name: 'Oregon', slug: 'oregon', abbr: 'OR', control: true, model: 'Control state (OLCC)' },
+    'PENNSYLVANIA': { name: 'Pennsylvania', slug: 'pennsylvania', abbr: 'PA', control: true, model: 'Control state (PLCB)' },
+    'RHODE ISLAND': { name: 'Rhode Island', slug: 'rhode-island', abbr: 'RI', control: false, model: 'License state' },
+    'SOUTH CAROLINA': { name: 'South Carolina', slug: 'south-carolina', abbr: 'SC', control: false, model: 'License state' },
+    'SOUTH DAKOTA': { name: 'South Dakota', slug: 'south-dakota', abbr: 'SD', control: false, model: 'License state' },
+    'TENNESSEE': { name: 'Tennessee', slug: 'tennessee', abbr: 'TN', control: false, model: 'License state' },
+    'TEXAS': { name: 'Texas', slug: 'texas', abbr: 'TX', control: false, model: 'License state' },
+    'UTAH': { name: 'Utah', slug: 'utah', abbr: 'UT', control: true, model: 'Control state (DABC)' },
+    'VERMONT': { name: 'Vermont', slug: 'vermont', abbr: 'VT', control: true, model: 'Control state (state liquor stores)' },
+    'VIRGINIA': { name: 'Virginia', slug: 'virginia', abbr: 'VA', control: true, model: 'Control state (ABC stores)' },
+    'WASHINGTON': { name: 'Washington', slug: 'washington', abbr: 'WA', control: false, model: 'License state (privatized 2012)' },
+    'WEST VIRGINIA': { name: 'West Virginia', slug: 'west-virginia', abbr: 'WV', control: false, model: 'License state' },
+    'WISCONSIN': { name: 'Wisconsin', slug: 'wisconsin', abbr: 'WI', control: false, model: 'License state' },
+    'WYOMING': { name: 'Wyoming', slug: 'wyoming', abbr: 'WY', control: true, model: 'Control state (state-run spirits)' },
+    'DISTRICT OF COLUMBIA': { name: 'District of Columbia', slug: 'district-of-columbia', abbr: 'DC', control: false, model: 'License jurisdiction' },
+};
+
+// Reverse lookup: slug → origin_code (uppercase state name)
+const STATE_SLUG_MAP = {};
+for (const [originCode, data] of Object.entries(STATE_DATA)) {
+    STATE_SLUG_MAP[data.slug] = originCode;
+}
+
+// Category slug mapping for location/category pages
+const LOCATION_CATEGORY_MAP = {
+    'whiskey': 'Whiskey',
+    'tequila': 'Tequila',
+    'vodka': 'Vodka',
+    'gin': 'Gin',
+    'rum': 'Rum',
+    'brandy': 'Brandy',
+    'wine': 'Wine',
+    'beer': 'Beer',
+    'liqueur': 'Liqueur',
+    'cocktails': 'Cocktails',
+    'other': 'Other',
+};
+const LOCATION_CATEGORY_SLUG_MAP = {};
+for (const [slug, name] of Object.entries(LOCATION_CATEGORY_MAP)) {
+    LOCATION_CATEGORY_SLUG_MAP[name] = slug;
+}
+
+// Location page router — determines state vs state+category
+async function handleLocationPage(path, env) {
+    const parts = path.replace('/locations/', '').replace(/\/$/, '').split('/');
+    const stateSlug = parts[0];
+    const categorySlug = parts[1] || null;
+
+    const originCode = STATE_SLUG_MAP[stateSlug];
+    if (!originCode) {
+        return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+    }
+
+    if (categorySlug) {
+        const categoryName = LOCATION_CATEGORY_MAP[categorySlug];
+        if (!categoryName) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+        return await handleStateCategoryPage(originCode, categorySlug, categoryName, env);
+    }
+
+    return await handleStatePage(originCode, env);
+}
+
+// Handler 1: /locations/ — Index of all states
+async function handleLocationsIndex(env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Get state counts using origin_code (uppercase state names like "CALIFORNIA")
+        const stateStats = await env.DB.prepare(`
+            SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as total, COUNT(DISTINCT company_name) as companies
+            FROM colas
+            WHERE origin_code IS NOT NULL AND origin_code != ''
+            GROUP BY origin
+            ORDER BY total DESC
+        `).all();
+
+        // Get top category per state
+        const topCategories = await env.DB.prepare(`
+            SELECT UPPER(TRIM(origin_code)) as origin, category, COUNT(*) as cnt
+            FROM colas
+            WHERE origin_code IS NOT NULL AND origin_code != '' AND category IS NOT NULL
+            GROUP BY origin, category
+            ORDER BY origin, cnt DESC
+        `).all();
+
+        // Build top category map (first row per state wins due to ORDER BY)
+        const topCatMap = {};
+        for (const row of topCategories.results) {
+            if (!topCatMap[row.origin]) {
+                topCatMap[row.origin] = row.category;
+            }
+        }
+
+        // Build total stats
+        let totalFilings = 0;
+        let totalCompanies = 0;
+        for (const row of stateStats.results) {
+            if (STATE_DATA[row.origin]) {
+                totalFilings += row.total;
+                totalCompanies += row.companies;
+            }
+        }
+
+        // Build state cards HTML
+        const stateCardsHtml = stateStats.results
+            .filter(row => STATE_DATA[row.origin])
+            .map(row => {
+                const state = STATE_DATA[row.origin];
+                const topCat = topCatMap[row.origin] || '';
+                const catSlug = LOCATION_CATEGORY_SLUG_MAP[topCat];
+                const topCatLink = catSlug ? `<a href="/locations/${state.slug}/${catSlug}/">${escapeHtml(topCat)}</a>` : escapeHtml(topCat);
+                return `
+                    <a href="/locations/${state.slug}/" class="state-card">
+                        <div class="state-card-header">
+                            <span class="state-card-name">${escapeHtml(state.name)}</span>
+                            <span class="state-card-code">${state.abbr}</span>
+                        </div>
+                        <div class="state-card-stats">
+                            <div class="state-card-stat">
+                                <span class="state-card-value">${formatNumber(row.total)}</span>
+                                <span class="state-card-label">filings</span>
+                            </div>
+                            <div class="state-card-stat">
+                                <span class="state-card-value">${formatNumber(row.companies)}</span>
+                                <span class="state-card-label">companies</span>
+                            </div>
+                        </div>
+                        <div class="state-card-meta">
+                            <span class="state-card-type">${state.control ? 'Control' : 'License'}</span>
+                            ${topCat ? `<span class="state-card-top-cat">Top: ${escapeHtml(topCat)}</span>` : ''}
+                        </div>
+                    </a>
+                `;
+            }).join('');
+
+        const canonicalUrl = `${BASE_URL}/locations/`;
+        const title = 'Alcohol Industry by State — TTB Filings & Company Data';
+        const description = `Explore beverage alcohol industry data across all 50 US states. ${formatNumber(totalFilings)} TTB label approvals from ${formatNumber(totalCompanies)} companies, broken down by state, category, and regulatory environment.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Locations" }
+                ]
+            }
+        ];
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / Locations
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>Alcohol Industry by State</h1>
+                    <div class="meta">
+                        <span><strong>${formatNumber(totalFilings)}</strong> total TTB filings</span>
+                        <span><strong>${formatNumber(totalCompanies)}</strong> companies across <strong>${stateStats.results.filter(r => STATE_DATA[r.origin]).length}</strong> states</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card" style="margin-bottom: 32px;">
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    Every beverage alcohol product sold in the United States requires a Certificate of Label Approval (COLA) from the Alcohol and Tobacco Tax and Trade Bureau (TTB). This page provides a geographic breakdown of all TTB label approvals in our database, showing where beverage alcohol companies are based and how activity varies across states. Whether you're a service provider looking for prospects in your region or analyzing market concentration, this data helps you understand the landscape state by state.
+                </p>
+            </section>
+
+            <div class="state-grid">
+                ${stateCardsHtml}
+            </div>
+
+            <section class="seo-card" style="margin-top: 32px;">
+                <h2>Control vs. License States</h2>
+                <p style="line-height: 1.75; color: #475569; margin: 0;">
+                    US states follow one of two regulatory models for alcohol distribution. <strong>Control states</strong> (also called monopoly states) operate government-run retail stores for spirits, giving the state direct control over wholesale and sometimes retail sales. <strong>License states</strong> allow private businesses to sell spirits through a licensing system. This distinction significantly affects how brands enter and compete in each market. Our data tracks TTB filings regardless of state model, giving you visibility into new brand activity in both regulatory environments.
+                </p>
+            </section>
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error('Locations index error:', error.message);
+        return new Response('Error loading locations', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// Handler 2: /locations/[state-slug]/ — Individual state page
+async function handleStatePage(originCode, env) {
+    const state = STATE_DATA[originCode];
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Run all queries in parallel — use origin_code for colas, state (2-letter abbr) for permits
+        const [totalRes, companiesRes, categoryRes, topCompaniesRes, topBrandsRes, permitRes, yearTrendRes] = await Promise.all([
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ?').bind(originCode).first(),
+            env.DB.prepare('SELECT COUNT(DISTINCT company_name) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ?').bind(originCode).first(),
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category IS NOT NULL GROUP BY category ORDER BY cnt DESC').bind(originCode).all(),
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE UPPER(TRIM(co.origin_code)) = ?
+                GROUP BY c.id
+                ORDER BY cnt DESC LIMIT 10
+            `).bind(originCode).all(),
+            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode).all(),
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM permits WHERE UPPER(TRIM(state)) = ?').bind(state.abbr).first(),
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode).all(),
+        ]);
+
+        const totalFilings = totalRes?.cnt || 0;
+        const totalCompanies = companiesRes?.cnt || 0;
+        const permitCount = permitRes?.cnt || 0;
+        const categories = categoryRes.results || [];
+        const topCompanies = topCompaniesRes.results || [];
+        const topBrands = topBrandsRes.results || [];
+        const yearTrend = yearTrendRes.results || [];
+
+        if (totalFilings === 0) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Category breakdown with percentages
+        const maxCat = categories.length > 0 ? categories[0].cnt : 1;
+        const categoryHtml = categories.map(cat => {
+            const pct = ((cat.cnt / totalFilings) * 100).toFixed(1);
+            const barWidth = ((cat.cnt / maxCat) * 100).toFixed(0);
+            const catSlug = LOCATION_CATEGORY_SLUG_MAP[cat.category];
+            const nameHtml = catSlug && cat.cnt >= 10
+                ? `<a href="/locations/${state.slug}/${catSlug}/" style="color: inherit; text-decoration: none;">${escapeHtml(cat.category)}</a>`
+                : escapeHtml(cat.category);
+            return `<div class="bar-row">
+                <div class="bar-label">${nameHtml}</div>
+                <div class="bar-container"><div class="bar-fill" style="width: ${barWidth}%"></div></div>
+                <div class="bar-value">${formatNumber(cat.cnt)} <span style="font-size: 0.7rem; color: #94a3b8;">(${pct}%)</span></div>
+            </div>`;
+        }).join('');
+
+        // Top companies table
+        const companiesTableHtml = topCompanies.length > 0 ? `
+            <section class="seo-card">
+                <h2>Top Companies in ${escapeHtml(state.name)}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Company</th><th>Filings</th></tr></thead>
+                        <tbody>
+                            ${topCompanies.map((co, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/company/${co.slug}/">${escapeHtml(co.canonical_name)}</a></td>
+                                    <td>${formatNumber(co.cnt)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Top brands table
+        const brandsTableHtml = topBrands.length > 0 ? `
+            <section class="seo-card">
+                <h2>Top Brands in ${escapeHtml(state.name)}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Brand</th><th>Filings</th></tr></thead>
+                        <tbody>
+                            ${topBrands.map((br, i) => {
+                                const brandSlug = br.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                                return `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/brand/${brandSlug}/">${escapeHtml(br.brand_name)}</a></td>
+                                    <td>${formatNumber(br.cnt)}</td>
+                                </tr>
+                            `;}).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Year trend chart
+        const yearTrendHtml = yearTrend.length > 0 ? (() => {
+            const maxYear = Math.max(...yearTrend.map(y => y.cnt));
+            return `
+                <section class="seo-card">
+                    <h2>Filing Trend (Last 5 Years)</h2>
+                    <div class="bar-chart">
+                        ${yearTrend.map(y => `
+                            <div class="bar-row">
+                                <div class="bar-label">${y.year}</div>
+                                <div class="bar-container"><div class="bar-fill" style="width: ${((y.cnt / maxYear) * 100).toFixed(0)}%"></div></div>
+                                <div class="bar-value">${formatNumber(y.cnt)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </section>
+            `;
+        })() : '';
+
+        // Category links for state+category subpages (only categories with 10+ filings)
+        const categoryLinksHtml = categories.filter(c => c.cnt >= 10 && LOCATION_CATEGORY_SLUG_MAP[c.category]).map(c => {
+            const catSlug = LOCATION_CATEGORY_SLUG_MAP[c.category];
+            return `<a href="/locations/${state.slug}/${catSlug}/">${escapeHtml(c.category)} (${formatNumber(c.cnt)})</a>`;
+        }).join('');
+
+        const canonicalUrl = `${BASE_URL}/locations/${state.slug}/`;
+        const title = `${state.name} Alcohol Industry Overview — Companies, Brands & TTB Data`;
+        const description = `${state.name} has ${formatNumber(totalCompanies)} beverage alcohol companies with ${formatNumber(totalFilings)} TTB label approvals. ${state.model}. Browse top companies, brands, and category breakdown.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "about": {
+                    "@type": "Place",
+                    "name": state.name,
+                    "address": { "@type": "PostalAddress", "addressRegion": state.abbr, "addressCountry": "US" }
+                }
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Locations", "item": `${BASE_URL}/locations/` },
+                    { "@type": "ListItem", "position": 3, "name": state.name }
+                ]
+            }
+        ];
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/locations/">Locations</a> / ${escapeHtml(state.name)}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>${escapeHtml(state.name)} Alcohol Industry Overview</h1>
+                    <div class="meta">
+                        <span><strong>${formatNumber(totalFilings)}</strong> TTB filings</span>
+                        <span><strong>${formatNumber(totalCompanies)}</strong> companies</span>
+                        ${permitCount > 0 ? `<span><strong>${formatNumber(permitCount)}</strong> federal permits</span>` : ''}
+                        <span class="category-badge">${state.control ? 'Control State' : 'License State'}</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="seo-grid">
+                <div class="seo-card">
+                    <h2>Total Companies</h2>
+                    <div class="stat-value">${formatNumber(totalCompanies)}</div>
+                    <div class="stat-label">Companies with TTB label approvals in ${escapeHtml(state.name)}</div>
+                </div>
+                <div class="seo-card">
+                    <h2>Total Filings</h2>
+                    <div class="stat-value">${formatNumber(totalFilings)}</div>
+                    <div class="stat-label">COLA label approvals on record</div>
+                </div>
+                <div class="seo-card">
+                    <h2>Federal Permits</h2>
+                    <div class="stat-value">${formatNumber(permitCount)}</div>
+                    <div class="stat-label">TTB permits registered in ${escapeHtml(state.name)}</div>
+                </div>
+                <div class="seo-card">
+                    <h2>Regulatory Model</h2>
+                    <div class="stat-value" style="font-size: 1.5rem;">${state.control ? 'Control' : 'License'}</div>
+                    <div class="stat-label">${escapeHtml(state.model)}</div>
+                </div>
+            </div>
+
+            <section class="seo-card">
+                <h2>About ${escapeHtml(state.name)}'s Beverage Alcohol Industry</h2>
+                <p style="line-height: 1.75; color: #475569; margin: 0 0 16px 0;">
+                    ${escapeHtml(state.name)} is a <strong>${state.control ? 'control' : 'license'}</strong> state with <strong>${formatNumber(totalCompanies)}</strong> companies that have submitted TTB label approvals. The state accounts for <strong>${formatNumber(totalFilings)}</strong> Certificate of Label Approval (COLA) filings across ${categories.length} product categories.
+                </p>
+                <p style="line-height: 1.75; color: #475569; margin: 0 0 16px 0;">
+                    ${state.control
+                        ? `As a control state, ${escapeHtml(state.name)} operates under a ${escapeHtml(state.model).toLowerCase()} framework where the government plays a direct role in the distribution and retail of distilled spirits. This means brands entering the ${escapeHtml(state.name)} market must work within the state's controlled distribution system, which affects pricing, availability, and market entry strategy.`
+                        : `As a license state, ${escapeHtml(state.name)} allows private businesses to distribute and sell alcohol through a licensing system. This generally provides more flexibility for brands entering the market, though licensees must still comply with state-specific regulations on distribution, pricing, and retail operations.`
+                    }
+                </p>
+                <p style="line-height: 1.75; color: #475569; margin: 0;">
+                    ${categories.length > 0 ? `The most active category in ${escapeHtml(state.name)} is <strong>${escapeHtml(categories[0].category)}</strong>, representing ${((categories[0].cnt / totalFilings) * 100).toFixed(1)}% of all filings.` : ''}
+                    ${permitCount > 0 ? ` There are <strong>${formatNumber(permitCount)}</strong> active federal TTB permits registered to businesses in the state, covering breweries, distilleries, wineries, and other production facilities.` : ''}
+                    For service providers — including label printers, compliance consultants, co-packers, and branding agencies — this data reveals where new brand activity is concentrated and which segments are growing.
+                </p>
+            </section>
+
+            <section class="seo-card">
+                <h2>Category Breakdown</h2>
+                <div class="bar-chart">
+                    ${categoryHtml}
+                </div>
+            </section>
+
+            ${companiesTableHtml}
+            ${brandsTableHtml}
+            ${yearTrendHtml}
+
+            ${categoryLinksHtml ? `
+                <div class="related-links">
+                    <div class="related-heading">Explore ${escapeHtml(state.name)} by Category</div>
+                    ${categoryLinksHtml}
+                </div>
+            ` : ''}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`State page error for ${originCode}:`, error.message);
+        return new Response('Error loading state page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// Handler 3: /locations/[state-slug]/[category]/ — State + category page
+async function handleStateCategoryPage(originCode, categorySlug, categoryName, env) {
+    const state = STATE_DATA[originCode];
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Run all queries in parallel — use origin_code for colas
+        const [totalRes, topCompaniesRes, topBrandsRes, recentRes, yearTrendRes, otherCatsRes] = await Promise.all([
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ?').bind(originCode, categoryName).first(),
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE UPPER(TRIM(co.origin_code)) = ? AND co.category = ?
+                GROUP BY c.id
+                ORDER BY cnt DESC LIMIT 10
+            `).bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT brand_name, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? GROUP BY brand_name ORDER BY cnt DESC LIMIT 10').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT ttb_id, brand_name, fanciful_name, company_name, approval_date, signal FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? ORDER BY approval_date DESC LIMIT 10').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT year, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category = ? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 5').bind(originCode, categoryName).all(),
+            env.DB.prepare('SELECT category, COUNT(*) as cnt FROM colas WHERE UPPER(TRIM(origin_code)) = ? AND category IS NOT NULL AND category != ? GROUP BY category HAVING cnt >= 10 ORDER BY cnt DESC').bind(originCode, categoryName).all(),
+        ]);
+
+        const totalFilings = totalRes?.cnt || 0;
+
+        // 404 if fewer than 10 filings
+        if (totalFilings < 10) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        const topCompanies = topCompaniesRes.results || [];
+        const topBrands = topBrandsRes.results || [];
+        const recentFilings = recentRes.results || [];
+        const yearTrend = yearTrendRes.results || [];
+        const otherCats = otherCatsRes.results || [];
+
+        // Top companies table
+        const companiesTableHtml = topCompanies.length > 0 ? `
+            <section class="seo-card">
+                <h2>Top ${escapeHtml(categoryName)} Companies in ${escapeHtml(state.name)}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Company</th><th>Filings</th></tr></thead>
+                        <tbody>
+                            ${topCompanies.map((co, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/company/${co.slug}/">${escapeHtml(co.canonical_name)}</a></td>
+                                    <td>${formatNumber(co.cnt)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Top brands table
+        const brandsTableHtml = topBrands.length > 0 ? `
+            <section class="seo-card">
+                <h2>Top ${escapeHtml(categoryName)} Brands in ${escapeHtml(state.name)}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Brand</th><th>Filings</th></tr></thead>
+                        <tbody>
+                            ${topBrands.map((br, i) => {
+                                const brandSlug = br.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                                return `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/brand/${brandSlug}/">${escapeHtml(br.brand_name)}</a></td>
+                                    <td>${formatNumber(br.cnt)}</td>
+                                </tr>
+                            `;}).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Recent filings table
+        const signalClass = { 'NEW_COMPANY': 'signal-new-company', 'NEW_BRAND': 'signal-new-brand', 'NEW_SKU': 'signal-new-sku', 'REFILE': 'signal-refile' };
+        const recentHtml = recentFilings.length > 0 ? `
+            <section class="seo-card">
+                <h2>Recent ${escapeHtml(categoryName)} Filings in ${escapeHtml(state.name)}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>Date</th><th>Brand</th><th>Product</th><th>Company</th><th>Signal</th></tr></thead>
+                        <tbody>
+                            ${recentFilings.map(f => `
+                                <tr>
+                                    <td>${f.approval_date || ''}</td>
+                                    <td>${escapeHtml(f.brand_name || '')}</td>
+                                    <td>${escapeHtml(f.fanciful_name || '—')}</td>
+                                    <td>${escapeHtml(f.company_name || '')}</td>
+                                    <td><span class="signal-gated"><span class="signal-badge ${signalClass[f.signal] || ''}">${f.signal || ''}</span><span class="signal-lock" title="Pro feature">&#128274;</span></span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        ` : '';
+
+        // Year trend chart
+        const yearTrendHtml = yearTrend.length > 0 ? (() => {
+            const maxYear = Math.max(...yearTrend.map(y => y.cnt));
+            return `
+                <section class="seo-card">
+                    <h2>Filing Trend (Last 5 Years)</h2>
+                    <div class="bar-chart">
+                        ${yearTrend.map(y => `
+                            <div class="bar-row">
+                                <div class="bar-label">${y.year}</div>
+                                <div class="bar-container"><div class="bar-fill" style="width: ${((y.cnt / maxYear) * 100).toFixed(0)}%"></div></div>
+                                <div class="bar-value">${formatNumber(y.cnt)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </section>
+            `;
+        })() : '';
+
+        // Other category links
+        const otherCatsHtml = otherCats.length > 0 ? `
+            <div class="related-links">
+                <div class="related-heading">Other Categories in ${escapeHtml(state.name)}</div>
+                ${otherCats.map(c => {
+                    const catSlug = LOCATION_CATEGORY_SLUG_MAP[c.category];
+                    return catSlug ? `<a href="/locations/${state.slug}/${catSlug}/">${escapeHtml(c.category)} (${formatNumber(c.cnt)})</a>` : '';
+                }).filter(Boolean).join('')}
+            </div>
+        ` : '';
+
+        const canonicalUrl = `${BASE_URL}/locations/${state.slug}/${categorySlug}/`;
+        const title = `${categoryName} in ${state.name} — Companies, Brands & TTB Data`;
+        const description = `${formatNumber(totalFilings)} ${categoryName.toLowerCase()} TTB label approvals in ${state.name}. Browse top ${categoryName.toLowerCase()} companies, brands, and recent filings.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Locations", "item": `${BASE_URL}/locations/` },
+                    { "@type": "ListItem", "position": 3, "name": state.name, "item": `${BASE_URL}/locations/${state.slug}/` },
+                    { "@type": "ListItem", "position": 4, "name": categoryName }
+                ]
+            }
+        ];
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/locations/">Locations</a> / <a href="/locations/${state.slug}/">${escapeHtml(state.name)}</a> / ${escapeHtml(categoryName)}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>${escapeHtml(categoryName)} in ${escapeHtml(state.name)}</h1>
+                    <div class="meta">
+                        <span><strong>${formatNumber(totalFilings)}</strong> TTB filings</span>
+                        <span><strong>${topCompanies.length > 0 ? topCompanies.length + '+' : '0'}</strong> companies</span>
+                        <span class="category-badge">${escapeHtml(categoryName)}</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card">
+                <h2>Overview</h2>
+                <p style="line-height: 1.75; color: #475569; margin: 0 0 16px 0;">
+                    ${escapeHtml(state.name)} has <strong>${formatNumber(totalFilings)}</strong> TTB label approvals in the ${escapeHtml(categoryName).toLowerCase()} category. This data covers every Certificate of Label Approval (COLA) filed by ${escapeHtml(categoryName).toLowerCase()} producers and importers based in the state.
+                </p>
+                <p style="line-height: 1.75; color: #475569; margin: 0;">
+                    ${yearTrend.length >= 2 ? `In ${yearTrend[0].year}, there were <strong>${formatNumber(yearTrend[0].cnt)}</strong> filings, ${yearTrend[0].cnt > yearTrend[1].cnt ? 'up' : 'down'} from <strong>${formatNumber(yearTrend[1].cnt)}</strong> in ${yearTrend[1].year}.` : ''}
+                    For service providers targeting the ${escapeHtml(categoryName).toLowerCase()} segment in ${escapeHtml(state.name)}, this page highlights the most active companies and brands to watch.
+                </p>
+            </section>
+
+            ${companiesTableHtml}
+            ${brandsTableHtml}
+            ${recentHtml}
+            ${yearTrendHtml}
+            ${otherCatsHtml}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`State category page error for ${originCode}/${categorySlug}:`, error.message);
+        return new Response('Error loading page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
 // Sitemap Handler - serves pre-generated sitemaps from R2
 const R2_SITEMAP_URL = 'https://pub-1c889ae594b041a3b752c6c891eb718e.r2.dev/sitemaps';
 
@@ -5310,6 +6011,11 @@ async function handleSitemap(path, env) {
         'Content-Type': 'application/xml',
         'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
     };
+
+    // Dynamic sitemap: location pages
+    if (path === '/sitemap-locations.xml') {
+        return await generateLocationsSitemap(env, cacheHeaders);
+    }
 
     // Map path to R2 file
     let filename;
@@ -5342,6 +6048,55 @@ async function handleSitemap(path, env) {
     } catch (error) {
         console.error(`Error fetching sitemap from R2: ${error.message}`);
         return new Response('Error loading sitemap', { status: 500 });
+    }
+}
+
+async function generateLocationsSitemap(env, cacheHeaders) {
+    try {
+        // Get all valid state+category combos with 10+ filings
+        const combos = await env.DB.prepare(`
+            SELECT UPPER(TRIM(origin_code)) as origin, category, COUNT(*) as cnt
+            FROM colas
+            WHERE origin_code IS NOT NULL AND origin_code != '' AND category IS NOT NULL
+            GROUP BY origin, category
+            HAVING cnt >= 10
+        `).all();
+
+        const today = new Date().toISOString().split('T')[0];
+        let urls = '';
+
+        // Add /locations/ index
+        urls += `  <url><loc>${BASE_URL}/locations/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+
+        // Add all state pages
+        const statesWithData = new Set();
+        for (const row of combos.results) {
+            statesWithData.add(row.origin);
+        }
+        for (const originCode of statesWithData) {
+            const state = STATE_DATA[originCode];
+            if (state) {
+                urls += `  <url><loc>${BASE_URL}/locations/${state.slug}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>\n`;
+            }
+        }
+
+        // Add state+category pages
+        for (const row of combos.results) {
+            const state = STATE_DATA[row.origin];
+            const catSlug = LOCATION_CATEGORY_SLUG_MAP[row.category];
+            if (state && catSlug) {
+                urls += `  <url><loc>${BASE_URL}/locations/${state.slug}/${catSlug}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>\n`;
+            }
+        }
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}</urlset>`;
+
+        return new Response(xml, { headers: cacheHeaders });
+    } catch (error) {
+        console.error('Error generating locations sitemap:', error.message);
+        return new Response('Error generating sitemap', { status: 500 });
     }
 }
 

@@ -576,3 +576,86 @@
     .glossary-toc-nav { gap: 6px; }
     .glossary-toc-nav a { font-size: 0.8rem; padding: 3px 8px; }
 }
+
+/* ==========================================
+   LOCATION PAGES
+   ========================================== */
+
+/* State card grid */
+.state-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.state-card {
+    display: block;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+}
+.state-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+    border-color: #0d9488;
+}
+.state-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.state-card-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #0f172a;
+}
+.state-card-code {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.state-card-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+}
+.state-card-stat { display: flex; flex-direction: column; }
+.state-card-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+.state-card-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.state-card-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.8rem;
+}
+.state-card-type {
+    color: #64748b;
+    background: #f8fafc;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+.state-card-top-cat {
+    color: #0d9488;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .state-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .state-card { padding: 16px; }
+}
+@media (max-width: 480px) {
+    .state-grid { grid-template-columns: 1fr; }
+}
