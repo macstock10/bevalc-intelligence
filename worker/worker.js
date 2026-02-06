@@ -309,6 +309,13 @@ export default {
                 return await handleComparisonPage(path, env);
             }
 
+            // Curation pages (/best/)
+            if (path === '/best' || path === '/best/') {
+                return await handleBestIndex(env);
+            } else if (path.startsWith('/best/')) {
+                return await handleBestPage(path, env);
+            }
+
             // Hub pages (e.g., /whiskey/, /tequila/)
             const hubMatch = path.match(/^\/(whiskey|tequila|vodka|gin|rum|brandy|wine|beer|liqueur|cocktails|other)\/?$/);
             if (hubMatch) {
@@ -3438,6 +3445,7 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
                         <li><a href="/database.html">Search Database</a></li>
                         <li><a href="/glossary/">Glossary</a></li>
                         <li><a href="/locations/">Locations</a></li>
+                        <li><a href="/best/">Rankings</a></li>
                         <li><a href="/#pricing">Pricing</a></li>
                     </ul>
                 </div>
@@ -6315,6 +6323,726 @@ async function handleComparisonPage(path, env) {
     }
 }
 
+// ==========================================
+// CURATION PAGE HANDLERS (/best/)
+// ==========================================
+
+// Map for curation category slugs
+const BEST_CATEGORY_MAP = {
+    'whiskey': 'Whiskey', 'tequila': 'Tequila', 'vodka': 'Vodka', 'gin': 'Gin',
+    'rum': 'Rum', 'brandy': 'Brandy', 'wine': 'Wine', 'beer': 'Beer',
+    'liqueur': 'Liqueur', 'cocktails': 'Cocktails', 'other': 'Other',
+};
+const BEST_CATEGORY_REVERSE = {};
+for (const [slug, name] of Object.entries(BEST_CATEGORY_MAP)) {
+    BEST_CATEGORY_REVERSE[name] = slug;
+}
+
+// Router for /best/* pages
+async function handleBestPage(path, env) {
+    const slug = path.replace('/best/', '').replace(/\/$/, '');
+    const headers404 = { 'Content-Type': 'text/plain', ...SECURITY_HEADERS };
+
+    // Match /best/new-brands-YYYY/
+    const newBrandsMatch = slug.match(/^new-brands-(\d{4})$/);
+    if (newBrandsMatch) {
+        return await handleBestNewBrands(parseInt(newBrandsMatch[1]), env);
+    }
+
+    // Match /best/[category]-brands-YYYY/ or /best/[category]-companies-YYYY/
+    const catMatch = slug.match(/^(.+)-(brands|companies)-(\d{4})$/);
+    if (catMatch) {
+        const catSlug = catMatch[1];
+        const type = catMatch[2];
+        const year = parseInt(catMatch[3]);
+        const categoryName = BEST_CATEGORY_MAP[catSlug];
+        if (!categoryName) {
+            return new Response('Not Found', { status: 404, headers: headers404 });
+        }
+        if (type === 'brands') {
+            return await handleBestBrands(catSlug, categoryName, year, env);
+        } else {
+            return await handleBestCompanies(catSlug, categoryName, year, env);
+        }
+    }
+
+    return new Response('Not Found', { status: 404, headers: headers404 });
+}
+
+// /best/ — Index page
+async function handleBestIndex(env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Get all valid category+year combos with 20+ filings
+        const combos = await env.DB.prepare(`
+            SELECT category, year, COUNT(*) as cnt
+            FROM colas
+            WHERE category IS NOT NULL AND year IS NOT NULL
+            GROUP BY category, year
+            HAVING cnt >= 20
+            ORDER BY year DESC, category
+        `).all();
+
+        // Get years with new brands (first appearance)
+        const newBrandYears = await env.DB.prepare(`
+            SELECT year, COUNT(DISTINCT brand_name) as cnt
+            FROM colas
+            WHERE year IS NOT NULL AND signal = 'NEW_BRAND'
+            GROUP BY year
+            HAVING cnt >= 5
+            ORDER BY year DESC
+        `).all();
+
+        // Group combos by year
+        const byYear = {};
+        for (const row of (combos.results || [])) {
+            if (!byYear[row.year]) byYear[row.year] = [];
+            byYear[row.year].push(row);
+        }
+        const years = Object.keys(byYear).sort((a, b) => b - a);
+
+        // Build content
+        let yearSectionsHtml = '';
+        for (const year of years) {
+            const cats = byYear[year];
+            const linksHtml = cats.map(c => {
+                const catSlug = BEST_CATEGORY_REVERSE[c.category];
+                if (!catSlug) return '';
+                return `
+                    <div class="best-index-pair">
+                        <a href="/best/${catSlug}-brands-${year}/">Top ${escapeHtml(c.category)} Brands</a>
+                        <a href="/best/${catSlug}-companies-${year}/">Top ${escapeHtml(c.category)} Companies</a>
+                    </div>
+                `;
+            }).filter(Boolean).join('');
+
+            // Check if this year has a new brands page
+            const hasNewBrands = (newBrandYears.results || []).find(r => r.year == year);
+            const newBrandsLink = hasNewBrands
+                ? `<div class="best-index-pair"><a href="/best/new-brands-${year}/">New Brands of ${year}</a></div>`
+                : '';
+
+            yearSectionsHtml += `
+                <section class="seo-card best-year-section" id="year-${year}">
+                    <h2>${year}</h2>
+                    <div class="best-index-grid">
+                        ${newBrandsLink}
+                        ${linksHtml}
+                    </div>
+                </section>
+            `;
+        }
+
+        // Year nav
+        const yearNavHtml = years.map(y => `<a href="#year-${y}">${y}</a>`).join('');
+
+        const canonicalUrl = `${BASE_URL}/best/`;
+        const title = 'Top Brands & Companies by Category — Annual Rankings';
+        const description = 'Annual rankings of the most active beverage alcohol brands and companies by TTB filing volume. Browse top brands, companies, and new market entrants by category and year.';
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Best" }
+                ]
+            }
+        ];
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / Rankings
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>Top Brands & Companies by Category</h1>
+                    <div class="meta">
+                        <span>Annual rankings based on TTB filing volume</span>
+                        <span><strong>${years.length}</strong> years of data</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card" style="margin-bottom: 32px;">
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    These rankings are based on TTB Certificate of Label Approval (COLA) filing volume — the number of product labels each brand or company submitted for federal approval in a given year. Higher filing counts indicate a broader product portfolio, more frequent label updates, or active market expansion. For service providers looking to identify the most active players in each category, these rankings highlight who's investing the most in new products year over year.
+                </p>
+            </section>
+
+            <nav class="glossary-toc-nav" style="margin-bottom: 24px;">
+                ${yearNavHtml}
+            </nav>
+
+            ${yearSectionsHtml}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error('Best index error:', error.message);
+        return new Response('Error loading page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// /best/[category]-brands-[year]/ — Top 25 brands in a category for a year
+async function handleBestBrands(catSlug, categoryName, year, env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Check threshold
+        const totalRes = await env.DB.prepare(
+            'SELECT COUNT(*) as cnt FROM colas WHERE category = ? AND year = ?'
+        ).bind(categoryName, year).first();
+
+        if (!totalRes || totalRes.cnt < 20) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Top 25 brands + prior year counts in parallel
+        const [topBrandsRes, priorYearRes] = await Promise.all([
+            env.DB.prepare(`
+                SELECT brand_name, COUNT(*) as cnt
+                FROM colas WHERE category = ? AND year = ?
+                GROUP BY brand_name ORDER BY cnt DESC LIMIT 25
+            `).bind(categoryName, year).all(),
+            env.DB.prepare(`
+                SELECT brand_name, COUNT(*) as cnt
+                FROM colas WHERE category = ? AND year = ?
+                GROUP BY brand_name
+            `).bind(categoryName, year - 1).all(),
+        ]);
+
+        const topBrands = topBrandsRes.results || [];
+        if (topBrands.length === 0) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        const priorMap = Object.fromEntries((priorYearRes.results || []).map(r => [r.brand_name, r.cnt]));
+
+        // Get parent companies for top brands (batch via IN clause)
+        const brandNames = topBrands.map(b => b.brand_name);
+        const placeholders = brandNames.map(() => '?').join(',');
+        const companiesRes = await env.DB.prepare(`
+            SELECT co.brand_name, c.canonical_name, c.slug
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            JOIN companies c ON ca.company_id = c.id
+            WHERE co.brand_name IN (${placeholders}) AND co.category = ? AND co.year = ?
+            GROUP BY co.brand_name, c.id
+            ORDER BY COUNT(*) DESC
+        `).bind(...brandNames, categoryName, year).all();
+
+        const companyMap = {};
+        for (const row of (companiesRes.results || [])) {
+            if (!companyMap[row.brand_name]) {
+                companyMap[row.brand_name] = { name: row.canonical_name, slug: row.slug };
+            }
+        }
+
+        // Build table
+        const leader = topBrands[0];
+        const fastestGrower = topBrands.reduce((best, b) => {
+            const prior = priorMap[b.brand_name] || 0;
+            const growth = prior > 0 ? (b.cnt - prior) / prior : (b.cnt > 5 ? 999 : 0);
+            const bestPrior = priorMap[best.brand_name] || 0;
+            const bestGrowth = bestPrior > 0 ? (best.cnt - bestPrior) / bestPrior : (best.cnt > 5 ? 999 : 0);
+            return growth > bestGrowth ? b : best;
+        }, topBrands[0]);
+
+        const newEntrants = topBrands.filter(b => !priorMap[b.brand_name] && b.cnt >= 5);
+
+        const tableHtml = `
+            <section class="seo-card">
+                <h2>Top 25 ${escapeHtml(categoryName)} Brands — ${year}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Brand</th><th>${year} Filings</th><th>${year - 1}</th><th>Trend</th><th>Company</th></tr></thead>
+                        <tbody>
+                            ${topBrands.map((b, i) => {
+                                const brandSlug = makeSlug(b.brand_name);
+                                const prior = priorMap[b.brand_name] || 0;
+                                const diff = b.cnt - prior;
+                                const trendIcon = diff > 0 ? '<span style="color:#059669">&#9650;</span>' : diff < 0 ? '<span style="color:#dc2626">&#9660;</span>' : '<span style="color:#94a3b8">&#8212;</span>';
+                                const trendText = prior > 0 ? ` ${diff > 0 ? '+' : ''}${formatNumber(diff)}` : (b.cnt >= 5 ? ' new' : '');
+                                const co = companyMap[b.brand_name];
+                                const coHtml = co ? `<a href="/company/${co.slug}/">${escapeHtml(co.name)}</a>` : '—';
+                                return `<tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/brand/${brandSlug}/">${escapeHtml(b.brand_name)}</a></td>
+                                    <td><strong>${formatNumber(b.cnt)}</strong></td>
+                                    <td>${prior > 0 ? formatNumber(prior) : '—'}</td>
+                                    <td>${trendIcon}${trendText}</td>
+                                    <td>${coHtml}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        `;
+
+        // Intro paragraph
+        const leaderDisplay = leader.brand_name;
+        const leaderPrior = priorMap[leader.brand_name] || 0;
+        let introHtml = `<strong>${escapeHtml(leaderDisplay)}</strong> leads all ${escapeHtml(categoryName).toLowerCase()} brands in ${year} with <strong>${formatNumber(leader.cnt)}</strong> TTB label approvals`;
+        if (leaderPrior > 0) {
+            introHtml += `, ${leader.cnt > leaderPrior ? 'up' : 'down'} from ${formatNumber(leaderPrior)} in ${year - 1}`;
+        }
+        introHtml += '. ';
+
+        if (fastestGrower && fastestGrower.brand_name !== leader.brand_name) {
+            const fgPrior = priorMap[fastestGrower.brand_name] || 0;
+            if (fgPrior > 0) {
+                const growthPct = (((fastestGrower.cnt - fgPrior) / fgPrior) * 100).toFixed(0);
+                if (parseInt(growthPct) > 20) {
+                    introHtml += `<strong>${escapeHtml(fastestGrower.brand_name)}</strong> is the fastest grower, up ${growthPct}% year-over-year. `;
+                }
+            }
+        }
+
+        if (newEntrants.length > 0) {
+            const topNew = newEntrants.slice(0, 3).map(b => `<strong>${escapeHtml(b.brand_name)}</strong>`);
+            introHtml += `Notable new entrants include ${topNew.join(', ')}${newEntrants.length > 3 ? ` and ${newEntrants.length - 3} more` : ''}.`;
+        }
+
+        // Related links
+        const relatedHtml = `
+            <div class="related-links">
+                <div class="related-heading">Related Rankings</div>
+                <a href="/best/${catSlug}-companies-${year}/">Top ${escapeHtml(categoryName)} Companies ${year}</a>
+                ${year > 2000 ? `<a href="/best/${catSlug}-brands-${year - 1}/">Top ${escapeHtml(categoryName)} Brands ${year - 1}</a>` : ''}
+                <a href="/best/new-brands-${year}/">New Brands of ${year}</a>
+                <a href="/best/">All Rankings</a>
+            </div>
+        `;
+
+        const dateModified = new Date().toISOString().split('T')[0];
+        const canonicalUrl = `${BASE_URL}/best/${catSlug}-brands-${year}/`;
+        const title = `Top ${categoryName} Brands ${year} — Ranked by TTB Filings`;
+        const description = `The 25 most active ${categoryName.toLowerCase()} brands in ${year} by TTB filing volume. ${escapeHtml(leaderDisplay)} leads with ${formatNumber(leader.cnt)} label approvals.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "numberOfItems": topBrands.length,
+                "itemListElement": topBrands.slice(0, 10).map((b, i) => ({
+                    "@type": "ListItem",
+                    "position": i + 1,
+                    "name": b.brand_name,
+                    "url": `${BASE_URL}/brand/${makeSlug(b.brand_name)}/`
+                }))
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Rankings", "item": `${BASE_URL}/best/` },
+                    { "@type": "ListItem", "position": 3, "name": `${categoryName} Brands ${year}` }
+                ]
+            }
+        ];
+
+        const extraHead = `<meta property="article:modified_time" content="${dateModified}">`;
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/best/">Rankings</a> / ${escapeHtml(categoryName)} Brands ${year}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>Top ${escapeHtml(categoryName)} Brands ${year}</h1>
+                    <div class="meta">
+                        <span>Ranked by TTB filing volume</span>
+                        <span><strong>${formatNumber(totalRes.cnt)}</strong> total ${escapeHtml(categoryName).toLowerCase()} filings in ${year}</span>
+                        <span class="category-badge">${escapeHtml(categoryName)}</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card">
+                <h2>Overview</h2>
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    ${introHtml}
+                </p>
+            </section>
+
+            ${tableHtml}
+            ${relatedHtml}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`Best brands error for ${catSlug}/${year}:`, error.message);
+        return new Response('Error loading page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// /best/[category]-companies-[year]/ — Top 25 companies in a category for a year
+async function handleBestCompanies(catSlug, categoryName, year, env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Check threshold
+        const totalRes = await env.DB.prepare(
+            'SELECT COUNT(*) as cnt FROM colas WHERE category = ? AND year = ?'
+        ).bind(categoryName, year).first();
+
+        if (!totalRes || totalRes.cnt < 20) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Top 25 companies with filing count and brand count
+        const [topCompaniesRes, priorYearRes] = await Promise.all([
+            env.DB.prepare(`
+                SELECT c.canonical_name, c.slug, COUNT(*) as cnt, COUNT(DISTINCT co.brand_name) as brand_count
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE co.category = ? AND co.year = ?
+                GROUP BY c.id ORDER BY cnt DESC LIMIT 25
+            `).bind(categoryName, year).all(),
+            env.DB.prepare(`
+                SELECT c.canonical_name, COUNT(*) as cnt
+                FROM colas co
+                JOIN company_aliases ca ON co.company_name = ca.raw_name
+                JOIN companies c ON ca.company_id = c.id
+                WHERE co.category = ? AND co.year = ?
+                GROUP BY c.id
+            `).bind(categoryName, year - 1).all(),
+        ]);
+
+        const topCompanies = topCompaniesRes.results || [];
+        if (topCompanies.length === 0) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        const priorMap = Object.fromEntries((priorYearRes.results || []).map(r => [r.canonical_name, r.cnt]));
+
+        const leader = topCompanies[0];
+        const leaderPrior = priorMap[leader.canonical_name] || 0;
+
+        // Table
+        const tableHtml = `
+            <section class="seo-card">
+                <h2>Top 25 ${escapeHtml(categoryName)} Companies — ${year}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Company</th><th>${year} Filings</th><th>Brands</th><th>${year - 1}</th><th>Trend</th></tr></thead>
+                        <tbody>
+                            ${topCompanies.map((co, i) => {
+                                const prior = priorMap[co.canonical_name] || 0;
+                                const diff = co.cnt - prior;
+                                const trendIcon = diff > 0 ? '<span style="color:#059669">&#9650;</span>' : diff < 0 ? '<span style="color:#dc2626">&#9660;</span>' : '<span style="color:#94a3b8">&#8212;</span>';
+                                const trendText = prior > 0 ? ` ${diff > 0 ? '+' : ''}${formatNumber(diff)}` : (co.cnt >= 5 ? ' new' : '');
+                                return `<tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/company/${co.slug}/">${escapeHtml(co.canonical_name)}</a></td>
+                                    <td><strong>${formatNumber(co.cnt)}</strong></td>
+                                    <td>${co.brand_count}</td>
+                                    <td>${prior > 0 ? formatNumber(prior) : '—'}</td>
+                                    <td>${trendIcon}${trendText}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        `;
+
+        // Intro
+        let introHtml = `<strong>${escapeHtml(leader.canonical_name)}</strong> is the most active ${escapeHtml(categoryName).toLowerCase()} company in ${year} with <strong>${formatNumber(leader.cnt)}</strong> TTB filings across <strong>${leader.brand_count}</strong> brand${leader.brand_count !== 1 ? 's' : ''}`;
+        if (leaderPrior > 0) {
+            introHtml += `, ${leader.cnt > leaderPrior ? 'up' : 'down'} from ${formatNumber(leaderPrior)} in ${year - 1}`;
+        }
+        introHtml += '. ';
+
+        const newEntrants = topCompanies.filter(co => !priorMap[co.canonical_name] && co.cnt >= 5);
+        if (newEntrants.length > 0) {
+            const topNew = newEntrants.slice(0, 3).map(co => `<strong>${escapeHtml(co.canonical_name)}</strong>`);
+            introHtml += `New to the top 25 this year: ${topNew.join(', ')}${newEntrants.length > 3 ? ` and ${newEntrants.length - 3} more` : ''}.`;
+        }
+
+        const relatedHtml = `
+            <div class="related-links">
+                <div class="related-heading">Related Rankings</div>
+                <a href="/best/${catSlug}-brands-${year}/">Top ${escapeHtml(categoryName)} Brands ${year}</a>
+                ${year > 2000 ? `<a href="/best/${catSlug}-companies-${year - 1}/">Top ${escapeHtml(categoryName)} Companies ${year - 1}</a>` : ''}
+                <a href="/best/new-brands-${year}/">New Brands of ${year}</a>
+                <a href="/best/">All Rankings</a>
+            </div>
+        `;
+
+        const dateModified = new Date().toISOString().split('T')[0];
+        const canonicalUrl = `${BASE_URL}/best/${catSlug}-companies-${year}/`;
+        const title = `Top ${categoryName} Companies ${year} — Ranked by TTB Filings`;
+        const description = `The 25 most active ${categoryName.toLowerCase()} companies in ${year} by TTB filing volume. ${escapeHtml(leader.canonical_name)} leads with ${formatNumber(leader.cnt)} label approvals across ${leader.brand_count} brands.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "numberOfItems": topCompanies.length,
+                "itemListElement": topCompanies.slice(0, 10).map((co, i) => ({
+                    "@type": "ListItem",
+                    "position": i + 1,
+                    "name": co.canonical_name,
+                    "url": `${BASE_URL}/company/${co.slug}/`
+                }))
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Rankings", "item": `${BASE_URL}/best/` },
+                    { "@type": "ListItem", "position": 3, "name": `${categoryName} Companies ${year}` }
+                ]
+            }
+        ];
+
+        const extraHead = `<meta property="article:modified_time" content="${dateModified}">`;
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/best/">Rankings</a> / ${escapeHtml(categoryName)} Companies ${year}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>Top ${escapeHtml(categoryName)} Companies ${year}</h1>
+                    <div class="meta">
+                        <span>Ranked by TTB filing volume</span>
+                        <span><strong>${formatNumber(totalRes.cnt)}</strong> total filings</span>
+                        <span class="category-badge">${escapeHtml(categoryName)}</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card">
+                <h2>Overview</h2>
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    ${introHtml}
+                </p>
+            </section>
+
+            ${tableHtml}
+            ${relatedHtml}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`Best companies error for ${catSlug}/${year}:`, error.message);
+        return new Response('Error loading page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
+// /best/new-brands-[year]/ — Brands that first appeared in a given year
+async function handleBestNewBrands(year, env) {
+    const headers = {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...SECURITY_HEADERS
+    };
+
+    try {
+        // Get brands with NEW_BRAND signal in this year, ranked by filing count
+        const brandsRes = await env.DB.prepare(`
+            SELECT brand_name, COUNT(*) as cnt,
+                   (SELECT category FROM colas c2 WHERE c2.brand_name = c1.brand_name AND c2.category IS NOT NULL GROUP BY category ORDER BY COUNT(*) DESC LIMIT 1) as primary_category
+            FROM colas c1
+            WHERE year = ? AND signal IN ('NEW_BRAND', 'NEW_COMPANY')
+            GROUP BY brand_name
+            ORDER BY cnt DESC
+            LIMIT 50
+        `).bind(year).all();
+
+        const brands = brandsRes.results || [];
+        if (brands.length < 5) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS } });
+        }
+
+        // Get parent companies for top brands
+        const brandNames = brands.slice(0, 25).map(b => b.brand_name);
+        const placeholders = brandNames.map(() => '?').join(',');
+        const companiesRes = await env.DB.prepare(`
+            SELECT co.brand_name, c.canonical_name, c.slug
+            FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            JOIN companies c ON ca.company_id = c.id
+            WHERE co.brand_name IN (${placeholders})
+            GROUP BY co.brand_name, c.id
+            ORDER BY COUNT(*) DESC
+        `).bind(...brandNames).all();
+
+        const companyMap = {};
+        for (const row of (companiesRes.results || [])) {
+            if (!companyMap[row.brand_name]) {
+                companyMap[row.brand_name] = { name: row.canonical_name, slug: row.slug };
+            }
+        }
+
+        // Category breakdown of new brands
+        const catCounts = {};
+        for (const b of brands) {
+            const cat = b.primary_category || 'Other';
+            catCounts[cat] = (catCounts[cat] || 0) + 1;
+        }
+        const topCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+        const tableHtml = `
+            <section class="seo-card">
+                <h2>Top New Brands of ${year}</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table">
+                        <thead><tr><th>#</th><th>Brand</th><th>Filings</th><th>Category</th><th>Company</th></tr></thead>
+                        <tbody>
+                            ${brands.slice(0, 25).map((b, i) => {
+                                const brandSlug = makeSlug(b.brand_name);
+                                const co = companyMap[b.brand_name];
+                                const coHtml = co ? `<a href="/company/${co.slug}/">${escapeHtml(co.name)}</a>` : '—';
+                                return `<tr>
+                                    <td>${i + 1}</td>
+                                    <td><a href="/brand/${brandSlug}/">${escapeHtml(b.brand_name)}</a></td>
+                                    <td><strong>${formatNumber(b.cnt)}</strong></td>
+                                    <td>${escapeHtml(b.primary_category || 'Other')}</td>
+                                    <td>${coHtml}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        `;
+
+        const leader = brands[0];
+        let introHtml = `In ${year}, <strong>${brands.length}</strong> new brands made their first appearance in the TTB COLA database. `;
+        introHtml += `<strong>${escapeHtml(leader.brand_name)}</strong> led new entrants with <strong>${formatNumber(leader.cnt)}</strong> label filings`;
+        if (leader.primary_category) {
+            introHtml += ` in the ${escapeHtml(leader.primary_category).toLowerCase()} category`;
+        }
+        introHtml += '. ';
+        if (topCats.length > 0) {
+            introHtml += `The most popular categories for new brands were ${topCats.map(([cat, cnt]) => `<strong>${escapeHtml(cat)}</strong> (${cnt})`).join(', ')}.`;
+        }
+
+        const relatedHtml = `
+            <div class="related-links">
+                <div class="related-heading">Related Rankings</div>
+                ${year > 2000 ? `<a href="/best/new-brands-${year - 1}/">New Brands of ${year - 1}</a>` : ''}
+                ${topCats.slice(0, 3).map(([cat]) => {
+                    const cs = BEST_CATEGORY_REVERSE[cat];
+                    return cs ? `<a href="/best/${cs}-brands-${year}/">Top ${escapeHtml(cat)} Brands ${year}</a>` : '';
+                }).filter(Boolean).join('')}
+                <a href="/best/">All Rankings</a>
+            </div>
+        `;
+
+        const dateModified = new Date().toISOString().split('T')[0];
+        const canonicalUrl = `${BASE_URL}/best/new-brands-${year}/`;
+        const title = `New Alcohol Brands ${year} — First-Time TTB Filings`;
+        const description = `${brands.length} new beverage alcohol brands entered the market in ${year}. ${escapeHtml(leader.brand_name)} led with ${formatNumber(leader.cnt)} label approvals. Browse the complete list of new market entrants.`;
+
+        const jsonLd = [
+            {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                "name": title,
+                "description": description,
+                "url": canonicalUrl,
+                "numberOfItems": Math.min(brands.length, 25),
+                "itemListElement": brands.slice(0, 10).map((b, i) => ({
+                    "@type": "ListItem",
+                    "position": i + 1,
+                    "name": b.brand_name,
+                    "url": `${BASE_URL}/brand/${makeSlug(b.brand_name)}/`
+                }))
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${BASE_URL}/` },
+                    { "@type": "ListItem", "position": 2, "name": "Rankings", "item": `${BASE_URL}/best/` },
+                    { "@type": "ListItem", "position": 3, "name": `New Brands ${year}` }
+                ]
+            }
+        ];
+
+        const extraHead = `<meta property="article:modified_time" content="${dateModified}">`;
+
+        const content = `
+            <div class="breadcrumb">
+                <a href="/">Home</a> / <a href="/best/">Rankings</a> / New Brands ${year}
+            </div>
+            <header class="seo-header">
+                <div class="seo-header-inner">
+                    <h1>New Alcohol Brands ${year}</h1>
+                    <div class="meta">
+                        <span><strong>${brands.length}</strong> new brands</span>
+                        <span>First-time TTB filings</span>
+                    </div>
+                </div>
+            </header>
+
+            <section class="seo-card">
+                <h2>Overview</h2>
+                <p style="font-size: 1.05rem; line-height: 1.75; color: #475569; margin: 0;">
+                    ${introHtml}
+                    For service providers — including label printers, compliance consultants, co-packers, and branding agencies — new brand launches represent the highest-value prospecting opportunities. These companies are actively building their product lines and need partners across the supply chain.
+                </p>
+            </section>
+
+            ${tableHtml}
+            ${relatedHtml}
+        `;
+
+        return new Response(getPageLayout(title, description, content, jsonLd, canonicalUrl, extraHead), {
+            status: 200,
+            headers
+        });
+    } catch (error) {
+        console.error(`Best new brands error for ${year}:`, error.message);
+        return new Response('Error loading page', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
+}
+
 // Sitemap Handler - serves pre-generated sitemaps from R2
 const R2_SITEMAP_URL = 'https://pub-1c889ae594b041a3b752c6c891eb718e.r2.dev/sitemaps';
 
@@ -6331,6 +7059,9 @@ async function handleSitemap(path, env) {
     }
     if (path === '/sitemap-comparisons.xml') {
         return await generateComparisonsSitemap(env, cacheHeaders);
+    }
+    if (path === '/sitemap-best.xml') {
+        return await generateBestSitemap(env, cacheHeaders);
     }
 
     // Map path to R2 file
@@ -6367,6 +7098,7 @@ async function handleSitemap(path, env) {
             const dynamicEntries = [
                 `  <sitemap>\n    <loc>${BASE_URL}/sitemap-locations.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
                 `  <sitemap>\n    <loc>${BASE_URL}/sitemap-comparisons.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
+                `  <sitemap>\n    <loc>${BASE_URL}/sitemap-best.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
             ].join('\n');
             xml = xml.replace('</sitemapindex>', dynamicEntries + '\n</sitemapindex>');
         }
@@ -6475,6 +7207,46 @@ ${urls}</urlset>`;
         return new Response(xml, { headers: cacheHeaders });
     } catch (error) {
         console.error('Error generating comparisons sitemap:', error.message);
+        return new Response('Error generating sitemap', { status: 500 });
+    }
+}
+
+async function generateBestSitemap(env, cacheHeaders) {
+    try {
+        const [combos, newBrandYears] = await Promise.all([
+            env.DB.prepare(`
+                SELECT category, year, COUNT(*) as cnt
+                FROM colas WHERE category IS NOT NULL AND year IS NOT NULL
+                GROUP BY category, year HAVING cnt >= 20
+            `).all(),
+            env.DB.prepare(`
+                SELECT year, COUNT(DISTINCT brand_name) as cnt
+                FROM colas WHERE year IS NOT NULL AND signal IN ('NEW_BRAND', 'NEW_COMPANY')
+                GROUP BY year HAVING cnt >= 5
+            `).all(),
+        ]);
+
+        const today = new Date().toISOString().split('T')[0];
+        let urls = `  <url><loc>${BASE_URL}/best/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+
+        for (const row of (combos.results || [])) {
+            const catSlug = BEST_CATEGORY_REVERSE[row.category];
+            if (!catSlug) continue;
+            urls += `  <url><loc>${BASE_URL}/best/${catSlug}-brands-${row.year}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+            urls += `  <url><loc>${BASE_URL}/best/${catSlug}-companies-${row.year}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+        }
+
+        for (const row of (newBrandYears.results || [])) {
+            urls += `  <url><loc>${BASE_URL}/best/new-brands-${row.year}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+        }
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}</urlset>`;
+
+        return new Response(xml, { headers: cacheHeaders });
+    } catch (error) {
+        console.error('Error generating best sitemap:', error.message);
         return new Response('Error generating sitemap', { status: 500 });
     }
 }

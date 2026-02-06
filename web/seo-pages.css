@@ -668,3 +668,41 @@
     font-weight: 700;
     background: #f0fdf4;
 }
+
+/* ==========================================
+   CURATION / RANKINGS PAGES
+   ========================================== */
+.best-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+}
+.best-index-pair {
+    display: flex;
+    gap: 8px;
+}
+.best-index-pair a {
+    flex: 1;
+    display: block;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    color: #0d9488;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: border-color 0.2s, background 0.2s;
+}
+.best-index-pair a:hover {
+    border-color: #0d9488;
+    background: #f0fdfa;
+}
+.best-year-section h2 {
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+}
+@media (max-width: 480px) {
+    .best-index-pair { flex-direction: column; }
+    .best-index-grid { grid-template-columns: 1fr; }
+}
