@@ -4337,6 +4337,14 @@ async function handleBrandPage(path, env, headers) {
                     <div class="related-heading">More ${primaryCategory} Brands</div>
                     ${relatedBrands.map(b => `<a href="/brand/${makeSlug(b.brand_name)}">${escapeHtml(b.brand_name)}</a>`).join('')}
                 </div>` : ''}
+                ${(() => {
+                    const compareBrands = relatedBrands.filter(b => b.cnt >= 10).slice(0, 3);
+                    return compareBrands.length > 0 ? `
+                <div class="related-links">
+                    <div class="related-heading">Compare ${escapeHtml(brand.brand_name)}</div>
+                    ${compareBrands.map(b => `<a href="/compare/${slug}-vs-${makeSlug(b.brand_name)}/">${escapeHtml(brand.brand_name)} vs ${escapeHtml(b.brand_name)}</a>`).join('')}
+                </div>` : '';
+                })()}
             </div>
         </div>
     `;
@@ -4548,6 +4556,15 @@ async function handleHubPage(categorySlug, env, headers) {
 
         const filings = recentFilings?.results || [];
 
+        // Top states for this category (for cross-linking section)
+        const topStatesResult = await env.DB.prepare(`
+            SELECT UPPER(TRIM(origin_code)) as origin, COUNT(*) as cnt
+            FROM colas WHERE category = ? AND origin_code IS NOT NULL AND TRIM(origin_code) != ''
+            GROUP BY UPPER(TRIM(origin_code))
+            ORDER BY cnt DESC LIMIT 6
+        `).bind(category).all();
+        const topStates = (topStatesResult?.results || []).filter(r => STATE_DATA[r.origin]);
+
         // Signal badge helper - renders real values in HTML (for Googlebot), gated via CSS for free users
         const getSignalBadge = (signal) => {
             const badges = {
@@ -4741,6 +4758,31 @@ async function handleHubPage(categorySlug, env, headers) {
                         ).join('')}
                     </div>
                 </nav>
+
+                ${topStates.length > 0 ? `
+                <section class="hub-section" style="margin-top: 32px;">
+                    <h2>${category} by State</h2>
+                    <div class="related-links">
+                        ${topStates.map(s => {
+                            const st = STATE_DATA[s.origin];
+                            const catSlug2 = LOCATION_CATEGORY_SLUG_MAP[category];
+                            return catSlug2 ? `<a href="/locations/${st.slug}/${catSlug2}/">${st.name} (${formatNumber(s.cnt)})</a>` : '';
+                        }).filter(Boolean).join('')}
+                        <a href="/locations/">All States →</a>
+                    </div>
+                </section>
+                ` : ''}
+
+                ${BEST_CATEGORY_REVERSE[category] ? `
+                <section class="hub-section" style="margin-top: 16px;">
+                    <h2>${category} Rankings</h2>
+                    <div class="related-links">
+                        <a href="/best/${BEST_CATEGORY_REVERSE[category]}-brands-${now.getFullYear()}/">Top ${category} Brands ${now.getFullYear()}</a>
+                        <a href="/best/${BEST_CATEGORY_REVERSE[category]}-companies-${now.getFullYear()}/">Top ${category} Companies ${now.getFullYear()}</a>
+                        <a href="/best/">All Rankings →</a>
+                    </div>
+                </section>
+                ` : ''}
             </div>
 
             <!-- Upgrade Modal -->
