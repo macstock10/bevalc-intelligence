@@ -7105,6 +7105,9 @@ async function handleSitemap(path, env) {
     if (path === '/sitemap-best.xml') {
         return await generateBestSitemap(env, cacheHeaders);
     }
+    if (path === '/sitemap-glossary.xml') {
+        return await generateGlossarySitemap(env, cacheHeaders);
+    }
 
     // Map path to R2 file
     let filename;
@@ -7141,6 +7144,7 @@ async function handleSitemap(path, env) {
                 `  <sitemap>\n    <loc>${BASE_URL}/sitemap-locations.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
                 `  <sitemap>\n    <loc>${BASE_URL}/sitemap-comparisons.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
                 `  <sitemap>\n    <loc>${BASE_URL}/sitemap-best.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
+                `  <sitemap>\n    <loc>${BASE_URL}/sitemap-glossary.xml</loc>\n    <lastmod>${today}</lastmod>\n  </sitemap>`,
             ].join('\n');
             xml = xml.replace('</sitemapindex>', dynamicEntries + '\n</sitemapindex>');
         }
@@ -7289,6 +7293,30 @@ ${urls}</urlset>`;
         return new Response(xml, { headers: cacheHeaders });
     } catch (error) {
         console.error('Error generating best sitemap:', error.message);
+        return new Response('Error generating sitemap', { status: 500 });
+    }
+}
+
+async function generateGlossarySitemap(env, cacheHeaders) {
+    try {
+        const terms = await env.DB.prepare(
+            'SELECT term_slug FROM glossary_terms ORDER BY term_slug'
+        ).all();
+
+        const today = new Date().toISOString().split('T')[0];
+        let urls = `  <url><loc>${BASE_URL}/glossary/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+
+        for (const row of (terms.results || [])) {
+            urls += `  <url><loc>${BASE_URL}/glossary/${row.term_slug}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+        }
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}</urlset>`;
+
+        return new Response(xml, { headers: cacheHeaders });
+    } catch (error) {
+        console.error('Error generating glossary sitemap:', error.message);
         return new Response('Error generating sitemap', { status: 500 });
     }
 }

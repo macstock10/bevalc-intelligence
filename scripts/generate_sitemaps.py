@@ -85,6 +85,10 @@ def generate_static_sitemap():
     urls = [
         {'loc': BASE_URL, 'priority': '1.0'},
         {'loc': f'{BASE_URL}/database.html', 'priority': '0.9'},
+        {'loc': f'{BASE_URL}/research.html', 'priority': '0.8'},
+        {'loc': f'{BASE_URL}/leads.html', 'priority': '0.8'},
+        {'loc': f'{BASE_URL}/competitor-watch.html', 'priority': '0.8'},
+        {'loc': f'{BASE_URL}/legal.html', 'priority': '0.3'},
     ]
 
     # Hub pages (main category landing pages)

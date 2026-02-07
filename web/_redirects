@@ -53,19 +53,7 @@
 /other/     https://bevalc-api.mac-rowan.workers.dev/other/     200
 /other      https://bevalc-api.mac-rowan.workers.dev/other/     200
 /sitemap.xml https://bevalc-api.mac-rowan.workers.dev/sitemap.xml   200
-/sitemap-static.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-static.xml 200
-/sitemap-companies.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-companies.xml 200
-/sitemap-brands-1.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-1.xml 200
-/sitemap-brands-2.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-2.xml 200
-/sitemap-brands-3.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-3.xml 200
-/sitemap-brands-4.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-4.xml 200
-/sitemap-brands-5.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-5.xml 200
-/sitemap-brands-6.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-6.xml 200
-/sitemap-brands-7.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-7.xml 200
-/sitemap-brands-8.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-brands-8.xml 200
-/sitemap-locations.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-locations.xml 200
-/sitemap-comparisons.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-comparisons.xml 200
-/sitemap-best.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-best.xml 200
+/sitemap-*.xml https://bevalc-api.mac-rowan.workers.dev/sitemap-:splat.xml 200
 
 # Proxy API routes to Cloudflare Worker
 /api/*      https://bevalc-api.mac-rowan.workers.dev/api/:splat      200
