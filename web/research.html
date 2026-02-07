@@ -599,6 +599,13 @@
     <!-- Research Content -->
     <main class="research-page">
         <div class="research-container">
+            <!-- Auth Gate (shown when not logged in) -->
+            <div id="auth-gate" class="pro-gate" style="display: none;">
+                <h3>Sign in to access SEC Research</h3>
+                <p>Create a free account or sign in to explore SEC filings, 8-K events, and MD&A analysis for public beverage alcohol companies.</p>
+                <a href="/database.html" class="btn-upgrade">Sign Up Free</a>
+            </div>
+
             <!-- Header -->
             <div class="research-header">
                 <h1>SEC Research</h1>
@@ -713,6 +720,14 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
+            if (!userEmail) {
+                document.getElementById('auth-gate').style.display = 'block';
+                document.querySelector('.research-header').style.display = 'none';
+                document.getElementById('company-pills').style.display = 'none';
+                document.querySelector('.research-tabs').style.display = 'none';
+                document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+                return;
+            }
             await loadCompanies();
             await checkUserStatus();
             setupEventListeners();
@@ -739,7 +754,10 @@
             if (!userEmail) return;
 
             try {
-                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(userEmail)}`);
+                const token = user.token || localStorage.getItem('bevalc_prefs_token') || '';
+                const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(userEmail)}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 const data = await response.json();
                 if (data.success) {
                     isPro = data.is_pro;

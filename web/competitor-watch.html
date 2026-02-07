@@ -516,15 +516,34 @@
                     if (!userToken) {
                         userToken = localStorage.getItem('bevalc_prefs_token') || '';
                     }
-
-                    // Show Pro badge
-                    if (isPro) {
-                        const statusMobile = document.getElementById('user-status-mobile');
-                        if (statusMobile) {
-                            statusMobile.innerHTML = '<span class="pro-badge" style="background: var(--color-accent); color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">Pro</span>';
-                        }
-                    }
                 } catch (e) {}
+            }
+
+            // Verify Pro status server-side
+            if (userEmail) {
+                try {
+                    const statusRes = await fetch(`${API_BASE}/api/stripe/customer-status?email=${encodeURIComponent(userEmail)}`);
+                    const statusData = await statusRes.json();
+                    isPro = statusData.success && statusData.status === 'pro';
+                    // Update localStorage to stay in sync
+                    if (userInfo) {
+                        try {
+                            const user = JSON.parse(userInfo);
+                            user.isPro = isPro;
+                            localStorage.setItem('bevalc_user', JSON.stringify(user));
+                        } catch (e) {}
+                    }
+                } catch (e) {
+                    // On network error, fall back to cached value
+                }
+            }
+
+            // Show Pro badge
+            if (isPro) {
+                const statusMobile = document.getElementById('user-status-mobile');
+                if (statusMobile) {
+                    statusMobile.innerHTML = '<span class="pro-badge" style="background: var(--color-accent); color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">Pro</span>';
+                }
             }
 
             const loadingState = document.getElementById('loading-state');
