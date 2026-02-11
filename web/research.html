@@ -655,9 +655,8 @@
                         </div>
                     </div>
                     <div class="pro-gate" id="rag-pro-gate" style="display: none;">
-                        <h3>Pro Feature</h3>
-                        <p>RAG-powered Q&A across SEC filings requires a Pro subscription.</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                        <h3>Pro Feature — Coming Soon</h3>
+                        <p>RAG-powered Q&A across SEC filings will be available soon. We're enhancing the product.</p>
                     </div>
                 </div>
             </div>
@@ -666,9 +665,8 @@
             <div class="tab-content" id="tab-mda-changes">
                 <div class="diff-list" id="diff-list">
                     <div class="pro-gate" id="mda-pro-gate" style="display: none;">
-                        <h3>Pro Feature</h3>
-                        <p>MD&A diff analysis requires a Pro subscription.</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                        <h3>Pro Feature — Coming Soon</h3>
+                        <p>MD&A diff analysis will be available soon. We're enhancing the product.</p>
                     </div>
                 </div>
             </div>
@@ -786,8 +784,7 @@
                     }
                 } else {
                     greeting.textContent = userEmail.split('@')[0];
-                    signupBtn.textContent = 'Upgrade';
-                    signupBtn.href = 'index.html#pricing';
+                    signupBtn.style.display = 'none';
                 }
             }
         }
@@ -976,9 +973,8 @@
             if (!userEmail || !isPro) {
                 container.innerHTML = `
                     <div class="pro-gate">
-                        <h3>Pro Feature</h3>
-                        <p>MD&A diff analysis requires a Pro subscription.</p>
-                        <a href="index.html#pricing" class="btn-upgrade">Upgrade to Pro</a>
+                        <h3>Pro Feature — Coming Soon</h3>
+                        <p>MD&A diff analysis will be available soon. We're enhancing the product.</p>
                     </div>
                 `;
                 return;

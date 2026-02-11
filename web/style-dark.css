@@ -2042,6 +2042,39 @@ a:hover {
     }
 }
 
+/* Enhancement Notice (replaces pricing cards) */
+.pricing-enhancement-notice {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+    background: linear-gradient(145deg, rgba(20, 184, 166, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-xl);
+    padding: var(--space-2xl) var(--space-xl);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 60px rgba(13, 148, 136, 0.15),
+                0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.pricing-enhancement-notice .enhancement-icon {
+    color: var(--color-accent);
+    margin-bottom: var(--space-lg);
+}
+
+.pricing-enhancement-notice h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-md);
+}
+
+.pricing-enhancement-notice p {
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
 /* ==========================================
    FINAL CTA SECTION
    ========================================== */

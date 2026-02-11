@@ -428,7 +428,7 @@
 
                 <div class="hiw-cta">
                     <a href="database.html" class="btn btn-glow">Browse Recent Approvals</a>
-                    <p class="hiw-cta-note">Free report every Saturday covering the prior week. Upgrade for category reports + alerts.</p>
+                    <p class="hiw-cta-note">Free report every Saturday covering the prior week.</p>
                 </div>
             </div>
 
@@ -618,57 +618,20 @@
     <!-- Pricing Section -->
     <section class="pricing reveal" id="pricing">
         <div class="pricing-container">
-            <h2 class="section-title">Simple Pricing</h2>
-            <p class="section-subtitle">Start free. Upgrade when you need more.</p>
+            <h2 class="section-title">Pricing</h2>
+            <p class="section-subtitle">Free access available now. Pro plans returning soon.</p>
 
-            <div class="pricing-grid stagger-children">
-                <!-- Free Tier -->
-                <div class="pricing-card">
-                    <div class="pricing-header">
-                        <h3>Free</h3>
-                        <div class="pricing-price">
-                            <span class="price-amount">$0</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                    </div>
-                    <ul class="pricing-features">
-                        <li><strong>Get started:</strong></li>
-                        <li>Search 2M+ labels</li>
-                        <li>2-month data delay</li>
-                        <li>Weekly market pulse email</li>
-                        <li>Explore category trends</li>
-                        <li>View label details</li>
-                    </ul>
-                    <a href="#hero-email" class="btn btn-secondary-dark" id="free-cta">Get Free Access</a>
+            <div class="pricing-enhancement-notice">
+                <div class="enhancement-icon">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
                 </div>
-
-                <!-- Pro Tier -->
-                <div class="pricing-card featured">
-                    <div class="pricing-badge">Most Popular</div>
-                    <div class="pricing-header">
-                        <h3>Pro</h3>
-                        <div class="pricing-price">
-                            <span class="price-amount">$99</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                    </div>
-                    <ul class="pricing-features">
-                        <li><strong>Everything in Free, plus:</strong></li>
-                        <li>Real-time data (no delay)</li>
-                        <li>New company & brand signals</li>
-                        <li>Company intelligence with contacts</li>
-                        <li>Daily watchlist alerts</li>
-                        <li>Unlimited CSV exports</li>
-                        <li>Full cross-category intel</li>
-                    </ul>
-                    <button class="btn btn-glow" id="pro-cta" data-tier="pro">Get Pro</button>
-                </div>
-            </div>
-
-            <p class="pricing-urgency">New companies get cold-called within days. 2-month-old leads are already working with someone.</p>
-
-            <div class="pricing-value-anchor">
-                <p>One closed deal covers your entire year. Your competitors are still waiting for trade shows.</p>
+                <h3>We're Enhancing the Product</h3>
+                <p>We're currently upgrading BevAlc Intelligence with new features and improvements. Membership plans will be back soon.</p>
+                <p style="margin-top: 0.75rem; opacity: 0.7;">In the meantime, explore the database and sign up for our free weekly report.</p>
             </div>
         </div>
     </section>
@@ -882,17 +845,6 @@
             const hasAccess = BevAlcAuth.hasAccess();
             const user = BevAlcAuth.getUser();
             
-            // Setup tier CTA button
-            const proCta = document.getElementById('pro-cta');
-            if (proCta) {
-                proCta.addEventListener('click', () => handleTierUpgrade('pro', proCta));
-                // Reset if stuck in loading state (back button from checkout)
-                if (proCta.textContent === 'Loading...') {
-                    proCta.disabled = false;
-                    proCta.textContent = 'Get Pro';
-                }
-            }
-
             if (hasAccess) {
                 const navCta = document.getElementById('nav-cta');
                 const heroEmailSignup = document.getElementById('hero-email-signup');
@@ -948,15 +900,6 @@
                                 userStatusMobile.className = 'user-status user-status-mobile pro';
                             }
 
-                            // Disable Pro button since user is already subscribed
-                            if (proCta) {
-                                proCta.textContent = 'You\'re Subscribed';
-                                proCta.disabled = true;
-                                proCta.style.cursor = 'default';
-                                proCta.style.pointerEvents = 'none';
-                                proCta.style.opacity = '0.7';
-                            }
-
                             user.isPro = true;
                             user.tier = 'pro';
                             BevAlcAuth.setUser(user);
@@ -973,69 +916,6 @@
             }
         });
         
-        // Handle Pro subscription checkout
-        async function handleTierUpgrade(tier, button) {
-            const user = BevAlcAuth.getUser();
-
-            // If user is already Pro, do nothing
-            if (user && user.isPro) return;
-
-            const originalText = button.textContent;
-            button.disabled = true;
-            button.textContent = 'Loading...';
-
-            try {
-                // Create checkout session for new subscription
-                const body = {
-                    tier: 'pro',
-                    successUrl: window.location.origin + '/success.html?session_id={CHECKOUT_SESSION_ID}',
-                    cancelUrl: window.location.origin + '/#pricing'
-                };
-
-                // If user has email, include it for pre-fill
-                if (user && user.email) {
-                    body.email = user.email;
-                }
-
-                const response = await fetch(`${API_BASE}/api/stripe/create-checkout`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-
-                const data = await response.json();
-
-                if (data.success && data.url) {
-                    window.location.href = data.url;
-                } else {
-                    alert('Something went wrong. Please try again.');
-                    button.disabled = false;
-                    button.textContent = originalText;
-                }
-            } catch (e) {
-                alert('Something went wrong. Please try again.');
-                button.disabled = false;
-                button.textContent = originalText;
-            }
-        }
-
-        // Reset tier button when returning via back button (from Stripe checkout)
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                // Page was restored from bfcache (back button)
-                const proCta = document.getElementById('pro-cta');
-                const user = BevAlcAuth.getUser();
-
-                // Only reset if user is not already Pro
-                if (!user || !user.isPro) {
-                    if (proCta && proCta.textContent === 'Loading...') {
-                        proCta.disabled = false;
-                        proCta.textContent = 'Get Pro';
-                    }
-                }
-            }
-        });
-
         // Hero email form submission
         document.getElementById('hero-email-form')?.addEventListener('submit', async function(e) {
             e.preventDefault();
