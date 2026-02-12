@@ -906,9 +906,11 @@
             btn.disabled = true;
             btn.textContent = 'Searching...';
 
+            const tickerFilter = document.getElementById('filter-company').value;
+            const filingTypeFilter = document.getElementById('filter-filing-type').value;
             const filters = {
-                ticker: document.getElementById('filter-company').value,
-                filing_type: document.getElementById('filter-filing-type').value
+                tickers: tickerFilter ? [tickerFilter] : [],
+                docTypes: filingTypeFilter ? [filingTypeFilter] : []
             };
 
             if (!userEmail) {
@@ -923,10 +925,18 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 90000);
 
+                const authToken = (BevAlcAuth.getUser()?.token) || localStorage.getItem('bevalc_prefs_token') || '';
+                if (!authToken) {
+                    throw new Error('Please verify your email from your account page before using research queries.');
+                }
+
                 const response = await fetch(`${API_BASE}/api/sec/query`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, email: userEmail, filters }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ query, email: userEmail, filters, token: authToken }),
                     signal: controller.signal
                 });
 

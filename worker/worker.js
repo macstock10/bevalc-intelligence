@@ -89,7 +89,7 @@ function getCorsHeaders(request) {
 
     return {
         'Access-Control-Allow-Origin': allowedOrigin,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Allow-Credentials': 'true',
     };
@@ -245,6 +245,32 @@ function getAllMappedCodesForCategory(parentCategory) {
     return allCodes;
 }
 
+// Canonical subcategory grouping used only for "Other X" exclusion filters.
+// This does not alter raw TTB source data; it only corrects classification behavior.
+function getCanonicalMappedCodesForCategory(parentCategory) {
+    const categorySubcategories = {
+        'Whiskey': ['Bourbon', 'Rye', 'American Single Malt', 'Scotch', 'Irish Whiskey', 'Canadian Whisky', 'Corn Whiskey', 'Malt Whisky', 'Blended Whiskey', 'Flavored Whiskey'],
+        'Vodka': ['Unflavored Vodka', 'Flavored Vodka'],
+        'Tequila': ['Tequila', 'Mezcal'],
+        'Rum': ['White Rum', 'Gold/Aged Rum', 'Flavored Rum'],
+        'Gin': ['London Dry Gin', 'Distilled Gin', 'Flavored Gin'],
+        'Brandy': ['Cognac', 'Armagnac', 'American Brandy', 'Fruit Brandy', 'Grappa & Pisco', 'Flavored Brandy'],
+        'Wine': ['Red Wine', 'White Wine', 'Rosé Wine', 'Sparkling Wine', 'Dessert Wine', 'Flavored Wine', 'Fruit Wine', 'Fortified Wine', 'Sake'],
+        'Beer': ['Lager/Beer', 'Ale', 'Stout', 'Porter', 'Malt Liquor', 'Flavored Malt Beverages', 'Non-Alcoholic Beer'],
+        'Liqueur': ['Fruit Liqueurs', 'Cream Liqueurs', 'Herbal Liqueurs', 'Coffee Liqueurs', 'Nut Liqueurs', 'Schnapps'],
+        'Liqueurs': ['Fruit Liqueurs', 'Cream Liqueurs', 'Herbal Liqueurs', 'Coffee Liqueurs', 'Nut Liqueurs', 'Schnapps'],
+        'Cocktails': ['Whiskey Cocktails', 'Vodka Cocktails', 'Gin Cocktails', 'Rum Cocktails', 'Tequila Cocktails', 'Brandy Cocktails']
+    };
+
+    const subcategories = categorySubcategories[parentCategory] || [];
+    const allCodes = [];
+    for (const subcat of subcategories) {
+        const codes = TTB_SUBCATEGORIES[subcat] || [];
+        allCodes.push(...codes);
+    }
+    return allCodes;
+}
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
@@ -348,7 +374,7 @@ export default {
             } else if (path === '/api/user/send-preferences-link' && request.method === 'POST') {
                 response = await handleSendPreferencesLink(request, env);
             } else if (path === '/api/user/list-by-category') {
-                response = await handleListUsersByCategory(url, env);
+                response = await handleListUsersByCategory(request, url, env);
             } else if (path === '/api/user/check' && request.method === 'GET') {
                 response = await handleCheckUserExists(url, env);
             } else if (path === '/api/user/signup-free' && request.method === 'POST') {
@@ -380,9 +406,9 @@ export default {
             }
             // Database endpoints
             else if (path === '/api/search') {
-                response = await handleSearch(url, env);
+                response = await handleSearch(request, url, env);
             } else if (path === '/api/export') {
-                response = await handleExport(url, env);
+                response = await handleExport(request, url, env);
             } else if (path === '/api/filters') {
                 response = await handleFilters(env);
             } else if (path === '/api/record') {
@@ -404,7 +430,7 @@ export default {
             } else if (path === '/api/company-lookup' && request.method === 'GET') {
                 response = await handleCompanyLookup(url, env);
             } else if (path === '/api/permits/leads' && request.method === 'GET') {
-                response = await handlePermitLeads(url, env);
+                response = await handlePermitLeads(request, url, env);
             } else if (path === '/api/permits/stats' && request.method === 'GET') {
                 response = await handlePermitStats(env);
             } else if (path === '/api/permits/contacts' && request.method === 'POST') {
@@ -558,12 +584,14 @@ async function handleStripeWebhook(request, env, headers) {
 
                     try {
                         // Add credits to user account
+                        const newToken = generateToken();
                         await env.DB.prepare(`
-                            UPDATE user_preferences
-                            SET enhancement_credits = COALESCE(enhancement_credits, 0) + ?,
+                            INSERT INTO user_preferences (email, is_pro, tier, preferences_token, categories, receive_free_report, enhancement_credits, updated_at)
+                            VALUES (?, 0, NULL, ?, '[]', 1, ?, datetime('now'))
+                            ON CONFLICT(email) DO UPDATE SET
+                                enhancement_credits = COALESCE(user_preferences.enhancement_credits, 0) + excluded.enhancement_credits,
                                 updated_at = datetime('now')
-                            WHERE email = ?
-                        `).bind(credits, email).run();
+                        `).bind(email, newToken, credits).run();
 
                         // Log the transaction
                         await env.DB.prepare(`
@@ -778,10 +806,19 @@ async function handleCreatePortalSession(request, env) {
         return { success: false, error: 'Invalid JSON' };
     }
     
-    const { email, returnUrl } = body;
-    
-    if (!email) {
+    const { email, returnUrl, token: bodyToken } = body;
+    const normalizedEmail = email?.toLowerCase()?.trim();
+
+    if (!normalizedEmail) {
         return { success: false, error: 'Email required' };
+    }
+
+    const token = getRequestToken(request, null, bodyToken || '');
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
+    if (!(await requireValidToken(normalizedEmail, token, env))) {
+        return { success: false, error: 'Invalid token' };
     }
     
     const stripeSecretKey = env.STRIPE_SECRET_KEY;
@@ -792,7 +829,7 @@ async function handleCreatePortalSession(request, env) {
     
     // Find customer by email
     const searchResponse = await fetch(
-        `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email)}'`,
+        `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(normalizedEmail)}'`,
         {
             headers: {
                 'Authorization': `Bearer ${stripeSecretKey}`
@@ -846,10 +883,18 @@ const CREDIT_PACKS = {
 
 async function handleCreditCheckout(request, env) {
     const body = await request.json();
-    const { email, pack, successUrl, cancelUrl } = body;
+    const { email, pack, successUrl, cancelUrl, token: bodyToken } = body;
+    const normalizedEmail = email?.toLowerCase()?.trim();
+    const token = getRequestToken(request, null, bodyToken || '');
 
-    if (!email) {
+    if (!normalizedEmail) {
         return { success: false, error: 'Email required' };
+    }
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
+    if (!(await requireValidToken(normalizedEmail, token, env))) {
+        return { success: false, error: 'Invalid token' };
     }
 
     if (!pack || !CREDIT_PACKS[pack]) {
@@ -874,11 +919,11 @@ async function handleCreditCheckout(request, env) {
         'line_items[0][quantity]': '1',
         'success_url': successUrl || 'https://bevalcintel.com/account.html?credits=success',
         'cancel_url': cancelUrl || 'https://bevalcintel.com/account.html#credits',
-        'customer_email': email,
+        'customer_email': normalizedEmail,
         'metadata[type]': 'credit_purchase',
         'metadata[pack]': pack,
         'metadata[credits]': creditPack.credits.toString(),
-        'metadata[email]': email.toLowerCase()
+        'metadata[email]': normalizedEmail
     };
 
     try {
@@ -950,7 +995,7 @@ async function syncToLoops(email, categories, isPro, receiveFreeReport, env) {
             subscribedWine: categories.includes('Wine'),
             subscribedBeer: categories.includes('Beer'),
             subscribedLiqueur: categories.includes('Liqueur'),
-            subscribedRTD: categories.includes('RTD'),
+            subscribedRTD: categories.includes('RTD/Cocktails') || categories.includes('RTD'),
             // Free report preference
             subscribedFreeReport: receiveFreeReport,
             // Pro status
@@ -1066,6 +1111,7 @@ async function handleGetPreferences(request, url, env) {
         } catch (e) {
             categories = [];
         }
+        categories = [...new Set(categories.map(c => c === 'RTD' ? 'RTD/Cocktails' : c))];
 
         return {
             success: true,
@@ -1116,7 +1162,8 @@ async function handleSavePreferences(request, env) {
             return { success: false, error: 'Categories must be an array' };
         }
 
-        const validCategories = categories.filter(c => AVAILABLE_CATEGORIES.includes(c));
+        const normalizedCategories = categories.map(c => c === 'RTD' ? 'RTD/Cocktails' : c);
+        const validCategories = [...new Set(normalizedCategories.filter(c => AVAILABLE_CATEGORIES.includes(c)))];
 
         await env.DB.prepare(`
             UPDATE user_preferences
@@ -1229,7 +1276,7 @@ async function handleSendPreferencesLink(request, env) {
     }
 }
 
-async function handleListUsersByCategory(url, env) {
+async function handleListUsersByCategory(request, url, env) {
     const category = url.searchParams.get('category');
     const apiKey = url.searchParams.get('api_key');
     const authHeader = request.headers.get('authorization') || '';
@@ -1466,7 +1513,24 @@ function generateNumericCode(length = 6) {
 }
 
 async function hashVerificationCode(_email, code, _env) {
-    return code;
+    const email = (_email || '').toLowerCase().trim();
+    const pepper = _env?.VERIFICATION_CODE_PEPPER || '';
+    const payload = `${pepper}:${email}:${code}`;
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+    return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+function timingSafeEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) {
+        return false;
+    }
+    let mismatch = 0;
+    for (let i = 0; i < a.length; i++) {
+        mismatch |= (a.charCodeAt(i) ^ b.charCodeAt(i));
+    }
+    return mismatch === 0;
 }
 
 async function sendVerificationCodeEmail(toEmail, code, env) {
@@ -1678,7 +1742,7 @@ async function handleVerifyAuthCode(request, env) {
         }
 
         const codeHash = await hashVerificationCode(email, code, env);
-        if (!codeHash || codeHash !== record.code_hash) {
+        if (!codeHash || !timingSafeEqual(codeHash, record.code_hash)) {
             await env.DB.prepare(
                 'UPDATE email_verification_codes SET attempts = attempts + 1 WHERE email = ?'
             ).bind(email).run();
@@ -2508,7 +2572,7 @@ function getCodesForCategory(category) {
     return codes;
 }
 
-async function handleSearch(url, env) {
+async function handleSearch(request, url, env) {
     const params = url.searchParams;
     const page = Math.max(1, parseInt(params.get('page')) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 50));
@@ -2530,16 +2594,21 @@ async function handleSearch(url, env) {
     const offset = (page - 1) * limit;
 
     // Check for Pro access
-    const email = params.get('email');
+    const email = params.get('email')?.toLowerCase();
+    const token = getRequestToken(request, url);
     let isPro = false;
 
-    if (email) {
+    if (email && token) {
         try {
+            const tokenValid = await requireValidToken(email, token, env);
+            if (!tokenValid) {
+                console.warn(`Invalid token provided for search: ${email}`);
+            }
             const user = await env.DB.prepare(
-                'SELECT is_pro FROM user_preferences WHERE email = ?'
-            ).bind(email.toLowerCase()).first();
+                'SELECT is_pro FROM user_preferences WHERE LOWER(email) = ?'
+            ).bind(email).first();
 
-            if (user?.is_pro === 1) {
+            if (tokenValid && user?.is_pro === 1) {
                 isPro = true;
             }
         } catch (e) {
@@ -2592,7 +2661,7 @@ async function handleSearch(url, env) {
         } else if (subcategory.startsWith('Other ')) {
             // "Other X" subcategory - exclude all mapped codes for parent category
             const parentCategory = subcategory.replace('Other ', '');
-            const allMappedCodes = getAllMappedCodesForCategory(parentCategory);
+            const allMappedCodes = getCanonicalMappedCodesForCategory(parentCategory);
             if (allMappedCodes.length > 0) {
                 const placeholders = allMappedCodes.map(() => '?').join(',');
                 whereClause += ` AND class_type_code NOT IN (${placeholders})`;
@@ -2703,65 +2772,26 @@ async function handleSearch(url, env) {
     return response;
 }
 
-async function handleExport(url, env) {
+async function handleExport(request, url, env) {
     const params = url.searchParams;
 
     // Verify Pro status
-    const email = params.get('email');
-    const token = params.get('token');
+    const email = params.get('email')?.toLowerCase();
+    const token = getRequestToken(request, url);
     if (!email) {
         return { success: false, error: 'Email required for export' };
     }
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
+    if (!(await requireValidToken(email, token, env))) {
+        return { success: false, error: 'Invalid token' };
+    }
 
     try {
-        let user = await env.DB.prepare(
-            'SELECT is_pro, preferences_token FROM user_preferences WHERE email = ?'
-        ).bind(email.toLowerCase()).first();
-
-        // If token is provided, verify it matches
-        if (token && user && user.preferences_token && token !== user.preferences_token) {
-            console.warn(`Invalid token attempt for export: ${email}`);
-            return { success: false, error: 'Invalid token' };
-        }
-
-        // Log when token is not provided (for monitoring)
-        if (!token) {
-            console.warn(`Export request without token for: ${email}`);
-        }
-
-        // If no user record exists, check if they're Pro in Stripe and create one
-        if (!user) {
-            const stripeSecretKey = env.STRIPE_SECRET_KEY;
-            if (stripeSecretKey) {
-                const searchResponse = await fetch(
-                    `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(email.toLowerCase())}'`,
-                    { headers: { 'Authorization': `Bearer ${stripeSecretKey}` } }
-                );
-                const searchData = await searchResponse.json();
-
-                if (searchData.data && searchData.data.length > 0) {
-                    const customerId = searchData.data[0].id;
-
-                    const subsResponse = await fetch(
-                        `https://api.stripe.com/v1/subscriptions?customer=${customerId}&status=active&limit=1`,
-                        { headers: { 'Authorization': `Bearer ${stripeSecretKey}` } }
-                    );
-                    const subsData = await subsResponse.json();
-
-                    if (subsData.data && subsData.data.length > 0) {
-                        // User is Pro in Stripe but missing D1 record - create it
-                        const newToken = generateToken();
-                        await env.DB.prepare(`
-                            INSERT INTO user_preferences (email, stripe_customer_id, is_pro, tier, preferences_token, categories, updated_at)
-                            VALUES (?, ?, 1, 'pro', ?, '[]', datetime('now'))
-                        `).bind(email.toLowerCase(), customerId, newToken).run();
-
-                        user = { is_pro: 1 };
-                        console.log(`Created missing user_preferences record for Pro user: ${email}`);
-                    }
-                }
-            }
-        }
+        const user = await env.DB.prepare(
+            'SELECT is_pro FROM user_preferences WHERE LOWER(email) = ?'
+        ).bind(email).first();
 
         if (!user || user.is_pro !== 1) {
             return { success: false, error: 'Pro subscription required for export' };
@@ -2825,7 +2855,7 @@ async function handleExport(url, env) {
         } else if (subcategory.startsWith('Other ')) {
             // "Other X" subcategory - exclude all mapped codes for parent category
             const parentCategory = subcategory.replace('Other ', '');
-            const allMappedCodes = getAllMappedCodesForCategory(parentCategory);
+            const allMappedCodes = getCanonicalMappedCodesForCategory(parentCategory);
             if (allMappedCodes.length > 0) {
                 const placeholders = allMappedCodes.map(() => '?').join(',');
                 whereClause += ` AND class_type_code NOT IN (${placeholders})`;
@@ -3031,7 +3061,7 @@ async function handleStats(env) {
 // PERMIT LEADS HANDLERS
 // ==========================================
 
-async function handlePermitLeads(url, env) {
+async function handlePermitLeads(request, url, env) {
     const params = url.searchParams;
     const page = Math.max(1, parseInt(params.get('page')) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(params.get('limit')) || 20));
@@ -3045,13 +3075,23 @@ async function handlePermitLeads(url, env) {
     const hasColaFilings = params.get('has_cola'); // '1' = matched, '0' = unmatched, '' = all
 
     // Check Pro access
-    const email = params.get('email');
+    const email = params.get('email')?.toLowerCase();
+    const token = getRequestToken(request, url);
+    if (!email) {
+        return { success: false, error: 'Email required' };
+    }
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
     let isPro = false;
-    if (email) {
+    if (email && token) {
         try {
+            if (!(await requireValidToken(email, token, env))) {
+                return { success: false, error: 'Invalid token' };
+            }
             const user = await env.DB.prepare(
-                'SELECT is_pro FROM user_preferences WHERE email = ?'
-            ).bind(email.toLowerCase()).first();
+                'SELECT is_pro FROM user_preferences WHERE LOWER(email) = ?'
+            ).bind(email).first();
             if (user?.is_pro === 1) isPro = true;
         } catch (e) {}
     }
@@ -7331,15 +7371,23 @@ ${urls}</urlset>`;
 
 async function handleEnhance(request, env) {
     const body = await request.json();
-    const { company_id, company_name, brand_name, email } = body;
+    const { company_id, company_name, brand_name, email, token: bodyToken } = body;
+    const normalizedEmail = email?.toLowerCase()?.trim();
+    const token = getRequestToken(request, null, bodyToken || '');
 
     // company_name is required, company_id is optional (permits don't have one)
     if (!company_name) {
         return { success: false, error: 'Missing company_name' };
     }
 
-    if (!email) {
+    if (!normalizedEmail) {
         return { success: false, error: 'Authentication required' };
+    }
+    if (!token) {
+        return { success: false, error: 'Token required' };
+    }
+    if (!(await requireValidToken(normalizedEmail, token, env))) {
+        return { success: false, error: 'Invalid token' };
     }
 
     // Check if already enhanced (cache hit) - only if we have a company_id
@@ -7368,7 +7416,7 @@ async function handleEnhance(request, env) {
     }
 
     // Check user credits (all users need purchased credits now)
-    const creditCheck = await checkUserCredits(email, env);
+    const creditCheck = await checkUserCredits(normalizedEmail, env);
     if (!creditCheck.canEnhance) {
         return {
             success: false,
@@ -7388,11 +7436,11 @@ async function handleEnhance(request, env) {
         if (hasUsefulInfo) {
             // Save to cache only if we have a company_id (not for permits)
             if (company_id) {
-                await saveEnhancement(company_id, company_name, tearsheet, email, env);
+                await saveEnhancement(company_id, company_name, tearsheet, normalizedEmail, env);
             }
 
             // Deduct credit
-            await deductCredit(email, company_id, env);
+            await deductCredit(normalizedEmail, company_id, env);
         }
 
         return {
@@ -7483,8 +7531,8 @@ async function handleCompanyLookup(url, env) {
 
 async function checkUserCredits(email, env) {
     const user = await env.DB.prepare(
-        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
-    ).bind(email).first();
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE LOWER(email) = ?'
+    ).bind(email.toLowerCase()).first();
 
     if (!user) {
         return { canEnhance: false, credits: 0, is_pro: false };
@@ -7500,16 +7548,19 @@ async function checkUserCredits(email, env) {
 }
 
 async function deductCredit(email, companyId, env) {
-    // Deduct purchased credit
-    await env.DB.prepare(
-        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
-    ).bind(email).run();
+    // Deduct purchased credit atomically
+    const debit = await env.DB.prepare(
+        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE LOWER(email) = ? AND enhancement_credits > 0'
+    ).bind(email.toLowerCase()).run();
+    if (!debit?.meta || debit.meta.changes < 1) {
+        throw new Error('Insufficient credits');
+    }
 
     // Log the transaction
     await env.DB.prepare(`
         INSERT INTO enhancement_credits (email, type, amount, company_id, created_at)
         VALUES (?, 'used', -1, ?, datetime('now'))
-    `).bind(email, companyId).run();
+    `).bind(email.toLowerCase(), companyId).run();
 }
 
 async function runEnhancement(companyId, companyName, clickedBrandName, env) {
@@ -9709,3 +9760,4 @@ ${urls.map(u => `  <url>
   </url>`).join('\n')}
 </urlset>`;
 }
+

@@ -1068,6 +1068,7 @@ def send_email_via_node(to: str, metrics: Dict, template: str = "weekly-report")
     """Send email by calling the Node.js email sender."""
     props = json.dumps(metrics)
 
+    to_json = json.dumps(to)
     send_script = f'''
 import {{ sendWeeklyReport, sendProWeeklyReport }} from './send.js';
 
@@ -1076,12 +1077,12 @@ const metrics = {props};
 let result;
 if ("{template}" === "pro-weekly-report") {{
     result = await sendProWeeklyReport({{
-        to: "{to}",
+        to: {to_json},
         ...metrics
     }});
 }} else {{
     result = await sendWeeklyReport({{
-        to: "{to}",
+        to: {to_json},
         ...metrics
     }});
 }}

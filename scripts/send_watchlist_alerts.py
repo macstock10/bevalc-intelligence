@@ -259,11 +259,12 @@ def send_alert_email(email: str, matches: List[Dict]) -> bool:
 
     matches_json = json.dumps(matches_data)
 
+    email_json = json.dumps(email)
     send_script = f'''
 import {{ sendWatchlistAlert }} from './send.js';
 
 const result = await sendWatchlistAlert({{
-    to: "{email}",
+    to: {email_json},
     matchCount: {len(matches)},
     matches: {matches_json}
 }});

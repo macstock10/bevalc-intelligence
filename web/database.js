@@ -492,7 +492,10 @@ async function performSearch() {
         const dateTo = elements.filterDateTo.value;
         if (dateTo) params.append('date_to', dateTo);
 
-        const response = await fetch(`${API_BASE}/api/search?${params}`);
+        const token = getUserToken();
+        const response = await fetch(`${API_BASE}/api/search?${params}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
         const data = await response.json();
 
         if (data.success) {
@@ -1415,14 +1418,22 @@ async function enhanceCompany() {
         const companyId = lookupData.company_id;
 
         // Now call enhance
+        const token = getUserToken();
+        if (!token) {
+            throw new Error('Please verify your email from your account page to enable enhancements');
+        }
         const response = await fetch(`${API_BASE}/api/enhance`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({
                 company_id: companyId,
                 company_name: companyName,
                 brand_name: brandName,
-                email: email
+                email: email,
+                token
             })
         });
 
@@ -2153,18 +2164,64 @@ function showCreditPurchaseModal(isPro) {
 }
 
 async function purchaseCredits(packId) {
-    // TODO: Implement Stripe checkout for credit packs
-    alert('Credit purchase coming soon! Pack: ' + packId);
+    const userInfo = localStorage.getItem('bevalc_user');
+    let userEmail = '';
+    try {
+        if (userInfo) {
+            const user = JSON.parse(userInfo);
+            userEmail = user.email || '';
+        }
+    } catch (e) {}
+
+    if (!userEmail) {
+        alert('Please sign in first');
+        return;
+    }
+
+    const token = getUserToken();
+    if (!token) {
+        alert('Please verify your email from account settings before purchasing credits.');
+        window.location.href = '/account.html';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/credits/checkout`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                email: userEmail,
+                pack: packId,
+                successUrl: window.location.origin + '/account.html?credits=success#credits',
+                cancelUrl: window.location.origin + '/account.html#credits',
+                token
+            })
+        });
+        const data = await response.json();
+        if (data.success && data.url) {
+            window.location.href = data.url;
+            return;
+        }
+        alert(data.error || 'Could not create checkout');
+    } catch (e) {
+        alert('Could not connect to server');
+    }
 }
 
 // Load user's credit balance when modal opens
 async function loadCreditBalance(email) {
     if (!email) return;
+    const balanceEl = document.getElementById('credit-balance');
 
     try {
         const token = getUserToken();
         if (!token) {
-            balanceEl.innerHTML = `<a href="/account.html" style="color: var(--color-primary);">Check email to enable credits</a>`;
+            if (balanceEl) {
+                balanceEl.innerHTML = `<a href="/account.html" style="color: var(--color-primary);">Check email to enable credits</a>`;
+            }
             return;
         }
         const response = await fetch(`${API_BASE}/api/credits?email=${encodeURIComponent(email)}`, {
@@ -2172,21 +2229,17 @@ async function loadCreditBalance(email) {
         });
         const data = await response.json();
 
-        if (data.success) {
-            const balanceEl = document.getElementById('credit-balance');
-            if (balanceEl) {
-                if (data.credits > 0) {
-                    balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} Â· <a href="/account.html#credits" style="color: var(--color-primary);">Get more</a>`;
-                } else {
-                    balanceEl.innerHTML = `<a href="/account.html#credits" style="color: var(--color-primary);">Get credits</a>`;
-                }
+        if (data.success && balanceEl) {
+            if (data.credits > 0) {
+                balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} · <a href="/account.html#credits" style="color: var(--color-primary);">Get more</a>`;
+            } else {
+                balanceEl.innerHTML = `<a href="/account.html#credits" style="color: var(--color-primary);">Get credits</a>`;
             }
         }
     } catch (e) {
         console.error('Error loading credit balance:', e);
     }
 }
-
 // ============================================
 // UTILITIES
 // ============================================
@@ -2305,7 +2358,15 @@ async function exportCSV() {
         const dateTo = elements.filterDateTo.value;
         if (dateTo) params.append('date_to', dateTo);
 
-        const response = await fetch(`${API_BASE}/api/export?${params}`);
+        const token = getUserToken();
+        if (!token) {
+            alert('Please verify your email to enable exports.');
+            return;
+        }
+
+        const response = await fetch(`${API_BASE}/api/export?${params}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (!data.success) {
@@ -2951,3 +3012,4 @@ function clearSearchHistory() {
         console.error('Failed to clear search history:', e);
     }
 }
+

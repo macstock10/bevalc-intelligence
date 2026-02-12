@@ -556,7 +556,7 @@
                 const prefsData = await prefsResponse.json();
                 
                 // Default categories list if preferences don't exist yet
-                const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'];
+                const defaultCategories = ['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD/Cocktails'];
                 
                 currentToken = getStoredToken() || null;
                 const verifySection = document.getElementById('account-verify-section');
@@ -611,7 +611,7 @@
                 console.error('Error loading preferences:', e);
                 // Still show account page for Pro users even if preferences API fails
                 document.getElementById('user-email').textContent = user.email;
-                buildCategoryGrid(['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD'], []);
+                buildCategoryGrid(['Whiskey', 'Vodka', 'Tequila', 'Rum', 'Gin', 'Brandy', 'Wine', 'Beer', 'Liqueur', 'RTD/Cocktails'], []);
                 document.getElementById('receive-free-report').checked = true;
                 showState('account');
                 loadCredits();
@@ -643,7 +643,20 @@
             const link = document.getElementById('manage-billing-link'), originalText = link.textContent;
             link.textContent = 'Opening...';
             try {
-                const response = await fetch(`${API_BASE}/api/stripe/create-portal-session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: currentEmail, returnUrl: window.location.href }) });
+                const token = getStoredToken();
+                if (!token) {
+                    alert('Please verify your email before accessing billing.');
+                    link.textContent = originalText;
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/api/stripe/create-portal-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ email: currentEmail, returnUrl: window.location.href, token })
+                });
                 const data = await response.json();
                 if (data.success && data.url) { window.location.href = data.url; } else { alert('Could not open billing portal: ' + (data.error || 'Unknown error')); link.textContent = originalText; }
             } catch (e) { alert('Could not connect to server'); link.textContent = originalText; }
@@ -759,14 +772,25 @@
             buyBtn.textContent = 'Redirecting to checkout...';
 
             try {
+                const token = getStoredToken();
+                if (!token) {
+                    alert('Please verify your email before purchasing credits.');
+                    buyBtn.disabled = false;
+                    buyBtn.textContent = originalText;
+                    return;
+                }
                 const response = await fetch(`${API_BASE}/api/credits/checkout`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({
                         email: user.email,
                         pack: selectedCreditPack,
                         successUrl: window.location.origin + '/account.html?credits=success#credits',
-                        cancelUrl: window.location.origin + '/account.html#credits'
+                        cancelUrl: window.location.origin + '/account.html#credits',
+                        token
                     })
                 });
 

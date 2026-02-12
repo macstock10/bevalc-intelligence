@@ -231,6 +231,31 @@ const SEC_ALL_TICKERS = ['BF.B', 'STZ', 'TAP', 'SAM', 'MGPI', 'DEO', 'PRNDY', 'H
 const RAG_RETRIEVE_TOP_K = 50;
 const RAG_RERANK_TOP_K = 15;
 
+const ALLOWED_DOC_TYPES = new Set(['CALL', '8-K', '10-Q', '10-K', '20-F']);
+
+function getBearerToken(request) {
+    const authHeader = request.headers.get('authorization') || '';
+    return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+}
+
+function normalizeDocType(docType) {
+    const raw = String(docType || '').trim().toUpperCase();
+    if (!raw || raw === 'ALL') return '';
+    if (raw === '8K') return '8-K';
+    if (raw === '10K') return '10-K';
+    if (raw === '10Q') return '10-Q';
+    if (raw === '20F') return '20-F';
+    return raw;
+}
+
+function normalizeDocTypes(values) {
+    const list = Array.isArray(values) ? values : [values];
+    const normalized = list
+        .map(normalizeDocType)
+        .filter(v => v && ALLOWED_DOC_TYPES.has(v));
+    return [...new Set(normalized)];
+}
+
 // Parse query to extract intent (tickers, date range, doc types)
 function parseSecQueryIntent(query, filters = {}) {
     const queryLower = query.toLowerCase();
@@ -243,18 +268,29 @@ function parseSecQueryIntent(query, filters = {}) {
         }
     }
 
-    const hasExplicitTickers = Array.isArray(filters.tickers) && filters.tickers.length > 0;
+    const explicitTickers = (
+        Array.isArray(filters.tickers)
+            ? filters.tickers
+            : (typeof filters.ticker === 'string' && filters.ticker.trim() ? [filters.ticker] : [])
+    )
+        .map(t => String(t || '').trim().toUpperCase())
+        .filter(Boolean);
+    const hasExplicitTickers = explicitTickers.length > 0;
     const hasDetectedTickers = detectedTickers.length > 0;
 
     // Use explicit filters, detected tickers, or default to all
     const tickers = hasExplicitTickers
-        ? filters.tickers
+        ? explicitTickers
         : hasDetectedTickers
             ? detectedTickers
             : SEC_ALL_TICKERS;
 
     // Detect doc types from query
-    let docTypes = filters.docTypes || [];
+    let docTypes = normalizeDocTypes(
+        Array.isArray(filters.docTypes)
+            ? filters.docTypes
+            : (filters.filing_type || filters.filingType || [])
+    );
     if (docTypes.length === 0) {
         if (queryLower.includes('earnings') || queryLower.includes('call') || queryLower.includes('said')) {
             docTypes.push('CALL');
@@ -270,6 +306,7 @@ function parseSecQueryIntent(query, filters = {}) {
             docTypes = ['CALL', '10-Q', '10-K', '20-F'];
         }
     }
+    docTypes = normalizeDocTypes(docTypes);
 
     // Date window - default to last 12 months for recency
     const endDate = filters.endDate || new Date().toISOString().slice(0, 10);
@@ -1194,21 +1231,30 @@ Provide a concise, synthesized answer. IMPORTANT: Every quote must be an exact s
 export async function handleSecQuery(request, env) {
     const totalStartTime = Date.now();
     const body = await request.json();
-    const { query, email, filters = {} } = body;
+    const { query, email, filters = {}, token: bodyToken } = body;
+    const normalizedEmail = email?.toLowerCase()?.trim();
+    const token = getBearerToken(request) || bodyToken || '';
 
     // Validate input
     if (!query || query.trim().length < 5) {
         return { success: false, error: 'Query too short (minimum 5 characters)' };
     }
 
-    if (!email) {
+    if (!normalizedEmail) {
         return { success: false, error: 'Authentication required' };
+    }
+    if (!token) {
+        return { success: false, error: 'Token required' };
     }
 
     // Check Pro status and credits
     const user = await env.DB.prepare(
-        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE email = ?'
-    ).bind(email).first();
+        'SELECT is_pro, enhancement_credits FROM user_preferences WHERE LOWER(email) = ? AND preferences_token = ?'
+    ).bind(normalizedEmail, token).first();
+
+    if (!user) {
+        return { success: false, error: 'Invalid token' };
+    }
 
     if (!user?.is_pro) {
         return { success: false, error: 'Pro subscription required' };
@@ -1451,9 +1497,12 @@ export async function handleSecQuery(request, env) {
     const answerWithCoverage = `${answer}\n\nCoverage:\n${coverageSummary}`;
 
     // Deduct credit
-    await env.DB.prepare(
-        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE email = ?'
-    ).bind(email).run();
+    const debit = await env.DB.prepare(
+        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE LOWER(email) = ? AND preferences_token = ? AND enhancement_credits > 0'
+    ).bind(normalizedEmail, token).run();
+    if (!debit?.meta || debit.meta.changes < 1) {
+        return { success: false, error: 'Insufficient credits', credits: 0 };
+    }
 
     // Build response
     const response = {
@@ -1499,7 +1548,7 @@ export async function handleSecQuery(request, env) {
             INSERT INTO sec_rag_queries (email, query, filters, chunks_retrieved, chunks_used, latency_ms, created_at)
             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
         `).bind(
-            email,
+            normalizedEmail,
             query,
             JSON.stringify(intent),
             retrievedChunks.length,
@@ -1514,7 +1563,7 @@ export async function handleSecQuery(request, env) {
         success: true,
         cached: false,
         ...response,
-        credits_remaining: (user.enhancement_credits || 1) - 1
+        credits_remaining: Math.max((user.enhancement_credits || 1) - 1, 0)
     };
 }
 

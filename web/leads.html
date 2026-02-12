@@ -484,8 +484,21 @@
         let totalPages = 1;
         let currentFilters = { permit_type: '', state: '', new_only: '', search: '' };
         let userEmail = null;
+        let userToken = '';
         let isPro = false;
         let permitsData = []; // Store permit data for modal access
+
+        function getAuthToken() {
+            if (userToken) return userToken;
+            try {
+                const stored = localStorage.getItem('bevalc_user');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed?.token) return parsed.token;
+                }
+            } catch (e) {}
+            return localStorage.getItem('bevalc_prefs_token') || '';
+        }
 
         async function init() {
             // Setup nav
@@ -497,6 +510,7 @@
                 try {
                     const user = JSON.parse(userInfo);
                     userEmail = user.email;
+                    userToken = user.token || localStorage.getItem('bevalc_prefs_token') || '';
                     isPro = user.isPro || false;
 
                     // Check Pro status from API
@@ -670,6 +684,11 @@
         async function loadLeads() {
             const tbody = document.getElementById('leads-body');
             tbody.innerHTML = '<tr><td colspan="5" class="loading"><span class="loading-spinner"></span>Loading...</td></tr>';
+            const token = getAuthToken();
+            if (!token) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-error);">Please verify your email from your account page to access permits.</td></tr>';
+                return;
+            }
 
             const params = new URLSearchParams({
                 page: currentPage,
@@ -682,7 +701,9 @@
             if (currentFilters.search) params.set('search', currentFilters.search);
 
             try {
-                const res = await fetch(`${API_BASE}/api/permits/leads?${params}`);
+                const res = await fetch(`${API_BASE}/api/permits/leads?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 const data = await res.json();
 
                 if (!data.success) {
@@ -767,8 +788,17 @@
             });
             if (currentFilters.permit_type) params.set('permit_type', currentFilters.permit_type);
             if (currentFilters.state) params.set('state', currentFilters.state);
+            const token = getAuthToken();
+            if (!token) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert('Please verify your email from your account page to export leads.');
+                return;
+            }
 
-            fetch(`${API_BASE}/api/permits/leads?${params}`)
+            fetch(`${API_BASE}/api/permits/leads?${params}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
                 .then(res => res.json())
                 .then(data => {
                     btn.innerHTML = originalText;
@@ -977,14 +1007,23 @@
             document.getElementById('permit-enhancement-loading').style.display = 'block';
 
             try {
+                const token = getAuthToken();
+                if (!token) {
+                    throw new Error('Please verify your email from your account page to enable enhancements');
+                }
+
                 // Call enhance using company name (permits aren't in companies table yet)
                 const response = await fetch(`${API_BASE}/api/enhance`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({
                         company_name: companyName,
                         brand_name: companyName,  // Use company name as brand
-                        email: userEmail
+                        email: userEmail,
+                        token
                     })
                 });
 

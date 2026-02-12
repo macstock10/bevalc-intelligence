@@ -1003,11 +1003,12 @@ def check_watchlist_and_alert(new_records: List[Dict], dry_run: bool = False) ->
             # Create the Node.js script to send the email
             matches_json = json.dumps(matches_data)
 
+            email_json = json.dumps(email)
             send_script = f'''
 import {{ sendWatchlistAlert }} from './send.js';
 
 const result = await sendWatchlistAlert({{
-    to: "{email}",
+    to: {email_json},
     matchCount: {len(matches)},
     matches: {matches_json}
 }});

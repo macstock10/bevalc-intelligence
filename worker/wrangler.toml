@@ -29,6 +29,7 @@ binding = "AI"
 # - RESEND_API_KEY                 (for welcome emails)
 # - REPORT_API_KEY                 (for internal report scripts)
 # - LOOPS_API_KEY                  (for email marketing sync)
+# - VERIFICATION_CODE_PEPPER       (pepper for hashing email verification codes)
 #
 # SEC RAG System secrets:
 # - ANTHROPIC_API_KEY              (for grounded answer generation with Claude)
