@@ -11,10 +11,10 @@ Built February 2026. All stages production-tested.
 ## Pipeline Overview
 
 ```
-Stage 0          Stage 1              Stage 2         Stage 3           Stage 4
-TTB Scraping → Image Download → OCR Extraction → Barcode Scan → LLM Enrichment
-weekly_update.py  download_images_   run_ocr.py      run_barcodes.py   run_enrichment.py
-                  to_r2.py
+Stage 0          Stage 1                Stage 2         Stage 3           Stage 4
+TTB Scraping → Image Discovery    → OCR Extraction → Barcode Scan → LLM Enrichment
+weekly_update.py  + Download          run_ocr.py      run_barcodes.py   run_enrichment.py
+                  backfill_images.py
      ↓                ↓                 ↓               ↓                 ↓
   colas table    cola_images table   cola_images    cola_image_      colas enrichment
   (raw rows)     (R2 keys)          (ocr_text)     barcodes table    columns (38 cols)
@@ -36,20 +36,29 @@ Scrapes TTB Public COLA Registry, syncs to D1, classifies signals (NEW_COMPANY, 
 
 ---
 
-## Stage 1: Image Download
+## Stage 1: Image Discovery + Download
 
-**Script**: `scripts/download_images_to_r2.py`
+**Script**: `scripts/backfill_images.py` (merged from `backfill_image_urls.py` + `download_images_to_r2.py`)
 **Table**: `cola_images` (migration 009)
 **Storage**: Cloudflare R2 bucket `bevalc-reports`
 
 ### How It Works
 
-TTB's `publicViewAttachment.do` servlet is **session-bound** — it only serves images for the COLA whose printable page is currently loaded. So the script:
+TTB's `publicViewAttachment.do` servlet is **session-bound** — it only serves images for the COLA whose printable page is currently loaded. The merged script visits each page once for both URL discovery and download:
 
 1. Opens each COLA's printable page in Selenium (Firefox)
-2. Uses JS `fetch()` from that page context to download image bytes
-3. Uploads to R2 with key pattern: `cola-images/{ttb_id}/{image_id}.jpg`
-4. Records metadata in `cola_images` table
+2. Parses HTML with BeautifulSoup to extract image URLs, label types, and metadata
+3. INSERT OR IGNORE into `cola_images` table (URL discovery)
+4. Uses JS `fetch()` from that page context to download image bytes
+5. Uploads to R2 with key pattern: `labels/{ttb_id}/{image_id}.{ext}`
+6. Updates `cola_images` with r2_key, file_size, dimensions, download_status
+
+### Query Strategy
+
+Three COLA populations are queried depending on mode:
+- **Population A** (default): COLAs with no `cola_images` rows — need full discovery + download
+- **Population B** (default): COLAs with rows but `download_status IS NULL` — need download only
+- **Population C** (`--retry-failed`): COLAs with failed/timeout/captcha downloads
 
 ### CAPTCHA Handling
 
@@ -61,14 +70,13 @@ TTB intermittently shows CAPTCHAs. The script auto-solves using **Claude Vision*
 4. Types answer into the input field and submits
 5. Up to 3 auto-solve attempts, then manual fallback (waits for user input)
 
-**CAPTCHA solver**: `solve_captcha()` at line 287, `handle_captcha()` at line 354.
-
 ### CLI Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--limit N` | 50 | Max COLAs to process (not images — a COLA with 4 images downloads all 4) |
-| `--dry-run` | off | Download + measure but don't upload or update D1 |
+| `--dry-run` | off | Discover + download but don't write to D1, R2, or checkpoint |
+| `--discover-only` | off | Only discover image URLs, don't download or upload |
 | `--retry-failed` | off | Re-download COLAs with failed/timeout/captcha status |
 | `--save-to-disk` | off | Save images locally for inspection |
 | `--headless` | off | Run browser in headless mode |
@@ -80,12 +88,12 @@ TTB intermittently shows CAPTCHAs. The script auto-solves using **Claude Vision*
 - `MAX_RETRIES = 3` — per image download
 - `REQUEST_DELAY = 0.5s` — between images within a COLA
 - `COLA_DELAY = 3s` — between COLA page navigations
-- **Checkpoint file**: `data/download_images_checkpoint.txt` — tracks completed COLAs for crash recovery
+- **Checkpoint file**: `data/backfill_images_checkpoint.txt` — tracks completed COLAs (also reads legacy checkpoint files)
 
 ### Dependencies
 
 ```
-pip install selenium boto3 Pillow requests anthropic
+pip install selenium boto3 Pillow requests anthropic beautifulsoup4
 ```
 Plus Firefox + geckodriver.
 
@@ -201,8 +209,8 @@ pip install opencv-contrib-python boto3 requests numpy
 
 **Script**: `scripts/run_enrichment.py`
 **Model**: `claude-haiku-4-5-20251001` (temperature 0)
-**Prompt**: `enhancements/prompts/ENRICHMENT_PROMPT.md` (v1.1)
-**Taxonomy**: `enhancements/taxonomy/TAXONOMY.md`
+**Prompt**: `enhancements/prompts/ENRICHMENT_PROMPT.md` (v1.3)
+**Taxonomy**: `enhancements/taxonomy/TAXONOMY.md` (v1.1)
 **Cost**: ~$0.005/COLA ($0.80/MTok input, $4/MTok output)
 
 ### How It Works
@@ -211,8 +219,10 @@ pip install opencv-contrib-python boto3 requests numpy
 2. For each COLA, fetches all its images' OCR text, separates front/back, takes best pre-parsed field values
 3. Assembles prompt: TTB filing data + front label OCR + back label OCR + pre-parsed fields + taxonomy lists + edge case rules
 4. Calls Claude, parses JSON response
-5. **Post-processing**: Nulls any field where `field_sources` says "inferred" (except category fields)
-6. Writes enrichment columns + metadata to `colas` table
+5. **Post-processing layer 1**: Nulls any field where `field_sources` says "inferred" (except category fields)
+6. **Post-processing layer 2**: Source verification — checks factual text fields (bottled_by, distilled_in, etc.) against OCR+TTB corpus via substring matching
+7. **Post-processing layer 3**: Boolean evidence check — if a boolean flag is `false` or `true` but no evidence terms appear in the source data, nulls it (absence = unknown, not confirmed)
+8. Writes enrichment columns + metadata to `colas` table
 
 ### Enrichment Columns (38 total, migration 010)
 
@@ -245,19 +255,21 @@ pip install opencv-contrib-python boto3 requests numpy
 
 ### Anti-Hallucination System (3 layers)
 
-**Layer 1 — Prompt rules**: Rule 6 prohibits inferring `parent_company`, `production_method`, `barrel_type`, `flavor_profile`, `estimated_price_tier`, or `target_market` from general knowledge. Only populate from explicit data in the input.
+**Layer 1 — Prompt rules**: Rule 6 prohibits inferring `parent_company`, `production_method`, `barrel_type`, `flavor_profile`, `estimated_price_tier`, or `target_market` from general knowledge. Only populate from explicit data in the input. Rule 7 requires `field_sources` JSON mapping every non-null field to `ttb_filing`, `label`, or `inferred`.
 
-**Layer 2 — Field provenance**: Rule 7 requires a `field_sources` JSON object mapping every non-null field to its source: `ttb_filing`, `label_front`, `label_back`, `label_other`, or `inferred`.
+**Layer 2 — Inferred-field nulling**: After parsing Claude's JSON, any field where `field_sources` says `"inferred"` gets set to `null`. Exception: category fields + metadata fields ARE allowed to be inferred from `class_type_code`.
 
-**Layer 3 — Post-processing override**: After parsing Claude's JSON, before writing to D1, any field where `field_sources` maps it to `"inferred"` gets set to `null`. This is a hard override — no inferred data ever reaches the database.
+**Layer 3a — Source verification**: Factual text fields (`bottled_by`, `bottled_in`, `distilled_in`, `imported_by`, `label_website`, `label_email`, `label_phone`, `label_tagline`, `tasting_notes_raw`, `year_established`) are cross-checked against the concatenated OCR text + TTB filing data. Normalized substring/3-word-window matching. If value can't be found in source data, it's nulled.
 
-**Exception**: Category fields (`super_category`, `commercial_category`, `subcategory`) plus metadata fields (`confidence`, `taxonomy_feedback`, `field_sources`) ARE allowed to be inferred from `class_type_code`.
+**Layer 3b — Boolean evidence verification**: Boolean flags (`is_cask_strength`, `is_single_barrel`, `is_limited_release`, `is_organic`, `is_gluten_free`) are checked for evidence terms in the source corpus (e.g. "cask strength", "barrel proof" for `is_cask_strength`). If `false` or `true` with no evidence on the label, nulled to `NULL` (unknown).
 
-**Effectiveness**: In the 50-COLA production run, Haiku ignored the no-inference rule ~34% of the time for `estimated_price_tier`. Post-processing caught and nulled all 50 inferred fields.
+**Effectiveness** (149-COLA run): 107 inferred fields nulled, 52 unverifiable fields nulled (including fabricated city names for bottled_in/distilled_in and unsupported boolean claims).
 
 ### Boolean Null Convention
 
 `null` = unknown, `false` = confirmed not. If a label doesn't say "cask strength," `null` (unknown) is more honest than `false` (confirmed not). For M&A advisors and due diligence, the distinction matters.
+
+**Bug fixed (Feb 2026)**: Python `1 if None else 0` evaluated to `0`, writing all null booleans as `0` (false) in SQLite. Fixed with explicit `None` check → writes `NULL`.
 
 ### CLI Flags
 
@@ -354,11 +366,13 @@ All scripts read from `.env` in project root:
 ## Known Issues
 
 1. **TTB session binding** requires Selenium (slow). No known way to get images via plain HTTP.
-2. **CAPTCHA frequency** is unpredictable. Claude Vision auto-solve works ~70% of the time; manual fallback needed for the rest.
-3. **OpenCV 4.13 barcode type detection** unreliable — `decoded_type` is often empty. Length-based inference covers UPC-A/EAN-13/EAN-8 but can't distinguish UPC-E or other formats.
+2. **CAPTCHA frequency** is unpredictable. Claude Vision auto-solve works ~70% of the time; manual fallback needed for the rest. 100-COLA run hit zero CAPTCHAs.
+3. **Barcode extraction deprioritized** — OpenCV script works but UPCs have no downstream use yet. Detection rate ~10%.
 4. **R2 socket timeouts** occur occasionally under load. Retry logic (3 attempts, 5s backoff) handles this.
-5. **Haiku ignores no-inference rule** ~34% of the time for `estimated_price_tier`. Post-processing catches all cases, but a future prompt iteration may reduce this.
-6. **No batch API yet** — enrichment processes one COLA at a time with 1s rate limit. Anthropic Batch API would reduce cost 50% and eliminate rate limiting.
+5. **Haiku ignores no-inference rule** ~34% of the time for `estimated_price_tier` and boolean fields. All caught by post-processing layers 2/3.
+6. **No batch API yet** — enrichment processes one COLA at a time. Anthropic Batch API would reduce cost 50%.
+7. **Sample is wine-heavy** — 96/149 enriched COLAs are wine. Need more spirits/beer diversity before full backfill.
+8. **TTB class codes sometimes contradict labels** — e.g. Gamble Estates Cabernet Sauvignon filed as dessert wine. Pipeline correctly flags as medium confidence.
 
 ---
 
@@ -366,13 +380,16 @@ All scripts read from `.env` in project root:
 
 | Milestone | Images | OCR Cost | Enrichment Cost | Time |
 |-----------|--------|----------|-----------------|------|
-| Pilot (done) | 91 | $0.14 | $0.28 (50 COLAs) | 1 hour |
+| Pilot (done) | 291 | $0.44 | $1.16 (149 COLAs) | ~30 min |
+| 500-COLA expansion | ~1,000 | $1.50 | $2.50 | ~2 hours |
 | Weekly batch | ~600 | $0.90 | $3.00 | automated |
-| Full backfill | ~5M | ~$7,500 | ~$13,000 | 2-3 weeks |
+| Full backfill | ~5M | ~$7,500 | ~$5,000 | 2-3 weeks |
 
-**Batch API savings**: Anthropic Batch API offers 50% discount. Full backfill enrichment cost drops from ~$13K to ~$6.5K.
+**Actual cost tracking**: 149 COLAs cost ~$1.60 total (OCR + enrichment). Projected full backfill: ~$8-10K.
 
-**Parallelism**: Image download is bottlenecked by TTB's session requirement (sequential). OCR and barcodes can run in parallel. Enrichment can use Batch API for async processing.
+**Batch API savings**: Anthropic Batch API offers 50% discount on enrichment.
+
+**Parallelism**: Image download bottlenecked by TTB session requirement (sequential, ~3s/COLA). OCR and enrichment can run independently after images are downloaded.
 
 ---
 
@@ -380,13 +397,16 @@ All scripts read from `.env` in project root:
 
 | File | Purpose |
 |------|---------|
-| `scripts/download_images_to_r2.py` | Stage 1: Image download via Selenium |
+| `scripts/backfill_images.py` | Stage 1: Image discovery + download (merged) |
+| `scripts/backfill_image_urls.py` | DEPRECATED — URL discovery only (use backfill_images.py) |
+| `scripts/download_images_to_r2.py` | DEPRECATED — download only (use backfill_images.py) |
 | `scripts/run_ocr.py` | Stage 2: Google Vision OCR |
 | `scripts/run_barcodes.py` | Stage 3: OpenCV barcode detection |
 | `scripts/run_enrichment.py` | Stage 4: Claude LLM enrichment |
 | `scripts/migrations/009_cola_images.sql` | Schema: cola_images + cola_image_barcodes |
 | `scripts/migrations/010_enrichment_columns.sql` | Schema: 38 enrichment columns on colas |
-| `enhancements/prompts/ENRICHMENT_PROMPT.md` | Prompt v1.1 with examples |
+| `enhancements/prompts/ENRICHMENT_PROMPT.md` | Prompt v1.3 with examples |
 | `enhancements/taxonomy/TAXONOMY.md` | Valid categories/subcategories |
+| `scripts/generate_validation_report.py` | Visual QA report generator |
 | `enhancements/architecture/DATA_MODEL.md` | Column definitions and rationale |
 | `enhancements/architecture/PIPELINE.md` | Original architecture doc (pre-implementation) |

@@ -2,8 +2,8 @@
 
 This document defines the standardized product classification system used to categorize every COLA filing. When Claude processes a filing, it must assign a `super_category`, `category`, and `subcategory` from the values listed below. No other values are permitted.
 
-Last updated: 2026-02-13
-Version: 1.0 (DRAFT - needs domain expert review)
+Last updated: 2026-02-15
+Version: 1.1
 
 ---
 
@@ -29,6 +29,7 @@ Every COLA filing gets exactly ONE super_category, ONE category, and ONE subcate
 - Flavored Bourbon
 - Kentucky Bourbon (NAS)
 - Non-Kentucky Bourbon
+- Blended Straight Bourbon
 - Bourbon (Other)
 
 ### Rye Whiskey
@@ -37,6 +38,7 @@ Every COLA filing gets exactly ONE super_category, ONE category, and ONE subcate
 - Cask Strength Rye
 - Bottled in Bond Rye
 - Flavored Rye
+- Blended Straight Rye
 - Rye Whiskey (Other)
 
 ### American Whiskey (Other)
@@ -47,6 +49,7 @@ Every COLA filing gets exactly ONE super_category, ONE category, and ONE subcate
 - American Blended Whiskey
 - Spirit Whiskey
 - White/Unaged Whiskey
+- Flavored American Whiskey
 - American Whiskey (Other)
 
 ### Scotch Whisky
@@ -203,6 +206,7 @@ Every COLA filing gets exactly ONE super_category, ONE category, and ONE subcate
 - Tempranillo
 - Sangiovese
 - Nebbiolo
+- Barbera
 - Grenache / Garnacha
 - Cabernet Franc
 - Petite Sirah
@@ -386,7 +390,7 @@ These notes help Claude resolve ambiguous filings:
 If the primary identity is the liqueur (e.g., "Irish Cream"), classify under **Liqueur & Cordial → Cream Liqueur**, not under the whiskey category.
 
 ### Flavored Spirits vs. Liqueurs
-If ABV is 30%+ and the base spirit is clearly identified (e.g., "Honey Bourbon"), classify under the spirit's flavored subcategory (e.g., **Bourbon → Flavored Bourbon**). If ABV is under 30% or the product identity is the flavor rather than the base spirit, classify under **Liqueur & Cordial**.
+If ABV is above 30% and the base spirit is clearly identified (e.g., "Honey Bourbon"), classify under the spirit's flavored subcategory (e.g., **Bourbon → Flavored Bourbon**). If ABV is 30% or below, or the product identity is flavor-forward rather than base-spirit-forward, classify under **Liqueur & Cordial**. Products at exactly 30% ABV with prominent fruit/flavor branding should default to Liqueur & Cordial.
 
 ### RTD Cocktails vs. FMBs
 If the product is spirits-based (contains actual distilled spirits), classify under **Ready-to-Drink Spirits (RTD)**. If the product is malt-based but designed to taste like a cocktail, classify under **Flavored Malt Beverage (FMB) → Spirit-Flavored FMB**.
@@ -405,6 +409,14 @@ TTB classifies vermouth as wine. Classify under **Wine → Vermouth & Aromatized
 
 ### Mead
 TTB may classify mead as wine. Classify under **Wine → Fruit & Non-Grape Wine → Mead**.
+
+### French Appellation Wines (Varietal by Law)
+Certain French appellations mandate a single grape variety by AOC/AOP law. This is regulatory fact, not inference. Classify these directly:
+- **Chablis, Meursault, Puligny-Montrachet, Chassagne-Montrachet (white), Pouilly-Fuissé, Saint-Véran, Mâcon (white)** → **Chardonnay**
+- **Sancerre (red), Bourgogne Rouge, Gevrey-Chambertin, Chambolle-Musigny, Vosne-Romanée, Nuits-Saint-Georges, Pommard, Volnay, Beaune (red)** → **Pinot Noir**
+- **Sancerre (white), Pouilly-Fumé** → **Sauvignon Blanc**
+- **Barbera d'Asti, Barbera d'Alba** → **Barbera**
+- **Barolo, Barbaresco** → **Nebbiolo**
 
 ### Non-Alcoholic Products
 If a product is filed with TTB but is non-alcoholic or de-alcoholized, classify under the appropriate NA category. Non-alcoholic spirits (e.g., Seedlip) should get **Spirits → Specialty & Other Spirits → Specialty Spirit (Other)** with a note.

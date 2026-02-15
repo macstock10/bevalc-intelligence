@@ -1,6 +1,6 @@
 # BevAlc Intelligence — Enrichment Prompt
 
-## Version: 1.1
+## Version: 1.3
 ## Model: claude-haiku-4-5-20251001
 ## Temperature: 0
 
@@ -18,9 +18,9 @@ CRITICAL RULES:
 2. Return null for any field that cannot be determined with reasonable confidence from the available data. Do not guess or hallucinate.
 3. Your response must be valid JSON and nothing else. No preamble, no markdown, no explanation.
 4. The confidence field reflects your overall confidence in the classification. "high" = clearly identifiable product. "medium" = reasonable inference but some ambiguity. "low" = significant uncertainty, best guess.
-5. If the product does not fit cleanly into any subcategory, choose the closest match and explain in taxonomy_feedback.
+5. If the product does not fit cleanly into any subcategory, choose the closest match and explain in taxonomy_feedback. If the classification is straightforward and the product fits cleanly, taxonomy_feedback MUST be null. Do not write explanatory notes when the product maps obviously to a category.
 6. Only populate fields where the value is explicitly stated in the TTB filing data or label OCR text provided. If information cannot be directly sourced from the input data, return null. Never infer parent_company, production_method, barrel_type, flavor_profile, estimated_price_tier, or target_market from general knowledge. The only exception is super_category/commercial_category/subcategory which may require reasonable inference from class_type_code.
-7. Include a "field_sources" object that maps every non-null field name to its source: "ttb_filing", "label_front", "label_back", "label_other", or "inferred". This enables provenance tracking.
+7. Include a "field_sources" object that maps every non-null field name to its source: "ttb_filing", "label", or "inferred". This enables provenance tracking.
 ```
 
 ## User Message Template
@@ -69,8 +69,17 @@ value, standard, premium, super-premium, ultra-premium
 
 ## EDGE CASE RULES
 - Whiskey-based cream liqueurs (e.g., Irish Cream) → Liqueur & Cordial → Cream Liqueur
-- Flavored spirits ABV 30%+ with clear base spirit → spirit's flavored subcategory
-- Flavored spirits ABV <30% or flavor-forward identity → Liqueur & Cordial
+- Flavored spirits ABV above 30% with clear base spirit → spirit's flavored subcategory
+- Flavored spirits ABV 30% or below, or flavor-forward identity → Liqueur & Cordial
+- Products at exactly 30% ABV with prominent fruit/flavor branding → Liqueur & Cordial (flavor-forward)
+- Blends of straight bourbons from multiple states → Bourbon → Blended Straight Bourbon
+- Blends of straight rye whiskeys → Rye Whiskey → Blended Straight Rye
+- Flavored whiskeys (not bourbon-specific) at 30%+ ABV → American Whiskey (Other) → Flavored American Whiskey
+- French Burgundy whites (Chablis, Meursault, Puligny-Montrachet, Chassagne-Montrachet, Pouilly-Fuissé) → Chardonnay (mandated by AOC law, not inference)
+- French Burgundy reds (Gevrey-Chambertin, Vosne-Romanée, Nuits-Saint-Georges, Pommard, Volnay, Beaune) → Pinot Noir (mandated by AOC law)
+- Sancerre white / Pouilly-Fumé → Sauvignon Blanc (mandated by AOC law)
+- Barbera d'Asti / Barbera d'Alba → Barbera (mandated by DOC/DOCG law)
+- Barolo / Barbaresco → Nebbiolo (mandated by DOCG law)
 - Spirits-based RTD → Ready-to-Drink Spirits (RTD)
 - Malt-based cocktail-flavored → FMB → Spirit-Flavored FMB
 - Hard seltzer → Hard Seltzer regardless of base
@@ -114,7 +123,7 @@ Return a single JSON object with these exact fields:
   "tasting_notes_raw": "string (exact text from label) or null",
   "confidence": "high/medium/low",
   "taxonomy_feedback": "string or null",
-  "field_sources": {"field_name": "ttb_filing|label_front|label_back|label_other|inferred", ...}
+  "field_sources": {"field_name": "ttb_filing|label|inferred", ...}
 }
 ```
 

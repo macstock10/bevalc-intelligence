@@ -1,28 +1,41 @@
 """
-download_images_to_r2.py — DEPRECATED: Use backfill_images.py instead.
+backfill_images.py — Discover label image URLs and download to R2 in one pass
 
-This script is superseded by backfill_images.py, which combines URL discovery
-and image download in a single pass (halving TTB page visits).
+Unified script that visits each COLA's TTB printable page once via Selenium,
+extracts image URLs + metadata (BeautifulSoup), downloads image bytes
+(JS fetch in browser context), and uploads to Cloudflare R2.
 
-Kept for reference only.
-"""
-
-import warnings
-warnings.warn(
-    "download_images_to_r2.py is deprecated. Use backfill_images.py instead, "
-    "which combines URL discovery and image download in a single pass.",
-    DeprecationWarning, stacklevel=2
-)
-
-"""
-Original docstring:
-
-Download label images from TTB and store in Cloudflare R2 via Selenium.
-TTB's publicViewAttachment.do is session-bound — requires navigating to
-each COLA's printable page before fetching images.
+Replaces the two-script workflow (backfill_image_urls.py + download_images_to_r2.py)
+to halve TTB page visits — the pipeline bottleneck.
 
 USAGE:
-    python scripts/download_images_to_r2.py --limit 50
+    # Process 50 COLAs (discover URLs + download images)
+    python scripts/backfill_images.py --limit 50
+
+    # Dry run — fetch pages, show what would happen, don't write
+    python scripts/backfill_images.py --dry-run --limit 20
+
+    # Discover URLs only (no download/upload)
+    python scripts/backfill_images.py --discover-only --limit 100
+
+    # Re-download COLAs with failed images
+    python scripts/backfill_images.py --retry-failed --limit 50
+
+    # Specific ttb_ids
+    python scripts/backfill_images.py --ttb-ids 26021001000664 24031001000777
+
+    # Headless browser + save images locally for inspection
+    python scripts/backfill_images.py --headless --save-to-disk --limit 10
+
+REQUIREMENTS:
+    - Firefox + geckodriver (Selenium)
+    - boto3 (R2 S3-compatible upload)
+    - Pillow (image dimensions)
+    - beautifulsoup4 (HTML parsing)
+    - anthropic (CAPTCHA auto-solve via Claude Vision)
+    - CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, CLOUDFLARE_API_TOKEN in .env
+    - CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY in .env
+    - ANTHROPIC_API_KEY in .env
 """
 
 import os
@@ -39,6 +52,7 @@ import requests as http_requests
 import boto3
 from botocore.config import Config
 from PIL import Image
+from bs4 import BeautifulSoup
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -51,16 +65,28 @@ from webdriver_manager.firefox import GeckoDriverManager
 import anthropic
 
 
+# =============================================================================
+# Paths and constants
+# =============================================================================
+
 SCRIPT_DIR = Path(__file__).parent.resolve()
 BASE_DIR = SCRIPT_DIR.parent
 DATA_DIR = BASE_DIR / "data"
 ENV_FILE = BASE_DIR / ".env"
-CHECKPOINT_FILE = DATA_DIR / "download_images_checkpoint.txt"
+CHECKPOINT_FILE = DATA_DIR / "backfill_images_checkpoint.txt"
 
-CORRUPT_THRESHOLD = 5 * 1024  # 5KB
+# Legacy checkpoint files from the old two-script workflow
+LEGACY_CHECKPOINT_FILES = [
+    DATA_DIR / "download_images_checkpoint.txt",
+]
+
+TTB_BASE = "https://ttbonline.gov/colasonline"
+TTB_PRINTABLE_URL = f"{TTB_BASE}/viewColaDetails.do?action=publicFormDisplay&ttbid="
+
+CORRUPT_THRESHOLD = 5 * 1024  # 5KB — images smaller than this are marked corrupt
 MAX_RETRIES = 3
-REQUEST_DELAY = 0.5  # seconds between image downloads within a COLA
-COLA_DELAY = 3       # seconds between COLA page navigations (avoid rate-limiting)
+REQUEST_DELAY = 0.5   # seconds between image downloads within a COLA
+COLA_DELAY = 3        # seconds between COLA page navigations
 
 CONTENT_TYPE_MAP = {
     'jpg': 'image/jpeg',
@@ -118,7 +144,7 @@ fetch(url, {credentials: 'same-origin'})
 # Logging
 # =============================================================================
 
-logger = logging.getLogger("download_images")
+logger = logging.getLogger("backfill_images")
 logger.setLevel(logging.INFO)
 _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter(
@@ -187,6 +213,7 @@ def d1_execute(sql, params=None):
 
 
 def d1_query_rows(sql, params=None):
+    """Execute SQL and return list of row dicts."""
     result = d1_execute(sql, params)
     if result.get("success") and result.get("result"):
         return result["result"][0].get("results", [])
@@ -243,24 +270,36 @@ def upload_to_r2(key, image_bytes, content_type):
 
 
 # =============================================================================
-# Checkpoint file (tracks fully-completed COLAs by ttb_id)
+# Checkpoint (reads legacy files from old two-script workflow)
 # =============================================================================
 
 def load_checkpoint():
-    if not CHECKPOINT_FILE.exists():
-        return set()
-    with open(CHECKPOINT_FILE, 'r') as f:
-        return {line.strip() for line in f if line.strip()}
+    """Load set of ttb_ids already processed from current + legacy checkpoint files."""
+    completed = set()
+
+    # Current checkpoint
+    if CHECKPOINT_FILE.exists():
+        with open(CHECKPOINT_FILE, 'r') as f:
+            completed.update(line.strip() for line in f if line.strip())
+
+    # Legacy checkpoint files
+    for legacy_file in LEGACY_CHECKPOINT_FILES:
+        if legacy_file.exists():
+            with open(legacy_file, 'r') as f:
+                completed.update(line.strip() for line in f if line.strip())
+
+    return completed
 
 
 def save_checkpoint_entry(ttb_id):
+    """Append a single ttb_id to the checkpoint file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(CHECKPOINT_FILE, 'a') as f:
         f.write(ttb_id + '\n')
 
 
 # =============================================================================
-# CAPTCHA handling
+# CAPTCHA handling (Claude Vision auto-solve)
 # =============================================================================
 
 captcha_stats = {'attempts': 0, 'successes': 0, 'failures': 0}
@@ -387,18 +426,108 @@ def handle_captcha(driver, api_key):
 
 
 # =============================================================================
-# Browser session + image download
+# Image URL extraction (from TTB printable page HTML)
 # =============================================================================
 
-TTB_PRINTABLE_URL = "https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid="
+IMAGE_TYPE_MAP = {
+    'brand (front) or keg collar': 'front',
+    'brand': 'front',
+    'front': 'front',
+    'back': 'back',
+    'neck band or neck strip': 'neck',
+    'neck': 'neck',
+    'strip': 'strip',
+}
 
+
+def parse_label_type(text):
+    text = text.strip().lower()
+    if text in IMAGE_TYPE_MAP:
+        return IMAGE_TYPE_MAP[text]
+    for key, val in IMAGE_TYPE_MAP.items():
+        if key in text:
+            return val
+    return 'other'
+
+
+def extract_images_from_html(html, ttb_id):
+    """Parse printable page HTML and extract image metadata.
+
+    Returns list of image dicts with keys:
+        ttb_id, image_id, label_type, ttb_original_url, width, height
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Parse label types from "Image Type:" markers
+    image_type_list = []
+    for p_tag in soup.find_all('p', class_='data'):
+        if 'Image Type' not in p_tag.get_text():
+            continue
+        type_text = ''
+        for sibling in p_tag.next_siblings:
+            if isinstance(sibling, str):
+                stripped = sibling.strip()
+                if stripped:
+                    type_text = stripped
+                    break
+            elif sibling.name == 'br':
+                continue
+            else:
+                break
+        image_type_list.append(parse_label_type(type_text))
+
+    # Collect all attachment images
+    img_tags = soup.find_all('img', src=re.compile(r'publicViewAttachment'))
+    images = []
+
+    for i, img in enumerate(img_tags):
+        src = img.get('src', '')
+        alt = img.get('alt', '')
+        seq = i + 1
+
+        # Label type from HTML text, fallback to alt
+        if i < len(image_type_list):
+            label_type = image_type_list[i]
+        else:
+            label_type = parse_label_type(alt.replace('Label Image:', '').strip())
+
+        # Build full TTB URL
+        ttb_original_url = f"https://ttbonline.gov{src}" if not src.startswith('http') else src
+
+        # Pixel dimensions from img tag attributes
+        px_width = img.get('width')
+        px_height = img.get('height')
+        if px_width:
+            try:
+                px_width = int(px_width)
+            except ValueError:
+                px_width = None
+        if px_height:
+            try:
+                px_height = int(px_height)
+            except ValueError:
+                px_height = None
+
+        images.append({
+            'ttb_id': ttb_id,
+            'image_id': f"{ttb_id}-{seq}",
+            'label_type': label_type,
+            'ttb_original_url': ttb_original_url,
+            'width': px_width,
+            'height': px_height,
+        })
+
+    return images
+
+
+# =============================================================================
+# Browser navigation + image download
+# =============================================================================
 
 def navigate_to_cola(driver, ttb_id, api_key):
     """Navigate to a COLA's printable page and handle any CAPTCHA.
 
-    TTB's publicViewAttachment.do is session-bound — it only serves images
-    for the COLA whose printable page is currently loaded. We MUST navigate
-    to each COLA's page before fetching its images.
+    Returns the page HTML on success, or None on failure.
     """
     url = TTB_PRINTABLE_URL + ttb_id
     for attempt in range(2):
@@ -407,11 +536,11 @@ def navigate_to_cola(driver, ttb_id, api_key):
             break
         except Exception as e:
             if attempt == 0:
-                logger.warning(f"  Page load error for {ttb_id}: {e.__class__.__name__}, retrying in 10s...")
+                logger.warning(f"  Page load error: {e.__class__.__name__}, retrying in 10s...")
                 time.sleep(10)
             else:
-                logger.warning(f"  Page load failed on retry for {ttb_id}")
-                return False
+                logger.warning(f"  Page load failed on retry")
+                return None
 
     try:
         WebDriverWait(driver, 30).until(
@@ -421,16 +550,15 @@ def navigate_to_cola(driver, ttb_id, api_key):
         pass
 
     if not handle_captcha(driver, api_key):
-        logger.error(f"  CAPTCHA not solved for {ttb_id}")
-        return False
+        logger.error(f"  CAPTCHA not solved")
+        return None
 
-    # Check for TTB error page
     html = driver.page_source
     if 'Error Messages' in html and 'Unable to process request' in html:
-        logger.warning(f"  TTB error page for {ttb_id}")
-        return False
+        logger.warning(f"  TTB error page")
+        return None
 
-    return True
+    return html
 
 
 def get_extension(url):
@@ -453,9 +581,10 @@ def get_image_dimensions(image_bytes):
 
 
 def download_image(driver, url):
-    """
-    Download image bytes via JavaScript fetch() in the browser context.
-    Returns (image_bytes, status).
+    """Download image bytes via JS fetch() in the browser context.
+
+    Returns (image_bytes, status) where status is one of:
+        'success', 'failed', 'timeout', 'captcha'
     """
     for attempt in range(MAX_RETRIES):
         try:
@@ -480,7 +609,6 @@ def download_image(driver, url):
 
         error = result.get('error', 'unknown')
 
-        # CAPTCHA or session expired — caller should re-navigate
         if 'html' in error.lower() or 'captcha' in error.lower():
             return None, 'captcha'
 
@@ -495,8 +623,39 @@ def download_image(driver, url):
 
 
 # =============================================================================
-# D1 queries
+# D1 write operations
 # =============================================================================
+
+def insert_images_to_d1(images):
+    """Insert image records into D1 cola_images table. Returns number inserted."""
+    if not images:
+        return 0
+
+    statements = []
+    for img in images:
+        statements.append(
+            f"INSERT OR IGNORE INTO cola_images "
+            f"(ttb_id, image_id, label_type, ttb_original_url, width, height) "
+            f"VALUES ("
+            f"{escape_sql_value(img['ttb_id'])}, "
+            f"{escape_sql_value(img['image_id'])}, "
+            f"{escape_sql_value(img['label_type'])}, "
+            f"{escape_sql_value(img['ttb_original_url'])}, "
+            f"{escape_sql_value(img['width'])}, "
+            f"{escape_sql_value(img['height'])}"
+            f");"
+        )
+
+    sql = '\n'.join(statements)
+    result = d1_execute(sql)
+
+    if result.get("success"):
+        total = 0
+        for res in result.get("result", []):
+            total += res.get("meta", {}).get("changes", 0)
+        return total
+    return 0
+
 
 def update_image_row(image_id, r2_key, file_size, width, height, download_status):
     """Update a cola_images row with download results."""
@@ -512,44 +671,79 @@ def update_image_row(image_id, r2_key, file_size, width, height, download_status
     return d1_execute(sql)
 
 
-def get_colas_needing_download(limit, checkpoint, retry_failed=False):
-    """Get distinct ttb_ids that have pending/failed images, excluding checkpointed."""
-    if retry_failed:
-        where = "download_status IN ('failed', 'timeout', 'captcha')"
-        desc = "failed/timed-out"
-    else:
-        where = "download_status IS NULL"
-        desc = "pending"
-
-    logger.info(f"Querying D1 for up to {limit} COLAs with {desc} images...")
-
-    rows = d1_query_rows(
-        f"SELECT DISTINCT ttb_id FROM cola_images "
-        f"WHERE {where} "
-        f"ORDER BY ttb_id DESC "
-        f"LIMIT {limit}"
+def get_pending_images_for_cola(ttb_id):
+    """Get images for a COLA that still need downloading."""
+    return d1_query_rows(
+        f"SELECT image_id, ttb_id, ttb_original_url, download_status "
+        f"FROM cola_images WHERE ttb_id = {escape_sql_value(ttb_id)} "
+        f"AND (download_status IS NULL OR download_status NOT IN ('success'))"
     )
 
-    ttb_ids = [r['ttb_id'] for r in rows]
 
-    # Filter out already-checkpointed COLAs
+# =============================================================================
+# D1 queries for COLA discovery
+# =============================================================================
+
+def get_colas_needing_processing(limit, checkpoint, retry_failed=False):
+    """Get ttb_ids that need image processing, excluding checkpointed.
+
+    Default mode: Union of Population A (no cola_images rows) and
+    Population B (have rows but download_status IS NULL).
+
+    --retry-failed mode: Population C (failed/timeout/captcha downloads).
+    """
+    if retry_failed:
+        logger.info(f"Querying D1 for up to {limit} COLAs with failed images...")
+        rows = d1_query_rows(
+            f"SELECT DISTINCT ttb_id FROM cola_images "
+            f"WHERE download_status IN ('failed', 'timeout', 'captcha') "
+            f"ORDER BY ttb_id DESC "
+            f"LIMIT {limit}"
+        )
+        ttb_ids = [r['ttb_id'] for r in rows]
+    else:
+        # Population A: COLAs with no cola_images rows at all
+        logger.info(f"Querying D1 for COLAs missing image data...")
+        rows_a = d1_query_rows(
+            f"SELECT c.ttb_id FROM colas c "
+            f"LEFT JOIN cola_images ci ON c.ttb_id = ci.ttb_id "
+            f"WHERE ci.ttb_id IS NULL "
+            f"ORDER BY c.approval_date DESC "
+            f"LIMIT {limit}"
+        )
+        pop_a = [r['ttb_id'] for r in rows_a]
+        logger.info(f"  Population A (no rows): {len(pop_a)}")
+
+        # Population B: COLAs with rows but pending downloads
+        remaining = limit - len(pop_a)
+        pop_b = []
+        if remaining > 0:
+            rows_b = d1_query_rows(
+                f"SELECT DISTINCT ttb_id FROM cola_images "
+                f"WHERE download_status IS NULL "
+                f"ORDER BY ttb_id DESC "
+                f"LIMIT {remaining}"
+            )
+            pop_b = [r['ttb_id'] for r in rows_b]
+            logger.info(f"  Population B (pending download): {len(pop_b)}")
+
+        # Merge, dedup, preserve order (A first, then B)
+        seen = set()
+        ttb_ids = []
+        for t in pop_a + pop_b:
+            if t not in seen:
+                seen.add(t)
+                ttb_ids.append(t)
+
+    # Filter out checkpointed
     before = len(ttb_ids)
     ttb_ids = [t for t in ttb_ids if t not in checkpoint]
     skipped = before - len(ttb_ids)
     if skipped:
-        logger.info(f"Skipped {skipped} already-checkpointed COLAs")
+        logger.info(f"  Skipped {skipped} already-checkpointed COLAs")
 
-    logger.info(f"Found {len(ttb_ids)} COLAs to process")
+    logger.info(f"Total COLAs to process: {len(ttb_ids)}")
     return ttb_ids
-
-
-def get_images_for_cola(ttb_id):
-    """Get all image rows for a specific COLA."""
-    return d1_query_rows(
-        f"SELECT image_id, ttb_id, ttb_original_url, download_status "
-        f"FROM cola_images WHERE ttb_id = {escape_sql_value(ttb_id)} "
-        f"ORDER BY id ASC"
-    )
 
 
 def get_total_cola_count():
@@ -573,8 +767,10 @@ def get_completed_cola_count():
 # Main pipeline
 # =============================================================================
 
-def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=False):
-    """Download all images for each COLA via Selenium, upload to R2."""
+def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
+                  save_to_disk=False, discover_only=False):
+    """Main pipeline: discover URLs + download images for each COLA in one pass."""
+
     # Start browser
     logger.info("Starting Firefox...")
     options = webdriver.FirefoxOptions()
@@ -586,47 +782,91 @@ def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=F
         options=options
     )
     driver.set_page_load_timeout(30)
-    driver.set_script_timeout(60)  # Allow up to 60s for large image fetch
+    driver.set_script_timeout(60)
 
     # Stats
     colas_complete = 0
     colas_partial = 0
     colas_nav_failed = 0
+    colas_no_images = 0
+    urls_discovered = 0
+    urls_inserted = 0
     images_downloaded = 0
     images_uploaded = 0
     images_failed = 0
     images_corrupt = 0
     images_skipped = 0
     total_bytes = 0
-    disk_counter = 0  # For --save-to-disk numbering
+    disk_counter = 0
 
     try:
         for cola_idx, ttb_id in enumerate(ttb_ids):
-            images = get_images_for_cola(ttb_id)
-            pending = [img for img in images if img.get('download_status') != 'success']
+            logger.info(f"[{cola_idx+1}/{len(ttb_ids)}] {ttb_id}")
 
-            logger.info(f"[COLA {cola_idx+1}/{len(ttb_ids)}] {ttb_id} — "
-                       f"{len(images)} images ({len(pending)} pending)")
+            # Step 1: Navigate to COLA's printable page
+            html = navigate_to_cola(driver, ttb_id, api_key)
+            if html is None:
+                colas_nav_failed += 1
+                logger.warning(f"  Navigation failed — skipping (will retry next run)")
+                time.sleep(COLA_DELAY)
+                continue
+
+            # Step 2: Parse HTML for image URLs
+            discovered = extract_images_from_html(html, ttb_id)
+            urls_discovered += len(discovered)
+
+            if not discovered:
+                colas_no_images += 0  # intentional — we still count via colas_complete
+                logger.info(f"  No images on page")
+                # Checkpoint zero-image COLAs so we don't revisit
+                if not dry_run:
+                    save_checkpoint_entry(ttb_id)
+                colas_complete += 1
+                time.sleep(COLA_DELAY)
+                continue
+
+            logger.info(f"  Found {len(discovered)} image(s):")
+            for img in discovered:
+                logger.info(f"    {img['image_id']} | {img['label_type']}")
+
+            # Step 3: INSERT OR IGNORE into cola_images
+            if not dry_run:
+                inserted = insert_images_to_d1(discovered)
+                urls_inserted += inserted
+                if inserted > 0:
+                    logger.info(f"  Inserted {inserted} new image row(s)")
+            else:
+                urls_inserted += len(discovered)
+
+            # If discover-only mode, checkpoint and move on
+            if discover_only:
+                if not dry_run:
+                    save_checkpoint_entry(ttb_id)
+                colas_complete += 1
+                time.sleep(COLA_DELAY)
+                continue
+
+            # Step 4: Get pending images for download
+            if not dry_run:
+                pending = get_pending_images_for_cola(ttb_id)
+            else:
+                # In dry-run, treat all discovered as pending
+                pending = [{'image_id': img['image_id'], 'ttb_id': img['ttb_id'],
+                            'ttb_original_url': img['ttb_original_url'],
+                            'download_status': None} for img in discovered]
 
             if not pending:
                 logger.info(f"  All images already downloaded")
                 if not dry_run:
                     save_checkpoint_entry(ttb_id)
                 colas_complete += 1
-                images_skipped += len(images)
+                images_skipped += len(discovered)
+                time.sleep(COLA_DELAY)
                 continue
 
-            # Navigate to THIS COLA's printable page first.
-            # TTB's publicViewAttachment.do is session-bound — it only
-            # serves images for the COLA whose page is currently loaded.
-            if not navigate_to_cola(driver, ttb_id, api_key):
-                colas_nav_failed += 1
-                images_failed += len(pending)
-                if not dry_run:
-                    for img in pending:
-                        update_image_row(img['image_id'], None, None, None, None, 'failed')
-                continue
+            logger.info(f"  Downloading {len(pending)} image(s)...")
 
+            # Step 5: Download each pending image via JS fetch
             cola_all_ok = True
 
             for img_idx, img in enumerate(pending):
@@ -635,13 +875,13 @@ def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=F
 
                 logger.info(f"  [{img_idx+1}/{len(pending)}] {image_id}")
 
-                # Download via browser JS fetch (from this COLA's page context)
                 image_bytes, status = download_image(driver, url)
 
+                # CAPTCHA during fetch — re-navigate and retry once
                 if status == 'captcha':
-                    # CAPTCHA during fetch — re-navigate and retry once
-                    logger.info(f"    CAPTCHA during fetch — re-navigating to {ttb_id}...")
-                    if navigate_to_cola(driver, ttb_id, api_key):
+                    logger.info(f"    CAPTCHA during fetch — re-navigating...")
+                    re_html = navigate_to_cola(driver, ttb_id, api_key)
+                    if re_html is not None:
                         image_bytes, status = download_image(driver, url)
 
                 if image_bytes is None:
@@ -715,10 +955,10 @@ def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=F
             if (cola_idx + 1) % 10 == 0:
                 mb = total_bytes / (1024 * 1024)
                 logger.info(f"  --- Progress: {cola_idx+1}/{len(ttb_ids)} COLAs | "
-                           f"{images_uploaded} uploaded, {images_failed} failed | "
-                           f"{mb:.1f} MB ---")
+                           f"{urls_discovered} URLs, {images_uploaded} uploaded, "
+                           f"{images_failed} failed | {mb:.1f} MB ---")
 
-            # Delay between COLAs to avoid TTB rate-limiting
+            # Delay between COLAs
             if cola_idx < len(ttb_ids) - 1:
                 time.sleep(COLA_DELAY)
 
@@ -727,38 +967,40 @@ def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=F
     finally:
         driver.quit()
 
-    # Get overall progress from D1
-    total_colas = get_total_cola_count()
-    completed_colas = get_completed_cola_count() if not dry_run else '?'
+    # Overall progress from D1
+    total_colas_in_db = get_total_cola_count()
+    completed_colas_in_db = get_completed_cola_count() if not dry_run else '?'
 
     # Summary
     mb = total_bytes / (1024 * 1024)
     print(f"\n{'='*60}")
-    print(f"DOWNLOAD SUMMARY")
+    print(f"BACKFILL SUMMARY")
     print(f"{'='*60}")
-    print(f"COLAs processed:      {len(ttb_ids)}")
-    print(f"COLAs complete:       {colas_complete}")
-    print(f"COLAs nav failed:     {colas_nav_failed}")
-    print(f"COLAs partial:        {colas_partial}")
-    print(f"Images downloaded:    {images_downloaded}")
-    print(f"Images uploaded:      {images_uploaded}")
-    print(f"Images failed:        {images_failed}")
-    print(f"Images corrupt (<5KB):{images_corrupt}")
-    print(f"Images skipped:       {images_skipped}")
-    print(f"Total downloaded:     {mb:.1f} MB")
-    if images_downloaded:
-        avg_kb = (total_bytes / images_downloaded) / 1024
-        print(f"Avg file size:        {avg_kb:.0f} KB")
+    print(f"COLAs processed:       {len(ttb_ids)}")
+    print(f"COLAs complete:        {colas_complete}")
+    print(f"COLAs nav failed:      {colas_nav_failed}")
+    print(f"COLAs partial:         {colas_partial}")
+    print(f"URLs discovered:       {urls_discovered}")
+    if not discover_only:
+        print(f"Images downloaded:     {images_downloaded}")
+        print(f"Images uploaded:       {images_uploaded}")
+        print(f"Images failed:         {images_failed}")
+        print(f"Images corrupt (<5KB): {images_corrupt}")
+        print(f"Images skipped:        {images_skipped}")
+        print(f"Total downloaded:      {mb:.1f} MB")
+        if images_downloaded:
+            avg_kb = (total_bytes / images_downloaded) / 1024
+            print(f"Avg file size:         {avg_kb:.0f} KB")
     if captcha_stats['attempts']:
         rate = captcha_stats['successes'] / captcha_stats['attempts'] * 100
-        print(f"CAPTCHA auto-solve:   {captcha_stats['successes']}/{captcha_stats['attempts']} ({rate:.0f}%)")
+        print(f"CAPTCHA auto-solve:    {captcha_stats['successes']}/{captcha_stats['attempts']} ({rate:.0f}%)")
     else:
-        print(f"CAPTCHA:              none encountered")
+        print(f"CAPTCHA:               none encountered")
     print(f"{'='*60}")
-    print(f"Progress: {completed_colas}/{total_colas:,} COLAs complete "
-          f"({images_uploaded} images downloaded)")
+    if not discover_only:
+        print(f"Overall: {completed_colas_in_db}/{total_colas_in_db:,} COLAs fully downloaded")
     if dry_run:
-        print(f"[DRY RUN — nothing uploaded, checkpointed, or updated]")
+        print(f"[DRY RUN — nothing written to D1, R2, or checkpoint]")
     print(f"{'='*60}")
 
 
@@ -768,41 +1010,51 @@ def run_download(ttb_ids, api_key, headless=False, dry_run=False, save_to_disk=F
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Download label images from TTB and upload to Cloudflare R2',
+        description='Discover label image URLs from TTB and download to R2 in one pass',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download images for 50 COLAs
-  python scripts/download_images_to_r2.py --limit 50
+  # Process 50 COLAs (discover URLs + download images)
+  python scripts/backfill_images.py --limit 50
 
-  # Dry run — download but don't upload or update D1
-  python scripts/download_images_to_r2.py --dry-run --limit 20
+  # Dry run — show what would happen without writing
+  python scripts/backfill_images.py --dry-run --limit 20
+
+  # Discover URLs only (no download/upload)
+  python scripts/backfill_images.py --discover-only --limit 100
 
   # Re-download COLAs with failed images
-  python scripts/download_images_to_r2.py --retry-failed --limit 50
+  python scripts/backfill_images.py --retry-failed --limit 50
 
-  # Reset checkpoint and start over
-  # Delete data/download_images_checkpoint.txt, then run again
+  # Process specific ttb_ids
+  python scripts/backfill_images.py --ttb-ids 26021001000664 24031001000777
+
+  # Headless + save to disk for inspection
+  python scripts/backfill_images.py --headless --save-to-disk --limit 10
         """
     )
     parser.add_argument('--limit', type=int, default=50,
                         help='Max COLAs to process (default: 50)')
     parser.add_argument('--ttb-ids', nargs='+',
-                        help='Specific ttb_ids to download (skips D1 lookup)')
+                        help='Specific ttb_ids to process (skips D1 lookup)')
     parser.add_argument('--dry-run', action='store_true',
-                        help='Download and measure without uploading to R2 or updating D1')
+                        help='Discover + download without writing to D1, R2, or checkpoint')
     parser.add_argument('--retry-failed', action='store_true',
                         help='Re-download COLAs with failed/timeout/captcha images')
-    parser.add_argument('--save-to-disk', action='store_true',
-                        help='Save each downloaded image to data/test_N.ext for inspection')
+    parser.add_argument('--discover-only', action='store_true',
+                        help='Only discover image URLs, do not download or upload')
     parser.add_argument('--headless', action='store_true',
                         help='Run browser in headless mode')
+    parser.add_argument('--save-to-disk', action='store_true',
+                        help='Save each downloaded image to data/test_N.ext for inspection')
     args = parser.parse_args()
 
     load_env()
     api_key = require_env('ANTHROPIC_API_KEY')
     init_d1()
-    init_r2()
+
+    if not args.discover_only:
+        init_r2()
 
     if args.ttb_ids:
         ttb_ids = args.ttb_ids
@@ -811,14 +1063,15 @@ Examples:
         checkpoint = load_checkpoint()
         if checkpoint:
             logger.info(f"Checkpoint: {len(checkpoint)} COLAs already completed")
-        ttb_ids = get_colas_needing_download(args.limit, checkpoint, retry_failed=args.retry_failed)
+        ttb_ids = get_colas_needing_processing(args.limit, checkpoint,
+                                                retry_failed=args.retry_failed)
 
     if not ttb_ids:
         logger.info("No COLAs to process")
         return
 
-    run_download(ttb_ids, api_key, headless=args.headless, dry_run=args.dry_run,
-                 save_to_disk=args.save_to_disk)
+    process_colas(ttb_ids, api_key, headless=args.headless, dry_run=args.dry_run,
+                  save_to_disk=args.save_to_disk, discover_only=args.discover_only)
 
 
 if __name__ == '__main__':

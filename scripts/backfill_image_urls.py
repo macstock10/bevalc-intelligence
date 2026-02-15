@@ -1,29 +1,27 @@
 """
-backfill_image_urls.py — Extract label image URLs from TTB printable version pages
+backfill_image_urls.py — DEPRECATED: Use backfill_images.py instead.
+
+This script is superseded by backfill_images.py, which combines URL discovery
+and image download in a single pass (halving TTB page visits).
+
+Kept for reference only.
+"""
+
+import warnings
+warnings.warn(
+    "backfill_image_urls.py is deprecated. Use backfill_images.py instead, "
+    "which combines URL discovery and image download in a single pass.",
+    DeprecationWarning, stacklevel=2
+)
+
+"""
+Original docstring:
 
 Standalone script that visits TTB's printable version page for each COLA,
 extracts image URLs and metadata, and writes to D1 cola_images table.
 
-Handles both initial backfill and ongoing daily catches — run after the
-scraper finishes to pick up images for newly-scraped COLAs.
-
 USAGE:
-    # Backfill 100 most recent COLAs missing images (from D1)
     python scripts/backfill_image_urls.py --limit 100
-
-    # Dry run — fetch pages, print what would be inserted, don't write
-    python scripts/backfill_image_urls.py --limit 20 --dry-run
-
-    # Resume from where you left off (reads checkpoint file)
-    python scripts/backfill_image_urls.py --limit 500
-
-    # Specific ttb_ids
-    python scripts/backfill_image_urls.py --ttb-ids 26021001000664 24031001000777
-
-REQUIREMENTS:
-    - Firefox + geckodriver (for Selenium)
-    - ANTHROPIC_API_KEY in .env (for CAPTCHA auto-solve)
-    - CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, CLOUDFLARE_API_TOKEN in .env
 """
 
 import os

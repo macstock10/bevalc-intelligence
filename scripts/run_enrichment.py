@@ -17,6 +17,7 @@ SETUP:
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -33,7 +34,7 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 BASE_DIR = SCRIPT_DIR.parent
 ENV_FILE = BASE_DIR / ".env"
 
-PROMPT_VERSION = "1.1"
+PROMPT_VERSION = "1.3"
 MODEL = "claude-haiku-4-5-20251001"
 
 
@@ -132,7 +133,7 @@ def escape_sql_value(value):
 # Taxonomy — valid subcategories (from TAXONOMY.md)
 # =============================================================================
 
-VALID_SUBCATEGORIES = """Straight Bourbon, Small Batch Bourbon, Single Barrel Bourbon, Cask Strength Bourbon, Wheated Bourbon, Bottled in Bond Bourbon, Flavored Bourbon, Kentucky Bourbon (NAS), Non-Kentucky Bourbon, Bourbon (Other), Straight Rye, Single Barrel Rye, Cask Strength Rye, Bottled in Bond Rye, Flavored Rye, Rye Whiskey (Other), Tennessee Whiskey, American Single Malt, Corn Whiskey, Wheat Whiskey, American Blended Whiskey, Spirit Whiskey, White/Unaged Whiskey, American Whiskey (Other), Single Malt Scotch, Blended Scotch, Blended Malt Scotch, Single Grain Scotch, Scotch Whisky (Other), Single Malt Irish, Single Pot Still Irish, Blended Irish, Single Grain Irish, Irish Whiskey (Other), Japanese Single Malt, Japanese Blended, Japanese Whisky (Other), Canadian Blended, Canadian Single Malt, Canadian Rye, Canadian Whisky (Other), Indian Whisky, Taiwanese Whisky, Australian Whisky, World Whisky (Other), Blanco / Silver, Reposado, Añejo, Extra Añejo, Cristalino, Flavored Tequila, Tequila (Other), Joven Mezcal, Reposado Mezcal, Añejo Mezcal, Mezcal (Other), Sotol, Raicilla, Bacanora, Agave Spirit (Other), Unflavored Vodka, Flavored Vodka, Vodka (Other), London Dry Gin, American Gin, Old Tom Gin, Navy Strength Gin, Flavored / Contemporary Gin, Genever, Gin (Other), White / Silver Rum, Gold Rum, Dark Rum, Aged Rum, Spiced Rum, Flavored Rum, Rhum Agricole, Cachaça, Rum (Other), Cognac VS, Cognac VSOP, Cognac XO, Armagnac, American Brandy, Pisco, Grappa, Fruit Brandy, Brandy (Other), Cream Liqueur, Coffee Liqueur, Herbal / Bitter Liqueur, Fruit Liqueur, Nut Liqueur, Whiskey-Based Liqueur, Agave-Based Liqueur, Schnapps, Amaretto, Triple Sec / Orange Liqueur, Liqueur (Other), Italian Amaro, Fernet, Aperitivo / Aperol Type, Cocktail Bitters, Amaro (Other), Absinthe, Pastis, Ouzo, Sambuca, Anise Spirit (Other), Sake (Junmai), Sake (Ginjo), Sake (Daiginjo), Sake (Other), Soju, Shochu, Baijiu, Asian Spirit (Other), Whiskey-Based RTD, Tequila-Based RTD, Vodka-Based RTD, Rum-Based RTD, Gin-Based RTD, Multi-Spirit RTD, RTD Cocktail (Other), Moonshine / White Lightning, Aquavit, Mezcal-Adjacent Spirits, Specialty Spirit (Other), Cabernet Sauvignon, Pinot Noir, Merlot, Zinfandel, Syrah / Shiraz, Malbec, Tempranillo, Sangiovese, Nebbiolo, Grenache / Garnacha, Cabernet Franc, Petite Sirah, Mourvèdre, Red Blend, Red Wine (Other Varietal), Chardonnay, Sauvignon Blanc, Pinot Grigio / Pinot Gris, Riesling, Moscato / Muscat, Viognier, Chenin Blanc, Gewürztraminer, Albariño, Grüner Veltliner, White Blend, White Wine (Other Varietal), Provence Rosé, Domestic Rosé, Rosé Blend, Rosé (Other), Champagne, Prosecco, Cava, Crémant, Domestic Sparkling, Sparkling Rosé, Sparkling Wine (Other), Port, Sherry, Madeira, Marsala, Late Harvest / Ice Wine, Sauternes, Dessert Wine (Other), Dry Vermouth, Sweet Vermouth, Aromatized Wine (Other), Natural Wine, Orange Wine, Pét-Nat, Natural Wine (Other), Canned Wine, Bag-in-Box Wine, Tetra Pak Wine, Alternative Format Wine (Other), Apple Wine / Cider Wine, Mead, Fruit Wine, Rice Wine (Non-Sake), Non-Grape Wine (Other), American Lager, Light Lager, Mexican Lager, German Lager / Pilsner, Czech Pilsner, Vienna Lager, Helles, Märzen / Oktoberfest, Bock / Doppelbock, Dunkel, Schwarzbier, Lager (Other), Pale Ale, American Pale Ale (APA), India Pale Ale (IPA), New England / Hazy IPA, Double / Imperial IPA, West Coast IPA, Session IPA, Blonde Ale, Amber Ale, Brown Ale, Scottish Ale, Cream Ale, Kölsch, Ale (Other), Dry Stout, Imperial Stout, Milk Stout, Oatmeal Stout, Pastry Stout, Coffee Stout, Porter, Baltic Porter, Stout & Porter (Other), American Wheat, Hefeweizen, Witbier, Berliner Weisse, Wheat Beer (Other), Belgian Blonde, Belgian Dubbel, Belgian Tripel, Belgian Quad, Saison / Farmhouse, Belgian Strong, Belgian Style (Other), Gose, Berliner Weisse (Sour), Fruited Sour, American Wild Ale, Lambic / Gueuze, Flanders Red, Sour (Other), Unflavored Hard Seltzer, Flavored Hard Seltzer, Hard Seltzer (Other), Dry Cider, Sweet Cider, Flavored Cider, Perry, Hard Cider (Other), Hard Kombucha, Spirit-Flavored FMB, Fruit-Flavored FMB, Tea/Lemonade FMB, Energy FMB, FMB (Other), Non-Alcoholic Beer, Low-ABV Beer (Under 3.2%), NA / Low-ABV (Other), Barrel-Aged Beer, Smoked Beer, Pumpkin / Seasonal Beer, Gluten-Free Beer, Specialty Beer (Other)"""
+VALID_SUBCATEGORIES = """Straight Bourbon, Small Batch Bourbon, Single Barrel Bourbon, Cask Strength Bourbon, Wheated Bourbon, Bottled in Bond Bourbon, Flavored Bourbon, Kentucky Bourbon (NAS), Non-Kentucky Bourbon, Blended Straight Bourbon, Bourbon (Other), Straight Rye, Single Barrel Rye, Cask Strength Rye, Bottled in Bond Rye, Flavored Rye, Blended Straight Rye, Rye Whiskey (Other), Tennessee Whiskey, American Single Malt, Corn Whiskey, Wheat Whiskey, American Blended Whiskey, Spirit Whiskey, White/Unaged Whiskey, Flavored American Whiskey, American Whiskey (Other), Single Malt Scotch, Blended Scotch, Blended Malt Scotch, Single Grain Scotch, Scotch Whisky (Other), Single Malt Irish, Single Pot Still Irish, Blended Irish, Single Grain Irish, Irish Whiskey (Other), Japanese Single Malt, Japanese Blended, Japanese Whisky (Other), Canadian Blended, Canadian Single Malt, Canadian Rye, Canadian Whisky (Other), Indian Whisky, Taiwanese Whisky, Australian Whisky, World Whisky (Other), Blanco / Silver, Reposado, Añejo, Extra Añejo, Cristalino, Flavored Tequila, Tequila (Other), Joven Mezcal, Reposado Mezcal, Añejo Mezcal, Mezcal (Other), Sotol, Raicilla, Bacanora, Agave Spirit (Other), Unflavored Vodka, Flavored Vodka, Vodka (Other), London Dry Gin, American Gin, Old Tom Gin, Navy Strength Gin, Flavored / Contemporary Gin, Genever, Gin (Other), White / Silver Rum, Gold Rum, Dark Rum, Aged Rum, Spiced Rum, Flavored Rum, Rhum Agricole, Cachaça, Rum (Other), Cognac VS, Cognac VSOP, Cognac XO, Armagnac, American Brandy, Pisco, Grappa, Fruit Brandy, Brandy (Other), Cream Liqueur, Coffee Liqueur, Herbal / Bitter Liqueur, Fruit Liqueur, Nut Liqueur, Whiskey-Based Liqueur, Agave-Based Liqueur, Schnapps, Amaretto, Triple Sec / Orange Liqueur, Liqueur (Other), Italian Amaro, Fernet, Aperitivo / Aperol Type, Cocktail Bitters, Amaro (Other), Absinthe, Pastis, Ouzo, Sambuca, Anise Spirit (Other), Sake (Junmai), Sake (Ginjo), Sake (Daiginjo), Sake (Other), Soju, Shochu, Baijiu, Asian Spirit (Other), Whiskey-Based RTD, Tequila-Based RTD, Vodka-Based RTD, Rum-Based RTD, Gin-Based RTD, Multi-Spirit RTD, RTD Cocktail (Other), Moonshine / White Lightning, Aquavit, Mezcal-Adjacent Spirits, Specialty Spirit (Other), Cabernet Sauvignon, Pinot Noir, Merlot, Zinfandel, Syrah / Shiraz, Malbec, Tempranillo, Sangiovese, Nebbiolo, Barbera, Grenache / Garnacha, Cabernet Franc, Petite Sirah, Mourvèdre, Red Blend, Red Wine (Other Varietal), Chardonnay, Sauvignon Blanc, Pinot Grigio / Pinot Gris, Riesling, Moscato / Muscat, Viognier, Chenin Blanc, Gewürztraminer, Albariño, Grüner Veltliner, White Blend, White Wine (Other Varietal), Provence Rosé, Domestic Rosé, Rosé Blend, Rosé (Other), Champagne, Prosecco, Cava, Crémant, Domestic Sparkling, Sparkling Rosé, Sparkling Wine (Other), Port, Sherry, Madeira, Marsala, Late Harvest / Ice Wine, Sauternes, Dessert Wine (Other), Dry Vermouth, Sweet Vermouth, Aromatized Wine (Other), Natural Wine, Orange Wine, Pét-Nat, Natural Wine (Other), Canned Wine, Bag-in-Box Wine, Tetra Pak Wine, Alternative Format Wine (Other), Apple Wine / Cider Wine, Mead, Fruit Wine, Rice Wine (Non-Sake), Non-Grape Wine (Other), American Lager, Light Lager, Mexican Lager, German Lager / Pilsner, Czech Pilsner, Vienna Lager, Helles, Märzen / Oktoberfest, Bock / Doppelbock, Dunkel, Schwarzbier, Lager (Other), Pale Ale, American Pale Ale (APA), India Pale Ale (IPA), New England / Hazy IPA, Double / Imperial IPA, West Coast IPA, Session IPA, Blonde Ale, Amber Ale, Brown Ale, Scottish Ale, Cream Ale, Kölsch, Ale (Other), Dry Stout, Imperial Stout, Milk Stout, Oatmeal Stout, Pastry Stout, Coffee Stout, Porter, Baltic Porter, Stout & Porter (Other), American Wheat, Hefeweizen, Witbier, Berliner Weisse, Wheat Beer (Other), Belgian Blonde, Belgian Dubbel, Belgian Tripel, Belgian Quad, Saison / Farmhouse, Belgian Strong, Belgian Style (Other), Gose, Berliner Weisse (Sour), Fruited Sour, American Wild Ale, Lambic / Gueuze, Flanders Red, Sour (Other), Unflavored Hard Seltzer, Flavored Hard Seltzer, Hard Seltzer (Other), Dry Cider, Sweet Cider, Flavored Cider, Perry, Hard Cider (Other), Hard Kombucha, Spirit-Flavored FMB, Fruit-Flavored FMB, Tea/Lemonade FMB, Energy FMB, FMB (Other), Non-Alcoholic Beer, Low-ABV Beer (Under 3.2%), NA / Low-ABV (Other), Barrel-Aged Beer, Smoked Beer, Pumpkin / Seasonal Beer, Gluten-Free Beer, Specialty Beer (Other)"""
 
 
 # =============================================================================
@@ -148,9 +149,9 @@ CRITICAL RULES:
 2. Return null for any field that cannot be determined with reasonable confidence from the available data. Do not guess or hallucinate.
 3. Your response must be valid JSON and nothing else. No preamble, no markdown, no explanation.
 4. The confidence field reflects your overall confidence in the classification. "high" = clearly identifiable product. "medium" = reasonable inference but some ambiguity. "low" = significant uncertainty, best guess.
-5. If the product does not fit cleanly into any subcategory, choose the closest match and explain in taxonomy_feedback.
+5. If the product does not fit cleanly into any subcategory, choose the closest match and explain in taxonomy_feedback. If the classification is straightforward and the product fits cleanly, taxonomy_feedback MUST be null. Do not write explanatory notes when the product maps obviously to a category.
 6. Only populate fields where the value is explicitly stated in the TTB filing data or label OCR text provided. If information cannot be directly sourced from the input data, return null. Never infer parent_company, production_method, barrel_type, flavor_profile, estimated_price_tier, or target_market from general knowledge. The only exception is super_category/commercial_category/subcategory which may require reasonable inference from class_type_code.
-7. Include a "field_sources" object that maps every non-null field name to its source: "ttb_filing", "label_front", "label_back", "label_other", or "inferred". This enables provenance tracking."""
+7. Include a "field_sources" object that maps every non-null field name to its source: "ttb_filing", "label", or "inferred". This enables provenance tracking."""
 
 
 # =============================================================================
@@ -200,8 +201,17 @@ value, standard, premium, super-premium, ultra-premium
 
 ## EDGE CASE RULES
 - Whiskey-based cream liqueurs (e.g., Irish Cream) → Liqueur & Cordial → Cream Liqueur
-- Flavored spirits ABV 30%+ with clear base spirit → spirit's flavored subcategory
-- Flavored spirits ABV <30% or flavor-forward identity → Liqueur & Cordial
+- Flavored spirits ABV above 30% with clear base spirit → spirit's flavored subcategory
+- Flavored spirits ABV 30% or below, or flavor-forward identity → Liqueur & Cordial
+- Products at exactly 30% ABV with prominent fruit/flavor branding → Liqueur & Cordial (flavor-forward)
+- Blends of straight bourbons from multiple states → Bourbon → Blended Straight Bourbon
+- Blends of straight rye whiskeys → Rye Whiskey → Blended Straight Rye
+- Flavored whiskeys (not bourbon-specific) at 30%+ ABV → American Whiskey (Other) → Flavored American Whiskey
+- French Burgundy whites (Chablis, Meursault, Puligny-Montrachet, Chassagne-Montrachet, Pouilly-Fuissé) → Chardonnay (mandated by AOC law, not inference)
+- French Burgundy reds (Gevrey-Chambertin, Vosne-Romanée, Nuits-Saint-Georges, Pommard, Volnay, Beaune) → Pinot Noir (mandated by AOC law)
+- Sancerre white / Pouilly-Fumé → Sauvignon Blanc (mandated by AOC law)
+- Barbera d'Asti / Barbera d'Alba → Barbera (mandated by DOC/DOCG law)
+- Barolo / Barbaresco → Nebbiolo (mandated by DOCG law)
 - Spirits-based RTD → Ready-to-Drink Spirits (RTD)
 - Malt-based cocktail-flavored → FMB → Spirit-Flavored FMB
 - Hard seltzer → Hard Seltzer regardless of base
@@ -245,7 +255,7 @@ Return a single JSON object with these exact fields:
   "tasting_notes_raw": "string (exact text from label) or null",
   "confidence": "high/medium/low",
   "taxonomy_feedback": "string or null",
-  "field_sources": {{"field_name": "ttb_filing|label_front|label_back|label_other|inferred", ...}}
+  "field_sources": {{"field_name": "ttb_filing|label|inferred", ...}}
 }}"""
 
 
@@ -336,7 +346,7 @@ def update_cola_enrichment(ttb_id, enrichment):
     """Update a colas row with enrichment results."""
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Map JSON booleans → SQLite integers
+    # Map JSON booleans → SQLite integers (None stays NULL)
     bool_fields = ['is_cask_strength', 'is_single_barrel', 'is_limited_release',
                    'is_organic', 'is_gluten_free']
 
@@ -347,7 +357,10 @@ def update_cola_enrichment(ttb_id, enrichment):
     sets = []
     for key, value in enrichment.items():
         if key in bool_fields:
-            sets.append(f"{key} = {1 if value else 0}")
+            if value is None:
+                sets.append(f"{key} = NULL")
+            else:
+                sets.append(f"{key} = {1 if value else 0}")
         elif key in json_fields:
             if value is not None:
                 sets.append(f"{key} = {escape_sql_value(json.dumps(value))}")
@@ -465,6 +478,75 @@ ENRICHMENT_FIELDS = [
 
 
 # =============================================================================
+# Source verification — check extracted values against actual input data
+# =============================================================================
+
+VERIFIABLE_FIELDS = [
+    'label_website', 'label_email', 'label_phone',
+    'bottled_by', 'bottled_in', 'imported_by', 'distilled_in',
+    'tasting_notes_raw', 'year_established', 'label_tagline',
+]
+
+
+def normalize_text(text):
+    """Lowercase, collapse whitespace, strip punctuation for fuzzy matching."""
+    if text is None:
+        return ''
+    s = str(text).lower()
+    s = re.sub(r'https?://(www\.)?', '', s)
+    s = re.sub(r'[,.:;!?()\[\]{}"\']+', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+
+def build_source_corpus(cola):
+    """Concatenate all source data (TTB filing + OCR text) into one searchable string."""
+    parts = []
+    for key in ['brand_name', 'fanciful_name', 'class_type_code', 'origin_code',
+                'alcohol_content', 'total_bottle_capacity', 'grape_varietal',
+                'wine_vintage', 'appellation', 'company_name', 'state', 'formula']:
+        val = cola.get(key)
+        if val:
+            parts.append(str(val))
+    for key in ['_front_ocr', '_back_ocr']:
+        val = cola.get(key, '')
+        if val and not val.startswith('(no '):
+            parts.append(val)
+    return normalize_text(' '.join(parts))
+
+
+def value_in_corpus(value, corpus):
+    """Check if value or a meaningful fragment appears in the source corpus."""
+    if value is None:
+        return True
+
+    # Numbers: check if the string representation appears
+    if isinstance(value, (int, float)):
+        return str(int(value)) in corpus
+
+    normalized = normalize_text(value)
+    if not normalized or len(normalized) < 3:
+        return True
+
+    # Direct match
+    if normalized in corpus:
+        return True
+
+    # For short values (1-2 words), require exact match (already checked above)
+    words = normalized.split()
+    if len(words) <= 2:
+        return False
+
+    # For longer values, check if any 3-word window matches
+    for i in range(len(words) - 2):
+        fragment = ' '.join(words[i:i + 3])
+        if fragment in corpus:
+            return True
+
+    return False
+
+
+# =============================================================================
 # Main pipeline
 # =============================================================================
 
@@ -479,6 +561,7 @@ def run_enrichment(colas, dry_run=False):
     confidence_counts = {'high': 0, 'medium': 0, 'low': 0}
 
     inferred_nulled = 0
+    unverifiable_nulled = 0
 
     # For verbose output: print full JSON for first spirits + first wine
     printed_spirits = False
@@ -523,6 +606,38 @@ def run_enrichment(colas, dry_run=False):
                         logger.warning(f"  NULLED inferred field: {field_name}={enrichment[field_name]!r}")
                         enrichment[field_name] = None
                         inferred_nulled += 1
+
+        # Post-processing: verify factual fields against source data
+        corpus = build_source_corpus(cola)
+        for field_name in VERIFIABLE_FIELDS:
+            val = enrichment.get(field_name)
+            if val is not None and not value_in_corpus(val, corpus):
+                logger.warning(f"  NULLED unverifiable field: {field_name}={val!r}")
+                enrichment[field_name] = None
+                unverifiable_nulled += 1
+
+        # Post-processing: null boolean false where label has no evidence
+        # Absence of "cask strength" on a label means unknown, not false.
+        BOOLEAN_EVIDENCE = {
+            'is_cask_strength': ['cask strength', 'barrel proof', 'barrel strength', 'full proof'],
+            'is_single_barrel': ['single barrel', 'single cask'],
+            'is_limited_release': ['limited release', 'limited edition', 'special release',
+                                   'small batch', 'reserve', 'allocated'],
+            'is_organic': ['organic', 'usda organic', 'certified organic'],
+            'is_gluten_free': ['gluten free', 'gluten-free'],
+        }
+        for field_name, evidence_terms in BOOLEAN_EVIDENCE.items():
+            val = enrichment.get(field_name)
+            if val is True:
+                # True claims must have evidence on label
+                if not any(term in corpus for term in evidence_terms):
+                    logger.warning(f"  NULLED unverifiable boolean: {field_name}=True")
+                    enrichment[field_name] = None
+                    unverifiable_nulled += 1
+            elif val is False:
+                # False without evidence = unknown, not confirmed false
+                if not any(term in corpus for term in evidence_terms):
+                    enrichment[field_name] = None
 
         # Validate required fields
         sc = enrichment.get('super_category')
@@ -578,6 +693,8 @@ def run_enrichment(colas, dry_run=False):
     print(f"Failed:             {failed}")
     if inferred_nulled:
         print(f"Inferred→null:      {inferred_nulled}")
+    if unverifiable_nulled:
+        print(f"Unverifiable→null:  {unverifiable_nulled}")
     if confidence_counts['high'] or confidence_counts['medium'] or confidence_counts['low']:
         print(f"\nConfidence:")
         for level in ['high', 'medium', 'low']:
