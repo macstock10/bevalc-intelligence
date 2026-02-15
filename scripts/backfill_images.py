@@ -38,19 +38,16 @@ import os
 import re
 import sys
 import io
+import ssl
+import base64
 import time
 import argparse
 import logging
+import tempfile
 from pathlib import Path
+from urllib.request import urlopen
 
-# Use OS certificate store (fixes SSL on Windows where certifi's bundle
-# doesn't include ttbonline.gov's intermediate cert)
-try:
-    import truststore
-    truststore.inject_into_ssl()
-except ImportError:
-    pass  # Not installed — certifi will be used (works on Ubuntu/CI)
-
+import certifi
 import requests as http_requests
 import boto3
 from botocore.config import Config
@@ -259,12 +256,69 @@ def save_checkpoint_entry(ttb_id):
 
 
 # =============================================================================
+# SSL certificate handling
+# =============================================================================
+
+# TTB's server doesn't send the full certificate chain — the intermediate
+# "Entrust OV TLS Issuing RSA CA 1" is missing. certifi has the root but
+# not the intermediate. We fetch it at startup and create a combined bundle.
+TTB_INTERMEDIATE_CERT_URL = 'http://cert.ssl.com/Entrust-OVTLS-I-R1.cer'
+
+_ca_bundle_path = None  # Set by build_ca_bundle()
+
+
+def build_ca_bundle():
+    """Create a CA bundle with certifi certs + TTB's missing intermediate.
+
+    Downloads the intermediate cert (DER), converts to PEM, and writes
+    a combined bundle to a temp file. Returns the path.
+    """
+    global _ca_bundle_path
+
+    try:
+        # Download intermediate cert (DER format, ~1.6KB)
+        resp = urlopen(TTB_INTERMEDIATE_CERT_URL, timeout=10)
+        der_bytes = resp.read()
+
+        # DER → PEM
+        b64 = base64.b64encode(der_bytes).decode('ascii')
+        pem_lines = ['-----BEGIN CERTIFICATE-----']
+        for i in range(0, len(b64), 64):
+            pem_lines.append(b64[i:i + 64])
+        pem_lines.append('-----END CERTIFICATE-----')
+        intermediate_pem = '\n'.join(pem_lines)
+
+        # Combine certifi bundle + intermediate
+        combined = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.pem', delete=False, prefix='bevalc_ca_'
+        )
+        with open(certifi.where(), 'r') as f:
+            combined.write(f.read())
+        combined.write('\n')
+        combined.write(intermediate_pem)
+        combined.write('\n')
+        combined.close()
+
+        _ca_bundle_path = combined.name
+        logger.info(f"CA bundle: certifi + TTB intermediate cert ({len(der_bytes)} bytes)")
+        return _ca_bundle_path
+
+    except Exception as e:
+        logger.warning(f"Could not fetch TTB intermediate cert: {e}")
+        logger.warning("Falling back to certifi only (may cause SSL errors with TTB)")
+        _ca_bundle_path = certifi.where()
+        return _ca_bundle_path
+
+
+# =============================================================================
 # HTTP session + page/image fetching
 # =============================================================================
 
 def create_session():
     """Create an HTTP session with browser-like headers."""
     session = http_requests.Session()
+    if _ca_bundle_path:
+        session.verify = _ca_bundle_path
     session.headers.update({
         'User-Agent': USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -898,6 +952,7 @@ Examples:
     args = parser.parse_args()
 
     load_env()
+    build_ca_bundle()
     init_d1()
 
     if not args.discover_only:
