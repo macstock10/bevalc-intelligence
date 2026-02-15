@@ -1,6 +1,6 @@
 # BevAlc Intelligence — Enrichment Prompt
 
-## Version: 1.3
+## Version: 1.4
 ## Model: claude-haiku-4-5-20251001
 ## Temperature: 0
 
@@ -88,6 +88,7 @@ value, standard, premium, super-premium, ultra-premium
 - Vermouth → Vermouth & Aromatized Wine
 - Mead → Fruit & Non-Grape Wine → Mead
 - Non-alcoholic → appropriate NA category
+- year_established: Only use dates that clearly refer to when the company or brand was founded/established. Do NOT use dates from marketing narratives like "Built in 1893, our cellar became a symbol..." or "Inspired by a 1920s recipe" — these refer to historical events or buildings, not the company's founding year. When in doubt, return null.
 
 ## OUTPUT FORMAT
 Return a single JSON object with these exact fields:

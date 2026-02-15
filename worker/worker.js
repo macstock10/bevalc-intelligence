@@ -3518,6 +3518,22 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
 
 const R2_PUBLIC_URL = 'https://pub-1c889ae594b041a3b752c6c891eb718e.r2.dev';
 
+// Deduplicate comma-separated company names like "Name, INC, NAME, INC."
+function deduplicateCompanyName(name) {
+    if (!name || !name.includes(',')) return name;
+    // Try splitting at each comma — if two halves match (case-insensitive), keep only the first
+    for (let i = 0; i < name.length; i++) {
+        if (name[i] === ',') {
+            const first = name.slice(0, i).trim().toUpperCase().replace(/\.+$/, '');
+            const second = name.slice(i + 1).trim().toUpperCase().replace(/\.+$/, '');
+            if (first === second) {
+                return name.slice(0, i).trim();
+            }
+        }
+    }
+    return name;
+}
+
 async function handleColaPage(path, env) {
     const ttbId = path.replace('/cola/', '').replace(/\/$/, '');
     if (!ttbId) {
@@ -3814,7 +3830,7 @@ async function handleColaPage(path, env) {
         }
 
         // 9. Company Information
-        const displayCompany = fixDisplayName(cola.company_name);
+        const displayCompany = deduplicateCompanyName(fixDisplayName(cola.company_name));
         content += '<div class="cola-section"><h2>Company Information</h2><div class="cola-detail-grid">';
         if (cola.company_name) {
             content += `<div class="cola-detail-item"><span class="cola-detail-label">Company</span><span class="cola-detail-value"><a href="/company/${escapeHtml(companySlug)}">${escapeHtml(displayCompany)}</a></span></div>`;
@@ -3824,12 +3840,6 @@ async function handleColaPage(path, env) {
         }
         if (cola.street) {
             content += `<div class="cola-detail-item"><span class="cola-detail-label">Address</span><span class="cola-detail-value">${escapeHtml(cola.street)}</span></div>`;
-        }
-        if (cola.contact_person) {
-            content += `<div class="cola-detail-item"><span class="cola-detail-label">Contact</span><span class="cola-detail-value">${escapeHtml(cola.contact_person)}</span></div>`;
-        }
-        if (cola.phone_number) {
-            content += `<div class="cola-detail-item"><span class="cola-detail-label">Phone</span><span class="cola-detail-value">${escapeHtml(cola.phone_number)}</span></div>`;
         }
         content += '</div>';
 
