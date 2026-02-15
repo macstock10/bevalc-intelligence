@@ -50,11 +50,14 @@ from bs4 import BeautifulSoup
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from webdriver_manager.firefox import GeckoDriverManager
+
+import anthropic
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -122,9 +125,18 @@ class ColaWorker:
         self.request_delay = request_delay
         self.page_timeout = page_timeout
         self.max_retries = max_retries
-        
+
         self.driver: Optional[webdriver.Firefox] = None
         self.conn: Optional[sqlite3.Connection] = None
+
+        # CAPTCHA auto-solve stats
+        self.captcha_attempts = 0
+        self.captcha_successes = 0
+        self.captcha_failures = 0
+        self._anthropic_key = None
+
+        # Optional limit on detail pages to scrape (0 = unlimited)
+        self.detail_limit = 0
         
         # Setup logging
         self._setup_logging()
@@ -302,9 +314,31 @@ class ColaWorker:
         time.sleep(self.request_delay * multiplier)
     
     # ─────────────────────────────────────────────────────────────────────────
-    # CAPTCHA Handling
+    # CAPTCHA Handling (auto-solve via Claude Vision, manual fallback)
     # ─────────────────────────────────────────────────────────────────────────
-    
+
+    def _load_anthropic_key(self) -> str:
+        """Lazily load Anthropic API key from environment or .env file."""
+        if self._anthropic_key:
+            return self._anthropic_key
+
+        key = os.environ.get('ANTHROPIC_API_KEY')
+        if not key:
+            env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('ANTHROPIC_API_KEY='):
+                            key = line.split('=', 1)[1].strip()
+                            break
+
+        if not key:
+            raise RuntimeError("ANTHROPIC_API_KEY not found in env or .env file")
+
+        self._anthropic_key = key
+        return key
+
     def _detect_captcha(self) -> bool:
         """Check if CAPTCHA is present."""
         try:
@@ -314,28 +348,165 @@ class ColaWorker:
             return any(ind in html for ind in indicators)
         except:
             return False
-    
+
+    def _solve_captcha_with_vision(self) -> bool:
+        """
+        Capture the CAPTCHA image from the page and solve it via Claude Vision.
+        Returns True if solved successfully, False otherwise.
+        """
+        try:
+            # Find the CAPTCHA image — TTB uses a plain <img> with no id/class,
+            # so filter out known site-chrome images and pick the first remaining
+            # visible image that's large enough to be a CAPTCHA.
+            captcha_img = None
+            site_chrome = ['arrowrt', 'masthead', 'arch', 'footer', 'logo', 'ttb',
+                           'treasury', 'treas', 'spacer', '.gif']
+            try:
+                imgs = self.driver.find_elements(By.TAG_NAME, 'img')
+                for img in imgs:
+                    src = (img.get_attribute('src') or '').lower()
+                    alt = (img.get_attribute('alt') or '').lower()
+                    if any(skip in src for skip in site_chrome):
+                        continue
+                    if not img.is_displayed():
+                        continue
+                    if img.size['height'] < 20 or img.size['width'] < 40:
+                        continue
+                    captcha_img = img
+                    break
+            except Exception as e:
+                self.logger.warning(f"  Error finding CAPTCHA image: {e}")
+
+            if not captcha_img:
+                self.logger.warning("  Could not find CAPTCHA image element")
+                return False
+
+            # Screenshot just the CAPTCHA image element as base64 PNG
+            img_b64 = captcha_img.screenshot_as_base64
+
+            # Send to Claude Vision API
+            client = anthropic.Anthropic(api_key=self._load_anthropic_key())
+            response = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=32,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": img_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "What text is shown in this captcha image? Return only the characters, nothing else."
+                        }
+                    ],
+                }]
+            )
+
+            captcha_text = response.content[0].text.strip()
+            if not captcha_text:
+                self.logger.warning("  Claude returned empty CAPTCHA text")
+                return False
+
+            self.logger.info(f"  CAPTCHA answer from Claude: '{captcha_text}'")
+
+            # Find the text input field — it's the visible empty text input
+            # immediately after the "What code is in the image?" prompt
+            captcha_input = None
+            try:
+                inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+                for inp in inputs:
+                    if inp.is_displayed():
+                        captcha_input = inp
+                        break
+            except Exception as e:
+                self.logger.warning(f"  Error finding CAPTCHA input: {e}")
+
+            if not captcha_input:
+                self.logger.warning("  Could not find CAPTCHA input field")
+                return False
+
+            # Enter the answer
+            captcha_input.clear()
+            captcha_input.send_keys(captcha_text)
+
+            # Submit — button has value="submit"
+            try:
+                submit = self.driver.find_element(
+                    By.CSS_SELECTOR, 'input[type="submit"][value="submit" i]'
+                )
+                submit.click()
+            except Exception:
+                # Fallback: press Enter
+                captcha_input.send_keys(Keys.RETURN)
+
+            time.sleep(2)
+            return not self._detect_captcha()
+
+        except Exception as e:
+            self.logger.warning(f"  CAPTCHA auto-solve error: {e}")
+            return False
+
     def _handle_captcha(self) -> bool:
         """Handle CAPTCHA if present. Returns True if OK to continue."""
         if not self._detect_captcha():
             return True
-        
+
+        self.logger.info("CAPTCHA detected — attempting auto-solve...")
+
+        # Try auto-solve up to 3 times
+        for attempt in range(3):
+            self.captcha_attempts += 1
+            self.logger.info(f"  Auto-solve attempt {attempt + 1}/3")
+
+            if self._solve_captcha_with_vision():
+                self.captcha_successes += 1
+                rate = self.captcha_successes / self.captcha_attempts * 100
+                self.logger.info(f"  [OK] CAPTCHA solved automatically "
+                               f"(stats: {self.captcha_successes}/{self.captcha_attempts}, {rate:.0f}%)")
+                return True
+
+            self.captcha_failures += 1
+            self.logger.warning(f"  Auto-solve failed (attempt {attempt + 1})")
+
+            if attempt < 2:
+                # Refresh to get a new CAPTCHA image
+                try:
+                    self.driver.refresh()
+                    time.sleep(2)
+                    if not self._detect_captcha():
+                        self.logger.info("  CAPTCHA gone after refresh")
+                        return True
+                except:
+                    pass
+
+        # All auto-solve attempts failed — fall back to manual
+        rate = self.captcha_successes / self.captcha_attempts * 100 if self.captcha_attempts else 0
+        self.logger.warning(f"  Auto-solve exhausted "
+                          f"(stats: {self.captcha_successes}/{self.captcha_attempts}, {rate:.0f}%). "
+                          f"Falling back to manual...")
+
         print(f"\n{'='*60}")
-        print(f"[{self.name}] CAPTCHA DETECTED!")
+        print(f"[{self.name}] CAPTCHA — auto-solve failed after 3 attempts")
         print(f"{'='*60}")
         print(f"Solve the CAPTCHA in the browser window.")
         print(f"Then press ENTER to continue (or 'quit' to stop)...")
-        
+
         try:
             response = input("> ").strip().lower()
             if response == 'quit':
                 return False
-            
+
             if self._detect_captcha():
                 print(f"[{self.name}] CAPTCHA still present. Try again...")
                 return self._handle_captcha()
-            
-            print(f"[{self.name}] [OK] CAPTCHA solved!")
+
+            print(f"[{self.name}] [OK] CAPTCHA solved manually!")
             time.sleep(2)
             return True
         except EOFError:
@@ -882,12 +1053,20 @@ class ColaWorker:
             """, (year, month))
             links = cursor.fetchall()
             
+            # Apply limit if set
+            if self.detail_limit and len(links) > self.detail_limit:
+                links = links[:self.detail_limit]
+
             to_scrape = len(links)
-            already_done = total_links - to_scrape
-            
+            already_done = total_links - (self.conn.execute(
+                "SELECT COUNT(*) FROM collected_links WHERE year = ? AND month = ? AND scraped = 0",
+                (year, month)
+            ).fetchone()[0])
+
             self.logger.info(f"Total links: {total_links:,}")
             self.logger.info(f"Already scraped: {already_done:,}")
-            self.logger.info(f"Remaining to scrape: {to_scrape:,}")
+            self.logger.info(f"To scrape this run: {to_scrape:,}"
+                           + (f" (--limit {self.detail_limit})" if self.detail_limit else ""))
             
             if to_scrape == 0:
                 # Already done
@@ -1373,6 +1552,8 @@ Parallel Example (4 terminals):
                         help='Only collect links (Phase 1)')
     parser.add_argument('--details-only', action='store_true',
                         help='Only scrape details (Phase 2)')
+    parser.add_argument('--limit', type=int, metavar='N',
+                        help='Max detail pages to scrape (for testing)')
     parser.add_argument('--headless', action='store_true',
                         help='Run browser in headless mode')
     parser.add_argument('--status', action='store_true',
@@ -1392,9 +1573,29 @@ Parallel Example (4 terminals):
             worker.status()
             return
         
+        # Set detail page limit if specified
+        if args.limit:
+            worker.detail_limit = args.limit
+
+        # Handle --date / --dates (date-range mode)
+        if args.date or args.dates:
+            if args.date:
+                start_date = parse_date(args.date)
+                end_date = start_date
+            else:
+                start_date = parse_date(args.dates[0])
+                end_date = parse_date(args.dates[1])
+
+            worker.process_date_range(
+                start_date, end_date,
+                links_only=args.links_only,
+                details_only=args.details_only
+            )
+            return
+
         # Determine months to process
         months = []
-        
+
         if args.months:
             months = [parse_month(m) for m in args.months]
         elif args.range:
@@ -1404,11 +1605,11 @@ Parallel Example (4 terminals):
         else:
             parser.print_help()
             return
-        
+
         if not months:
             print("No months to process")
             return
-        
+
         # Process
         worker.process_months(
             months,
