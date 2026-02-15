@@ -706,3 +706,280 @@
     .best-index-pair { flex-direction: column; }
     .best-index-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================
+   COLA DETAIL PAGES
+   ========================================== */
+
+/* Label images grid */
+.cola-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+}
+.cola-image-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+.cola-image-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+.cola-image-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.cola-image-card .cola-image-caption {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: capitalize;
+    border-top: 1px solid #f1f5f9;
+}
+
+/* Section containers */
+.cola-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.cola-section h2 {
+    font-size: 0.95rem;
+    color: #0d9488;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.cola-section h2::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    background: linear-gradient(180deg, #0d9488, #14b8a6);
+    border-radius: 2px;
+}
+
+/* Two-column detail grid */
+.cola-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 32px;
+}
+.cola-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.cola-detail-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.cola-detail-value {
+    font-size: 0.95rem;
+    color: #1e293b;
+    font-weight: 500;
+    line-height: 1.5;
+}
+.cola-detail-value a {
+    color: #0d9488;
+    text-decoration: none;
+    font-weight: 600;
+}
+.cola-detail-value a:hover { text-decoration: underline; }
+
+/* Full-width detail item */
+.cola-detail-full {
+    grid-column: 1 / -1;
+}
+
+/* Product description box */
+.cola-description {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #0d9488;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+.cola-description p {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: #0f172a;
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Boolean flag pills */
+.cola-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+.cola-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.cola-pill-true {
+    background: #dcfce7;
+    color: #166534;
+}
+.cola-pill-false {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+/* Confidence badge */
+.cola-confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.cola-confidence-high { background: #dcfce7; color: #166534; }
+.cola-confidence-medium { background: #fef3c7; color: #92400e; }
+.cola-confidence-low { background: #fee2e2; color: #991b1b; }
+
+/* Taxonomy breadcrumb */
+.cola-taxonomy-breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 24px;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
+}
+.cola-taxonomy-breadcrumb .cola-tax-sep {
+    color: rgba(255,255,255,0.4);
+}
+
+/* Not-enriched placeholder */
+.cola-not-enriched {
+    text-align: center;
+    padding: 40px 28px;
+}
+.cola-not-enriched p {
+    color: #64748b;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* Flavor tags */
+.cola-flavor-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.cola-flavor-tag {
+    background: #f0fdfa;
+    border: 1px solid #99f6e4;
+    color: #0d9488;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Price tier badge */
+.cola-price-tier {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+.cola-price-value { background: #f1f5f9; color: #64748b; }
+.cola-price-standard { background: #e0f2fe; color: #0369a1; }
+.cola-price-premium { background: #fef3c7; color: #92400e; }
+.cola-price-super-premium { background: #f3e8ff; color: #7c3aed; }
+.cola-price-ultra-premium { background: linear-gradient(135deg, #fef3c7, #f3e8ff); color: #7c3aed; }
+
+/* Status badge */
+.cola-status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.cola-status-approved { background: #dcfce7; color: #166534; }
+.cola-status-surrendered { background: #fee2e2; color: #991b1b; }
+.cola-status-other { background: #f1f5f9; color: #64748b; }
+
+/* Permit badges in company section */
+.cola-permits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+.cola-permit-badge {
+    background: #f0fdfa;
+    border: 1px solid #ccfbf1;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #0d9488;
+    font-weight: 500;
+}
+
+/* No images placeholder */
+.cola-no-images {
+    background: #f8fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin-bottom: 40px;
+}
+
+@media (max-width: 768px) {
+    .cola-images-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .cola-section { padding: 20px; border-radius: 12px; }
+    .cola-detail-grid { grid-template-columns: 1fr; gap: 14px; }
+    .cola-description { padding: 16px 18px; }
+    .cola-description p { font-size: 1rem; }
+    .cola-taxonomy-breadcrumb { font-size: 0.8rem; padding: 6px 12px; }
+}
+@media (max-width: 480px) {
+    .cola-images-grid { grid-template-columns: 1fr; }
+    .cola-section { padding: 16px; }
+    .cola-detail-grid { gap: 12px; }
+    .cola-pills { gap: 6px; }
+    .cola-pill { font-size: 0.75rem; padding: 4px 10px; }
+}

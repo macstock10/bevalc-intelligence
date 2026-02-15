@@ -330,6 +330,11 @@ export default {
                 return await handleLocationPage(path, env);
             }
 
+            // COLA detail pages
+            if (path.startsWith('/cola/')) {
+                return await handleColaPage(path, env);
+            }
+
             // Comparison pages
             if (path.startsWith('/compare/')) {
                 return await handleComparisonPage(path, env);
@@ -3505,6 +3510,392 @@ function getPageLayout(title, description, content, jsonLd = null, canonical = n
     <script src="/seo-pages.js"></script>
 </body>
 </html>`;
+}
+
+// ==========================================
+// COLA DETAIL PAGE HANDLER
+// ==========================================
+
+const R2_PUBLIC_URL = 'https://pub-1c889ae594b041a3b752c6c891eb718e.r2.dev';
+
+async function handleColaPage(path, env) {
+    const ttbId = path.replace('/cola/', '').replace(/\/$/, '');
+    if (!ttbId) {
+        return new Response('Not Found', { status: 404 });
+    }
+
+    try {
+        // Q1: Full COLA record
+        const cola = await env.DB.prepare('SELECT * FROM colas WHERE ttb_id = ?').bind(ttbId).first();
+        if (!cola) {
+            return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/html' } });
+        }
+
+        // Run remaining queries in parallel
+        const [imagesResult, permitsResult, companyCountResult] = await Promise.all([
+            // Q2: All images for this COLA
+            env.DB.prepare(`
+                SELECT image_id, label_type, r2_key, width, height,
+                       ocr_abv, ocr_volume_ml, ocr_proof, ocr_age_years
+                FROM cola_images
+                WHERE ttb_id = ? AND download_status = 'success'
+                ORDER BY image_id
+            `).bind(ttbId).all(),
+
+            // Q3: Permits via company alias join
+            env.DB.prepare(`
+                SELECT p.permit_number, p.industry_type, p.city, p.state
+                FROM permits p
+                JOIN company_aliases ca ON p.company_id = ca.company_id
+                WHERE ca.raw_name = ?
+                ORDER BY p.industry_type
+            `).bind(cola.company_name || '').all(),
+
+            // Q4: Total filings by same company
+            env.DB.prepare('SELECT COUNT(*) as cnt FROM colas WHERE company_name = ?')
+                .bind(cola.company_name || '').first()
+        ]);
+
+        const images = imagesResult?.results || [];
+        const permits = permitsResult?.results || [];
+        const companyFilingCount = companyCountResult?.cnt || 0;
+        const isEnriched = !!cola.enriched_at;
+
+        const displayBrand = fixDisplayName(cola.brand_name) || 'Unknown Brand';
+        const displayFanciful = cola.fanciful_name ? fixDisplayName(cola.fanciful_name) : '';
+        const fullName = displayFanciful ? `${displayBrand} ${displayFanciful}` : displayBrand;
+        const companySlug = makeSlug(cola.company_name);
+        const brandSlug = makeSlug(cola.brand_name);
+        const displayCategory = getCategory(cola.class_type_code);
+
+        // --- Build page sections ---
+        let content = '<div class="seo-page">';
+
+        // 1. Hero Section
+        const signalClass = cola.signal ? `signal-${cola.signal.toLowerCase().replace(/_/g, '-')}` : '';
+        const statusText = cola.status || 'Approved';
+        const statusClass = statusText.toLowerCase() === 'approved' ? 'cola-status-approved' :
+                            statusText.toLowerCase() === 'surrendered' ? 'cola-status-surrendered' : 'cola-status-other';
+
+        content += `
+        <div class="seo-header">
+            <div class="seo-header-inner">
+                <div class="breadcrumb">
+                    <a href="/">Home</a> &rsaquo; <a href="/database.html">Database</a> &rsaquo; ${escapeHtml(displayBrand)}
+                </div>
+                <h1>${escapeHtml(fullName)}</h1>
+                <div class="meta">
+                    <span>TTB ID: <strong>${escapeHtml(ttbId)}</strong></span>
+                    ${cola.approval_date ? `<span>Approved: <strong>${escapeHtml(cola.approval_date)}</strong></span>` : ''}
+                    <span class="cola-status-badge ${statusClass}">${escapeHtml(statusText)}</span>
+                    ${cola.signal ? `<span class="signal-badge ${signalClass}">${escapeHtml(cola.signal.replace(/_/g, ' '))}</span>` : ''}
+                    ${isEnriched && cola.enrichment_confidence ? `<span class="cola-confidence-badge cola-confidence-${cola.enrichment_confidence}">${escapeHtml(cola.enrichment_confidence)} confidence</span>` : ''}
+                </div>
+                ${isEnriched && cola.super_category ? `
+                <div class="cola-taxonomy-breadcrumb">
+                    ${escapeHtml(cola.super_category)}
+                    ${cola.commercial_category ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.commercial_category)}` : ''}
+                    ${cola.subcategory ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.subcategory)}` : ''}
+                </div>` : `
+                <div class="cola-taxonomy-breadcrumb">${escapeHtml(displayCategory)}</div>`}
+            </div>
+        </div>`;
+
+        // 2. Label Images
+        if (images.length > 0) {
+            content += '<div class="cola-images-grid">';
+            for (const img of images) {
+                const imgUrl = img.r2_key ? `${R2_PUBLIC_URL}/${img.r2_key}` : '';
+                if (!imgUrl) continue;
+                const caption = img.label_type || 'label';
+                content += `
+                <a href="${escapeHtml(imgUrl)}" target="_blank" rel="noopener" class="cola-image-card">
+                    <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(fullName)} ${escapeHtml(caption)} label" loading="lazy"${img.width ? ` width="${img.width}"` : ''}${img.height ? ` height="${img.height}"` : ''}>
+                    <div class="cola-image-caption">${escapeHtml(caption)}</div>
+                </a>`;
+            }
+            content += '</div>';
+        } else {
+            content += '<div class="cola-no-images">Label images not yet available</div>';
+        }
+
+        // 3. Product Intelligence (enriched only)
+        if (isEnriched) {
+            content += '<div class="cola-section"><h2>Product Intelligence</h2>';
+
+            if (cola.product_description) {
+                content += `<div class="cola-description"><p>${escapeHtml(cola.product_description)}</p></div>`;
+            }
+
+            // Flavor Profile
+            if (cola.flavor_profile) {
+                let flavors;
+                try { flavors = JSON.parse(cola.flavor_profile); } catch (e) { flavors = null; }
+                if (flavors && Array.isArray(flavors) && flavors.length > 0) {
+                    content += '<div class="cola-detail-item cola-detail-full" style="margin-bottom:16px"><span class="cola-detail-label">Flavor Profile</span><div class="cola-flavor-tags">';
+                    for (const f of flavors) {
+                        content += `<span class="cola-flavor-tag">${escapeHtml(f)}</span>`;
+                    }
+                    content += '</div></div>';
+                }
+            }
+
+            // Tasting Notes
+            if (cola.tasting_notes_raw) {
+                content += `<div class="cola-detail-item cola-detail-full" style="margin-bottom:16px"><span class="cola-detail-label">Tasting Notes (from label)</span><span class="cola-detail-value" style="font-style:italic">&ldquo;${escapeHtml(cola.tasting_notes_raw)}&rdquo;</span></div>`;
+            }
+
+            // Production details grid
+            const prodFields = [
+                ['Production Method', cola.production_method],
+                ['Barrel Type', cola.barrel_type],
+                ['Finishing Process', cola.finishing_process],
+                ['Age', cola.age_years ? `${cola.age_years} years` : null],
+                ['Packaging Format', cola.packaging_format],
+            ].filter(f => f[1]);
+
+            if (prodFields.length > 0) {
+                content += '<div class="cola-detail-grid">';
+                for (const [label, value] of prodFields) {
+                    content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(String(value))}</span></div>`;
+                }
+                content += '</div>';
+            }
+
+            // Boolean pills
+            const boolFlags = [
+                ['Cask Strength', cola.is_cask_strength],
+                ['Single Barrel', cola.is_single_barrel],
+                ['Limited Release', cola.is_limited_release],
+                ['Organic', cola.is_organic],
+                ['Gluten Free', cola.is_gluten_free],
+            ].filter(f => f[1] !== null && f[1] !== undefined);
+
+            if (boolFlags.length > 0) {
+                content += '<div class="cola-pills" style="margin-top:16px">';
+                for (const [label, val] of boolFlags) {
+                    const isTrue = val === 1 || val === true;
+                    content += `<span class="cola-pill ${isTrue ? 'cola-pill-true' : 'cola-pill-false'}">${isTrue ? '&#10003;' : '&#10005;'} ${escapeHtml(label)}</span>`;
+                }
+                content += '</div>';
+            }
+
+            content += '</div>'; // end .cola-section
+
+            // 4. Production & Sourcing
+            const sourcingFields = [
+                ['Distilled In', cola.distilled_in],
+                ['Bottled By', cola.bottled_by],
+                ['Bottled In', cola.bottled_in],
+                ['Imported By', cola.imported_by],
+                ['Year Established', cola.year_established],
+                ['Parent Company', cola.parent_company],
+            ].filter(f => f[1]);
+
+            if (sourcingFields.length > 0) {
+                content += '<div class="cola-section"><h2>Production &amp; Sourcing</h2><div class="cola-detail-grid">';
+                for (const [label, value] of sourcingFields) {
+                    content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(String(value))}</span></div>`;
+                }
+                content += '</div></div>';
+            }
+
+            // 5. Market & Pricing
+            if (cola.estimated_price_tier || cola.target_market) {
+                content += '<div class="cola-section"><h2>Market &amp; Pricing</h2><div class="cola-detail-grid">';
+                if (cola.estimated_price_tier) {
+                    const tierClass = `cola-price-${cola.estimated_price_tier.replace(/\s+/g, '-')}`;
+                    content += `<div class="cola-detail-item"><span class="cola-detail-label">Estimated Price Tier</span><span class="cola-price-tier ${tierClass}">${escapeHtml(cola.estimated_price_tier)}</span></div>`;
+                }
+                if (cola.target_market) {
+                    content += `<div class="cola-detail-item"><span class="cola-detail-label">Target Market</span><span class="cola-detail-value">${escapeHtml(cola.target_market)}</span></div>`;
+                }
+                content += '</div></div>';
+            }
+
+            // 6. Label Contact Info
+            const contactFields = [
+                ['Website', cola.label_website, true],
+                ['Email', cola.label_email],
+                ['Phone', cola.label_phone],
+                ['Tagline', cola.label_tagline],
+            ].filter(f => f[1]);
+
+            let socialMedia = null;
+            if (cola.label_social_media) {
+                try { socialMedia = JSON.parse(cola.label_social_media); } catch (e) { socialMedia = null; }
+            }
+
+            if (contactFields.length > 0 || (socialMedia && socialMedia.length > 0)) {
+                content += '<div class="cola-section"><h2>Label Contact Info</h2><div class="cola-detail-grid">';
+                for (const [label, value, isLink] of contactFields) {
+                    if (isLink && value) {
+                        const href = value.startsWith('http') ? value : `https://${value}`;
+                        content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value"><a href="${escapeHtml(href)}" target="_blank" rel="noopener nofollow">${escapeHtml(value)}</a></span></div>`;
+                    } else {
+                        content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(value)}</span></div>`;
+                    }
+                }
+                if (socialMedia && socialMedia.length > 0) {
+                    content += `<div class="cola-detail-item cola-detail-full"><span class="cola-detail-label">Social Media</span><span class="cola-detail-value">${socialMedia.map(s => escapeHtml(s)).join(', ')}</span></div>`;
+                }
+                content += '</div></div>';
+            }
+        } else {
+            // Non-enriched placeholder
+            content += `
+            <div class="cola-section cola-not-enriched">
+                <h2>Product Intelligence</h2>
+                <p>This product has not been enriched yet. Product intelligence including classification,
+                flavor profile, and production details will be available soon.</p>
+            </div>`;
+        }
+
+        // 7. Alcohol & Volume
+        const bestImage = images.find(i => i.ocr_abv) || images[0] || {};
+        const alcoholFields = [
+            ['Alcohol Content (TTB)', cola.alcohol_content],
+            ['ABV (Label OCR)', bestImage.ocr_abv ? `${bestImage.ocr_abv}%` : null],
+            ['Volume (Label OCR)', bestImage.ocr_volume_ml ? `${bestImage.ocr_volume_ml} mL` : null],
+            ['Proof (Label OCR)', bestImage.ocr_proof],
+            ['Total Bottle Capacity', cola.total_bottle_capacity],
+        ].filter(f => f[1]);
+
+        if (alcoholFields.length > 0) {
+            content += '<div class="cola-section"><h2>Alcohol &amp; Volume</h2><div class="cola-detail-grid">';
+            for (const [label, value] of alcoholFields) {
+                content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(String(value))}</span></div>`;
+            }
+            content += '</div></div>';
+        }
+
+        // 8. TTB Filing Data
+        const ttbFields = [
+            ['Status', cola.status],
+            ['Approval Date', cola.approval_date],
+            ['Class/Type Code', cola.class_type_code],
+            ['Origin', cola.origin_code],
+            ['Vendor Code', cola.vendor_code],
+            ['Serial Number', cola.serial_number],
+            ['Plant Registry', cola.plant_registry],
+            ['Qualifications', cola.qualifications],
+            ['For Sale In', cola.for_sale_in],
+            ['Type of Application', cola.type_of_application],
+        ].filter(f => f[1]);
+
+        // Wine fields
+        const wineFields = [
+            ['Grape Varietal', cola.grape_varietal],
+            ['Wine Vintage', cola.wine_vintage],
+            ['Appellation', cola.appellation],
+            ['pH Level', cola.ph_level],
+        ].filter(f => f[1]);
+
+        if (ttbFields.length > 0) {
+            content += '<div class="cola-section"><h2>TTB Filing Data</h2><div class="cola-detail-grid">';
+            for (const [label, value] of ttbFields) {
+                content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(String(value))}</span></div>`;
+            }
+            if (cola.formula) {
+                content += `<div class="cola-detail-item cola-detail-full"><span class="cola-detail-label">Formula</span><span class="cola-detail-value">${escapeHtml(cola.formula)}</span></div>`;
+            }
+            content += '</div>';
+
+            // Wine fields sub-section
+            if (wineFields.length > 0) {
+                content += '<div class="cola-detail-grid" style="margin-top:20px;padding-top:20px;border-top:1px solid #f1f5f9">';
+                for (const [label, value] of wineFields) {
+                    content += `<div class="cola-detail-item"><span class="cola-detail-label">${escapeHtml(label)}</span><span class="cola-detail-value">${escapeHtml(String(value))}</span></div>`;
+                }
+                content += '</div>';
+            }
+
+            content += '</div>';
+        }
+
+        // 9. Company Information
+        const displayCompany = fixDisplayName(cola.company_name);
+        content += '<div class="cola-section"><h2>Company Information</h2><div class="cola-detail-grid">';
+        if (cola.company_name) {
+            content += `<div class="cola-detail-item"><span class="cola-detail-label">Company</span><span class="cola-detail-value"><a href="/company/${escapeHtml(companySlug)}">${escapeHtml(displayCompany)}</a></span></div>`;
+        }
+        if (cola.state) {
+            content += `<div class="cola-detail-item"><span class="cola-detail-label">Location</span><span class="cola-detail-value">${escapeHtml(cola.state)}</span></div>`;
+        }
+        if (cola.street) {
+            content += `<div class="cola-detail-item"><span class="cola-detail-label">Address</span><span class="cola-detail-value">${escapeHtml(cola.street)}</span></div>`;
+        }
+        if (cola.contact_person) {
+            content += `<div class="cola-detail-item"><span class="cola-detail-label">Contact</span><span class="cola-detail-value">${escapeHtml(cola.contact_person)}</span></div>`;
+        }
+        if (cola.phone_number) {
+            content += `<div class="cola-detail-item"><span class="cola-detail-label">Phone</span><span class="cola-detail-value">${escapeHtml(cola.phone_number)}</span></div>`;
+        }
+        content += '</div>';
+
+        // Permits
+        if (permits.length > 0) {
+            content += '<div class="cola-permits" style="margin-top:16px">';
+            for (const p of permits) {
+                content += `<span class="cola-permit-badge">${escapeHtml(p.permit_number)} (${escapeHtml(p.industry_type || 'Permit')})</span>`;
+            }
+            content += '</div>';
+        }
+
+        // Link to all filings
+        if (companyFilingCount > 1 && companySlug) {
+            content += `<div style="margin-top:16px"><a href="/company/${escapeHtml(companySlug)}" style="color:#0d9488;font-weight:600;text-decoration:none;font-size:0.9rem">View all ${formatNumber(companyFilingCount)} filings from this company &rarr;</a></div>`;
+        }
+
+        content += '</div>'; // end company section
+
+        // Related links
+        content += `
+        <div class="related-links">
+            <div class="related-heading">Explore More</div>
+            ${brandSlug ? `<a href="/brand/${escapeHtml(brandSlug)}">${escapeHtml(displayBrand)} Brand Page</a>` : ''}
+            ${companySlug ? `<a href="/company/${escapeHtml(companySlug)}">${escapeHtml(displayCompany)}</a>` : ''}
+            <a href="/${getCategorySlug(displayCategory)}/">${escapeHtml(displayCategory)} Category</a>
+            <a href="/database.html">Search Database</a>
+        </div>`;
+
+        content += '</div>'; // end .seo-page
+
+        // SEO
+        const metaDescription = isEnriched && cola.product_description
+            ? cola.product_description.slice(0, 155)
+            : `${fullName} - ${cola.class_type_code || 'Beverage'} from ${displayCompany}. TTB COLA approval #${ttbId}.`;
+
+        const canonical = `${BASE_URL}/cola/${ttbId}/`;
+
+        const jsonLd = {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: fullName,
+            description: isEnriched && cola.product_description ? cola.product_description : `${fullName} by ${displayCompany}`,
+            brand: { '@type': 'Brand', name: displayBrand },
+            category: isEnriched && cola.commercial_category ? cola.commercial_category : displayCategory,
+            url: canonical,
+        };
+
+        if (images.length > 0 && images[0].r2_key) {
+            jsonLd.image = `${R2_PUBLIC_URL}/${images[0].r2_key}`;
+        }
+
+        const pageTitle = `${fullName} - COLA ${ttbId}`;
+        const html = getPageLayout(pageTitle, metaDescription, content, jsonLd, canonical);
+
+        return new Response(html, {
+            headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+            }
+        });
+
+    } catch (err) {
+        console.error('COLA page error:', err);
+        return new Response('Internal Server Error', { status: 500 });
+    }
 }
 
 // Company Page Handler

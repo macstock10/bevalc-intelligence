@@ -893,7 +893,15 @@ function openModal(record) {
     
     // Add TRACK section first
     html += trackHtml;
-    
+
+    // Full profile link
+    html += `<div style="text-align: right; margin-bottom: 12px;">
+      <a href="/cola/${encodeURIComponent(record.ttb_id)}/" target="_blank" rel="noopener"
+         style="color: var(--color-primary); font-weight: 600; font-size: 0.85rem; text-decoration: none;">
+         Open Full Profile &rarr;
+      </a>
+    </div>`;
+
     sections.forEach((section, idx) => {
         html += `
             <div class="modal-section ${section.className || ''}">
@@ -2231,7 +2239,7 @@ async function loadCreditBalance(email) {
 
         if (data.success && balanceEl) {
             if (data.credits > 0) {
-                balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} · <a href="/account.html#credits" style="color: var(--color-primary);">Get more</a>`;
+                balanceEl.innerHTML = `You have ${data.credits} credit${data.credits !== 1 ? 's' : ''} ï¿½ <a href="/account.html#credits" style="color: var(--color-primary);">Get more</a>`;
             } else {
                 balanceEl.innerHTML = `<a href="/account.html#credits" style="color: var(--color-primary);">Get credits</a>`;
             }

@@ -14,6 +14,9 @@
 /locations/   https://bevalc-api.mac-rowan.workers.dev/locations/    200
 /locations/*  https://bevalc-api.mac-rowan.workers.dev/locations/:splat  200
 
+# COLA detail pages — SSR via worker
+/cola/*  https://bevalc-api.mac-rowan.workers.dev/cola/:splat  200
+
 # Comparison pages — SSR via worker
 /compare/*  https://bevalc-api.mac-rowan.workers.dev/compare/:splat  200
 

@@ -13,6 +13,11 @@ binding = "SEC_FILINGS"
 bucket_name = "bevalc-sec-filings"
 preview_bucket_name = "bevalc-sec-filings-preview"
 
+# R2 bucket for label images and reports
+[[r2_buckets]]
+binding = "REPORTS_BUCKET"
+bucket_name = "bevalc-reports"
+
 # Vectorize index for SEC filing embeddings
 [[vectorize]]
 binding = "SEC_VECTORS"
