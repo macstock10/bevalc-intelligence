@@ -14,7 +14,7 @@ on:
       limit:
         description: 'Max COLAs/images to process per step'
         required: false
-        default: '100'
+        default: '1000'
         type: string
       skip_images:
         description: 'Skip image download step'
@@ -76,7 +76,7 @@ jobs:
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
         run: |
-          LIMIT="${{ inputs.limit || '100' }}"
+          LIMIT="${{ inputs.limit || '1000' }}"
           DRY_RUN="${{ inputs.dry_run }}"
 
           FLAGS="--limit $LIMIT"
@@ -109,7 +109,7 @@ jobs:
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
         run: |
-          LIMIT="${{ inputs.limit || '200' }}"
+          LIMIT="${{ inputs.limit || '1000' }}"
           DRY_RUN="${{ inputs.dry_run }}"
 
           FLAGS="--limit $LIMIT"
@@ -139,7 +139,7 @@ jobs:
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          LIMIT="${{ inputs.limit || '100' }}"
+          LIMIT="${{ inputs.limit || '1000' }}"
           DRY_RUN="${{ inputs.dry_run }}"
 
           FLAGS="--limit $LIMIT"
