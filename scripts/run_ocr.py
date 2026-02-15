@@ -181,6 +181,17 @@ _vision_client = None
 def init_vision():
     global _vision_client
 
+    # Support GOOGLE_APPLICATION_CREDENTIALS_JSON env var (GitHub Actions):
+    # write the JSON string to a temp file and point the SDK at it.
+    json_creds = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON', '')
+    if json_creds and not os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        tmp.write(json_creds)
+        tmp.close()
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = tmp.name
+        logger.info(f"Wrote GCP credentials to temp file: {tmp.name}")
+
     creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
 
     # Resolve relative path against project root

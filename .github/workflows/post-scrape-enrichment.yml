@@ -1,0 +1,179 @@
+name: Post-Scrape Enrichment
+
+# Runs image download, OCR, and LLM enrichment on newly scraped COLAs.
+# Triggered automatically after Daily TTB Sync completes, or manually.
+# Each step uses continue-on-error so downstream steps still run if
+# an earlier step fails (e.g., OCR runs on whatever images exist).
+
+on:
+  workflow_run:
+    workflows: ["Daily TTB Sync"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max COLAs/images to process per step'
+        required: false
+        default: '100'
+        type: string
+      skip_images:
+        description: 'Skip image download step'
+        required: false
+        default: false
+        type: boolean
+      skip_ocr:
+        description: 'Skip OCR step'
+        required: false
+        default: false
+        type: boolean
+      skip_enrichment:
+        description: 'Skip LLM enrichment step'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Dry run (no D1/R2 writes)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    # Only run on successful sync (or manual dispatch)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+
+      - name: Create directories
+        run: |
+          mkdir -p data logs
+
+      # --- Step 1: Image download (requires Selenium + Firefox) ---
+
+      - name: Setup display for Selenium
+        if: ${{ inputs.skip_images != 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          firefox --version
+
+      - name: Download label images from TTB
+        if: ${{ inputs.skip_images != 'true' }}
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MOZ_HEADLESS: "1"
+          DISPLAY: ":99"
+        run: |
+          LIMIT="${{ inputs.limit || '100' }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          # Start virtual display for Firefox
+          Xvfb :99 -screen 0 1920x1080x24 &
+          sleep 2
+
+          FLAGS="--headless --limit $LIMIT"
+          if [ "$DRY_RUN" = "true" ]; then
+            FLAGS="$FLAGS --dry-run"
+          fi
+
+          cd scripts
+          echo "Running: python backfill_images.py $FLAGS"
+          python backfill_images.py $FLAGS
+
+      # --- Step 2: OCR via Google Cloud Vision ---
+
+      - name: Setup GCP credentials
+        if: ${{ inputs.skip_ocr != 'true' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/gcp-service-account.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-service-account.json" >> $GITHUB_ENV
+
+      - name: Run OCR on new images
+        if: ${{ inputs.skip_ocr != 'true' }}
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+        run: |
+          LIMIT="${{ inputs.limit || '200' }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          FLAGS="--limit $LIMIT"
+          if [ "$DRY_RUN" = "true" ]; then
+            FLAGS="$FLAGS --dry-run"
+          fi
+
+          cd scripts
+          echo "Running: python run_ocr.py $FLAGS"
+          python run_ocr.py $FLAGS
+
+      - name: Cleanup GCP credentials
+        if: ${{ always() && inputs.skip_ocr != 'true' }}
+        run: rm -f /tmp/gcp-service-account.json
+
+      # --- Step 3: LLM enrichment via Claude Haiku ---
+
+      - name: Run LLM enrichment on new COLAs
+        if: ${{ inputs.skip_enrichment != 'true' }}
+        continue-on-error: true
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          LIMIT="${{ inputs.limit || '100' }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          FLAGS="--limit $LIMIT"
+          if [ "$DRY_RUN" = "true" ]; then
+            FLAGS="$FLAGS --dry-run"
+          fi
+
+          cd scripts
+          echo "Running: python run_enrichment.py $FLAGS"
+          python run_enrichment.py $FLAGS
+
+      # --- Summary ---
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enrichment-logs-${{ github.run_number }}
+          path: |
+            logs/
+            data/backfill_images_checkpoint.txt
+          retention-days: 14
+          if-no-files-found: ignore
