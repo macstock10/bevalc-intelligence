@@ -34,8 +34,8 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 BASE_DIR = SCRIPT_DIR.parent
 ENV_FILE = BASE_DIR / ".env"
 
-PROMPT_VERSION = "1.3"
-MODEL = "claude-haiku-4-5-20251001"
+PROMPT_FILE = BASE_DIR / "enhancements" / "prompts" / "ENRICHMENT_PROMPT.md"
+TAXONOMY_FILE = BASE_DIR / "enhancements" / "taxonomy" / "TAXONOMY.md"
 
 
 # =============================================================================
@@ -130,133 +130,90 @@ def escape_sql_value(value):
 
 
 # =============================================================================
-# Taxonomy — valid subcategories (from TAXONOMY.md)
+# Prompt loader — reads from ENRICHMENT_PROMPT.md (single source of truth)
 # =============================================================================
 
-VALID_SUBCATEGORIES = """Straight Bourbon, Small Batch Bourbon, Single Barrel Bourbon, Cask Strength Bourbon, Wheated Bourbon, Bottled in Bond Bourbon, Flavored Bourbon, Kentucky Bourbon (NAS), Non-Kentucky Bourbon, Blended Straight Bourbon, Bourbon (Other), Straight Rye, Single Barrel Rye, Cask Strength Rye, Bottled in Bond Rye, Flavored Rye, Blended Straight Rye, Rye Whiskey (Other), Tennessee Whiskey, American Single Malt, Corn Whiskey, Wheat Whiskey, American Blended Whiskey, Spirit Whiskey, White/Unaged Whiskey, Flavored American Whiskey, American Whiskey (Other), Single Malt Scotch, Blended Scotch, Blended Malt Scotch, Single Grain Scotch, Scotch Whisky (Other), Single Malt Irish, Single Pot Still Irish, Blended Irish, Single Grain Irish, Irish Whiskey (Other), Japanese Single Malt, Japanese Blended, Japanese Whisky (Other), Canadian Blended, Canadian Single Malt, Canadian Rye, Canadian Whisky (Other), Indian Whisky, Taiwanese Whisky, Australian Whisky, World Whisky (Other), Blanco / Silver, Reposado, Añejo, Extra Añejo, Cristalino, Flavored Tequila, Tequila (Other), Joven Mezcal, Reposado Mezcal, Añejo Mezcal, Mezcal (Other), Sotol, Raicilla, Bacanora, Agave Spirit (Other), Unflavored Vodka, Flavored Vodka, Vodka (Other), London Dry Gin, American Gin, Old Tom Gin, Navy Strength Gin, Flavored / Contemporary Gin, Genever, Gin (Other), White / Silver Rum, Gold Rum, Dark Rum, Aged Rum, Spiced Rum, Flavored Rum, Rhum Agricole, Cachaça, Rum (Other), Cognac VS, Cognac VSOP, Cognac XO, Armagnac, American Brandy, Pisco, Grappa, Fruit Brandy, Brandy (Other), Cream Liqueur, Coffee Liqueur, Herbal / Bitter Liqueur, Fruit Liqueur, Nut Liqueur, Whiskey-Based Liqueur, Agave-Based Liqueur, Schnapps, Amaretto, Triple Sec / Orange Liqueur, Liqueur (Other), Italian Amaro, Fernet, Aperitivo / Aperol Type, Cocktail Bitters, Amaro (Other), Absinthe, Pastis, Ouzo, Sambuca, Anise Spirit (Other), Sake (Junmai), Sake (Ginjo), Sake (Daiginjo), Sake (Other), Soju, Shochu, Baijiu, Asian Spirit (Other), Whiskey-Based RTD, Tequila-Based RTD, Vodka-Based RTD, Rum-Based RTD, Gin-Based RTD, Multi-Spirit RTD, RTD Cocktail (Other), Moonshine / White Lightning, Aquavit, Mezcal-Adjacent Spirits, Specialty Spirit (Other), Cabernet Sauvignon, Pinot Noir, Merlot, Zinfandel, Syrah / Shiraz, Malbec, Tempranillo, Sangiovese, Nebbiolo, Barbera, Grenache / Garnacha, Cabernet Franc, Petite Sirah, Mourvèdre, Red Blend, Red Wine (Other Varietal), Chardonnay, Sauvignon Blanc, Pinot Grigio / Pinot Gris, Riesling, Moscato / Muscat, Viognier, Chenin Blanc, Gewürztraminer, Albariño, Grüner Veltliner, White Blend, White Wine (Other Varietal), Provence Rosé, Domestic Rosé, Rosé Blend, Rosé (Other), Champagne, Prosecco, Cava, Crémant, Domestic Sparkling, Sparkling Rosé, Sparkling Wine (Other), Port, Sherry, Madeira, Marsala, Late Harvest / Ice Wine, Sauternes, Dessert Wine (Other), Dry Vermouth, Sweet Vermouth, Aromatized Wine (Other), Natural Wine, Orange Wine, Pét-Nat, Natural Wine (Other), Canned Wine, Bag-in-Box Wine, Tetra Pak Wine, Alternative Format Wine (Other), Apple Wine / Cider Wine, Mead, Fruit Wine, Rice Wine (Non-Sake), Non-Grape Wine (Other), American Lager, Light Lager, Mexican Lager, German Lager / Pilsner, Czech Pilsner, Vienna Lager, Helles, Märzen / Oktoberfest, Bock / Doppelbock, Dunkel, Schwarzbier, Lager (Other), Pale Ale, American Pale Ale (APA), India Pale Ale (IPA), New England / Hazy IPA, Double / Imperial IPA, West Coast IPA, Session IPA, Blonde Ale, Amber Ale, Brown Ale, Scottish Ale, Cream Ale, Kölsch, Ale (Other), Dry Stout, Imperial Stout, Milk Stout, Oatmeal Stout, Pastry Stout, Coffee Stout, Porter, Baltic Porter, Stout & Porter (Other), American Wheat, Hefeweizen, Witbier, Berliner Weisse, Wheat Beer (Other), Belgian Blonde, Belgian Dubbel, Belgian Tripel, Belgian Quad, Saison / Farmhouse, Belgian Strong, Belgian Style (Other), Gose, Berliner Weisse (Sour), Fruited Sour, American Wild Ale, Lambic / Gueuze, Flanders Red, Sour (Other), Unflavored Hard Seltzer, Flavored Hard Seltzer, Hard Seltzer (Other), Dry Cider, Sweet Cider, Flavored Cider, Perry, Hard Cider (Other), Hard Kombucha, Spirit-Flavored FMB, Fruit-Flavored FMB, Tea/Lemonade FMB, Energy FMB, FMB (Other), Non-Alcoholic Beer, Low-ABV Beer (Under 3.2%), NA / Low-ABV (Other), Barrel-Aged Beer, Smoked Beer, Pumpkin / Seasonal Beer, Gluten-Free Beer, Specialty Beer (Other)"""
+PROMPT_VERSION = None  # Set by load_prompt()
+MODEL = None           # Set by load_prompt()
+SYSTEM_PROMPT = None   # Set by load_prompt()
+USER_MSG_TEMPLATE = None  # Set by load_prompt()
+VALID_SUBCATEGORIES = None  # Set by load_prompt()
 
 
-# =============================================================================
-# System prompt (from ENRICHMENT_PROMPT.md v1.1)
-# =============================================================================
+def load_prompt():
+    """Parse ENRICHMENT_PROMPT.md to extract system prompt, user template, version, and model."""
+    global PROMPT_VERSION, MODEL, SYSTEM_PROMPT, USER_MSG_TEMPLATE, VALID_SUBCATEGORIES
 
-SYSTEM_PROMPT = """You are a beverage alcohol product classification expert. Your job is to analyze TTB COLA filings and label text to extract detailed commercial product information.
+    if not PROMPT_FILE.exists():
+        logger.error(f"Prompt file not found: {PROMPT_FILE}")
+        sys.exit(1)
 
-You will receive structured data from a TTB filing plus OCR text extracted from the product's label images. Using all available information, extract the fields listed below.
+    text = PROMPT_FILE.read_text(encoding='utf-8')
 
-CRITICAL RULES:
-1. For categorical fields (super_category, commercial_category, subcategory, estimated_price_tier), you MUST choose from the provided valid values. Do not invent new categories.
-2. Return null for any field that cannot be determined with reasonable confidence from the available data. Do not guess or hallucinate.
-3. Your response must be valid JSON and nothing else. No preamble, no markdown, no explanation.
-4. The confidence field reflects your overall confidence in the classification. "high" = clearly identifiable product. "medium" = reasonable inference but some ambiguity. "low" = significant uncertainty, best guess.
-5. If the product does not fit cleanly into any subcategory, choose the closest match and explain in taxonomy_feedback. If the classification is straightforward and the product fits cleanly, taxonomy_feedback MUST be null. Do not write explanatory notes when the product maps obviously to a category.
-6. Only populate fields where the value is explicitly stated in the TTB filing data or label OCR text provided. If information cannot be directly sourced from the input data, return null. Never infer parent_company, production_method, barrel_type, flavor_profile, estimated_price_tier, or target_market from general knowledge. The only exception is super_category/commercial_category/subcategory which may require reasonable inference from class_type_code.
-7. Include a "field_sources" object that maps every non-null field name to its source: "ttb_filing", "label", or "inferred". This enables provenance tracking."""
+    # Extract version and model from header
+    ver_match = re.search(r'## Version:\s*(.+)', text)
+    model_match = re.search(r'## Model:\s*(.+)', text)
+    if not ver_match or not model_match:
+        logger.error("Could not parse Version/Model from prompt file header")
+        sys.exit(1)
+    PROMPT_VERSION = ver_match.group(1).strip()
+    MODEL = model_match.group(1).strip()
 
+    # Extract code blocks (``` delimited) in order:
+    #   1st = system prompt, 2nd = user message template
+    code_blocks = re.findall(r'```(?:\w*)\n(.*?)```', text, re.DOTALL)
+    if len(code_blocks) < 2:
+        logger.error(f"Expected at least 2 code blocks in prompt file, found {len(code_blocks)}")
+        sys.exit(1)
 
-# =============================================================================
-# User message template
-# =============================================================================
+    SYSTEM_PROMPT = code_blocks[0].strip()
 
-USER_MSG_TEMPLATE = """Classify the following beverage alcohol product.
+    # Make user message template compatible with str.format():
+    # Escape all literal braces, then restore known placeholders.
+    raw_template = code_blocks[1].strip()
+    TEMPLATE_PLACEHOLDERS = [
+        'brand_name', 'fanciful_name', 'class_type_code', 'origin_code',
+        'alcohol_content', 'total_bottle_capacity', 'grape_varietal',
+        'wine_vintage', 'appellation', 'company_name', 'state', 'formula',
+        'front_label_ocr', 'back_label_ocr',
+        'ocr_abv', 'ocr_volume_ml', 'ocr_proof', 'ocr_age_years', 'ocr_website',
+        'valid_subcategories',
+    ]
+    raw_template = raw_template.replace('{', '{{').replace('}', '}}')
+    for name in TEMPLATE_PLACEHOLDERS:
+        raw_template = raw_template.replace('{{' + name + '}}', '{' + name + '}')
+    USER_MSG_TEMPLATE = raw_template
 
-## TTB FILING DATA
-- Brand Name: {brand_name}
-- Fanciful Name: {fanciful_name}
-- Class/Type Code: {class_type_code}
-- Origin: {origin_code}
-- Alcohol Content: {alcohol_content}
-- Total Bottle Capacity: {total_bottle_capacity}
-- Grape Varietal: {grape_varietal}
-- Wine Vintage: {wine_vintage}
-- Appellation: {appellation}
-- Company Name: {company_name}
-- State: {state}
-- Formula: {formula}
+    # Load valid subcategories from TAXONOMY.md if available
+    if TAXONOMY_FILE.exists():
+        tax_text = TAXONOMY_FILE.read_text(encoding='utf-8')
+        subcats = []
+        for line in tax_text.split('\n'):
+            # Stop at guidance/notes sections — subcategories are only in
+            # SPIRITS, WINE, and BEER & FMB sections
+            if line.startswith('## CLASSIFICATION') or line.startswith('## REVISION'):
+                break
+            # Subcategory lines: "- Name" but NOT bold items "- **...**"
+            m = re.match(r'^-\s+([^*].+)$', line.strip())
+            if m:
+                name = m.group(1).strip()
+                if name:
+                    subcats.append(name)
+        if subcats:
+            VALID_SUBCATEGORIES = ', '.join(subcats)
+            logger.info(f"Loaded {len(subcats)} subcategories from TAXONOMY.md")
 
-## LABEL TEXT (Front)
-{front_label_ocr}
+    # Fallback: extract from the user message template's VALID SUBCATEGORIES placeholder
+    if not VALID_SUBCATEGORIES:
+        subcat_match = re.search(
+            r'## VALID SUBCATEGORIES\s*\n\[.*?\]',
+            USER_MSG_TEMPLATE
+        )
+        if subcat_match:
+            logger.warning("Using placeholder subcategories from prompt file — "
+                          "TAXONOMY.md not found or empty")
 
-## LABEL TEXT (Back)
-{back_label_ocr}
-
-## PRE-PARSED LABEL DATA
-- OCR ABV: {ocr_abv}
-- OCR Volume (mL): {ocr_volume_ml}
-- OCR Proof: {ocr_proof}
-- OCR Age (years): {ocr_age_years}
-- OCR Website: {ocr_website}
-
-## VALID SUPER CATEGORIES
-Spirits, Wine, Beer & FMB
-
-## VALID CATEGORIES
-Bourbon, Rye Whiskey, American Whiskey (Other), Scotch Whisky, Irish Whiskey, Japanese Whisky, Canadian Whisky, World Whisky, Tequila, Mezcal, Other Agave Spirits, Vodka, Gin, Rum, Brandy & Cognac, Liqueur & Cordial, Amaro & Bitters, Absinthe & Anise Spirits, Sake & Asian Spirits, Ready-to-Drink Spirits (RTD), Specialty & Other Spirits, Red Wine, White Wine, Rosé Wine, Sparkling Wine, Dessert & Fortified Wine, Vermouth & Aromatized Wine, Natural & Low-Intervention Wine, Canned & Alternative Format Wine, Fruit & Non-Grape Wine, Lager, Ale, Stout & Porter, Wheat Beer, Belgian Style, Sour & Wild Ale, Hard Seltzer, Hard Cider, Hard Kombucha, Flavored Malt Beverage (FMB), Non-Alcoholic & Low-ABV Beer, Specialty Beer
-
-## VALID SUBCATEGORIES
-{valid_subcategories}
-
-## VALID PRICE TIERS
-value, standard, premium, super-premium, ultra-premium
-
-## EDGE CASE RULES
-- Whiskey-based cream liqueurs (e.g., Irish Cream) → Liqueur & Cordial → Cream Liqueur
-- Flavored spirits ABV above 30% with clear base spirit → spirit's flavored subcategory
-- Flavored spirits ABV 30% or below, or flavor-forward identity → Liqueur & Cordial
-- Products at exactly 30% ABV with prominent fruit/flavor branding → Liqueur & Cordial (flavor-forward)
-- Blends of straight bourbons from multiple states → Bourbon → Blended Straight Bourbon
-- Blends of straight rye whiskeys → Rye Whiskey → Blended Straight Rye
-- Flavored whiskeys (not bourbon-specific) at 30%+ ABV → American Whiskey (Other) → Flavored American Whiskey
-- French Burgundy whites (Chablis, Meursault, Puligny-Montrachet, Chassagne-Montrachet, Pouilly-Fuissé) → Chardonnay (mandated by AOC law, not inference)
-- French Burgundy reds (Gevrey-Chambertin, Vosne-Romanée, Nuits-Saint-Georges, Pommard, Volnay, Beaune) → Pinot Noir (mandated by AOC law)
-- Sancerre white / Pouilly-Fumé → Sauvignon Blanc (mandated by AOC law)
-- Barbera d'Asti / Barbera d'Alba → Barbera (mandated by DOC/DOCG law)
-- Barolo / Barbaresco → Nebbiolo (mandated by DOCG law)
-- Spirits-based RTD → Ready-to-Drink Spirits (RTD)
-- Malt-based cocktail-flavored → FMB → Spirit-Flavored FMB
-- Hard seltzer → Hard Seltzer regardless of base
-- Sake filed as wine → Sake & Asian Spirits
-- Cider filed as wine → Hard Cider
-- Vermouth → Vermouth & Aromatized Wine
-- Mead → Fruit & Non-Grape Wine → Mead
-- Non-alcoholic → appropriate NA category
-
-## OUTPUT FORMAT
-Return a single JSON object with these exact fields:
-{{
-  "super_category": "string (from valid list)",
-  "commercial_category": "string (from valid list)",
-  "subcategory": "string (from valid list)",
-  "product_description": "string (1-2 sentence commercial description) or null",
-  "flavor_profile": ["array", "of", "descriptors"] or null,
-  "production_method": "string or null",
-  "barrel_type": "string or null",
-  "finishing_process": "string or null",
-  "age_years": number or null,
-  "is_cask_strength": true/false,
-  "is_single_barrel": true/false,
-  "is_limited_release": true/false,
-  "is_organic": true/false,
-  "is_gluten_free": true/false,
-  "estimated_price_tier": "string (from valid list)",
-  "target_market": "string or null",
-  "packaging_format": "string or null",
-  "parent_company": "string or null",
-  "label_website": "string or null",
-  "label_email": "string or null",
-  "label_phone": "string or null",
-  "label_social_media": ["array"] or null,
-  "label_tagline": "string or null",
-  "distilled_in": "string or null",
-  "bottled_by": "string or null",
-  "bottled_in": "string or null",
-  "imported_by": "string or null",
-  "year_established": number or null,
-  "tasting_notes_raw": "string (exact text from label) or null",
-  "confidence": "high/medium/low",
-  "taxonomy_feedback": "string or null",
-  "field_sources": {{"field_name": "ttb_filing|label|inferred", ...}}
-}}"""
+    logger.info(f"Loaded prompt v{PROMPT_VERSION}, model {MODEL} from {PROMPT_FILE.name}")
 
 
 # =============================================================================
@@ -745,6 +702,7 @@ Examples:
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
     load_env()
+    load_prompt()
     init_d1()
     init_claude()
 

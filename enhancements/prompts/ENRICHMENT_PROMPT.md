@@ -43,10 +43,10 @@ Classify the following beverage alcohol product.
 - Formula: {formula}
 
 ## LABEL TEXT (Front)
-{front_label_ocr_text}
+{front_label_ocr}
 
 ## LABEL TEXT (Back)
-{back_label_ocr_text}
+{back_label_ocr}
 
 ## PRE-PARSED LABEL DATA
 - OCR ABV: {ocr_abv}
@@ -62,7 +62,7 @@ Spirits, Wine, Beer & FMB
 Bourbon, Rye Whiskey, American Whiskey (Other), Scotch Whisky, Irish Whiskey, Japanese Whisky, Canadian Whisky, World Whisky, Tequila, Mezcal, Other Agave Spirits, Vodka, Gin, Rum, Brandy & Cognac, Liqueur & Cordial, Amaro & Bitters, Absinthe & Anise Spirits, Sake & Asian Spirits, Ready-to-Drink Spirits (RTD), Specialty & Other Spirits, Red Wine, White Wine, Rosé Wine, Sparkling Wine, Dessert & Fortified Wine, Vermouth & Aromatized Wine, Natural & Low-Intervention Wine, Canned & Alternative Format Wine, Fruit & Non-Grape Wine, Lager, Ale, Stout & Porter, Wheat Beer, Belgian Style, Sour & Wild Ale, Hard Seltzer, Hard Cider, Hard Kombucha, Flavored Malt Beverage (FMB), Non-Alcoholic & Low-ABV Beer, Specialty Beer
 
 ## VALID SUBCATEGORIES
-[Full list from TAXONOMY.md is inserted here at runtime]
+{valid_subcategories}
 
 ## VALID PRICE TIERS
 value, standard, premium, super-premium, ultra-premium
