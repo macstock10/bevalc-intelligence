@@ -3580,7 +3580,7 @@ async function handleColaPage(path, env) {
         const displayBrand = fixDisplayName(cola.brand_name) || 'Unknown Brand';
         const displayFanciful = cola.fanciful_name ? fixDisplayName(cola.fanciful_name) : '';
         const fullName = displayFanciful ? `${displayBrand} ${displayFanciful}` : displayBrand;
-        const companySlug = makeSlug(cola.company_name);
+        const companySlug = makeSlug(deduplicateCompanyName(cola.company_name));
         const brandSlug = makeSlug(cola.brand_name);
         const displayCategory = getCategory(cola.class_type_code);
 
@@ -3597,7 +3597,7 @@ async function handleColaPage(path, env) {
         <div class="seo-header">
             <div class="seo-header-inner">
                 <div class="breadcrumb">
-                    <a href="/">Home</a> &rsaquo; <a href="/database.html">Database</a> &rsaquo; ${escapeHtml(displayBrand)}
+                    <a href="/">Home</a> &rsaquo; <a href="/database.html">Database</a> &rsaquo; <a href="/brand/${makeSlug(cola.brand_name)}">${escapeHtml(displayBrand)}</a>
                 </div>
                 <h1>${escapeHtml(fullName)}</h1>
                 <div class="meta">
@@ -4413,7 +4413,7 @@ async function handleCompanyPage(path, env, headers) {
                                         return `
                                         <tr>
                                             <td><a href="/brand/${makeSlug(f.brand_name)}"><strong>${escapeHtml(f.brand_name)}</strong></a></td>
-                                            <td>${escapeHtml(f.fanciful_name || '-')}</td>
+                                            <td><a href="/cola/${encodeURIComponent(f.ttb_id)}/" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #cbd5e1;">${escapeHtml(f.fanciful_name || '-')}</a></td>
                                             <td style="font-size: 0.8rem; color: #64748b;">${escapeHtml(filingEntity)}</td>
                                             <td>${escapeHtml(f.approval_date)}</td>
                                             <td><span class="signal-gated"><span class="signal-badge ${sigClass}">${sigLabel}</span><span class="signal-lock" onclick="window.location.href='/#pricing'">PRO</span></span></td>
@@ -4749,7 +4749,7 @@ async function handleBrandPage(path, env, headers) {
                                         return `
                                         <tr>
                                             <td><strong>${escapeHtml(brand.brand_name)}</strong></td>
-                                            <td>${escapeHtml(p.fanciful_name || '-')}</td>
+                                            <td><a href="/cola/${encodeURIComponent(p.ttb_id)}/" style="color: inherit; text-decoration: none; border-bottom: 1px dashed #cbd5e1;">${escapeHtml(p.fanciful_name || '-')}</a></td>
                                             <td>${escapeHtml(getCategory(p.class_type_code))}</td>
                                             <td>${escapeHtml(p.approval_date)}</td>
                                             <td><span class="signal-gated"><span class="signal-badge ${sigClass}">${sigLabel}</span><span class="signal-lock" onclick="window.location.href='/#pricing'">PRO</span></span></td>
