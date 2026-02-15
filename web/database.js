@@ -1380,18 +1380,18 @@ async function checkCachedEnhancement(companyName) {
             return; // No company found, show enhance button
         }
 
-        // Check for cached enhancement
-        const statusResp = await fetch(`${API_BASE}/api/enhance/status?company_id=${lookupData.company_id}`);
+        // Check for cached enrichment
+        const statusResp = await fetch(`${API_BASE}/api/enrich-company/status?company_id=${lookupData.company_id}`);
         const statusData = await statusResp.json();
 
-        if (statusData.success && statusData.status === 'complete' && statusData.tearsheet) {
-            // Show cached tearsheet
+        if (statusData.success && statusData.status === 'complete' && statusData.enrichment) {
+            // Show cached enrichment result
             const ctaEl = document.getElementById('enhancement-cta');
             const tearsheetEl = document.getElementById('enhancement-tearsheet');
             if (ctaEl && tearsheetEl) {
                 ctaEl.style.display = 'none';
                 tearsheetEl.style.display = 'block';
-                tearsheetEl.innerHTML = renderTearsheet(statusData.tearsheet, true);
+                tearsheetEl.innerHTML = renderEnrichmentResult(statusData.enrichment, statusData.contacts || [], true);
             }
         }
     } catch (e) {
@@ -1430,7 +1430,7 @@ async function enhanceCompany() {
         if (!token) {
             throw new Error('Please verify your email from your account page to enable enhancements');
         }
-        const response = await fetch(`${API_BASE}/api/enhance`, {
+        const response = await fetch(`${API_BASE}/api/enrich-company`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1456,11 +1456,12 @@ async function enhanceCompany() {
             throw new Error(data.error || 'Enhancement failed');
         }
 
-        // Show tearsheet
+        // Show enrichment result
         document.getElementById('enhancement-loading').style.display = 'none';
         document.getElementById('enhancement-tearsheet').style.display = 'block';
         currentBrandName = brandName;  // Store for PDF generation
-        document.getElementById('enhancement-tearsheet').innerHTML = renderTearsheet(data.tearsheet, data.cached);
+        currentTearsheetData = data.enrichment;
+        document.getElementById('enhancement-tearsheet').innerHTML = renderEnrichmentResult(data.enrichment, data.contacts || [], data.cached);
 
     } catch (error) {
         console.error('Enhancement error:', error);
@@ -1579,6 +1580,126 @@ function renderTearsheet(tearsheet, cached) {
                 margin-top: 12px;
                 transition: transform 0.2s, box-shadow 0.2s;
             " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(13,148,136,0.3)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Company Report (PDF)
+            </button>
+
+            <div style="margin-top: 12px; padding: 8px 12px; background: #fefce8; border-radius: 6px; text-align: center;">
+                <p style="font-size: 0.7rem; color: #a16207; margin: 0;">AI-generated content may contain inaccuracies. Please verify before use.</p>
+            </div>
+        </div>
+    `;
+}
+
+function renderEnrichmentResult(enrichment, contacts, cached) {
+    currentTearsheetData = enrichment;
+
+    const websiteDisplay = enrichment.website_url
+        ? `<a href="${escapeHtml(enrichment.website_url)}" target="_blank" rel="noopener" style="font-size: 0.85rem; color: var(--color-primary);">${escapeHtml(enrichment.website_url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>`
+        : '<span style="font-size: 0.8rem; color: #94a3b8;">No website found</span>';
+
+    // AI Brief
+    const briefHtml = enrichment.ai_brief
+        ? `<div style="margin: 12px 0; padding: 12px; background: #f0fdfa; border-left: 3px solid #0d9488; border-radius: 4px;"><p style="font-size: 0.9rem; color: var(--color-dark); line-height: 1.5; margin: 0;">${escapeHtml(enrichment.ai_brief)}</p></div>`
+        : '';
+
+    // Firmographic fields
+    const fields = [];
+    if (enrichment.industry) fields.push(`<div style="font-size: 0.85rem;"><strong>Industry:</strong> ${escapeHtml(enrichment.industry)}</div>`);
+    if (enrichment.employee_count_range) fields.push(`<div style="font-size: 0.85rem;"><strong>Employees:</strong> ${escapeHtml(enrichment.employee_count_range)}</div>`);
+    if (enrichment.founding_year) fields.push(`<div style="font-size: 0.85rem;"><strong>Founded:</strong> ${enrichment.founding_year}</div>`);
+    if (enrichment.revenue_range) fields.push(`<div style="font-size: 0.85rem;"><strong>Revenue:</strong> ${escapeHtml(enrichment.revenue_range)}</div>`);
+    if (enrichment.google_address) fields.push(`<div style="font-size: 0.85rem;"><strong>Address:</strong> ${escapeHtml(enrichment.google_address)}</div>`);
+    if (enrichment.google_phone) fields.push(`<div style="font-size: 0.85rem;"><strong>Phone:</strong> ${escapeHtml(enrichment.google_phone)}</div>`);
+
+    const fieldsHtml = fields.length > 0
+        ? `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0;">${fields.join('')}</div>`
+        : '';
+
+    // Tech stack
+    let techHtml = '';
+    if (enrichment.tech_stack) {
+        try {
+            const stack = JSON.parse(enrichment.tech_stack);
+            if (stack.length > 0) {
+                techHtml = `<div style="margin: 8px 0;"><strong style="font-size: 0.75rem; color: #64748b;">TECH STACK</strong><div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">${stack.slice(0, 8).map(t => `<span style="padding: 2px 8px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; color: #475569;">${escapeHtml(t)}</span>`).join('')}</div></div>`;
+            }
+        } catch { /* ignore */ }
+    }
+
+    // Contacts
+    let contactsHtml = '';
+    if (contacts && contacts.length > 0) {
+        contactsHtml = `
+            <div class="tearsheet-field" style="margin-top: 16px;">
+                <span class="tearsheet-field-label">Key Contacts</span>
+                <div style="margin-top: 8px;">
+                    ${contacts.slice(0, 5).map(c => `
+                        <div style="padding: 10px; margin-bottom: 8px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #0d9488;">
+                            <div style="font-size: 0.9rem; font-weight: 600; color: var(--color-dark);">${escapeHtml(c.full_name || 'Unknown')}${c.is_decision_maker ? ' <span style="padding: 1px 6px; background: #fef3c7; color: #92400e; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Key</span>' : ''}</div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">${escapeHtml(c.title || '')}</div>
+                            ${c.email ? `<div style="font-size: 0.75rem; color: #0d9488; margin-top: 4px;">${c.email_verified ? '<span style="color: #16a34a; font-weight: 700;">&#10003;</span> ' : ''}${escapeHtml(c.email)}</div>` : ''}
+                            ${c.linkedin_url ? `<div style="font-size: 0.75rem; margin-top: 2px;"><a href="${escapeHtml(c.linkedin_url)}" target="_blank" rel="noopener" style="color: #0d9488; text-decoration: none;">LinkedIn Profile &rarr;</a></div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Consumer ratings
+    const ratings = [];
+    if (enrichment.google_rating) ratings.push(`Google: ${'&#9733;'.repeat(Math.round(enrichment.google_rating))} ${enrichment.google_rating}/5`);
+    if (enrichment.untappd_rating) ratings.push(`Untappd: ${enrichment.untappd_rating}/5`);
+    if (enrichment.vivino_rating) ratings.push(`Vivino: ${enrichment.vivino_rating}/5`);
+    const ratingsHtml = ratings.length > 0
+        ? `<div style="margin: 8px 0; font-size: 0.85rem; color: #475569;">${ratings.join(' &middot; ')}</div>`
+        : '';
+
+    // Social links
+    const socialLinks = [];
+    if (enrichment.instagram_handle) socialLinks.push(`<a href="https://instagram.com/${escapeHtml(enrichment.instagram_handle)}" target="_blank" rel="noopener" style="color: #0d9488; text-decoration: none; font-size: 0.8rem;">Instagram</a>`);
+    if (enrichment.facebook_url) socialLinks.push(`<a href="${escapeHtml(enrichment.facebook_url)}" target="_blank" rel="noopener" style="color: #0d9488; text-decoration: none; font-size: 0.8rem;">Facebook</a>`);
+    if (enrichment.linkedin_url) socialLinks.push(`<a href="${escapeHtml(enrichment.linkedin_url)}" target="_blank" rel="noopener" style="color: #0d9488; text-decoration: none; font-size: 0.8rem;">LinkedIn</a>`);
+    if (enrichment.twitter_handle) socialLinks.push(`<a href="https://x.com/${escapeHtml(enrichment.twitter_handle)}" target="_blank" rel="noopener" style="color: #0d9488; text-decoration: none; font-size: 0.8rem;">X</a>`);
+    const socialHtml = socialLinks.length > 0
+        ? `<div style="margin: 8px 0; display: flex; gap: 12px;">${socialLinks.join('')}</div>`
+        : '';
+
+    return `
+        <div class="tearsheet">
+            <div class="tearsheet-header">
+                <h3 style="margin: 0 0 4px 0; font-size: 1.1rem; color: var(--color-dark);">${escapeHtml(enrichment.company_name || 'Company')}</h3>
+                ${websiteDisplay}
+                ${cached ? '<span style="font-size: 0.65rem; color: #94a3b8; margin-left: 8px;">(cached)</span>' : ''}
+            </div>
+            ${briefHtml}
+            ${fieldsHtml}
+            ${techHtml}
+            ${ratingsHtml}
+            ${socialHtml}
+            ${contactsHtml}
+
+            <button onclick="generateCompanyPDF()" style="
+                width: 100%;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 12px;
+            ">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>

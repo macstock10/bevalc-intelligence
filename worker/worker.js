@@ -15,6 +15,8 @@ import {
     handleSecQuery
 } from './sec_research.js';
 
+import { runEnrichment } from './enrichment/index.js';
+
 // Security headers for all responses
 const SECURITY_HEADERS = {
     'X-Content-Type-Options': 'nosniff',
@@ -423,11 +425,17 @@ export default {
             } else if (path === '/api/categories') {
                 response = await handleCategories(env);
             }
-            // Enhancement endpoints
+            // Enrichment endpoints (new structured system)
+            else if (path === '/api/enrich-company' && request.method === 'POST') {
+                response = await handleEnrichCompany(request, env);
+            } else if (path === '/api/enrich-company/status' && request.method === 'GET') {
+                response = await handleEnrichCompanyStatus(url, env);
+            }
+            // Legacy enhancement endpoints (deprecated — redirects to new system)
             else if (path === '/api/enhance' && request.method === 'POST') {
-                response = await handleEnhance(request, env);
+                response = await handleEnrichCompany(request, env);
             } else if (path === '/api/enhance/status' && request.method === 'GET') {
-                response = await handleEnhanceStatus(url, env);
+                response = await handleEnrichCompanyStatus(url, env);
             } else if (path === '/api/credits' && request.method === 'GET') {
                 response = await handleGetCredits(request, url, env);
             } else if (path === '/api/credits/checkout' && request.method === 'POST') {
@@ -3240,16 +3248,14 @@ async function handlePermitsContacts(request, env) {
             return { success: false, error: 'Please log in to access contacts' };
         }
 
-        // Search for contacts using the multi-tier contact search function
-        // For permits, we don't have brand name or website, so pass null for both
-        const result = await searchCompanyContacts(company_name, null, null, env);
-
+        // Contact search now handled by enrichment modules (Hunter.io etc.)
+        // For permits without a company_id, return empty for now
         return {
             success: true,
-            contacts: result.contacts || [],
+            contacts: [],
             company_name,
-            searched_name: result.searched_name || company_name,
-            debug: result.debug || null
+            searched_name: company_name,
+            debug: null
         };
 
     } catch (error) {
@@ -4026,10 +4032,13 @@ async function handleCompanyPage(path, env, headers) {
     let recentFilings = [];
     let dbaNames = [];
 
+    let enrichment = null;
+    let enrichmentContacts = [];
+
     if (hasCompanyId) {
         // Normalized company - use company_aliases join
         // Run queries in parallel for better performance
-        const [brandsResult, categoriesResult, recentResult, dbaResult] = await Promise.all([
+        const [brandsResult, categoriesResult, recentResult, dbaResult, enrichmentResult, contactsResult] = await Promise.all([
             env.DB.prepare(`
                 SELECT brand_name, COUNT(*) as cnt
                 FROM colas co
@@ -4068,13 +4077,21 @@ async function handleCompanyPage(path, env, headers) {
                 ) WHERE rn = 1
                 ORDER BY dba_name
                 LIMIT 10
-            `).bind(company.id).all()
+            `).bind(company.id).all(),
+
+            // Enrichment data
+            env.DB.prepare('SELECT * FROM company_enrichments WHERE company_id = ?').bind(company.id).first().catch(() => null),
+
+            // Enrichment contacts
+            env.DB.prepare('SELECT * FROM company_contacts WHERE company_id = ? ORDER BY is_decision_maker DESC, full_name LIMIT 10').bind(company.id).all().catch(() => ({ results: [] }))
         ]);
 
         brands = brandsResult.results || [];
         categories = categoriesResult.results || [];
         recentFilings = recentResult.results || [];
         dbaNames = (dbaResult.results || []).map(r => r.dba_name).filter(n => n && n.length > 0);
+        enrichment = enrichmentResult;
+        enrichmentContacts = contactsResult?.results || [];
     } else {
         // Virtual company - search directly by company_name pattern
         // Run queries in parallel for better performance
@@ -4432,6 +4449,8 @@ async function handleCompanyPage(path, env, headers) {
                     </div>
                 </div>
 
+                ${renderEnrichmentSection(enrichment, enrichmentContacts, company)}
+
                 <div class="related-links">
                     <div class="related-heading">Related Companies</div>
                     ${relatedCompanies.map(c => `<a href="/company/${c.slug}">${escapeHtml(c.canonical_name)}</a>`).join('')}
@@ -4454,6 +4473,175 @@ async function handleCompanyPage(path, env, headers) {
             headers: { 'Content-Type': 'text/plain', ...headers }
         });
     }
+}
+
+// Render enrichment data for company page (or CTA if not enriched)
+function renderEnrichmentSection(enrichment, contacts, company) {
+    if (!enrichment || !enrichment.enriched_at) {
+        // Not enriched — show CTA
+        return `
+            <div class="seo-card enrichment-cta-card" style="margin-bottom: 32px; text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 32px;">
+                <h2 style="color: white; margin: 0 0 8px 0; font-size: 1.3rem;">Unlock Company Intelligence</h2>
+                <p style="color: #94a3b8; margin: 0 0 16px 0;">Get verified contacts, website analytics, consumer ratings, funding data, and more.</p>
+                <p style="color: #5eead4; font-size: 0.85rem; margin: 0 0 20px 0;">
+                    Contacts &amp; Emails &middot; Tech Stack &middot; Google Rating &middot; Social Profiles &middot; Funding History
+                </p>
+                <a href="/database.html" class="btn" style="display: inline-block; padding: 12px 24px; background: #0d9488; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">Unlock Intelligence (1 credit)</a>
+            </div>
+        `;
+    }
+
+    // Enriched — render structured data sections
+    const sections = [];
+
+    // 1. AI Brief + Firmographics
+    const briefHtml = enrichment.ai_brief
+        ? `<blockquote style="margin: 0 0 16px 0; padding: 12px 16px; background: #f0fdfa; border-left: 3px solid #0d9488; border-radius: 4px; color: #0f172a; font-size: 0.95rem; line-height: 1.6;">${escapeHtml(enrichment.ai_brief)}</blockquote>`
+        : '';
+
+    const firmGrid = [];
+    if (enrichment.website_url) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Website</span><a href="${escapeHtml(enrichment.website_url)}" target="_blank" rel="noopener" style="color: #0d9488;">${escapeHtml(enrichment.website_url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a></div>`);
+    if (enrichment.industry) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Industry</span>${escapeHtml(enrichment.industry)}</div>`);
+    if (enrichment.employee_count_range) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Employees</span>${escapeHtml(enrichment.employee_count_range)}</div>`);
+    if (enrichment.founding_year) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Founded</span>${enrichment.founding_year}</div>`);
+    if (enrichment.revenue_range) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Revenue</span>${escapeHtml(enrichment.revenue_range)}</div>`);
+    if (enrichment.entity_type) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Entity Type</span>${escapeHtml(enrichment.entity_type)}</div>`);
+    if (enrichment.google_address) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Address</span>${escapeHtml(enrichment.google_address)}</div>`);
+    if (enrichment.google_phone) firmGrid.push(`<div class="enrichment-field"><span class="enrichment-label">Phone</span>${escapeHtml(enrichment.google_phone)}</div>`);
+
+    // Tech stack badges
+    let techHtml = '';
+    if (enrichment.tech_stack) {
+        try {
+            const stack = JSON.parse(enrichment.tech_stack);
+            if (stack.length > 0) {
+                techHtml = `<div style="margin-top: 12px;"><span class="enrichment-label">Tech Stack</span><div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">${stack.slice(0, 10).map(t => `<span class="enrichment-tech-badge">${escapeHtml(t)}</span>`).join('')}</div></div>`;
+            }
+        } catch { /* ignore */ }
+    }
+
+    // Indicator pills
+    const pills = [];
+    if (enrichment.has_ecommerce) pills.push('<span class="enrichment-pill enrichment-pill-green">E-commerce</span>');
+    if (enrichment.has_age_verification) pills.push('<span class="enrichment-pill enrichment-pill-blue">Age Verification</span>');
+    const pillsHtml = pills.length > 0 ? `<div style="display: flex; gap: 6px; margin-top: 8px;">${pills.join('')}</div>` : '';
+
+    if (briefHtml || firmGrid.length > 0) {
+        sections.push(`
+            <div class="seo-card" style="margin-bottom: 24px;">
+                <h2 style="margin: 0 0 16px 0;">Company Intelligence</h2>
+                ${briefHtml}
+                ${firmGrid.length > 0 ? `<div class="enrichment-grid">${firmGrid.join('')}</div>` : ''}
+                ${techHtml}
+                ${pillsHtml}
+            </div>
+        `);
+    }
+
+    // 2. Key Contacts
+    if (contacts && contacts.length > 0) {
+        const contactRows = contacts.map(c => {
+            const dmBadge = c.is_decision_maker ? '<span class="enrichment-dm-badge">Key</span>' : '';
+            const verifiedBadge = c.email_verified ? '<span class="enrichment-verified-badge">&#10003;</span>' : '';
+            return `
+                <tr>
+                    <td style="font-weight: 500;">${escapeHtml(c.full_name || 'Unknown')} ${dmBadge}</td>
+                    <td style="color: #64748b; font-size: 0.85rem;">${escapeHtml(c.title || '-')}</td>
+                    <td style="font-size: 0.85rem;">${c.email ? `${verifiedBadge} ${escapeHtml(c.email)}` : '-'}</td>
+                    <td style="font-size: 0.85rem;">${c.linkedin_url ? `<a href="${escapeHtml(c.linkedin_url)}" target="_blank" rel="noopener" style="color: #0d9488;">LinkedIn</a>` : '-'}</td>
+                    <td style="font-size: 0.85rem;">${c.phone ? escapeHtml(c.phone) : '-'}</td>
+                </tr>
+            `;
+        }).join('');
+
+        sections.push(`
+            <div class="seo-card" style="margin-bottom: 24px;">
+                <h2 style="margin: 0 0 16px 0;">Key Contacts</h2>
+                <div class="table-wrapper">
+                    <table class="filings-table enrichment-contact-table">
+                        <thead><tr><th>Name</th><th>Title</th><th>Email</th><th>LinkedIn</th><th>Phone</th></tr></thead>
+                        <tbody>${contactRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `);
+    }
+
+    // 3. Consumer Traction (Google + Untappd + Vivino + Social)
+    const consumerItems = [];
+    if (enrichment.google_rating) {
+        const stars = '&#9733;'.repeat(Math.round(enrichment.google_rating));
+        consumerItems.push(`<div class="enrichment-metric"><span class="enrichment-metric-label">Google</span><span class="enrichment-metric-value">${stars} ${enrichment.google_rating}/5</span><span class="enrichment-metric-sub">${enrichment.google_review_count || 0} reviews</span></div>`);
+    }
+    if (enrichment.untappd_rating) {
+        consumerItems.push(`<div class="enrichment-metric"><span class="enrichment-metric-label">Untappd</span><span class="enrichment-metric-value">${enrichment.untappd_rating}/5</span><span class="enrichment-metric-sub">${enrichment.untappd_checkin_count ? formatNumber(enrichment.untappd_checkin_count) + ' checkins' : ''}</span></div>`);
+    }
+    if (enrichment.vivino_rating) {
+        consumerItems.push(`<div class="enrichment-metric"><span class="enrichment-metric-label">Vivino</span><span class="enrichment-metric-value">${enrichment.vivino_rating}/5</span><span class="enrichment-metric-sub">${enrichment.vivino_review_count ? formatNumber(enrichment.vivino_review_count) + ' reviews' : ''}</span></div>`);
+    }
+
+    // Social
+    const socialItems = [];
+    if (enrichment.instagram_handle) socialItems.push(`<a href="https://instagram.com/${escapeHtml(enrichment.instagram_handle)}" target="_blank" rel="noopener" class="enrichment-social-link">Instagram${enrichment.instagram_followers ? ` (${formatNumber(enrichment.instagram_followers)})` : ''}</a>`);
+    if (enrichment.facebook_url) socialItems.push(`<a href="${escapeHtml(enrichment.facebook_url)}" target="_blank" rel="noopener" class="enrichment-social-link">Facebook</a>`);
+    if (enrichment.linkedin_url) socialItems.push(`<a href="${escapeHtml(enrichment.linkedin_url)}" target="_blank" rel="noopener" class="enrichment-social-link">LinkedIn</a>`);
+    if (enrichment.twitter_handle) socialItems.push(`<a href="https://x.com/${escapeHtml(enrichment.twitter_handle)}" target="_blank" rel="noopener" class="enrichment-social-link">X / Twitter</a>`);
+    if (enrichment.tiktok_handle) socialItems.push(`<a href="https://tiktok.com/@${escapeHtml(enrichment.tiktok_handle)}" target="_blank" rel="noopener" class="enrichment-social-link">TikTok${enrichment.tiktok_followers ? ` (${formatNumber(enrichment.tiktok_followers)})` : ''}</a>`);
+
+    if (consumerItems.length > 0 || socialItems.length > 0) {
+        sections.push(`
+            <div class="seo-card" style="margin-bottom: 24px;">
+                <h2 style="margin: 0 0 16px 0;">Consumer Traction</h2>
+                ${consumerItems.length > 0 ? `<div class="enrichment-metrics-row">${consumerItems.join('')}</div>` : ''}
+                ${socialItems.length > 0 ? `<div style="margin-top: 12px;"><span class="enrichment-label">Social</span><div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">${socialItems.join('')}</div></div>` : ''}
+            </div>
+        `);
+    }
+
+    // 4. Funding (only if data exists)
+    if (enrichment.funding_total || enrichment.funding_stage) {
+        const fundingFields = [];
+        if (enrichment.funding_total) fundingFields.push(`<div class="enrichment-field"><span class="enrichment-label">Total Raised</span>${escapeHtml(enrichment.funding_total)}</div>`);
+        if (enrichment.funding_stage) fundingFields.push(`<div class="enrichment-field"><span class="enrichment-label">Stage</span>${escapeHtml(enrichment.funding_stage)}</div>`);
+        if (enrichment.last_funding_date) fundingFields.push(`<div class="enrichment-field"><span class="enrichment-label">Last Round</span>${escapeHtml(enrichment.last_funding_date)}</div>`);
+
+        let investorsHtml = '';
+        if (enrichment.funding_investors) {
+            try {
+                const investors = JSON.parse(enrichment.funding_investors);
+                if (investors.length > 0) {
+                    investorsHtml = `<div style="margin-top: 8px;"><span class="enrichment-label">Investors</span><p style="margin: 4px 0 0 0; color: #475569; font-size: 0.9rem;">${investors.map(i => escapeHtml(i)).join(', ')}</p></div>`;
+                }
+            } catch { /* ignore */ }
+        }
+
+        sections.push(`
+            <div class="seo-card" style="margin-bottom: 24px;">
+                <h2 style="margin: 0 0 16px 0;">Funding</h2>
+                <div class="enrichment-grid">${fundingFields.join('')}</div>
+                ${investorsHtml}
+            </div>
+        `);
+    }
+
+    // 5. Meta footer
+    const enrichedDate = enrichment.enriched_at ? new Date(enrichment.enriched_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+    let sourcesText = '';
+    if (enrichment.enrichment_sources) {
+        try {
+            const src = JSON.parse(enrichment.enrichment_sources);
+            const active = Object.entries(src).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' '));
+            if (active.length > 0) sourcesText = ` · Sources: ${active.join(', ')}`;
+        } catch { /* ignore */ }
+    }
+
+    sections.push(`
+        <div style="text-align: center; color: #94a3b8; font-size: 0.75rem; margin-bottom: 24px;">
+            Last enriched ${enrichedDate}${sourcesText}
+        </div>
+    `);
+
+    return sections.join('');
 }
 
 // Brand Page Handler
@@ -7763,24 +7951,18 @@ ${urls}</urlset>`;
 }
 
 // ==========================================
-// ENHANCEMENT HANDLERS
+// COMPANY ENRICHMENT (New Structured System)
 // ==========================================
 
-// Enhancements are always paid - Pro users get discounted credit packs
-// Free: $10 for 5 credits ($2.00 each) or $25 for 15 credits ($1.67 each)
-// Pro:  $10 for 8 credits ($1.25 each) or $25 for 20 credits ($1.25 each)
-
-async function handleEnhance(request, env) {
+async function handleEnrichCompany(request, env) {
     const body = await request.json();
-    const { company_id, company_name, brand_name, email, token: bodyToken } = body;
+    const { company_id, company_name, email, token: bodyToken } = body;
     const normalizedEmail = email?.toLowerCase()?.trim();
     const token = getRequestToken(request, null, bodyToken || '');
 
-    // company_name is required, company_id is optional (permits don't have one)
     if (!company_name) {
         return { success: false, error: 'Missing company_name' };
     }
-
     if (!normalizedEmail) {
         return { success: false, error: 'Authentication required' };
     }
@@ -7791,32 +7973,32 @@ async function handleEnhance(request, env) {
         return { success: false, error: 'Invalid token' };
     }
 
-    // Check if already enhanced (cache hit) - only if we have a company_id
+    // Check cache (90-day TTL) — only if we have a company_id
     if (company_id) {
-        const existing = await env.DB.prepare(
-            'SELECT * FROM company_enhancements WHERE company_id = ?'
+        const cached = await env.DB.prepare(
+            'SELECT * FROM company_enrichments WHERE company_id = ?'
         ).bind(company_id).first();
 
-        if (existing && existing.enhanced_at) {
-            // Check if expired (90 days)
-            const enhancedDate = new Date(existing.enhanced_at);
-            const now = new Date();
-            const daysSince = (now - enhancedDate) / (1000 * 60 * 60 * 24);
-
+        if (cached && cached.enriched_at) {
+            const daysSince = (Date.now() - new Date(cached.enriched_at).getTime()) / (1000 * 60 * 60 * 24);
             if (daysSince < 90) {
-                const tearsheet = parseEnhancement(existing);
-                // Add fresh recent filings for PDF report
-                tearsheet.recent_filings = await fetchRecentFilings(company_id, env);
+                const contacts = await env.DB.prepare(
+                    'SELECT * FROM company_contacts WHERE company_id = ? ORDER BY is_decision_maker DESC, full_name LIMIT 10'
+                ).bind(company_id).all();
+
+                console.log(`[EnrichCompany] Cache hit for company_id=${company_id} (${daysSince.toFixed(0)} days old)`);
                 return {
                     success: true,
                     cached: true,
-                    tearsheet
+                    status: 'complete',
+                    enrichment: cached,
+                    contacts: contacts?.results || []
                 };
             }
         }
     }
 
-    // Check user credits (all users need purchased credits now)
+    // Check credits
     const creditCheck = await checkUserCredits(normalizedEmail, env);
     if (!creditCheck.canEnhance) {
         return {
@@ -7827,17 +8009,38 @@ async function handleEnhance(request, env) {
         };
     }
 
-    // Run enhancement (synchronous for Phase 1)
+    // Get primary state for this company
+    let primaryState = null;
+    if (company_id) {
+        const stateResult = await env.DB.prepare(`
+            SELECT state FROM colas co
+            JOIN company_aliases ca ON co.company_name = ca.raw_name
+            WHERE ca.company_id = ? AND state IS NOT NULL AND state != ''
+            GROUP BY state ORDER BY COUNT(*) DESC LIMIT 1
+        `).bind(company_id).first();
+        primaryState = stateResult?.state || null;
+    }
+
+    // Run enrichment modules
     try {
-        const tearsheet = await runEnhancement(company_id, company_name, brand_name, env);
+        const { enrichment, contacts } = await runEnrichment(company_id, company_name, primaryState, env);
 
-        // Only cache and charge if we got useful information
-        const hasUsefulInfo = tearsheet.summary || tearsheet.website?.url;
+        // Write enrichment data to D1
+        if (company_id) {
+            await saveEnrichmentToD1(enrichment, normalizedEmail, env);
 
-        if (hasUsefulInfo) {
-            // Save to cache only if we have a company_id (not for permits)
-            if (company_id) {
-                await saveEnhancement(company_id, company_name, tearsheet, normalizedEmail, env);
+            // Write contacts
+            await env.DB.prepare('DELETE FROM company_contacts WHERE company_id = ?').bind(company_id).run();
+            for (const contact of contacts) {
+                await env.DB.prepare(`
+                    INSERT INTO company_contacts (company_id, full_name, title, email, email_verified, email_verification_score, linkedin_url, linkedin_headline, phone, source, is_decision_maker)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                    company_id, contact.full_name, contact.title, contact.email,
+                    contact.email_verified || 0, contact.email_verification_score,
+                    contact.linkedin_url, contact.linkedin_headline, contact.phone,
+                    contact.source, contact.is_decision_maker || 0
+                ).run();
             }
 
             // Deduct credit
@@ -7847,38 +8050,100 @@ async function handleEnhance(request, env) {
         return {
             success: true,
             cached: false,
-            tearsheet,
-            charged: hasUsefulInfo
+            status: 'complete',
+            enrichment,
+            contacts
         };
     } catch (error) {
+        console.error(`[EnrichCompany] Error: ${error.message}`);
         return { success: false, error: error.message };
     }
 }
 
-async function handleEnhanceStatus(url, env) {
-    // For Phase 1, enhancements are synchronous, so this just checks cache
+async function handleEnrichCompanyStatus(url, env) {
     const companyId = url.searchParams.get('company_id');
     if (!companyId) {
         return { success: false, error: 'Missing company_id' };
     }
 
-    const existing = await env.DB.prepare(
-        'SELECT * FROM company_enhancements WHERE company_id = ?'
+    const enrichment = await env.DB.prepare(
+        'SELECT * FROM company_enrichments WHERE company_id = ?'
     ).bind(companyId).first();
 
-    if (existing) {
-        const tearsheet = parseEnhancement(existing);
-        // Add fresh recent filings for PDF report
-        tearsheet.recent_filings = await fetchRecentFilings(companyId, env);
+    if (enrichment) {
+        const contacts = await env.DB.prepare(
+            'SELECT * FROM company_contacts WHERE company_id = ? ORDER BY is_decision_maker DESC, full_name LIMIT 10'
+        ).bind(companyId).all();
+
         return {
             success: true,
             status: 'complete',
-            tearsheet
+            enrichment,
+            contacts: contacts?.results || []
         };
     }
 
-    return { success: true, status: 'not_found' };
+    return { success: true, status: 'not_enriched' };
 }
+
+async function saveEnrichmentToD1(enrichment, email, env) {
+    const e = enrichment;
+    await env.DB.prepare(`
+        INSERT OR REPLACE INTO company_enrichments (
+            company_id, company_name,
+            website_url, website_title, website_description,
+            industry, employee_count_range, founding_year, revenue_range,
+            entity_type, incorporation_state, incorporation_date,
+            domain_registered_date, domain_registrar, tech_stack,
+            has_ecommerce, has_age_verification,
+            google_place_id, google_rating, google_review_count,
+            google_category, google_address, google_phone, google_hours, google_photos_count,
+            untappd_brewery_id, untappd_rating, untappd_checkin_count, untappd_beer_count,
+            vivino_winery_id, vivino_rating, vivino_review_count, vivino_wine_count,
+            funding_total, funding_stage, funding_investors, last_funding_date, last_funding_amount,
+            instagram_handle, instagram_followers, tiktok_handle, tiktok_followers,
+            facebook_url, twitter_handle, linkedin_url,
+            trademark_serial_number, trademark_filing_date, trademark_status, trademark_registration_date,
+            enriched_at, enrichment_sources, enrichment_version, last_enriched_by, ai_brief
+        ) VALUES (
+            ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?
+        )
+    `).bind(
+        e.company_id, e.company_name,
+        e.website_url || null, e.website_title || null, e.website_description || null,
+        e.industry || null, e.employee_count_range || null, e.founding_year || null, e.revenue_range || null,
+        e.entity_type || null, e.incorporation_state || null, e.incorporation_date || null,
+        e.domain_registered_date || null, e.domain_registrar || null, e.tech_stack || null,
+        e.has_ecommerce || 0, e.has_age_verification || 0,
+        e.google_place_id || null, e.google_rating || null, e.google_review_count || null,
+        e.google_category || null, e.google_address || null, e.google_phone || null, e.google_hours || null, e.google_photos_count || null,
+        e.untappd_brewery_id || null, e.untappd_rating || null, e.untappd_checkin_count || null, e.untappd_beer_count || null,
+        e.vivino_winery_id || null, e.vivino_rating || null, e.vivino_review_count || null, e.vivino_wine_count || null,
+        e.funding_total || null, e.funding_stage || null, e.funding_investors || null, e.last_funding_date || null, e.last_funding_amount || null,
+        e.instagram_handle || null, e.instagram_followers || null, e.tiktok_handle || null, e.tiktok_followers || null,
+        e.facebook_url || null, e.twitter_handle || null, e.linkedin_url || null,
+        e.trademark_serial_number || null, e.trademark_filing_date || null, e.trademark_status || null, e.trademark_registration_date || null,
+        e.enriched_at, e.enrichment_sources || null, e.enrichment_version || '1.0', email, e.ai_brief || null
+    ).run();
+}
+
+// ==========================================
+// CREDITS & LOOKUP HANDLERS
+// ==========================================
 
 async function handleGetCredits(request, url, env) {
     const email = url.searchParams.get('email')?.toLowerCase();
@@ -7964,1259 +8229,6 @@ async function deductCredit(email, companyId, env) {
     `).bind(email.toLowerCase(), companyId).run();
 }
 
-async function runEnhancement(companyId, companyName, clickedBrandName, env) {
-    // Get current date parts for comparison
-    const now = new Date();
-    const oneYearAgo = new Date(now);
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const oneMonthAgo = new Date(now);
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-    // Run D1 queries in parallel for speed - use JOINs instead of subqueries for performance
-    const [stats, states, categories, brands, recentFilings, existingWebsite] = await Promise.all([
-        // Filing statistics - use indexed year/month/day columns
-        env.DB.prepare(`
-            SELECT
-                COUNT(*) as total_filings,
-                MIN(co.year * 10000 + co.month * 100 + COALESCE(co.day, 1)) as first_filing_sort,
-                MAX(co.year * 10000 + co.month * 100 + COALESCE(co.day, 1)) as last_filing_sort,
-                COUNT(CASE WHEN co.year > ? OR (co.year = ? AND co.month >= ?) THEN 1 END) as last_12_months,
-                COUNT(CASE WHEN co.year > ? OR (co.year = ? AND co.month >= ?) THEN 1 END) as last_month
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-        `).bind(
-            oneYearAgo.getFullYear(), oneYearAgo.getFullYear(), oneYearAgo.getMonth() + 1,
-            oneMonthAgo.getFullYear(), oneMonthAgo.getFullYear(), oneMonthAgo.getMonth() + 1,
-            companyId
-        ).first(),
-
-        // State distribution - only get 2-letter state codes
-        env.DB.prepare(`
-            SELECT DISTINCT UPPER(TRIM(co.state)) as state
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            AND co.state IS NOT NULL
-            AND LENGTH(TRIM(co.state)) = 2
-            ORDER BY state
-        `).bind(companyId).all(),
-
-        // Category breakdown
-        env.DB.prepare(`
-            SELECT co.class_type_code, COUNT(*) as count
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            GROUP BY co.class_type_code
-            ORDER BY count DESC
-            LIMIT 5
-        `).bind(companyId).all(),
-
-        // Brand portfolio
-        env.DB.prepare(`
-            SELECT co.brand_name, COUNT(*) as filings
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            GROUP BY co.brand_name
-            ORDER BY filings DESC
-            LIMIT 10
-        `).bind(companyId).all(),
-
-        // Recent filings for PDF report - use indexed columns
-        env.DB.prepare(`
-            SELECT co.brand_name, co.fanciful_name, co.approval_date, co.status, co.signal
-            FROM colas co
-            JOIN company_aliases ca ON co.company_name = ca.raw_name
-            WHERE ca.company_id = ?
-            ORDER BY co.year DESC, co.month DESC, COALESCE(co.day, 1) DESC
-            LIMIT 10
-        `).bind(companyId).all(),
-
-        // Check for existing website
-        env.DB.prepare(`
-            SELECT website_url FROM company_websites WHERE company_id = ?
-        `).bind(companyId).first()
-    ]);
-
-    // Calculate trend - handle dormant companies
-    let trend = 'stable';
-    if (stats) {
-        if (stats.last_12_months === 0) {
-            trend = 'dormant';
-        } else if (stats.last_12_months > 0) {
-            const avgMonthly = stats.last_12_months / 12;
-            if (stats.last_month > avgMonthly * 1.5) {
-                trend = 'growing';
-            } else if (stats.last_month < avgMonthly * 0.5) {
-                trend = 'declining';
-            }
-        }
-    }
-
-    // Convert sorted dates back to readable format (YYYYMMDD number -> MM/DD/YYYY)
-    const formatDate = (sortDate) => {
-        if (!sortDate) return null;
-        const str = String(sortDate);
-        if (str.length < 8) return null;
-        const y = str.substring(0, 4);
-        const m = str.substring(4, 6);
-        const d = str.substring(6, 8);
-        return `${parseInt(m)}/${parseInt(d)}/${y}`;
-    };
-
-    // Prepare data for enhancement
-    // Use clicked brand name first, then fall back to top brand by filing count
-    const topBrandFromDb = brands?.results?.[0]?.brand_name || '';
-    const primaryBrand = clickedBrandName || topBrandFromDb || 'Unknown';
-    const brandList = brands?.results?.map(b => b.brand_name).slice(0, 5).join(', ') || 'Unknown';
-    const categoryList = categories?.results?.map(c => c.class_type_code).join(', ') || 'Unknown';
-    const stateList = states?.results?.map(s => s.state).join(', ') || 'Unknown';
-
-    // Get industry hint for better search results
-    const industryHint = getIndustryHint(categoryList);
-
-    // NEW FLOW: Google CSE + Deep Crawl + Claude Summarization
-    let websiteUrl = existingWebsite?.website_url || null;
-    let summary = null;
-    let news = [];
-    let social = null;
-
-    try {
-        // Step 1: Discover URLs using Google Custom Search
-        console.log(`[Enhancement] Discovering URLs for: ${companyName}`);
-        const discoveredUrls = await discoverCompanyUrls(companyName, primaryBrand, industryHint, env);
-
-        // Use discovered website or existing one
-        if (discoveredUrls.website && !websiteUrl) {
-            websiteUrl = discoveredUrls.website;
-        }
-        console.log(`[Enhancement] Website found: ${websiteUrl || 'none'}`);
-
-        // Step 2: Transform scraped pages into format expected by summary generator
-        let websiteContent = null;
-        if (discoveredUrls.scrapedPages && discoveredUrls.scrapedPages.length > 0) {
-            const pages = discoveredUrls.scrapedPages;
-            websiteContent = {
-                homepage: null,
-                aboutPage: null,
-                contactPage: null,
-                otherPages: []
-            };
-
-            for (const page of pages) {
-                const urlLower = page.url.toLowerCase();
-                if (urlLower === websiteUrl?.toLowerCase() || urlLower.endsWith('/') && urlLower.slice(0, -1) === websiteUrl?.toLowerCase()) {
-                    websiteContent.homepage = page.content;
-                } else if (urlLower.includes('/about') || urlLower.includes('/story') || urlLower.includes('/history')) {
-                    websiteContent.aboutPage = page.content;
-                } else if (urlLower.includes('/contact')) {
-                    websiteContent.contactPage = page.content;
-                } else {
-                    websiteContent.otherPages.push(page.content);
-                }
-            }
-            console.log(`[Enhancement] Website content: homepage=${!!websiteContent.homepage}, about=${!!websiteContent.aboutPage}, contact=${!!websiteContent.contactPage}, other=${websiteContent.otherPages.length}`);
-        }
-
-        // Step 3: Generate summary using Claude (no web_search - just text analysis)
-        if (env.ANTHROPIC_API_KEY) {
-            console.log(`[Enhancement] Generating summary with Claude...`);
-            const claudeResult = await callClaudeForSummary(companyName, {
-                totalFilings: stats?.total_filings || 0,
-                firstFiling: formatDate(stats?.first_filing_sort),
-                lastFiling: formatDate(stats?.last_filing_sort),
-                last12Months: stats?.last_12_months || 0,
-                trend,
-                primaryBrand,
-                brands: brandList,
-                categories: categoryList,
-                states: stateList
-            }, discoveredUrls, websiteContent, env);
-
-            summary = claudeResult.summary;
-            console.log(`[Enhancement] Summary generated, confidence: ${claudeResult.confidence}`);
-        } else {
-            console.error('ANTHROPIC_API_KEY not set');
-        }
-
-        // Use discovered news and social directly
-        news = discoveredUrls.news || [];
-        social = discoveredUrls.social || null;
-
-    } catch (e) {
-        console.error('[Enhancement] Error in new flow:', e);
-        // Continue with partial results
-    }
-
-    // Step 4: Search for contacts using multi-tier approach
-    let contacts = [];
-    try {
-        const scrapedContent = discoveredUrls.scrapedPages || [];
-        console.log(`[Enhancement] Searching for contacts. Website: ${websiteUrl || 'none'}, Scraped pages: ${scrapedContent.length}`);
-        const contactResult = await searchCompanyContacts(companyName, primaryBrand, websiteUrl, scrapedContent, env);
-        contacts = contactResult.contacts || [];
-        console.log(`[Enhancement] Found ${contacts.length} contacts via ${contactResult.method || 'unknown'}`);
-    } catch (e) {
-        console.error(`[Enhancement] Contact search error: ${e.message}`);
-    }
-
-    return {
-        company_id: companyId,
-        company_name: companyName,
-        website: websiteUrl ? { url: websiteUrl, confidence: 'high' } : null,
-        filing_stats: {
-            total_filings: stats?.total_filings || 0,
-            first_filing: formatDate(stats?.first_filing_sort),
-            last_filing: formatDate(stats?.last_filing_sort),
-            last_12_months: stats?.last_12_months || 0,
-            last_month: stats?.last_month || 0,
-            trend
-        },
-        distribution: {
-            states: states?.results?.map(s => s.state).filter(s => s && s.length === 2) || []
-        },
-        brands: brands?.results?.map(b => ({ name: b.brand_name, filings: b.filings })) || [],
-        categories: categories?.results?.reduce((acc, c) => {
-            acc[c.class_type_code] = c.count;
-            return acc;
-        }, {}) || {},
-        contacts,
-        news,
-        social: social || null,
-        summary,
-        recent_filings: recentFilings?.results?.map(f => ({
-            brand: f.brand_name,
-            product: f.fanciful_name,
-            date: f.approval_date,
-            status: f.status,
-            signal: f.signal
-        })) || []
-    };
-}
-
-// ============================================================================
-// NEW ENHANCEMENT FUNCTIONS (Google CSE + Deep Crawl)
-// ============================================================================
-
-// Rate limiting helper
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Hash a string for cache key (simple hash, not crypto)
-async function hashQuery(query) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(query.toLowerCase().trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
-}
-
-// Check search cache for existing results
-async function getSearchCache(query, env) {
-    try {
-        const queryHash = await hashQuery(query);
-        const result = await env.DB.prepare(
-            'SELECT results FROM search_cache WHERE query_hash = ? AND expires_at > datetime("now")'
-        ).bind(queryHash).first();
-
-        if (result) {
-            console.log(`[Google] Cache HIT for: "${query}"`);
-            return JSON.parse(result.results);
-        }
-        return null;
-    } catch (e) {
-        console.error('Cache lookup failed:', e);
-        return null;
-    }
-}
-
-// Save search results to cache (30-day TTL)
-async function saveSearchCache(query, results, env) {
-    try {
-        const queryHash = await hashQuery(query);
-        const now = new Date().toISOString();
-        const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-        await env.DB.prepare(
-            'INSERT OR REPLACE INTO search_cache (query_hash, query, results, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
-        ).bind(queryHash, query, JSON.stringify(results), now, expires).run();
-
-        console.log(`[Google] Cached results for: "${query}"`);
-    } catch (e) {
-        console.error('Cache save failed:', e);
-    }
-}
-
-// Single Google Custom Search query with caching, rate limiting, and retry
-async function googleSearch(query, env, retryCount = 0) {
-    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
-        console.error('Google CSE credentials not configured');
-        return [];
-    }
-
-    // Check cache first (only on first attempt, not retries)
-    if (retryCount === 0) {
-        const cached = await getSearchCache(query, env);
-        if (cached) {
-            return cached;
-        }
-    }
-
-    const maxRetries = 2;
-    const baseDelay = 1500; // 1.5s between requests
-
-    try {
-        // Rate limit: wait before making request (longer delay on retries)
-        const waitTime = baseDelay * (retryCount + 1);
-        await delay(waitTime);
-
-        console.log(`[Google] Searching: "${query}"${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
-        const url = new URL('https://www.googleapis.com/customsearch/v1');
-        url.searchParams.set('key', env.GOOGLE_CSE_API_KEY);
-        url.searchParams.set('cx', env.GOOGLE_CSE_ID);
-        url.searchParams.set('q', query);
-        url.searchParams.set('num', '10');
-
-        const response = await fetch(url.toString());
-
-        // Retry on rate limit
-        if (response.status === 429 && retryCount < maxRetries) {
-            console.log(`[Google] Rate limited, retrying in ${(retryCount + 2) * 2}s...`);
-            await delay((retryCount + 2) * 2000);
-            return googleSearch(query, env, retryCount + 1);
-        }
-
-        if (!response.ok) {
-            console.error('Google CSE error:', response.status);
-            return [];
-        }
-
-        const data = await response.json();
-        const results = data.items || [];
-        console.log(`[Google] Found ${results.length} results`);
-
-        // Cache successful results
-        if (results.length > 0) {
-            await saveSearchCache(query, results, env);
-        }
-
-        return results;
-    } catch (e) {
-        console.error('Google search failed:', e);
-        return [];
-    }
-}
-
-// ============================================================================
-// WEBSITE DISCOVERY - Fetch actual page content for Claude to evaluate
-// ============================================================================
-
-// Fetch a webpage and extract text content (with retry for timeouts)
-async function fetchPageContent(url, timeout = 10000, retryCount = 0) {
-    const maxRetries = 1; // One retry for timeouts
-    try {
-        // Rate limit
-        await delay(500);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        console.log(`[Fetch] Fetching: ${url}${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
-        const response = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml'
-            },
-            redirect: 'follow'
-        });
-        clearTimeout(timeoutId);
-
-        // Handle common errors
-        if (response.status === 403 || response.status === 404 || response.status === 503) {
-            console.log(`[Fetch] ${url} returned ${response.status}, skipping`);
-            return null;
-        }
-        if (!response.ok) {
-            console.log(`[Fetch] ${url} returned ${response.status}`);
-            return null;
-        }
-
-        const html = await response.text();
-
-        // FIRST: Extract emails from raw HTML (before stripping tags)
-        // This catches mailto: links and emails in attributes
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-        const foundEmails = html.match(emailRegex) || [];
-        const emailSection = foundEmails.length > 0 ? `\n[EMAILS FOUND: ${[...new Set(foundEmails)].join(', ')}]\n` : '';
-
-        // THEN: Extract text content (strip HTML tags, scripts, styles)
-        let text = html
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&[a-z]+;/gi, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        // Prepend extracted emails to ensure they're in the content
-        const content = emailSection + text;
-        console.log(`[Fetch] Got ${text.length} chars from ${url}${foundEmails.length > 0 ? `, found ${foundEmails.length} emails` : ''}`);
-        return content.substring(0, 5000);
-    } catch (e) {
-        // Retry on timeout (aborted)
-        if (e.name === 'AbortError' && retryCount < maxRetries) {
-            console.log(`[Fetch] Timeout on ${url}, retrying with longer timeout...`);
-            await delay(1000);
-            return fetchPageContent(url, timeout + 5000, retryCount + 1);
-        }
-        console.log(`[Fetch] Failed ${url}: ${e.message}`);
-        return null;
-    }
-}
-
-// Scrape multiple pages from a confirmed website
-// Strategy: Fetch homepage, extract ALL internal links, fetch those pages, search for @
-async function scrapeWebsitePages(baseUrl, maxPages = 12) {
-    try {
-        const baseDomain = new URL(baseUrl).hostname;
-        const baseOrigin = new URL(baseUrl).origin;
-        const results = [];
-        const visitedUrls = new Set();
-        const rawHtmlForLinks = []; // Store raw HTML for link extraction
-
-        console.log(`[Scrape] Starting crawl of ${baseDomain}`);
-
-        // Helper to fetch raw HTML (for link extraction)
-        const fetchRawHtml = async (url) => {
-            try {
-                await delay(500);
-                const response = await fetch(url, {
-                    signal: AbortSignal.timeout(10000),
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Accept': 'text/html,application/xhtml+xml'
-                    },
-                    redirect: 'follow'
-                });
-                if (!response.ok) return null;
-                return await response.text();
-            } catch (e) {
-                return null;
-            }
-        };
-
-        // Helper to process raw HTML into clean content with emails extracted
-        const processHtml = (html) => {
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const foundEmails = html.match(emailRegex) || [];
-            const emailSection = foundEmails.length > 0 ? `\n[EMAILS FOUND: ${[...new Set(foundEmails)].join(', ')}]\n` : '';
-
-            let text = html
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-                .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/&[a-z]+;/gi, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            return (emailSection + text).substring(0, 5000);
-        };
-
-        // STEP 1: Fetch the discovered URL and root homepage (get raw HTML first)
-        const homeHtml = await fetchRawHtml(baseUrl);
-        if (homeHtml) {
-            rawHtmlForLinks.push(homeHtml);
-            results.push({ url: baseUrl, content: processHtml(homeHtml) });
-            visitedUrls.add(baseUrl);
-            visitedUrls.add(baseUrl.replace(/\/$/, '')); // Also mark without trailing slash
-            console.log(`[Scrape] Fetched homepage: ${baseUrl}`);
-        }
-
-        // Also fetch root if discovered URL is a subpage
-        if (baseUrl !== baseOrigin && baseUrl !== baseOrigin + '/') {
-            const rootHtml = await fetchRawHtml(baseOrigin);
-            if (rootHtml) {
-                rawHtmlForLinks.push(rootHtml);
-                results.push({ url: baseOrigin, content: processHtml(rootHtml) });
-                visitedUrls.add(baseOrigin);
-                visitedUrls.add(baseOrigin + '/');
-                console.log(`[Scrape] Fetched root: ${baseOrigin}`);
-            }
-        }
-
-        // STEP 2: Extract ALL internal links from pages we have
-        const extractInternalLinks = (html, origin, domain) => {
-            const links = new Set();
-            const linkRegex = /href=["']([^"'#]+)["']/gi;
-            let match;
-
-            while ((match = linkRegex.exec(html)) !== null) {
-                const href = match[1].trim();
-
-                // Skip non-page links
-                if (!href ||
-                    href.startsWith('mailto:') ||
-                    href.startsWith('tel:') ||
-                    href.startsWith('javascript:') ||
-                    href.startsWith('//') ||
-                    href.match(/\.(jpg|jpeg|png|gif|svg|pdf|css|js|ico|woff|ttf)$/i)) {
-                    continue;
-                }
-
-                try {
-                    const fullUrl = new URL(href, origin).toString();
-                    // Only keep same-domain links
-                    if (new URL(fullUrl).hostname === domain) {
-                        // Normalize URL (remove trailing slash for comparison)
-                        const normalized = fullUrl.replace(/\/$/, '');
-                        links.add(normalized);
-                    }
-                } catch (e) {
-                    continue;
-                }
-            }
-            return links;
-        };
-
-        // Get all links from raw HTML (not processed content which has tags stripped)
-        const allLinks = new Set();
-        for (const rawHtml of rawHtmlForLinks) {
-            const links = extractInternalLinks(rawHtml, baseOrigin, baseDomain);
-            links.forEach(link => allLinks.add(link));
-        }
-
-        console.log(`[Scrape] Found ${allLinks.size} internal links from homepage(s)`);
-
-        // STEP 3: Fetch all internal pages (up to limit)
-        for (const linkUrl of allLinks) {
-            if (results.length >= maxPages) break;
-
-            const normalizedLink = linkUrl.replace(/\/$/, '');
-            if (visitedUrls.has(normalizedLink) || visitedUrls.has(normalizedLink + '/')) continue;
-
-            try {
-                const content = await fetchPageContent(linkUrl, 4000);
-                if (content && content.length > 200) {
-                    results.push({ url: linkUrl, content });
-                    visitedUrls.add(normalizedLink);
-                    visitedUrls.add(normalizedLink + '/');
-                }
-            } catch (e) {
-                continue;
-            }
-        }
-
-        console.log(`[Scrape] Crawled ${results.length} pages from ${baseDomain}`);
-        return results;
-    } catch (e) {
-        console.error(`[Scrape] Error: ${e.message}`);
-        return [];
-    }
-}
-
-// Have Claude parse company info from website content
-async function parseCompanyInfo(companyName, websiteUrl, pageContents, env) {
-    if (!env.ANTHROPIC_API_KEY || pageContents.length === 0) return null;
-
-    const combinedContent = pageContents
-        .map(p => `=== PAGE: ${p.url} ===\n${p.content}`)
-        .join('\n\n')
-        .substring(0, 12000);
-
-    const prompt = `Extract company information from this website content for "${companyName}".
-
-WEBSITE: ${websiteUrl}
-
-CONTENT:
-${combinedContent}
-
-Extract the following (use null if not found, do not guess):
-- Official company name
-- Founded year
-- Location/address
-- Key people (founders, CEO, etc.)
-- Product types/brands mentioned
-- Company description (2-3 sentences)
-- Contact email
-- Phone number
-
-Return JSON only:
-{
-  "company_name": "...",
-  "founded": "...",
-  "location": "...",
-  "key_people": ["..."],
-  "products": ["..."],
-  "description": "...",
-  "email": "...",
-  "phone": "..."
-}`;
-
-    try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 500,
-                messages: [{ role: 'user', content: prompt }]
-            })
-        });
-
-        if (!response.ok) return null;
-
-        const result = await response.json();
-        const text = result.content?.[0]?.text || '';
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
-        }
-    } catch (e) {
-        console.error('[Parse] Error:', e);
-    }
-    return null;
-}
-
-// ============================================================================
-// SIMPLE ENHANCEMENT FLOW
-// 1. Google search company names → collect all results
-// 2. Claude picks website from Google results (just URL/title/snippet)
-// 3. Scrape the selected website
-// 4. Claude summarizes from scraped content
-// ============================================================================
-
-async function discoverCompanyUrls(companyName, brandName, industryHint, env) {
-    console.log(`[Enhancement] === COMPREHENSIVE WEBSITE DISCOVERY ===`);
-    console.log(`[Enhancement] Company: "${companyName}"`);
-    console.log(`[Enhancement] Brand: "${brandName}"`);
-    console.log(`[Enhancement] Industry: "${industryHint}"`);
-
-    // STEP 1: Use Claude to intelligently parse company name and extract search terms
-    let searchTerms = [];
-
-    if (env.ANTHROPIC_API_KEY) {
-        try {
-            console.log('[Enhancement] Using Claude to parse company name...');
-            const parsePrompt = `You are extracting search terms from a beverage company name to find their website.
-
-Company name: "${companyName}"
-
-Extract ALL possible names/aliases this company might use for their website:
-1. DBAs (doing business as)
-2. AKAs (also known as)
-3. Comma-separated alternate names
-4. Primary company name without legal suffixes
-5. Abbreviated versions
-
-Examples:
-- "One Tier LLC dba BOTLD" → ["One Tier", "BOTLD"]
-- "Smith Wines, Jones Imports LLC" → ["Smith Wines", "Jones Imports"]
-- "United Liquors, LLC" → ["United Liquors", "United", "UL"]
-- "American Beverage Company Inc" → ["American Beverage Company", "American Beverage", "ABC"]
-
-Return ONLY a JSON array of strings: ["term1", "term2", "term3"]
-Include 2-5 search terms. Be smart about abbreviations and variations.`;
-
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': env.ANTHROPIC_API_KEY,
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: 'claude-3-5-sonnet-20241022',
-                    max_tokens: 200,
-                    messages: [{ role: 'user', content: parsePrompt }]
-                })
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                const text = (result.content?.[0]?.text || '').trim();
-
-                // Extract JSON array
-                const jsonMatch = text.match(/\[[\s\S]*\]/);
-                if (jsonMatch) {
-                    searchTerms = JSON.parse(jsonMatch[0]);
-                    console.log(`[Enhancement] Claude extracted search terms: ${searchTerms.map(t => `"${t}"`).join(', ')}`);
-                }
-            }
-        } catch (e) {
-            console.error('[Enhancement] Claude parsing failed:', e.message);
-        }
-    }
-
-    // Fallback: Basic regex parsing if Claude failed
-    if (searchTerms.length === 0) {
-        console.log('[Enhancement] Using fallback regex parsing...');
-        searchTerms = companyName
-            .split(/\s*,\s*|\s+DBA\s+|\s+D\/B\/A\s+|\s+AKA\s+|\s+A\/K\/A\s+/i)
-            .map(p => p
-                .replace(/\b(LLC|Inc|Corp|Corporation|Company|Co|Ltd|Limited|L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|PLLC|PLC)\b\.?/gi, '')
-                .replace(/\s+/g, ' ')
-                .trim()
-            )
-            .filter(p => p.length >= 3);
-    }
-
-    searchTerms = [...new Set(searchTerms)]; // dedupe
-
-    // STEP 2: Build SIMPLE search query list - company, brand, LinkedIn
-    const queries = [];
-
-    // Primary company name (cleaned, first term)
-    const primaryCompanyTerm = searchTerms[0] || companyName;
-
-    // 1. Company name search
-    queries.push(`"${primaryCompanyTerm}"`);
-
-    // 2. Company name + industry
-    if (industryHint && industryHint !== 'alcohol') {
-        queries.push(`"${primaryCompanyTerm}" ${industryHint}`);
-    }
-
-    // 3. Brand name search (ALWAYS search it if provided)
-    if (brandName && brandName !== 'Unknown' && brandName.toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
-        queries.push(`"${brandName}"`);
-        queries.push(`"${brandName}" ${industryHint}`);
-    }
-
-    // 4. LinkedIn searches (high priority for finding social presence)
-    queries.push(`site:linkedin.com/company "${primaryCompanyTerm}"`);
-    if (brandName && brandName !== 'Unknown' && brandName.toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
-        queries.push(`site:linkedin.com/company "${brandName}"`);
-    }
-
-    // 5. If we have a second company term (e.g., "Ska Durango" from "Ska Brewing Co, Ska Durango, LLC")
-    if (searchTerms[1] && searchTerms[1].toLowerCase() !== primaryCompanyTerm.toLowerCase()) {
-        queries.push(`"${searchTerms[1]}"`);
-    }
-
-    // De-duplicate and limit to 8 queries max
-    const uniqueQueries = [...new Set(queries)].slice(0, 8);
-    console.log(`[Enhancement] Will search ${uniqueQueries.length} queries:`);
-    uniqueQueries.forEach((q, i) => console.log(`  ${i + 1}. ${q}`));
-
-    // STEP 2: Execute all search queries in parallel for speed
-    const allResults = [];
-    const seenUrls = new Set();
-
-    const searchPromises = uniqueQueries.map(query => googleSearch(query, env));
-    const searchResults = await Promise.all(searchPromises);
-
-    // Combine and deduplicate results
-    for (const results of searchResults) {
-        for (const r of results) {
-            if (!seenUrls.has(r.link)) {
-                seenUrls.add(r.link);
-                allResults.push(r);
-            }
-        }
-    }
-
-    console.log(`[Enhancement] Google returned ${allResults.length} unique results across all queries`);
-
-    // STEP 3: Extract social media URLs from results (no extra API call)
-    let facebookUrl = null, instagramUrl = null, youtubeUrl = null, linkedinCompanyUrl = null;
-    for (const r of allResults) {
-        const url = r.link;
-        if (url.includes('facebook.com/') && !facebookUrl && !url.includes('/posts/')) facebookUrl = url;
-        if (url.includes('instagram.com/') && !instagramUrl && !url.includes('/p/')) instagramUrl = url;
-        if (url.includes('youtube.com/') && !youtubeUrl && !url.includes('/watch?')) youtubeUrl = url;
-        // Capture LinkedIn company pages (not individual profiles)
-        if (url.includes('linkedin.com/company/') && !linkedinCompanyUrl) linkedinCompanyUrl = url;
-    }
-
-    // STEP 4: Format results for Claude (just URL, title, snippet - NO content fetching yet)
-    const candidateList = allResults
-        .filter(r => {
-            const url = r.link.toLowerCase();
-            // Skip obvious non-company sites
-            if (url.includes('facebook.com') || url.includes('instagram.com') || url.includes('linkedin.com')) return false;
-            if (url.includes('yelp.com') || url.includes('tripadvisor.com') || url.includes('yellowpages.com')) return false;
-            if (url.includes('amazon.com') || url.includes('walmart.com') || url.includes('totalwine.com')) return false;
-            if (url.includes('untappd.com') || url.includes('ratebeer.com') || url.includes('vivino.com')) return false;
-            return true;
-        })
-        .slice(0, 10)
-        .map((r, i) => `${i + 1}. ${r.link}\n   Title: ${r.title || 'No title'}\n   Snippet: ${r.snippet || 'No description'}`)
-        .join('\n\n');
-
-    if (!candidateList) {
-        console.log('[Enhancement] No candidates after filtering');
-        // Fall back to LinkedIn company page if no website candidates
-        const fallbackWebsite = linkedinCompanyUrl || null;
-        if (fallbackWebsite) {
-            console.log(`[Enhancement] Using LinkedIn company page as fallback: ${fallbackWebsite}`);
-        }
-        return { website: fallbackWebsite, social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl, linkedin: linkedinCompanyUrl }, news: [], scrapedPages: [] };
-    }
-
-    // STEP 5: Claude picks the website (just from Google metadata, NO fetching)
-    let websiteUrl = null;
-    if (env.ANTHROPIC_API_KEY) {
-        const prompt = `You are identifying the official website for a beverage alcohol company.
-
-COMPANY: ${companyName}
-BRAND: ${brandName}
-INDUSTRY: ${industryHint}
-
-Here are Google search results. Which one is most likely the company's OFFICIAL website?
-
-${candidateList}
-
-INSTRUCTIONS:
-- Pick the URL that looks like the company's own website (not a retailer, directory, or news site)
-- The domain often contains the company name or brand name
-- Companies often abbreviate: "United Liquors" may use "unisco.com", "American Beverage" may use "ambevco.com"
-- Look for context clues: title/snippet mentioning the company name, "about us", contact info
-- Distilleries, wineries, breweries usually have their own .com site
-- Importers/distributors may have parent company domains - check if snippet mentions the company
-- If none look like an official company website, say "none"
-
-Reply with ONLY the URL (e.g., "https://example.com") or "none". Nothing else.`;
-
-        try {
-            console.log('[Enhancement] Asking Claude to pick website...');
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': env.ANTHROPIC_API_KEY,
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 100,
-                    messages: [{ role: 'user', content: prompt }]
-                })
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                const text = (result.content?.[0]?.text || '').trim();
-                if (text && text !== 'none' && text.startsWith('http')) {
-                    websiteUrl = text;
-                    console.log(`[Enhancement] Claude picked: ${websiteUrl}`);
-                } else {
-                    console.log(`[Enhancement] Claude said: ${text}`);
-                }
-            }
-        } catch (e) {
-            console.error('[Enhancement] Claude website selection failed:', e.message);
-        }
-    }
-
-    // STEP 5.5: Fall back to LinkedIn company page if no official website found
-    if (!websiteUrl && linkedinCompanyUrl) {
-        websiteUrl = linkedinCompanyUrl;
-        console.log(`[Enhancement] No official website found, using LinkedIn company page: ${websiteUrl}`);
-    }
-
-    // STEP 6: Scrape the selected website (NOW we fetch content)
-    let scrapedPages = [];
-    if (websiteUrl) {
-        console.log(`[Enhancement] Scraping website: ${websiteUrl}`);
-        scrapedPages = await scrapeWebsitePages(websiteUrl, 4);
-        console.log(`[Enhancement] Scraped ${scrapedPages.length} pages`);
-    }
-
-    // STEP 7: News - just grab any news-looking results from Google (Claude will filter in summary)
-    const newsArticles = allResults
-        .filter(r => {
-            const url = r.link.toLowerCase();
-            const domain = new URL(r.link).hostname.toLowerCase();
-            // Include news sites
-            if (domain.includes('news') || url.includes('/news/') || url.includes('/article/')) return true;
-            if (domain.includes('patch.com') || domain.includes('bizjournals')) return true;
-            return false;
-        })
-        .slice(0, 3)
-        .map(r => ({
-            title: r.title,
-            url: r.link,
-            source: new URL(r.link).hostname.replace('www.', ''),
-            snippet: r.snippet,
-            date: null
-        }));
-
-    return {
-        website: websiteUrl,
-        social: { facebook: facebookUrl, instagram: instagramUrl, youtube: youtubeUrl, linkedin: linkedinCompanyUrl },
-        news: newsArticles,
-        scrapedPages: scrapedPages
-    };
-}
-
-// Claude evaluates candidates by reading actual page content
-async function claudeSelectWebsite(companyName, brandName, candidates, env) {
-    if (!candidates || candidates.length === 0) return null;
-    if (!env.ANTHROPIC_API_KEY) return null;
-
-    // Format candidates with actual page content
-    const candidateList = candidates.map((c, i) =>
-        `CANDIDATE ${i + 1}:
-URL: ${c.url}
-Domain: ${c.domain}
-Page Title: ${c.title}
-Page Content Preview:
-${c.content}
----`
-    ).join('\n\n');
-
-    const prompt = `You are identifying the OFFICIAL company website for "${companyName}"${brandName ? ` (brand: "${brandName}")` : ''}.
-
-I have fetched the actual content from several candidate websites. Review each one and determine which (if any) is the company's official website.
-
-${candidateList}
-
-CRITICAL - COMPANY NAMING CONVENTION:
-Company names often contain MULTIPLE names separated by commas. These are ALL valid names for the SAME company:
-- "Blue Meranti, Helmsman Imports, LLC" means "Helmsman Imports" IS the company
-- "XYZ Trading, ABC Distributors, Inc" means "ABC Distributors" IS the company
-A website matching ANY part of the comma-separated name is a CORRECT MATCH.
-
-EVALUATION CRITERIA:
-1. Does the domain match ANY part of the company name? (helmsmanimports.com matches "Blue Meranti, Helmsman Imports, LLC")
-2. Does the page content describe a wine/spirits/beer business?
-3. Does it look like a company homepage with products, about info, or contact details?
-4. Is it NOT a directory, review site, retailer, or news article?
-
-RESPOND WITH JSON ONLY:
-- If you find a likely match: {"url": "https://...", "confidence": "high", "evidence": "brief reason"}
-- If you find a possible match: {"url": "https://...", "confidence": "medium", "evidence": "brief reason"}
-- If none match: {"url": null, "confidence": "low", "evidence": "why none match"}`;
-
-    try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 200,
-                messages: [{ role: 'user', content: prompt }]
-            })
-        });
-
-        if (!response.ok) {
-            console.error('[Website Selection] Claude API error:', response.status);
-            return null;
-        }
-
-        const result = await response.json();
-        const text = result.content?.[0]?.text || '';
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            console.log(`[Website Selection] Claude result: ${JSON.stringify(parsed)}`);
-
-            // Return URL if confidence is high or medium
-            if (parsed.url && (parsed.confidence === 'high' || parsed.confidence === 'medium')) {
-                return parsed.url;
-            }
-        }
-        console.log('[Website Selection] No website selected by Claude');
-        return null;
-    } catch (e) {
-        console.error('[Website Selection] Error:', e);
-        return null;
-    }
-}
-
-// Fetch and clean article content for validation
-async function fetchArticleContent(url) {
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; BevAlcIntelBot/1.0; +https://bevalcintel.com)'
-            },
-            redirect: 'follow'
-        });
-
-        if (!response.ok) return null;
-
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('text/html')) return null;
-
-        const html = await response.text();
-
-        // Clean HTML - remove scripts, styles, nav, footer
-        let text = html
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-            .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-            .replace(/<header[\s\S]*?<\/header>/gi, '')
-            .replace(/<!--[\s\S]*?-->/g, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        // Return first 1500 chars (enough to validate relevance)
-        return text.substring(0, 1500);
-    } catch (e) {
-        console.error(`Failed to fetch article ${url}:`, e.message);
-        return null;
-    }
-}
-
-// Validate news articles using Claude - fetches actual content for accurate validation
-async function validateNewsArticles(companyName, brandName, candidateNews, env) {
-    if (!candidateNews || candidateNews.length === 0) {
-        return [];
-    }
-
-    if (!env.ANTHROPIC_API_KEY) {
-        console.error('ANTHROPIC_API_KEY not set for news validation');
-        return [];
-    }
-
-    // Fetch actual article content in parallel
-    console.log(`[News Validation] Fetching content for ${candidateNews.length} articles...`);
-    const articleContents = await Promise.all(
-        candidateNews.map(n => fetchArticleContent(n.url))
-    );
-
-    // Build detailed article list with actual content
-    const newsListText = candidateNews.map((n, i) => {
-        const content = articleContents[i];
-        return `ARTICLE ${i + 1}:
-Title: "${n.title}"
-Source: ${n.source}
-URL: ${n.url}
-Content Preview: ${content || 'Could not fetch content'}
----`;
-    }).join('\n\n');
-
-    const prompt = `You are a strict news article validator. Your job is to REJECT articles that are NOT about the target company, and extract publication dates from valid articles.
-
-TARGET COMPANY: "${companyName}"
-TARGET BRAND: "${brandName}"
-
-I have fetched the actual content of these articles. Review each one carefully:
-
-${newsListText}
-
-STRICT VALIDATION RULES:
-1. The article must EXPLICITLY mention "${companyName}" or "${brandName}" in the content
-2. REJECT if the article is about a DIFFERENT company (e.g., "Big Grove Brewery" is NOT "Binary Barrel Distillery")
-3. REJECT if only generic industry terms match (distillery, brewery, spirits, etc.)
-4. REJECT if the company name is similar but not exact
-5. REJECT if content could not be fetched
-6. When in doubt, REJECT - it's better to show no news than wrong news
-
-For each VALID article, extract the publication date from the content if possible (look for dates like "January 5, 2026", "Jan 5, 2026", "2026-01-05", etc.).
-
-Return JSON only with this format:
-{"relevant": [{"index": 1, "date": "2026-01-05"}, {"index": 2, "date": "2025-12-15"}]}
-
-Use format YYYY-MM-DD for dates. If date cannot be determined, use null for date. If no articles are relevant, return {"relevant": []}.`;
-
-    try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 100,
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            console.error('News validation API error:', response.status);
-            return []; // Return empty on error - don't show potentially wrong news
-        }
-
-        const result = await response.json();
-        const textContent = result.content?.[0]?.text || '';
-
-        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            const relevantItems = parsed.relevant || [];
-
-            // Handle both old format (array of numbers) and new format (array of objects with index and date)
-            let validatedNews = [];
-
-            if (relevantItems.length > 0) {
-                if (typeof relevantItems[0] === 'number') {
-                    // Old format: array of indices
-                    validatedNews = candidateNews.filter((_, i) => relevantItems.includes(i + 1));
-                } else {
-                    // New format: array of {index, date} objects
-                    validatedNews = relevantItems.map(item => {
-                        const article = candidateNews[item.index - 1];
-                        if (article) {
-                            // Use Claude-extracted date if available, otherwise keep original
-                            return {
-                                ...article,
-                                date: item.date || article.date || null
-                            };
-                        }
-                        return null;
-                    }).filter(Boolean);
-                }
-            }
-
-            // Sort by date, newest first (articles without dates go to the end)
-            validatedNews.sort((a, b) => {
-                if (!a.date && !b.date) return 0;
-                if (!a.date) return 1;  // No date goes to end
-                if (!b.date) return -1;
-                // Parse dates and compare (newer first)
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
-                return dateB - dateA;  // Descending order (newest first)
-            });
-
-            console.log(`[News Validation] ${candidateNews.length} candidates -> ${validatedNews.length} validated`);
-            return validatedNews;
-        }
-    } catch (e) {
-        console.error('News validation failed:', e);
-    }
-
-    return []; // Return empty on error - don't show potentially wrong news
-}
-
-// Generate summary using Claude (no web_search - just text analysis)
-async function callClaudeForSummary(companyName, filingData, discoveredUrls, websiteContent, env) {
-    // Build the content sections
-    let contentSections = [];
-
-    if (websiteContent?.homepage) {
-        contentSections.push(`HOMEPAGE CONTENT:\n${websiteContent.homepage}`);
-    }
-    if (websiteContent?.aboutPage) {
-        contentSections.push(`ABOUT PAGE CONTENT:\n${websiteContent.aboutPage}`);
-    }
-    if (websiteContent?.contactPage) {
-        contentSections.push(`CONTACT PAGE CONTENT:\n${websiteContent.contactPage}`);
-    }
-    if (websiteContent?.otherPages?.length > 0) {
-        contentSections.push(`OTHER PAGE CONTENT:\n${websiteContent.otherPages.join('\n\n')}`);
-    }
-
-    const websiteContentText = contentSections.length > 0
-        ? contentSections.join('\n\n---\n\n')
-        : 'No website content available.';
-
-    const newsText = discoveredUrls.news?.length > 0
-        ? discoveredUrls.news.map(n => `- ${n.title} (${n.source}): ${n.snippet || ''}`).join('\n')
-        : 'No news articles found.';
-
-    const prompt = `You are writing a company intelligence summary for a beverage alcohol business report.
-
-COMPANY: ${companyName}
-PRIMARY BRAND: ${filingData.primaryBrand || 'Unknown'}
-INDUSTRY: ${filingData.categories || 'Beverage alcohol'}
-
-TTB FILING DATA:
-- Total filings: ${filingData.totalFilings}
-- First filing: ${filingData.firstFiling || 'Unknown'}
-- Last filing: ${filingData.lastFiling || 'Unknown'}
-- Last 12 months: ${filingData.last12Months} filings
-- Trend: ${filingData.trend}
-- States: ${filingData.states || 'Unknown'}
-- Top brands: ${filingData.brands || 'Unknown'}
-
-${discoveredUrls.website ? `OFFICIAL WEBSITE: ${discoveredUrls.website}` : 'NO WEBSITE FOUND'}
-${discoveredUrls.social?.facebook ? `FACEBOOK: ${discoveredUrls.social.facebook}` : ''}
-${discoveredUrls.social?.instagram ? `INSTAGRAM: ${discoveredUrls.social.instagram}` : ''}
-
-WEBSITE CONTENT:
-${websiteContentText}
-
-RECENT NEWS:
-${newsText}
-
-Write a JSON response:
-{
-    "summary": "3-5 sentences about this company. Be SPECIFIC - include location (city, state), founding year, founder names, flagship products, awards, or recent news if found. Do not be generic.",
-    "confidence": "high" if website content was informative, "medium" if limited, "low" if minimal
-}
-
-RULES:
-- Use ONLY facts from the content above - do not make anything up
-- If website content mentions founders, location, or founding year, include those specifics
-- If no website content, summarize based on TTB filing data (what categories they file in, how active they are)
-- Keep it factual and professional`;
-
-    try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 800,
-                // NO tools - just text analysis
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('Claude API error:', response.status, error);
-            return { summary: null, confidence: 'low', relevant_news: [] };
-        }
-
-        const result = await response.json();
-        const textContent = result.content?.find(b => b.type === 'text')?.text || '';
-
-        try {
-            const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
-            }
-        } catch (e) {
-            console.error('Failed to parse Claude response:', e);
-        }
-
-        return { summary: null, confidence: 'low', relevant_news: [] };
-    } catch (e) {
-        console.error('Claude API call failed:', e);
-        return { summary: null, confidence: 'low', relevant_news: [] };
-    }
-}
-
 // Get industry hint from category codes
 function getIndustryHint(categories) {
     const cats = categories || '';
@@ -9244,890 +8256,6 @@ function getIndustryHint(categories) {
  * @param {object} env - Worker environment
  * @returns {Promise<object>} - { contacts: [], debug: string, searched_name: string }
  */
-async function searchCompanyContacts(companyName, brandName, websiteUrl, scrapedContent, env) {
-    console.log(`[Contacts] Starting contact search for: ${companyName}, website: ${websiteUrl || 'none'}, scrapedContent: ${scrapedContent?.length || 0} pages`);
-
-    // Helper function to extract emails and phones from text
-    const extractContactInfo = (text) => {
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-        const phoneRegex = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
-
-        const allEmails = text.match(emailRegex) || [];
-        const phones = text.match(phoneRegex) || [];
-
-        // Filter spam emails
-        const spamPatterns = ['noreply', 'no-reply', 'donotreply', 'mailer', 'notifications', 'newsletter', 'sentry', 'wixpress', 'example.com', 'schema.org', 'w3.org', 'wordpress', 'googleapis', 'gravatar', 'sentry.io', 'cloudflare'];
-        const validEmails = [...new Set(allEmails)].filter(email => {
-            const lower = email.toLowerCase();
-            return !spamPatterns.some(pattern => lower.includes(pattern));
-        });
-
-        return { emails: validEmails, phones: [...new Set(phones)] };
-    };
-
-    // STEP 1: First check already-scraped content (fastest, already fetched)
-    if (scrapedContent && scrapedContent.length > 0) {
-        console.log(`[Contacts] Checking ${scrapedContent.length} pre-scraped pages for emails`);
-        const allScrapedText = scrapedContent.map(p => p.content || '').join('\n');
-
-        // DIAGNOSTIC: Check if @ exists in content
-        const hasAtSign = allScrapedText.includes('@');
-        const hasEmailsFoundTag = allScrapedText.includes('[EMAILS FOUND:');
-        const contentLength = allScrapedText.length;
-        const first500 = allScrapedText.substring(0, 500);
-        console.log(`[Contacts] DIAGNOSTIC: contentLength=${contentLength}, hasAtSign=${hasAtSign}, hasEmailsFoundTag=${hasEmailsFoundTag}`);
-        console.log(`[Contacts] DIAGNOSTIC first 500 chars: ${first500}`);
-
-        const { emails, phones } = extractContactInfo(allScrapedText);
-
-        console.log(`[Contacts] Pre-scraped content search found ${emails.length} emails: ${emails.join(', ')}`);
-
-        if (emails.length > 0) {
-            const contacts = emails.slice(0, 3).map((email, idx) => ({
-                name: idx === 0 ? 'Company Contact' : `Contact ${idx + 1}`,
-                title: idx === 0 ? 'Primary Contact' : 'Additional Contact',
-                email: email,
-                phone: idx === 0 && phones.length > 0 ? phones[0] : null,
-                linkedin: null
-            }));
-            return { contacts, debug: null, searched_name: companyName, method: 'scraped_content' };
-        }
-    }
-
-    // STEP 2: Direct fetch of website (in case scraped content didn't have emails)
-    if (websiteUrl) {
-        try {
-            const rootUrl = new URL(websiteUrl).origin;
-            const urlsToFetch = [websiteUrl];
-            if (rootUrl !== websiteUrl && rootUrl + '/' !== websiteUrl) {
-                urlsToFetch.push(rootUrl);
-            }
-
-            console.log(`[Contacts] Direct fetching: ${urlsToFetch.join(', ')}`);
-
-            let allHtml = '';
-            for (const url of urlsToFetch) {
-                try {
-                    const response = await fetch(url, {
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-                        signal: AbortSignal.timeout(10000)
-                    });
-                    if (response.ok) {
-                        const html = await response.text();
-                        allHtml += html + '\n';
-                        console.log(`[Contacts] Fetched ${html.length} chars from ${url}`);
-                    } else {
-                        console.log(`[Contacts] Fetch returned ${response.status} for ${url}`);
-                    }
-                } catch (e) {
-                    console.log(`[Contacts] Fetch error for ${url}: ${e.message}`);
-                }
-            }
-
-            if (allHtml.length > 0) {
-                const { emails, phones } = extractContactInfo(allHtml);
-                console.log(`[Contacts] Direct fetch found ${emails.length} emails: ${emails.join(', ')}`);
-
-                if (emails.length > 0) {
-                    const contacts = emails.slice(0, 3).map((email, idx) => ({
-                        name: idx === 0 ? 'Company Contact' : `Contact ${idx + 1}`,
-                        title: idx === 0 ? 'Primary Contact' : 'Additional Contact',
-                        email: email,
-                        phone: idx === 0 && phones.length > 0 ? phones[0] : null,
-                        linkedin: null
-                    }));
-                    return { contacts, debug: null, searched_name: companyName, method: 'direct_fetch' };
-                }
-            }
-        } catch (e) {
-            console.log(`[Contacts] Direct fetch failed: ${e.message}`);
-        }
-    }
-
-    // TIER 1: Scrape website with Claude Sonnet (only if we have a website and no emails found above)
-    if (websiteUrl) {
-        try {
-            const scrapedContacts = await scrapeWebsiteForContacts(companyName, websiteUrl, env);
-            if (scrapedContacts.contacts && scrapedContacts.contacts.length > 0) {
-                console.log(`[Contacts] Found ${scrapedContacts.contacts.length} contacts via website scraping`);
-                return {
-                    contacts: scrapedContacts.contacts,
-                    debug: null,
-                    searched_name: companyName,
-                    method: 'website_scraping'
-                };
-            }
-        } catch (error) {
-            console.error('[Contacts] Website scraping failed:', error);
-        }
-    } else {
-        console.log('[Contacts] No website - skipping Tier 1 (website scraping)');
-    }
-
-    // TIER 2: Google search for company owner/CEO (works without website)
-    if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID) {
-        try {
-            const googleContacts = await googleSearchForContacts(companyName, env);
-            if (googleContacts.contacts && googleContacts.contacts.length > 0) {
-                console.log(`[Contacts] Found ${googleContacts.contacts.length} contacts via Google search`);
-                return {
-                    contacts: googleContacts.contacts,
-                    debug: null,
-                    searched_name: companyName,
-                    method: 'google_search'
-                };
-            }
-        } catch (error) {
-            console.error('[Contacts] Google search failed:', error);
-        }
-    }
-
-    // TIER 3: LinkedIn search via Google (searches both company and brand name)
-    if (env.GOOGLE_CSE_API_KEY && env.GOOGLE_CSE_ID && env.ANTHROPIC_API_KEY) {
-        try {
-            const linkedInContacts = await linkedInSearchForContacts(companyName, brandName, env);
-            if (linkedInContacts.contacts && linkedInContacts.contacts.length > 0) {
-                console.log(`[Contacts] Found ${linkedInContacts.contacts.length} contacts via LinkedIn search`);
-                return {
-                    contacts: linkedInContacts.contacts,
-                    debug: null,
-                    searched_name: companyName,
-                    method: 'linkedin_search'
-                };
-            }
-        } catch (error) {
-            console.error('[Contacts] LinkedIn search failed:', error);
-        }
-    }
-
-    // TIER 4: Try Hunter.io as fallback (requires website for domain)
-    if (websiteUrl && env.HUNTER_IO_API_KEY) {
-        try {
-            const domain = new URL(websiteUrl).hostname.replace(/^www\./, '');
-            const hunterContacts = await hunterDomainSearch(domain, env);
-            if (hunterContacts.contacts && hunterContacts.contacts.length > 0) {
-                console.log(`[Contacts] Found ${hunterContacts.contacts.length} contacts via Hunter.io`);
-                return {
-                    contacts: hunterContacts.contacts,
-                    debug: null,
-                    searched_name: companyName,
-                    method: 'hunter_io'
-                };
-            }
-        } catch (error) {
-            console.error('[Contacts] Hunter.io failed:', error);
-        }
-    } else if (!websiteUrl) {
-        console.log('[Contacts] No website - skipping Tier 4 (Hunter.io needs domain)');
-    }
-
-    // Nothing found
-    const methods = websiteUrl ? 'website, Google, LinkedIn, or Hunter.io' : 'Google or LinkedIn';
-    return {
-        contacts: [],
-        debug: `No contacts found via ${methods}`,
-        searched_name: companyName
-    };
-}
-
-/**
- * Scrape website for contact information using Claude Sonnet
- * Fetches multiple pages (homepage, contact, about, team) and extracts structured contact data
- */
-async function scrapeWebsiteForContacts(companyName, websiteUrl, env) {
-    if (!env.ANTHROPIC_API_KEY) {
-        throw new Error('Anthropic API key not configured');
-    }
-
-    console.log(`[WebScrape] Fetching pages from ${websiteUrl}`);
-
-    // Common contact page paths to check
-    const baseUrl = new URL(websiteUrl);
-    const pagesToFetch = [
-        websiteUrl, // The discovered URL
-        baseUrl.origin, // Root homepage (in case websiteUrl is a subpage like /story)
-        `${baseUrl.origin}/contact`,
-        `${baseUrl.origin}/contact-us`,
-        `${baseUrl.origin}/about`,
-        `${baseUrl.origin}/about-us`,
-        `${baseUrl.origin}/story`,
-        `${baseUrl.origin}/our-story`,
-        `${baseUrl.origin}/team`,
-        `${baseUrl.origin}/leadership`
-    ];
-
-    // Fetch all pages in parallel (up to 7 pages)
-    const fetchPromises = pagesToFetch.map(async url => {
-        try {
-            const response = await fetch(url, {
-                headers: {
-                    'User-Agent': 'BevAlc Intelligence Contact Discovery Bot (+https://bevalcintel.com)'
-                },
-                signal: AbortSignal.timeout(5000) // 5 second timeout per page
-            });
-
-            if (response.ok) {
-                const html = await response.text();
-                return { url, html: html.slice(0, 50000) }; // Limit to 50KB per page
-            }
-        } catch (e) {
-            // Page not found or timeout - skip it
-        }
-        return null;
-    });
-
-    const pages = (await Promise.all(fetchPromises)).filter(p => p !== null);
-
-    if (pages.length === 0) {
-        throw new Error('Could not fetch any pages from website');
-    }
-
-    console.log(`[WebScrape] Fetched ${pages.length} pages, sending to Claude for extraction`);
-
-    // Combine all page HTML for Claude
-    const combinedContext = pages.map(p => `=== ${p.url} ===\n${p.html}`).join('\n\n');
-
-    // Call Claude to extract contacts
-    const prompt = `You are extracting contact information for ${companyName} from their website pages.
-
-Find decision-makers and key contacts (owners, executives, directors, sales leaders). Extract:
-- Full name
-- Job title
-- Email address
-- Phone number (if available)
-- LinkedIn URL (ONLY if explicitly linked on the page - DO NOT GUESS OR MAKE UP)
-
-IMPORTANT RULES:
-- Prioritize decision-makers with names: Owner, President, CEO, VP, Director, Sales Manager
-- If you find named people with emails, extract them first
-- If NO named contacts exist, extract the company's main contact email (even without a name)
-- For company emails without names, use "Company Contact" as the name and "Primary Contact" as the title
-- Skip truly generic emails like info@, contact@, support@ ONLY if better options exist
-- If you find multiple people, return up to 5 most senior contacts
-- Be accurate - if you're not sure, don't include it
-- NEVER invent or guess LinkedIn URLs - only include if you see an actual linkedin.com link in the HTML
-
-Website content:
-${combinedContext}
-
-Return a JSON array of contacts in this exact format:
-[
-  {
-    "name": "John Smith",
-    "title": "Owner & Winemaker",
-    "email": "john@winery.com",
-    "phone": "+1-555-123-4567",
-    "linkedin": null
-  }
-]
-
-If you find a company email address but no named person, still return it with name "Company Contact" and title "Primary Contact".
-Only return an empty array [] if the page has absolutely no email addresses or contact information.`;
-
-    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'x-api-key': env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 2000,
-            messages: [{
-                role: 'user',
-                content: prompt
-            }]
-        })
-    });
-
-    if (!claudeResponse.ok) {
-        const errorText = await claudeResponse.text();
-        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
-    }
-
-    const claudeData = await claudeResponse.json();
-    const responseText = claudeData.content[0].text;
-
-    // Parse JSON response
-    let contacts = [];
-    try {
-        // Extract JSON array from response (might be wrapped in markdown)
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            contacts = JSON.parse(jsonMatch[0]);
-        }
-    } catch (e) {
-        console.error('[WebScrape] Failed to parse Claude response:', e);
-        console.log('[WebScrape] Raw response:', responseText);
-    }
-
-    // FALLBACK: If Claude returned empty, try regex extraction directly from HTML
-    if (contacts.length === 0) {
-        console.log('[WebScrape] Claude returned no contacts, trying regex fallback');
-
-        // Extract emails using regex (excluding common generic patterns)
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-        const allEmails = combinedContext.match(emailRegex) || [];
-
-        // Filter out truly generic emails and duplicates
-        const genericPatterns = ['noreply@', 'no-reply@', 'donotreply@', 'mailer@', 'notifications@', 'newsletter@'];
-        const uniqueEmails = [...new Set(allEmails)].filter(email => {
-            const lower = email.toLowerCase();
-            // Keep company-specific emails, even if they use info@, contact@, etc.
-            return !genericPatterns.some(pattern => lower.startsWith(pattern));
-        });
-
-        // Extract phone numbers
-        const phoneRegex = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
-        const phones = combinedContext.match(phoneRegex) || [];
-        const uniquePhones = [...new Set(phones)];
-
-        if (uniqueEmails.length > 0) {
-            console.log(`[WebScrape] Regex found ${uniqueEmails.length} emails: ${uniqueEmails.join(', ')}`);
-            // Take the first non-generic email as primary contact
-            const primaryEmail = uniqueEmails[0];
-            contacts.push({
-                name: 'Company Contact',
-                title: 'Primary Contact',
-                email: primaryEmail,
-                phone: uniquePhones.length > 0 ? uniquePhones[0] : null,
-                linkedin: null
-            });
-        }
-    }
-
-    return { contacts };
-}
-
-/**
- * Search for contacts using Hunter.io Domain Search API
- * Uses official Hunter.io API with executive-level filtering
- */
-async function hunterDomainSearch(domain, env) {
-    if (!env.HUNTER_IO_API_KEY) {
-        throw new Error('Hunter.io API key not configured');
-    }
-
-    console.log(`[Hunter.io] Searching domain: ${domain}`);
-
-    // Build URL with proper parameters per Hunter.io docs
-    const params = new URLSearchParams({
-        domain: domain,
-        api_key: env.HUNTER_IO_API_KEY,
-        limit: '10',  // Get top 10 results
-        seniority: 'executive',  // Filter for executives only
-        type: 'personal'  // Exclude generic emails (info@, contact@)
-    });
-
-    const response = await fetch(`https://api.hunter.io/v2/domain-search?${params}`);
-
-    if (!response.ok) {
-        const errorText = await response.text();
-
-        // Handle specific error codes per Hunter.io docs
-        if (response.status === 401) {
-            throw new Error('Hunter.io API key invalid');
-        } else if (response.status === 429) {
-            throw new Error('Hunter.io usage limit reached');
-        } else if (response.status === 404) {
-            // Domain not found - not an error, just no results
-            return { contacts: [] };
-        }
-
-        throw new Error(`Hunter.io API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    const emails = data.data?.emails || [];
-
-    console.log(`[Hunter.io] Found ${emails.length} emails`);
-
-    // Transform to our contact format
-    // Note: Hunter.io returns linkedin field but it's often inaccurate, so we don't include it
-    const contacts = emails
-        .slice(0, 5)  // Limit to top 5
-        .map(e => ({
-            name: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Unknown',
-            title: e.position || 'Unknown',
-            email: e.value,
-            phone: e.phone_number || null,
-            linkedin: null,  // Hunter.io LinkedIn data is unreliable - omit it
-            confidence: e.confidence  // Hunter.io provides confidence score
-        }))
-        .filter(c => c.name !== 'Unknown');  // Only include named contacts
-
-    return { contacts };
-}
-
-/**
- * Search for company contacts using Google Custom Search + Claude extraction
- * Searches for "[company] owner", "[company] CEO", "[company] founder" etc.
- */
-async function googleSearchForContacts(companyName, env) {
-    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID || !env.ANTHROPIC_API_KEY) {
-        throw new Error('Google CSE or Anthropic API keys not configured');
-    }
-
-    console.log(`[GoogleSearch] Searching for ${companyName} owner/CEO`);
-
-    // Try multiple search queries for better coverage
-    const searchQueries = [
-        `"${companyName}" owner`,
-        `"${companyName}" CEO`,
-        `"${companyName}" founder`,
-        `"${companyName}" president contact`
-    ];
-
-    let allSnippets = [];
-
-    // Execute searches in parallel
-    const searchPromises = searchQueries.map(async query => {
-        try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${env.GOOGLE_CSE_API_KEY}&cx=${env.GOOGLE_CSE_ID}&q=${encodeURIComponent(query)}&num=3`;
-            const response = await fetch(url);
-
-            if (response.ok) {
-                const data = await response.json();
-                return (data.items || []).map(item => ({
-                    title: item.title,
-                    snippet: item.snippet,
-                    link: item.link
-                }));
-            }
-        } catch (e) {
-            console.error(`[GoogleSearch] Query "${query}" failed:`, e);
-        }
-        return [];
-    });
-
-    const searchResults = await Promise.all(searchPromises);
-    allSnippets = searchResults.flat();
-
-    if (allSnippets.length === 0) {
-        return { contacts: [] };
-    }
-
-    console.log(`[GoogleSearch] Got ${allSnippets.length} search results, extracting contacts with Claude`);
-
-    // Use Claude to extract contact info from search snippets
-    const snippetsText = allSnippets.map((s, i) =>
-        `Result ${i + 1}: ${s.title}\n${s.snippet}\nURL: ${s.link}`
-    ).join('\n\n---\n\n');
-
-    const prompt = `You are extracting contact information for ${companyName} from Google search results.
-
-Find the owner, CEO, founder, or president of ${companyName}. Extract:
-- Full name
-- Job title
-- Email address (if found in snippets)
-- Phone number (if found in snippets)
-- LinkedIn URL (ONLY if an actual linkedin.com URL appears in the snippets - DO NOT GUESS)
-
-IMPORTANT RULES:
-- Only extract REAL people with actual names
-- Focus on: Owner, CEO, Founder, President (not managers or staff)
-- If email/phone is mentioned in the snippets, include it
-- Be accurate - if you're not confident, don't include it
-- Return up to 2 contacts maximum (top executives only)
-- NEVER invent or guess LinkedIn URLs - only include if you see an actual linkedin.com URL
-
-Google search results:
-${snippetsText}
-
-Return a JSON array in this exact format:
-[
-  {
-    "name": "John Smith",
-    "title": "Owner & CEO",
-    "email": "john@company.com",
-    "phone": "+1-555-123-4567",
-    "linkedin": null
-  }
-]
-
-If you find NO clear decision-makers or named contacts, return an empty array: []`;
-
-    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'x-api-key': env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 1000,
-            messages: [{
-                role: 'user',
-                content: prompt
-            }]
-        })
-    });
-
-    if (!claudeResponse.ok) {
-        const errorText = await claudeResponse.text();
-        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
-    }
-
-    const claudeData = await claudeResponse.json();
-    const responseText = claudeData.content[0].text;
-
-    // Parse JSON response
-    let contacts = [];
-    try {
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            contacts = JSON.parse(jsonMatch[0]);
-        }
-    } catch (e) {
-        console.error('[GoogleSearch] Failed to parse Claude response:', e);
-        console.log('[GoogleSearch] Raw response:', responseText);
-    }
-
-    return { contacts };
-}
-
-/**
- * Search for company contacts via LinkedIn using Google site search
- * Searches for both company name and brand name to maximize results
- * @param {string} companyName - Company name
- * @param {string} brandName - Brand name (may be same as company or different)
- * @param {object} env - Worker environment
- */
-async function linkedInSearchForContacts(companyName, brandName, env) {
-    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID || !env.ANTHROPIC_API_KEY) {
-        throw new Error('Google CSE or Anthropic API keys not configured');
-    }
-
-    console.log(`[LinkedIn] Searching for ${companyName}${brandName && brandName !== companyName ? ` / ${brandName}` : ''}`);
-
-    // Build search queries for both company and brand
-    const searchQueries = [
-        `site:linkedin.com "${companyName}" owner OR founder OR CEO`,
-        `site:linkedin.com "${companyName}" president OR director`
-    ];
-
-    // Add brand-specific searches if brand is different from company
-    if (brandName && brandName !== companyName && brandName !== 'Unknown') {
-        searchQueries.push(`site:linkedin.com "${brandName}" owner OR founder OR CEO`);
-        searchQueries.push(`site:linkedin.com "${brandName}" winemaker OR distiller OR brewmaster`);
-    }
-
-    let allSnippets = [];
-
-    // Execute searches in parallel
-    const searchPromises = searchQueries.map(async query => {
-        try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${env.GOOGLE_CSE_API_KEY}&cx=${env.GOOGLE_CSE_ID}&q=${encodeURIComponent(query)}&num=5`;
-            const response = await fetch(url);
-
-            if (response.ok) {
-                const data = await response.json();
-                return (data.items || []).map(item => ({
-                    title: item.title,
-                    snippet: item.snippet,
-                    link: item.link
-                }));
-            }
-        } catch (e) {
-            console.error(`[LinkedIn] Query "${query}" failed:`, e);
-        }
-        return [];
-    });
-
-    const searchResults = await Promise.all(searchPromises);
-    allSnippets = searchResults.flat();
-
-    // Dedupe by URL
-    const seenUrls = new Set();
-    allSnippets = allSnippets.filter(s => {
-        if (seenUrls.has(s.link)) return false;
-        seenUrls.add(s.link);
-        return true;
-    });
-
-    if (allSnippets.length === 0) {
-        console.log('[LinkedIn] No results found');
-        return { contacts: [] };
-    }
-
-    console.log(`[LinkedIn] Got ${allSnippets.length} unique results, extracting contacts with Claude`);
-
-    // Use Claude to extract contact info from LinkedIn search snippets
-    const snippetsText = allSnippets.map((s, i) =>
-        `Result ${i + 1}: ${s.title}\n${s.snippet}\nURL: ${s.link}`
-    ).join('\n\n---\n\n');
-
-    const prompt = `You are extracting contact information for "${companyName}"${brandName && brandName !== companyName ? ` (brand: "${brandName}")` : ''} from LinkedIn search results via Google.
-
-The Google search results show LinkedIn profile titles and snippets. Extract decision-makers who work at or own this company.
-
-IMPORTANT RULES:
-- Only extract people who CLEARLY work at or own "${companyName}" or "${brandName}"
-- Look for titles like: Owner, Founder, CEO, President, Winemaker, Distiller, Brewmaster, Director
-- The LinkedIn URL in the results IS the person's real LinkedIn profile - include it
-- Do NOT include people who just happen to have similar names but work elsewhere
-- If the snippet mentions the company/brand name in connection with the person, that's a good sign
-- Return up to 3 contacts maximum
-- CRITICAL: email and phone should ALWAYS be null - LinkedIn does not show emails. NEVER make up or guess emails.
-
-Google search results (from site:linkedin.com):
-${snippetsText}
-
-Return a JSON array in this exact format:
-[
-  {
-    "name": "John Smith",
-    "title": "Owner & Founder",
-    "email": null,
-    "phone": null,
-    "linkedin": "https://www.linkedin.com/in/johnsmith"
-  }
-]
-
-If you find NO clear decision-makers for this specific company, return an empty array: []`;
-
-    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'x-api-key': env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{
-                role: 'user',
-                content: prompt
-            }]
-        })
-    });
-
-    if (!claudeResponse.ok) {
-        const errorText = await claudeResponse.text();
-        throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`);
-    }
-
-    const claudeData = await claudeResponse.json();
-    const responseText = claudeData.content[0].text;
-
-    // Parse JSON response
-    let contacts = [];
-    try {
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            contacts = JSON.parse(jsonMatch[0]);
-            // Post-process: remove any fake/hallucinated emails (LinkedIn doesn't provide emails)
-            contacts = contacts.map(c => ({
-                ...c,
-                email: null,  // Force null - LinkedIn search never has real emails
-                phone: null   // Force null - LinkedIn search never has real phones
-            }));
-        }
-    } catch (e) {
-        console.error('[LinkedIn] Failed to parse Claude response:', e);
-        console.log('[LinkedIn] Raw response:', responseText);
-    }
-
-    console.log(`[LinkedIn] Extracted ${contacts.length} contacts`);
-    return { contacts };
-}
-
-// ============================================================================
-// OLD ENHANCEMENT FUNCTION (kept for rollback - now commented out)
-// ============================================================================
-
-/*
-async function callClaudeWithSearch(companyName, data, env) {
-    // Build context about what type of company this is
-    const categories = data.categories || '';
-    let industryHint = 'beverage alcohol';
-    if (categories.includes('WHISKY') || categories.includes('BOURBON')) industryHint = 'distillery whiskey bourbon';
-    else if (categories.includes('WINE') || categories.includes('TABLE')) industryHint = 'winery wine';
-    else if (categories.includes('BEER') || categories.includes('ALE') || categories.includes('MALT')) industryHint = 'brewery craft beer';
-    else if (categories.includes('VODKA') || categories.includes('GIN')) industryHint = 'distillery spirits';
-    else if (categories.includes('TEQUILA') || categories.includes('MEZCAL')) industryHint = 'tequila mezcal';
-    else if (categories.includes('RUM')) industryHint = 'rum distillery';
-
-    // Use the primary brand (clicked brand) for searching
-    const topBrand = data.primaryBrand || '';
-
-    const prompt = `You are researching a beverage alcohol company for a business intelligence report. Your PRIMARY goal is to find their official website and write a factual summary.
-
-Company: ${companyName}
-Top brand: ${topBrand}
-Industry: ${industryHint}
-${data.existingWebsite ? `Known website: ${data.existingWebsite}` : ''}
-
-REQUIRED: You MUST use web_search multiple times with different queries. Do NOT give up after one search.
-
-Search strategy (try ALL of these):
-1. "${companyName}" - direct company name search
-2. "${topBrand} official website" - search by their main brand
-3. "${companyName} ${industryHint}" - company + industry terms
-4. "${topBrand} distillery" or "${topBrand} winery" - brand + facility type
-5. If still not found, try variations: remove "LLC", "Inc", try just the first word of the company name
-6. "${companyName} facebook" OR "${topBrand} facebook" - find their Facebook page for business updates, grand openings, events
-
-IMPORTANT:
-- The official website is almost always a .com domain matching the company or brand name
-- IGNORE retailers: Drizly, Total Wine, Vivino, Wine-Searcher, ReserveBar, Caskers, wine.com
-- IGNORE social media as the primary website (but DO search Facebook/Instagram for business news like grand openings, events, new releases)
-- Most legitimate beverage companies HAVE a website - keep searching if you don't find it immediately
-
-After thorough searching, provide this JSON:
-{
-  "website": "https://example.com" or null ONLY if truly not found after multiple searches,
-  "summary": "2-3 sentences about the company's background, founding story, location, and what makes them notable. Include recent business updates from Facebook/Instagram like grand openings, events, new releases if found. Be specific with facts you found.",
-  "social": {
-    "facebook": "https://facebook.com/companypage" or null,
-    "instagram": "https://instagram.com/companypage" or null
-  },
-  "news": [
-    {"title": "Actual article headline", "date": "2024-01", "source": "Publication Name", "url": "https://actual-article-url.com/full/path"}
-  ]
-}
-
-CRITICAL for news:
-- Only include articles that are PRIMARILY ABOUT this company or brand - not articles that merely mention them in passing
-- The "url" field MUST be the actual clickable URL to the article from your search results
-- Do NOT make up URLs or use placeholder text
-- If you cannot find real news articles specifically about this company, return an empty array: "news": []
-
-DO NOT say "limited information" unless you've tried at least 4 different search queries. Most companies are findable.`;
-
-    // Retry logic for rate limits
-    const maxRetries = 3;
-    let lastError = null;
-
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        if (attempt > 0) {
-            // Wait before retry: 10s, 30s, 60s (generous delays for rate limit recovery)
-            const waitMs = Math.min(10000 * Math.pow(2, attempt), 60000);
-            await new Promise(resolve => setTimeout(resolve, waitMs));
-        }
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 800,
-                tools: [{
-                    type: 'web_search_20250305',
-                    name: 'web_search',
-                    max_uses: 5
-                }],
-                messages: [{
-                    role: 'user',
-                    content: prompt
-                }]
-            })
-        });
-
-        if (response.ok) {
-            // Success - continue with processing below
-            var result = await response.json();
-            break;
-        }
-
-        if (response.status === 429) {
-            // Rate limited - retry after delay
-            lastError = `Rate limited (attempt ${attempt + 1}/${maxRetries})`;
-            console.log(lastError);
-            if (attempt === maxRetries - 1) {
-                throw new Error('Claude API rate limit exceeded. Please try again in a minute.');
-            }
-            continue;
-        }
-
-        // Other error - don't retry
-        const errorText = await response.text();
-        throw new Error(`Claude API error: ${response.status} - ${errorText}`);
-    }
-
-    // Extract text from response
-    let textContent = '';
-    for (const block of result.content || []) {
-        if (block.type === 'text') {
-            textContent += block.text;
-        }
-    }
-
-    // Parse JSON from response
-    try {
-        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            // Strip citation tags from summary
-            let summary = parsed.summary || null;
-            if (summary) {
-                summary = summary.replace(/<cite[^>]*>|<\/cite>/g, '');
-            }
-            return {
-                website: parsed.website || null,
-                summary,
-                news: parsed.news || []
-            };
-        }
-    } catch (e) {
-        console.error('Failed to parse Claude response:', e);
-    }
-
-    return { website: null, summary: null, news: [] };
-}
-*/
-
-async function saveEnhancement(companyId, companyName, tearsheet, email, env) {
-    const now = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-
-    await env.DB.prepare(`
-        INSERT OR REPLACE INTO company_enhancements
-        (company_id, company_name, website_url, website_confidence, filing_stats,
-         distribution_states, brand_portfolio, category_breakdown, summary, news, social_links, contacts, enhanced_at, enhanced_by, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-        companyId,
-        companyName,
-        tearsheet.website?.url || null,
-        tearsheet.website?.confidence || null,
-        JSON.stringify(tearsheet.filing_stats),
-        JSON.stringify(tearsheet.distribution.states),
-        JSON.stringify(tearsheet.brands),
-        JSON.stringify(tearsheet.categories),
-        tearsheet.summary || null,
-        JSON.stringify(tearsheet.news || []),
-        JSON.stringify(tearsheet.social || null),
-        JSON.stringify(tearsheet.contacts || []),
-        now,
-        email,
-        expiresAt
-    ).run();
-}
-
-function parseEnhancement(row) {
-    return {
-        company_id: row.company_id,
-        company_name: row.company_name,
-        website: row.website_url ? { url: row.website_url, confidence: row.website_confidence } : null,
-        filing_stats: row.filing_stats ? JSON.parse(row.filing_stats) : null,
-        distribution: { states: row.distribution_states ? JSON.parse(row.distribution_states) : [] },
-        brands: row.brand_portfolio ? JSON.parse(row.brand_portfolio) : [],
-        categories: row.category_breakdown ? JSON.parse(row.category_breakdown) : {},
-        contacts: row.contacts ? JSON.parse(row.contacts) : [],
-        news: row.news ? JSON.parse(row.news) : [],
-        social: row.social_links ? JSON.parse(row.social_links) : null,
-        summary: row.summary || null,
-        enhanced_at: row.enhanced_at
-    };
-}
 
 async function fetchRecentFilings(companyId, env) {
     const result = await env.DB.prepare(`

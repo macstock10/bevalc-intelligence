@@ -983,3 +983,135 @@
     .cola-pills { gap: 6px; }
     .cola-pill { font-size: 0.75rem; padding: 4px 10px; }
 }
+
+/* ===== Company Enrichment Styles ===== */
+
+.enrichment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.enrichment-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.enrichment-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.enrichment-field a,
+.enrichment-field span:not(.enrichment-label) {
+    font-size: 0.9rem;
+    color: #0f172a;
+}
+
+.enrichment-tech-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+.enrichment-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.enrichment-pill-green {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.enrichment-pill-blue {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.enrichment-contact-table td { vertical-align: middle; }
+
+.enrichment-dm-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.enrichment-verified-badge {
+    color: #16a34a;
+    font-weight: 700;
+    margin-right: 2px;
+}
+
+.enrichment-metrics-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.enrichment-metric {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    min-width: 120px;
+}
+
+.enrichment-metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.enrichment-metric-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0d9488;
+    margin-top: 2px;
+}
+
+.enrichment-metric-sub {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.enrichment-social-link {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #0d9488;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.enrichment-social-link:hover {
+    background: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+    .enrichment-grid { grid-template-columns: 1fr 1fr; }
+    .enrichment-metrics-row { gap: 12px; }
+    .enrichment-metric { min-width: 100px; }
+}
