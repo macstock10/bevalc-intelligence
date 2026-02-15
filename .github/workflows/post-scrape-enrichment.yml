@@ -63,14 +63,7 @@ jobs:
         run: |
           mkdir -p data logs
 
-      # --- Step 1: Image download (requires Selenium + Firefox) ---
-
-      - name: Setup display for Selenium
-        if: ${{ inputs.skip_images != 'true' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-          firefox --version
+      # --- Step 1: Image download (HTTP-based, no browser needed) ---
 
       - name: Download label images from TTB
         if: ${{ inputs.skip_images != 'true' }}
@@ -82,18 +75,11 @@ jobs:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          MOZ_HEADLESS: "1"
-          DISPLAY: ":99"
         run: |
           LIMIT="${{ inputs.limit || '100' }}"
           DRY_RUN="${{ inputs.dry_run }}"
 
-          # Start virtual display for Firefox
-          Xvfb :99 -screen 0 1920x1080x24 &
-          sleep 2
-
-          FLAGS="--headless --limit $LIMIT"
+          FLAGS="--limit $LIMIT"
           if [ "$DRY_RUN" = "true" ]; then
             FLAGS="$FLAGS --dry-run"
           fi

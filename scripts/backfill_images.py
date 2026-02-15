@@ -1,12 +1,10 @@
 """
-backfill_images.py — Discover label image URLs and download to R2 in one pass
+backfill_images.py — Discover label image URLs and download to R2
 
-Unified script that visits each COLA's TTB printable page once via Selenium,
-extracts image URLs + metadata (BeautifulSoup), downloads image bytes
-(JS fetch in browser context), and uploads to Cloudflare R2.
-
-Replaces the two-script workflow (backfill_image_urls.py + download_images_to_r2.py)
-to halve TTB page visits — the pipeline bottleneck.
+Uses plain HTTP requests with session cookies (no Selenium needed).
+Visits each COLA's TTB printable page, extracts image URLs via
+BeautifulSoup, downloads image bytes using session cookies, and
+uploads to Cloudflare R2.
 
 USAGE:
     # Process 50 COLAs (discover URLs + download images)
@@ -24,18 +22,16 @@ USAGE:
     # Specific ttb_ids
     python scripts/backfill_images.py --ttb-ids 26021001000664 24031001000777
 
-    # Headless browser + save images locally for inspection
-    python scripts/backfill_images.py --headless --save-to-disk --limit 10
+    # Save images locally for inspection
+    python scripts/backfill_images.py --save-to-disk --limit 10
 
 REQUIREMENTS:
-    - Firefox + geckodriver (Selenium)
     - boto3 (R2 S3-compatible upload)
     - Pillow (image dimensions)
     - beautifulsoup4 (HTML parsing)
-    - anthropic (CAPTCHA auto-solve via Claude Vision)
+    - requests
     - CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, CLOUDFLARE_API_TOKEN in .env
     - CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY in .env
-    - ANTHROPIC_API_KEY in .env
 """
 
 import os
@@ -43,26 +39,23 @@ import re
 import sys
 import io
 import time
-import base64
 import argparse
 import logging
 from pathlib import Path
+
+# Use OS certificate store (fixes SSL on Windows where certifi's bundle
+# doesn't include ttbonline.gov's intermediate cert)
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass  # Not installed — certifi will be used (works on Ubuntu/CI)
 
 import requests as http_requests
 import boto3
 from botocore.config import Config
 from PIL import Image
 from bs4 import BeautifulSoup
-
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from selenium.common.exceptions import TimeoutException
-from webdriver_manager.firefox import GeckoDriverManager
-
-import anthropic
 
 
 # =============================================================================
@@ -85,8 +78,13 @@ TTB_PRINTABLE_URL = f"{TTB_BASE}/viewColaDetails.do?action=publicFormDisplay&ttb
 
 CORRUPT_THRESHOLD = 5 * 1024  # 5KB — images smaller than this are marked corrupt
 MAX_RETRIES = 3
-REQUEST_DELAY = 0.5   # seconds between image downloads within a COLA
-COLA_DELAY = 3        # seconds between COLA page navigations
+REQUEST_DELAY = 0.3   # seconds between image downloads within a COLA
+COLA_DELAY = 1.0      # seconds between COLA page fetches
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 CONTENT_TYPE_MAP = {
     'jpg': 'image/jpeg',
@@ -99,45 +97,7 @@ CONTENT_TYPE_MAP = {
     'webp': 'image/webp',
 }
 
-# JavaScript to fetch an image URL via the browser's network stack
-# and return the bytes as base64. Runs in the browser context with
-# full session cookies, bypassing SSL and CAPTCHA issues.
-FETCH_IMAGE_JS = """
-var callback = arguments[arguments.length - 1];
-var url = arguments[0];
-fetch(url, {credentials: 'same-origin'})
-    .then(function(response) {
-        var finalUrl = response.url || url;
-        if (!response.ok) {
-            callback({success: false, error: 'HTTP ' + response.status, status: response.status, finalUrl: finalUrl});
-            return;
-        }
-        var contentType = response.headers.get('content-type') || '';
-        if (contentType.indexOf('html') !== -1) {
-            callback({success: false, error: 'got HTML (captcha?)', status: -1, finalUrl: finalUrl});
-            return;
-        }
-        return response.arrayBuffer().then(function(buf) {
-            var bytes = new Uint8Array(buf);
-            var binary = '';
-            var chunkSize = 8192;
-            for (var i = 0; i < bytes.length; i += chunkSize) {
-                var chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-                binary += String.fromCharCode.apply(null, chunk);
-            }
-            callback({
-                success: true,
-                data: btoa(binary),
-                contentType: contentType,
-                size: bytes.length,
-                finalUrl: finalUrl
-            });
-        });
-    })
-    .catch(function(err) {
-        callback({success: false, error: err.message || String(err), status: -1});
-    });
-"""
+CAPTCHA_INDICATORS = ['captcha', 'what code is in the image', 'g-recaptcha']
 
 
 # =============================================================================
@@ -299,130 +259,111 @@ def save_checkpoint_entry(ttb_id):
 
 
 # =============================================================================
-# CAPTCHA handling (Claude Vision auto-solve)
+# HTTP session + page/image fetching
 # =============================================================================
 
-captcha_stats = {'attempts': 0, 'successes': 0, 'failures': 0}
-
-CAPTCHA_INDICATORS = ['captcha', 'what code is in the image', 'g-recaptcha']
-
-
-def detect_captcha(driver):
-    try:
-        html = driver.page_source.lower()
-        return any(ind in html for ind in CAPTCHA_INDICATORS)
-    except Exception:
-        return False
+def create_session():
+    """Create an HTTP session with browser-like headers."""
+    session = http_requests.Session()
+    session.headers.update({
+        'User-Agent': USER_AGENT,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+    })
+    return session
 
 
-def solve_captcha(driver, api_key):
-    """Attempt to auto-solve a CAPTCHA using Claude Vision."""
-    try:
-        captcha_img = None
-        site_chrome = ['arrowrt', 'masthead', 'arch', 'footer', 'logo', 'ttb',
-                       'treasury', 'treas', 'spacer', '.gif']
-        for img in driver.find_elements(By.TAG_NAME, 'img'):
-            src = (img.get_attribute('src') or '').lower()
-            if any(skip in src for skip in site_chrome):
-                continue
-            if not img.is_displayed():
-                continue
-            if img.size['height'] < 20 or img.size['width'] < 40:
-                continue
-            captcha_img = img
-            break
+def detect_captcha_in_html(html):
+    """Check if HTML contains CAPTCHA indicators."""
+    lower = html.lower()
+    return any(ind in lower for ind in CAPTCHA_INDICATORS)
 
-        if not captcha_img:
-            logger.warning("    Could not find CAPTCHA image element")
-            return False
 
-        img_b64 = captcha_img.screenshot_as_base64
-        client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=32,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": img_b64}},
-                    {"type": "text", "text": "What text is shown in this captcha image? Return only the characters, nothing else."}
-                ],
-            }]
-        )
+def fetch_cola_page(session, ttb_id):
+    """Fetch a COLA's printable page via HTTP.
 
-        captcha_text = response.content[0].text.strip()
-        if not captcha_text:
-            return False
-
-        logger.info(f"    CAPTCHA answer: '{captcha_text}'")
-
-        captcha_input = None
-        for inp in driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]'):
-            if inp.is_displayed():
-                captcha_input = inp
-                break
-
-        if not captcha_input:
-            return False
-
-        captcha_input.clear()
-        captcha_input.send_keys(captcha_text)
-
+    Returns (html, status) where status is 'ok', 'captcha', or 'error'.
+    html is None on failure.
+    """
+    url = TTB_PRINTABLE_URL + ttb_id
+    for attempt in range(MAX_RETRIES):
         try:
-            submit = driver.find_element(By.CSS_SELECTOR, 'input[type="submit"][value="submit" i]')
-            submit.click()
-        except Exception:
-            captcha_input.send_keys(Keys.RETURN)
+            resp = session.get(url, timeout=30)
+            if resp.status_code != 200:
+                logger.warning(f"  HTTP {resp.status_code} (attempt {attempt + 1}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(2 ** attempt)
+                continue
 
-        time.sleep(2)
-        return not detect_captcha(driver)
+            html = resp.text
 
-    except Exception as e:
-        logger.warning(f"    CAPTCHA auto-solve error: {e}")
-        return False
+            if detect_captcha_in_html(html):
+                logger.warning(f"  CAPTCHA detected (attempt {attempt + 1}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES - 1:
+                    # Back off and create fresh session to get new cookies
+                    time.sleep(10 * (attempt + 1))
+                    session.cookies.clear()
+                    continue
+                return None, 'captcha'
+
+            if 'Error Messages' in html and 'Unable to process request' in html:
+                logger.warning(f"  TTB error page")
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                return None, 'error'
+
+            return html, 'ok'
+
+        except Exception as e:
+            logger.warning(f"  Request error: {e.__class__.__name__} (attempt {attempt + 1}/{MAX_RETRIES})")
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(2 ** attempt)
+
+    return None, 'error'
 
 
-def handle_captcha(driver, api_key):
-    """Handle CAPTCHA with up to 3 auto-solve attempts + manual fallback."""
-    if not detect_captcha(driver):
-        return True
+def download_image_http(session, url):
+    """Download image bytes via HTTP using session cookies.
 
-    logger.info("  CAPTCHA detected — attempting auto-solve...")
+    Returns (image_bytes, status) where status is one of:
+        'success', 'failed', 'timeout', 'captcha'
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            resp = session.get(url, timeout=30)
 
-    for attempt in range(3):
-        captcha_stats['attempts'] += 1
-        logger.info(f"    Attempt {attempt + 1}/3")
+            if resp.status_code != 200:
+                if attempt < MAX_RETRIES - 1:
+                    logger.info(f"    HTTP {resp.status_code} (attempt {attempt + 1}/{MAX_RETRIES})")
+                    time.sleep(2 ** attempt)
+                    continue
+                return None, 'failed'
 
-        if solve_captcha(driver, api_key):
-            captcha_stats['successes'] += 1
-            rate = captcha_stats['successes'] / captcha_stats['attempts'] * 100
-            logger.info(f"    [OK] Solved (stats: {captcha_stats['successes']}/{captcha_stats['attempts']}, {rate:.0f}%)")
-            return True
+            content_type = resp.headers.get('Content-Type', '')
 
-        captcha_stats['failures'] += 1
-        if attempt < 2:
-            try:
-                driver.refresh()
-                time.sleep(2)
-                if not detect_captcha(driver):
-                    return True
-            except Exception:
-                pass
+            # TTB returns HTML error page instead of image when session is invalid
+            if 'html' in content_type.lower():
+                if detect_captcha_in_html(resp.text):
+                    return None, 'captcha'
+                return None, 'failed'
 
-    # Manual fallback
-    logger.warning("  Auto-solve exhausted. Solve in the browser, then press ENTER (or 'quit').")
-    try:
-        resp = input("> ").strip().lower()
-        if resp == 'quit':
-            return False
-        if detect_captcha(driver):
-            return handle_captcha(driver, api_key)
-        logger.info("  [OK] Solved manually")
-        time.sleep(2)
-        return True
-    except EOFError:
-        time.sleep(30)
-        return not detect_captcha(driver)
+            return resp.content, 'success'
+
+        except http_requests.Timeout:
+            if attempt < MAX_RETRIES - 1:
+                logger.info(f"    Timeout (attempt {attempt + 1}/{MAX_RETRIES})")
+                time.sleep(2 ** attempt)
+                continue
+            return None, 'timeout'
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                logger.info(f"    Error: {e} (attempt {attempt + 1}/{MAX_RETRIES})")
+                time.sleep(2 ** attempt)
+                continue
+            return None, 'failed'
+
+    return None, 'failed'
 
 
 # =============================================================================
@@ -520,47 +461,6 @@ def extract_images_from_html(html, ttb_id):
     return images
 
 
-# =============================================================================
-# Browser navigation + image download
-# =============================================================================
-
-def navigate_to_cola(driver, ttb_id, api_key):
-    """Navigate to a COLA's printable page and handle any CAPTCHA.
-
-    Returns the page HTML on success, or None on failure.
-    """
-    url = TTB_PRINTABLE_URL + ttb_id
-    for attempt in range(2):
-        try:
-            driver.get(url)
-            break
-        except Exception as e:
-            if attempt == 0:
-                logger.warning(f"  Page load error: {e.__class__.__name__}, retrying in 10s...")
-                time.sleep(10)
-            else:
-                logger.warning(f"  Page load failed on retry")
-                return None
-
-    try:
-        WebDriverWait(driver, 30).until(
-            lambda d: d.execute_script('return document.readyState') == 'complete'
-        )
-    except TimeoutException:
-        pass
-
-    if not handle_captcha(driver, api_key):
-        logger.error(f"  CAPTCHA not solved")
-        return None
-
-    html = driver.page_source
-    if 'Error Messages' in html and 'Unable to process request' in html:
-        logger.warning(f"  TTB error page")
-        return None
-
-    return html
-
-
 def get_extension(url):
     """Extract file extension from TTB image URL."""
     match = re.search(r'filename=([^&]+)', url)
@@ -578,48 +478,6 @@ def get_image_dimensions(image_bytes):
         return img.width, img.height
     except Exception:
         return None, None
-
-
-def download_image(driver, url):
-    """Download image bytes via JS fetch() in the browser context.
-
-    Returns (image_bytes, status) where status is one of:
-        'success', 'failed', 'timeout', 'captcha'
-    """
-    for attempt in range(MAX_RETRIES):
-        try:
-            result = driver.execute_async_script(FETCH_IMAGE_JS, url)
-        except Exception as e:
-            if attempt < MAX_RETRIES - 1:
-                logger.info(f"    JS fetch error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-                time.sleep(2 ** attempt)
-                continue
-            return None, 'timeout'
-
-        if result is None:
-            if attempt < MAX_RETRIES - 1:
-                logger.info(f"    Null result (attempt {attempt + 1}/{MAX_RETRIES}), retrying...")
-                time.sleep(2 ** attempt)
-                continue
-            return None, 'failed'
-
-        if result.get('success'):
-            image_bytes = base64.b64decode(result['data'])
-            return image_bytes, 'success'
-
-        error = result.get('error', 'unknown')
-
-        if 'html' in error.lower() or 'captcha' in error.lower():
-            return None, 'captcha'
-
-        if attempt < MAX_RETRIES - 1:
-            logger.info(f"    Fetch error: {error} (attempt {attempt + 1}/{MAX_RETRIES}), retrying...")
-            time.sleep(2 ** attempt)
-        else:
-            logger.warning(f"    Fetch failed: {error}")
-            return None, 'failed'
-
-    return None, 'failed'
 
 
 # =============================================================================
@@ -767,28 +625,17 @@ def get_completed_cola_count():
 # Main pipeline
 # =============================================================================
 
-def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
-                  save_to_disk=False, discover_only=False):
-    """Main pipeline: discover URLs + download images for each COLA in one pass."""
+def process_colas(ttb_ids, dry_run=False, save_to_disk=False, discover_only=False):
+    """Main pipeline: discover URLs + download images for each COLA via HTTP."""
 
-    # Start browser
-    logger.info("Starting Firefox...")
-    options = webdriver.FirefoxOptions()
-    if headless:
-        options.add_argument('--headless')
-
-    driver = webdriver.Firefox(
-        service=FirefoxService(GeckoDriverManager().install()),
-        options=options
-    )
-    driver.set_page_load_timeout(30)
-    driver.set_script_timeout(60)
+    session = create_session()
+    logger.info("HTTP session created (no browser needed)")
 
     # Stats
     colas_complete = 0
     colas_partial = 0
     colas_nav_failed = 0
-    colas_no_images = 0
+    captcha_count = 0
     urls_discovered = 0
     urls_inserted = 0
     images_downloaded = 0
@@ -803,12 +650,17 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
         for cola_idx, ttb_id in enumerate(ttb_ids):
             logger.info(f"[{cola_idx+1}/{len(ttb_ids)}] {ttb_id}")
 
-            # Step 1: Navigate to COLA's printable page
-            html = navigate_to_cola(driver, ttb_id, api_key)
+            # Step 1: Fetch COLA's printable page via HTTP
+            html, fetch_status = fetch_cola_page(session, ttb_id)
             if html is None:
                 colas_nav_failed += 1
-                logger.warning(f"  Navigation failed — skipping (will retry next run)")
-                time.sleep(COLA_DELAY)
+                if fetch_status == 'captcha':
+                    captcha_count += 1
+                    logger.warning(f"  CAPTCHA — backing off")
+                    time.sleep(COLA_DELAY * 10)
+                else:
+                    logger.warning(f"  Fetch failed — skipping (will retry next run)")
+                    time.sleep(COLA_DELAY * 3)
                 continue
 
             # Step 2: Parse HTML for image URLs
@@ -816,9 +668,7 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
             urls_discovered += len(discovered)
 
             if not discovered:
-                colas_no_images += 0  # intentional — we still count via colas_complete
                 logger.info(f"  No images on page")
-                # Checkpoint zero-image COLAs so we don't revisit
                 if not dry_run:
                     save_checkpoint_entry(ttb_id)
                 colas_complete += 1
@@ -850,7 +700,6 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
             if not dry_run:
                 pending = get_pending_images_for_cola(ttb_id)
             else:
-                # In dry-run, treat all discovered as pending
                 pending = [{'image_id': img['image_id'], 'ttb_id': img['ttb_id'],
                             'ttb_original_url': img['ttb_original_url'],
                             'download_status': None} for img in discovered]
@@ -866,7 +715,7 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
 
             logger.info(f"  Downloading {len(pending)} image(s)...")
 
-            # Step 5: Download each pending image via JS fetch
+            # Step 5: Download each pending image via HTTP
             cola_all_ok = True
 
             for img_idx, img in enumerate(pending):
@@ -875,14 +724,15 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
 
                 logger.info(f"  [{img_idx+1}/{len(pending)}] {image_id}")
 
-                image_bytes, status = download_image(driver, url)
+                image_bytes, status = download_image_http(session, url)
 
-                # CAPTCHA during fetch — re-navigate and retry once
-                if status == 'captcha':
-                    logger.info(f"    CAPTCHA during fetch — re-navigating...")
-                    re_html = navigate_to_cola(driver, ttb_id, api_key)
+                # Session expired — re-fetch page to refresh cookies and retry
+                if status == 'captcha' or (status == 'failed' and image_bytes is None):
+                    logger.info(f"    Session issue — refreshing cookies...")
+                    session.cookies.clear()
+                    re_html, _ = fetch_cola_page(session, ttb_id)
                     if re_html is not None:
-                        image_bytes, status = download_image(driver, url)
+                        image_bytes, status = download_image_http(session, url)
 
                 if image_bytes is None:
                     cola_all_ok = False
@@ -964,8 +814,6 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
 
     except KeyboardInterrupt:
         logger.info("\nInterrupted by user")
-    finally:
-        driver.quit()
 
     # Overall progress from D1
     total_colas_in_db = get_total_cola_count()
@@ -978,7 +826,7 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
     print(f"{'='*60}")
     print(f"COLAs processed:       {len(ttb_ids)}")
     print(f"COLAs complete:        {colas_complete}")
-    print(f"COLAs nav failed:      {colas_nav_failed}")
+    print(f"COLAs fetch failed:    {colas_nav_failed}")
     print(f"COLAs partial:         {colas_partial}")
     print(f"URLs discovered:       {urls_discovered}")
     if not discover_only:
@@ -991,9 +839,8 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
         if images_downloaded:
             avg_kb = (total_bytes / images_downloaded) / 1024
             print(f"Avg file size:         {avg_kb:.0f} KB")
-    if captcha_stats['attempts']:
-        rate = captcha_stats['successes'] / captcha_stats['attempts'] * 100
-        print(f"CAPTCHA auto-solve:    {captcha_stats['successes']}/{captcha_stats['attempts']} ({rate:.0f}%)")
+    if captcha_count:
+        print(f"CAPTCHA blocks:        {captcha_count}")
     else:
         print(f"CAPTCHA:               none encountered")
     print(f"{'='*60}")
@@ -1010,7 +857,7 @@ def process_colas(ttb_ids, api_key, headless=False, dry_run=False,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Discover label image URLs from TTB and download to R2 in one pass',
+        description='Discover label image URLs from TTB and download to R2',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1029,8 +876,8 @@ Examples:
   # Process specific ttb_ids
   python scripts/backfill_images.py --ttb-ids 26021001000664 24031001000777
 
-  # Headless + save to disk for inspection
-  python scripts/backfill_images.py --headless --save-to-disk --limit 10
+  # Save images to disk for inspection
+  python scripts/backfill_images.py --save-to-disk --limit 10
         """
     )
     parser.add_argument('--limit', type=int, default=50,
@@ -1043,14 +890,14 @@ Examples:
                         help='Re-download COLAs with failed/timeout/captcha images')
     parser.add_argument('--discover-only', action='store_true',
                         help='Only discover image URLs, do not download or upload')
-    parser.add_argument('--headless', action='store_true',
-                        help='Run browser in headless mode')
     parser.add_argument('--save-to-disk', action='store_true',
                         help='Save each downloaded image to data/test_N.ext for inspection')
+    # Keep --headless for backwards compatibility but it's now a no-op
+    parser.add_argument('--headless', action='store_true',
+                        help='(No-op, kept for backwards compatibility)')
     args = parser.parse_args()
 
     load_env()
-    api_key = require_env('ANTHROPIC_API_KEY')
     init_d1()
 
     if not args.discover_only:
@@ -1070,7 +917,7 @@ Examples:
         logger.info("No COLAs to process")
         return
 
-    process_colas(ttb_ids, api_key, headless=args.headless, dry_run=args.dry_run,
+    process_colas(ttb_ids, dry_run=args.dry_run,
                   save_to_disk=args.save_to_disk, discover_only=args.discover_only)
 
 
