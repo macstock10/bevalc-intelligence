@@ -928,7 +928,7 @@ async function handleCreditCheckout(request, env) {
         'line_items[0][price_data][currency]': 'usd',
         'line_items[0][price_data][unit_amount]': creditPack.price.toString(),
         'line_items[0][price_data][product_data][name]': `BevAlc Intelligence - ${creditPack.name}`,
-        'line_items[0][price_data][product_data][description]': `${creditPack.credits} Company Intelligence credits`,
+        'line_items[0][price_data][product_data][description]': `${creditPack.credits} company enrichment credits`,
         'line_items[0][quantity]': '1',
         'success_url': successUrl || 'https://bevalcintel.com/account.html?credits=success',
         'cancel_url': cancelUrl || 'https://bevalcintel.com/account.html#credits',
@@ -4481,12 +4481,9 @@ function renderEnrichmentSection(enrichment, contacts, company) {
         // Not enriched — show CTA
         return `
             <div class="seo-card enrichment-cta-card" style="margin-bottom: 32px; text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 32px;">
-                <h2 style="color: white; margin: 0 0 8px 0; font-size: 1.3rem;">Unlock Company Intelligence</h2>
-                <p style="color: #94a3b8; margin: 0 0 16px 0;">Get verified contacts, website analytics, consumer ratings, funding data, and more.</p>
-                <p style="color: #5eead4; font-size: 0.85rem; margin: 0 0 20px 0;">
-                    Contacts &amp; Emails &middot; Tech Stack &middot; Google Rating &middot; Social Profiles &middot; Funding History
-                </p>
-                <a href="/database.html" class="btn" style="display: inline-block; padding: 12px 24px; background: #0d9488; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">Unlock Intelligence (1 credit)</a>
+                <h2 style="color: white; margin: 0 0 8px 0; font-size: 1.3rem;">Company Intel</h2>
+                <p style="color: #94a3b8; margin: 0 0 20px 0;">Enrich this company with verified contacts, website, tech stack, ratings, and more.</p>
+                <a href="/database.html" class="btn" style="display: inline-block; padding: 12px 24px; background: #0d9488; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">Enrich Company (1 credit)</a>
             </div>
         `;
     }
@@ -4529,7 +4526,7 @@ function renderEnrichmentSection(enrichment, contacts, company) {
     if (briefHtml || firmGrid.length > 0) {
         sections.push(`
             <div class="seo-card" style="margin-bottom: 24px;">
-                <h2 style="margin: 0 0 16px 0;">Company Intelligence</h2>
+                <h2 style="margin: 0 0 16px 0;">Company Intel</h2>
                 ${briefHtml}
                 ${firmGrid.length > 0 ? `<div class="enrichment-grid">${firmGrid.join('')}</div>` : ''}
                 ${techHtml}
