@@ -1,13 +1,10 @@
 name: Post-Scrape Enrichment
 
 # Runs Claude Haiku LLM enrichment on newly scraped COLAs.
-# Triggered automatically after Post-Scrape OCR completes, or manually.
+# Dispatched by Post-Scrape OCR with a matching limit, or manually.
 # Final step in the chain: Daily TTB Sync → Images → OCR → Enrichment
 
 on:
-  workflow_run:
-    workflows: ["Post-Scrape OCR"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       limit:
@@ -25,9 +22,6 @@ jobs:
   enrich:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
-    # Only run on successful OCR (or manual dispatch)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repository

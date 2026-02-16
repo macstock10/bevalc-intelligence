@@ -1,13 +1,10 @@
 name: Post-Scrape OCR
 
 # Runs Google Cloud Vision OCR on newly downloaded label images.
-# Triggered automatically after Post-Scrape Images completes, or manually.
-# On completion, triggers Post-Scrape Enrichment workflow.
+# Dispatched by Post-Scrape Images with a matching limit, or manually.
+# On completion, dispatches Post-Scrape Enrichment with the same limit.
 
 on:
-  workflow_run:
-    workflows: ["Post-Scrape Images"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       limit:
@@ -25,9 +22,6 @@ jobs:
   ocr:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
-    # Only run on successful image download (or manual dispatch)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repository
@@ -78,6 +72,14 @@ jobs:
       - name: Cleanup GCP credentials
         if: always()
         run: rm -f /tmp/gcp-service-account.json
+
+      - name: Trigger Enrichment workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LIMIT="${{ inputs.limit || '1000' }}"
+          echo "Dispatching Post-Scrape Enrichment with limit=$LIMIT"
+          gh workflow run "Post-Scrape Enrichment" -f limit="$LIMIT"
 
       - name: Upload logs
         if: always()

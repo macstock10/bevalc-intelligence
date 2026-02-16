@@ -2,7 +2,7 @@ name: Post-Scrape Images
 
 # Downloads label images from TTB for newly scraped COLAs.
 # Triggered automatically after Daily TTB Sync completes, or manually.
-# On completion, triggers Post-Scrape OCR workflow.
+# On completion, dispatches Post-Scrape OCR with the same limit.
 
 on:
   workflow_run:
@@ -67,6 +67,14 @@ jobs:
           cd scripts
           echo "Running: python backfill_images.py $FLAGS"
           python backfill_images.py $FLAGS
+
+      - name: Trigger OCR workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LIMIT="${{ inputs.limit || '1000' }}"
+          echo "Dispatching Post-Scrape OCR with limit=$LIMIT"
+          gh workflow run "Post-Scrape OCR" -f limit="$LIMIT"
 
       - name: Upload logs
         if: always()
