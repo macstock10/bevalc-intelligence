@@ -413,19 +413,20 @@ def compute_quality_score(ocr_text, fields):
 def get_images_needing_ocr(limit, retry_failed=False):
     """Get cola_images rows that need OCR."""
     if retry_failed:
-        where = "download_status = 'success' AND ocr_quality_score = 'failed'"
+        where = "ci.download_status = 'success' AND ci.ocr_quality_score = 'failed'"
         desc = "previously failed"
     else:
-        where = "download_status = 'success' AND ocr_text IS NULL"
+        where = "ci.download_status = 'success' AND ci.ocr_text IS NULL"
         desc = "pending"
 
     logger.info(f"Querying D1 for up to {limit} {desc} images...")
 
     rows = d1_query_rows(
-        f"SELECT image_id, ttb_id, r2_key "
-        f"FROM cola_images "
+        f"SELECT ci.image_id, ci.ttb_id, ci.r2_key "
+        f"FROM cola_images ci "
+        f"JOIN colas c ON ci.ttb_id = c.ttb_id "
         f"WHERE {where} "
-        f"ORDER BY ttb_id DESC "
+        f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
         f"LIMIT {limit}"
     )
 
