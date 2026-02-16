@@ -18,6 +18,10 @@ on:
         default: false
         type: boolean
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   ocr:
     runs-on: ubuntu-latest
