@@ -1,13 +1,10 @@
 name: Post-Scrape Images
 
 # Downloads label images from TTB for newly scraped COLAs.
-# Triggered automatically after Daily TTB Sync completes, or manually.
+# Dispatched by Daily TTB Sync with the exact count of new COLAs, or manually.
 # On completion, dispatches Post-Scrape OCR with the same limit.
 
 on:
-  workflow_run:
-    workflows: ["Daily TTB Sync"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       limit:
@@ -29,9 +26,6 @@ jobs:
   images:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
-    # Only run on successful sync (or manual dispatch)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repository

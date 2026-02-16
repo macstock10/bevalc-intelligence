@@ -1232,7 +1232,14 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
 
     logger.info(f"Completed: {datetime.now()}")
     logger.info("=" * 60)
-    
+
+    # Write inserted count for downstream workflows to read
+    inserted = sync_result.get('inserted', 0)
+    count_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'sync_inserted_count.txt')
+    os.makedirs(os.path.dirname(count_file), exist_ok=True)
+    with open(count_file, 'w') as f:
+        f.write(str(inserted))
+
     return results
 
 

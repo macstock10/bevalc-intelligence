@@ -4,6 +4,8 @@ name: Daily TTB Sync
 # Recent days may have incomplete data initially, but subsequent runs
 # fill in gaps as TTB publishes delayed records. INSERT OR IGNORE
 # handles duplicates, so re-scraping the same dates is harmless.
+# On completion, dispatches Post-Scrape Images with the exact count
+# of new COLAs inserted, so only today's pull gets enriched.
 
 on:
   schedule:
@@ -21,6 +23,10 @@ on:
         required: false
         default: false
         type: boolean
+
+permissions:
+  actions: write
+  contents: read
 
 jobs:
   sync:
@@ -94,6 +100,21 @@ jobs:
         run: |
           cd scripts
           python precompute_category_stats.py
+
+      - name: Trigger enrichment pipeline
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(cat data/sync_inserted_count.txt 2>/dev/null || echo "0")
+          echo "New COLAs inserted: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "Dispatching Post-Scrape Images with limit=$COUNT"
+            gh workflow run "Post-Scrape Images" -f limit="$COUNT"
+          else
+            echo "No new COLAs — skipping enrichment pipeline"
+          fi
 
       - name: Upload logs
         if: always()
