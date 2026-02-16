@@ -234,7 +234,7 @@ def get_colas_needing_enrichment(limit):
         f"WHERE c.enriched_at IS NULL "
         f"AND EXISTS (SELECT 1 FROM cola_images ci "
         f"  WHERE ci.ttb_id = c.ttb_id AND ci.ocr_text IS NOT NULL) "
-        f"ORDER BY c.approval_date DESC "
+        f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
         f"LIMIT {limit}"
     )
 

@@ -620,7 +620,7 @@ def get_colas_needing_processing(limit, checkpoint, retry_failed=False):
             f"SELECT c.ttb_id FROM colas c "
             f"LEFT JOIN cola_images ci ON c.ttb_id = ci.ttb_id "
             f"WHERE ci.ttb_id IS NULL "
-            f"ORDER BY c.approval_date DESC "
+            f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
             f"LIMIT {limit}"
         )
         pop_a = [r['ttb_id'] for r in rows_a]
