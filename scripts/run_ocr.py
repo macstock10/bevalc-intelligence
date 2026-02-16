@@ -439,7 +439,11 @@ def compute_quality_score(ocr_text, fields):
 # =============================================================================
 
 def get_images_needing_ocr(limit, retry_failed=False):
-    """Get cola_images rows that need OCR."""
+    """Get cola_images rows that need OCR.
+
+    Limit is applied to distinct COLAs (not individual images),
+    so all images for a given COLA are processed together.
+    """
     if retry_failed:
         where = "ci.download_status = 'success' AND ci.ocr_quality_score = 'failed'"
         desc = "previously failed"
@@ -447,18 +451,25 @@ def get_images_needing_ocr(limit, retry_failed=False):
         where = "ci.download_status = 'success' AND ci.ocr_text IS NULL"
         desc = "pending"
 
-    logger.info(f"Querying D1 for up to {limit} {desc} images...")
+    logger.info(f"Querying D1 for images from up to {limit} {desc} COLAs...")
 
     rows = d1_query_rows(
         f"SELECT ci.image_id, ci.ttb_id, ci.r2_key "
         f"FROM cola_images ci "
         f"JOIN colas c ON ci.ttb_id = c.ttb_id "
         f"WHERE {where} "
-        f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
-        f"LIMIT {limit}"
+        f"AND ci.ttb_id IN ("
+        f"  SELECT DISTINCT ci2.ttb_id FROM cola_images ci2 "
+        f"  JOIN colas c2 ON ci2.ttb_id = c2.ttb_id "
+        f"  WHERE {where} "
+        f"  ORDER BY c2.year DESC, c2.month DESC, c2.day DESC "
+        f"  LIMIT {limit}"
+        f") "
+        f"ORDER BY c.year DESC, c.month DESC, c.day DESC"
     )
 
-    logger.info(f"Found {len(rows)} images to OCR")
+    distinct_colas = len(set(r['ttb_id'] for r in rows))
+    logger.info(f"Found {len(rows)} images across {distinct_colas} COLAs to OCR")
     return rows
 
 
@@ -595,7 +606,7 @@ Examples:
         """
     )
     parser.add_argument('--limit', type=int, default=50,
-                        help='Max images to OCR (default: 50)')
+                        help='Max COLAs to OCR (default: 50)')
     parser.add_argument('--dry-run', action='store_true',
                         help='OCR images but don\'t update D1')
     parser.add_argument('--retry-failed', action='store_true',
