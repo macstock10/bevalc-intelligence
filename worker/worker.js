@@ -3613,13 +3613,7 @@ async function handleColaPage(path, env) {
                     ${cola.signal ? `<span class="signal-badge ${signalClass}">${escapeHtml(cola.signal.replace(/_/g, ' '))}</span>` : ''}
                     ${isEnriched && cola.enrichment_confidence ? `<span class="cola-confidence-badge cola-confidence-${cola.enrichment_confidence}">${escapeHtml(cola.enrichment_confidence)} confidence</span>` : ''}
                 </div>
-                ${isEnriched && cola.super_category ? `
-                <div class="cola-taxonomy-breadcrumb">
-                    ${escapeHtml(cola.super_category)}
-                    ${cola.commercial_category ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.commercial_category)}` : ''}
-                    ${cola.subcategory ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.subcategory)}` : ''}
-                </div>` : `
-                <div class="cola-taxonomy-breadcrumb">${escapeHtml(displayCategory)}</div>`}
+                ${!isEnriched ? `<div class="cola-taxonomy-breadcrumb">${escapeHtml(displayCategory)}</div>` : ''}
             </div>
         </div>`;
 
@@ -3644,6 +3638,10 @@ async function handleColaPage(path, env) {
         // 3. Product Intelligence (enriched only)
         if (isEnriched) {
             content += '<div class="cola-section"><h2>Product Intelligence</h2>';
+
+            if (cola.super_category) {
+                content += `<div class="cola-taxonomy-breadcrumb" style="margin-bottom:16px">${escapeHtml(cola.super_category)}${cola.commercial_category ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.commercial_category)}` : ''}${cola.subcategory ? ` <span class="cola-tax-sep">&rsaquo;</span> ${escapeHtml(cola.subcategory)}` : ''}</div>`;
+            }
 
             if (cola.product_description) {
                 content += `<div class="cola-description"><p>${escapeHtml(cola.product_description)}</p></div>`;
