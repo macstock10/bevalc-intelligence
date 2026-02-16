@@ -1,32 +1,32 @@
-name: Post-Scrape Enrichment
+name: Post-Scrape Images
 
-# Runs Claude Haiku LLM enrichment on newly scraped COLAs.
-# Triggered automatically after Post-Scrape OCR completes, or manually.
-# Final step in the chain: Daily TTB Sync → Images → OCR → Enrichment
+# Downloads label images from TTB for newly scraped COLAs.
+# Triggered automatically after Daily TTB Sync completes, or manually.
+# On completion, triggers Post-Scrape OCR workflow.
 
 on:
   workflow_run:
-    workflows: ["Post-Scrape OCR"]
+    workflows: ["Daily TTB Sync"]
     types: [completed]
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max COLAs to enrich'
+        description: 'Max images to download'
         required: false
         default: '1000'
         type: string
       dry_run:
-        description: 'Dry run (no D1 writes)'
+        description: 'Dry run (no R2 writes)'
         required: false
         default: false
         type: boolean
 
 jobs:
-  enrich:
+  images:
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
-    # Only run on successful OCR (or manual dispatch)
+    # Only run on successful sync (or manual dispatch)
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p data logs
 
-      - name: Run LLM enrichment on new COLAs
+      - name: Download label images from TTB
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
@@ -55,7 +55,6 @@ jobs:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           LIMIT="${{ inputs.limit || '1000' }}"
           DRY_RUN="${{ inputs.dry_run }}"
@@ -66,14 +65,16 @@ jobs:
           fi
 
           cd scripts
-          echo "Running: python run_enrichment.py $FLAGS"
-          python run_enrichment.py $FLAGS
+          echo "Running: python backfill_images.py $FLAGS"
+          python backfill_images.py $FLAGS
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: enrichment-logs-${{ github.run_number }}
-          path: logs/
+          name: images-logs-${{ github.run_number }}
+          path: |
+            logs/
+            data/backfill_images_checkpoint.txt
           retention-days: 14
           if-no-files-found: ignore

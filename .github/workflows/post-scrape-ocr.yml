@@ -1,17 +1,17 @@
-name: Post-Scrape Enrichment
+name: Post-Scrape OCR
 
-# Runs Claude Haiku LLM enrichment on newly scraped COLAs.
-# Triggered automatically after Post-Scrape OCR completes, or manually.
-# Final step in the chain: Daily TTB Sync → Images → OCR → Enrichment
+# Runs Google Cloud Vision OCR on newly downloaded label images.
+# Triggered automatically after Post-Scrape Images completes, or manually.
+# On completion, triggers Post-Scrape Enrichment workflow.
 
 on:
   workflow_run:
-    workflows: ["Post-Scrape OCR"]
+    workflows: ["Post-Scrape Images"]
     types: [completed]
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max COLAs to enrich'
+        description: 'Max images to OCR'
         required: false
         default: '1000'
         type: string
@@ -22,11 +22,11 @@ on:
         type: boolean
 
 jobs:
-  enrich:
+  ocr:
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
-    # Only run on successful OCR (or manual dispatch)
+    # Only run on successful image download (or manual dispatch)
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -47,7 +47,14 @@ jobs:
         run: |
           mkdir -p data logs
 
-      - name: Run LLM enrichment on new COLAs
+      - name: Setup GCP credentials
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/gcp-service-account.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-service-account.json" >> $GITHUB_ENV
+
+      - name: Run OCR on new images
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
@@ -55,7 +62,6 @@ jobs:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           LIMIT="${{ inputs.limit || '1000' }}"
           DRY_RUN="${{ inputs.dry_run }}"
@@ -66,14 +72,18 @@ jobs:
           fi
 
           cd scripts
-          echo "Running: python run_enrichment.py $FLAGS"
-          python run_enrichment.py $FLAGS
+          echo "Running: python run_ocr.py $FLAGS"
+          python run_ocr.py $FLAGS
+
+      - name: Cleanup GCP credentials
+        if: always()
+        run: rm -f /tmp/gcp-service-account.json
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: enrichment-logs-${{ github.run_number }}
+          name: ocr-logs-${{ github.run_number }}
           path: logs/
           retention-days: 14
           if-no-files-found: ignore
