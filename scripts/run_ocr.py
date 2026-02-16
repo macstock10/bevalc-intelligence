@@ -333,23 +333,51 @@ def extract_age_years(text):
 
 
 def extract_website(text):
-    """Extract website URL from OCR text."""
-    # Match www.example.com or example.com/path patterns
+    """Extract website URL from OCR text.
+
+    Handles OCR artifacts where spaces are inserted into CamelCase domains,
+    e.g. "Rams Gate Winery.com" → "ramsgatewinery.com"
+    """
+    TLDS = r'\.(?:com|net|org|co|io|us|wine|beer|spirits|shop|store)'
+    skip = ['alc.vol', 'fl.oz', 'vol.', 'vol.com', 'inc.', 'co.', 'ltd.', 'llc.']
+
+    # Match a standard URL first (www.example.com or example.com/path)
     match = re.search(
-        r'(?:https?://)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:/[^\s,;)]*)?)',
+        r'(?:https?://)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*' + TLDS + r'(?:/[^\s,;)]*)?)',
         text, re.IGNORECASE
     )
     if match:
         url = match.group(0).lower().rstrip('.')
-        # Filter out common false positives
-        skip = ['alc.vol', 'fl.oz', 'vol.', 'inc.', 'co.', 'ltd.', 'llc.']
         if any(url.endswith(s) or url == s for s in skip):
             return None
-        # Must have a real TLD
-        if re.search(r'\.(com|net|org|co|io|us|wine|beer|spirits|shop|store)\b', url):
-            if not url.startswith('http'):
-                url = 'https://' + url
-            return url
+        if not re.search(TLDS, url):
+            return None
+
+        # Check for OCR-split CamelCase: look for capitalized words
+        # immediately before the match that are part of the domain name.
+        # e.g. "Rams Gate Winery.com" → the regex matched "Winery.com"
+        #       but "Rams Gate" are CamelCase fragments of the domain.
+        start = match.start()
+        prefix = text[:start]
+        # Walk backwards through capitalized words (no punctuation between them)
+        parts = []
+        while prefix:
+            prefix = prefix.rstrip()
+            m = re.search(r'([A-Z][a-z0-9]*)$', prefix)
+            if not m:
+                break
+            parts.append(m.group(1))
+            prefix = prefix[:m.start()]
+        if parts:
+            parts.reverse()
+            domain_prefix = ''.join(parts).lower()
+            url_body = re.sub(r'^https?://', '', url)
+            url = 'https://' + domain_prefix + url_body
+        elif not url.startswith('http'):
+            url = 'https://' + url
+
+        return url
+
     return None
 
 
