@@ -448,7 +448,8 @@ def get_images_needing_ocr(limit, retry_failed=False):
         where = "ci.download_status = 'success' AND ci.ocr_quality_score = 'failed'"
         desc = "previously failed"
     else:
-        where = "ci.download_status = 'success' AND ci.ocr_text IS NULL"
+        # Exclude images that already failed OCR (use --retry-failed for those)
+        where = "ci.download_status = 'success' AND ci.ocr_text IS NULL AND ci.ocr_quality_score IS NULL"
         desc = "pending"
 
     logger.info(f"Querying D1 for images from up to {limit} {desc} COLAs...")
@@ -459,9 +460,10 @@ def get_images_needing_ocr(limit, retry_failed=False):
         f"JOIN colas c ON ci.ttb_id = c.ttb_id "
         f"WHERE {where} "
         f"AND ci.ttb_id IN ("
-        f"  SELECT DISTINCT ci2.ttb_id FROM cola_images ci2 "
+        f"  SELECT ci2.ttb_id FROM cola_images ci2 "
         f"  JOIN colas c2 ON ci2.ttb_id = c2.ttb_id "
         f"  WHERE {where} "
+        f"  GROUP BY ci2.ttb_id "
         f"  ORDER BY c2.year DESC, c2.month DESC, c2.day DESC "
         f"  LIMIT {limit}"
         f") "

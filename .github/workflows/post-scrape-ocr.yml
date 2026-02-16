@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max images to OCR'
+        description: 'Max COLAs to OCR'
         required: false
         default: '1000'
         type: string

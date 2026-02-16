@@ -607,9 +607,11 @@ def get_colas_needing_processing(limit, checkpoint, retry_failed=False):
     if retry_failed:
         logger.info(f"Querying D1 for up to {limit} COLAs with failed images...")
         rows = d1_query_rows(
-            f"SELECT DISTINCT ttb_id FROM cola_images "
-            f"WHERE download_status IN ('failed', 'timeout', 'captcha') "
-            f"ORDER BY ttb_id DESC "
+            f"SELECT ci.ttb_id FROM cola_images ci "
+            f"JOIN colas c ON ci.ttb_id = c.ttb_id "
+            f"WHERE ci.download_status IN ('failed', 'timeout', 'captcha') "
+            f"GROUP BY ci.ttb_id "
+            f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
             f"LIMIT {limit}"
         )
         ttb_ids = [r['ttb_id'] for r in rows]
@@ -631,9 +633,11 @@ def get_colas_needing_processing(limit, checkpoint, retry_failed=False):
         pop_b = []
         if remaining > 0:
             rows_b = d1_query_rows(
-                f"SELECT DISTINCT ttb_id FROM cola_images "
-                f"WHERE download_status IS NULL "
-                f"ORDER BY ttb_id DESC "
+                f"SELECT ci.ttb_id FROM cola_images ci "
+                f"JOIN colas c ON ci.ttb_id = c.ttb_id "
+                f"WHERE ci.download_status IS NULL "
+                f"GROUP BY ci.ttb_id "
+                f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
                 f"LIMIT {remaining}"
             )
             pop_b = [r['ttb_id'] for r in rows_b]
