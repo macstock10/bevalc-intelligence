@@ -443,36 +443,50 @@ def get_images_needing_ocr(limit, retry_failed=False):
 
     Limit is applied to distinct COLAs (not individual images),
     so all images for a given COLA are processed together.
+    Uses two simple queries to avoid D1 subquery complexity limits.
     """
     if retry_failed:
         where = "ci.download_status = 'success' AND ci.ocr_quality_score = 'failed'"
         desc = "previously failed"
     else:
-        # Exclude images that already failed OCR (use --retry-failed for those)
         where = "ci.download_status = 'success' AND ci.ocr_text IS NULL AND ci.ocr_quality_score IS NULL"
         desc = "pending"
 
-    logger.info(f"Querying D1 for images from up to {limit} {desc} COLAs...")
+    logger.info(f"Querying D1 for up to {limit} {desc} COLAs...")
 
-    rows = d1_query_rows(
-        f"SELECT ci.image_id, ci.ttb_id, ci.r2_key "
-        f"FROM cola_images ci "
+    # Step 1: Get the ttb_ids we need (simple query)
+    ttb_rows = d1_query_rows(
+        f"SELECT ci.ttb_id FROM cola_images ci "
         f"JOIN colas c ON ci.ttb_id = c.ttb_id "
         f"WHERE {where} "
-        f"AND ci.ttb_id IN ("
-        f"  SELECT ci2.ttb_id FROM cola_images ci2 "
-        f"  JOIN colas c2 ON ci2.ttb_id = c2.ttb_id "
-        f"  WHERE {where} "
-        f"  GROUP BY ci2.ttb_id "
-        f"  ORDER BY c2.year DESC, c2.month DESC, c2.day DESC "
-        f"  LIMIT {limit}"
-        f") "
-        f"ORDER BY c.year DESC, c.month DESC, c.day DESC"
+        f"GROUP BY ci.ttb_id "
+        f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
+        f"LIMIT {limit}"
     )
+    ttb_ids = [r['ttb_id'] for r in ttb_rows]
 
-    distinct_colas = len(set(r['ttb_id'] for r in rows))
-    logger.info(f"Found {len(rows)} images across {distinct_colas} COLAs to OCR")
-    return rows
+    if not ttb_ids:
+        logger.info("Found 0 images across 0 COLAs to OCR")
+        return []
+
+    # Step 2: Get all images for those COLAs (batch in chunks to stay under D1 limits)
+    all_rows = []
+    chunk_size = 50
+    for i in range(0, len(ttb_ids), chunk_size):
+        chunk = ttb_ids[i:i + chunk_size]
+        id_list = ', '.join(f"'{t}'" for t in chunk)
+        rows = d1_query_rows(
+            f"SELECT ci.image_id, ci.ttb_id, ci.r2_key "
+            f"FROM cola_images ci "
+            f"WHERE {where} "
+            f"AND ci.ttb_id IN ({id_list}) "
+            f"ORDER BY ci.ttb_id, ci.image_id"
+        )
+        all_rows.extend(rows)
+
+    distinct_colas = len(set(r['ttb_id'] for r in all_rows))
+    logger.info(f"Found {len(all_rows)} images across {distinct_colas} COLAs to OCR")
+    return all_rows
 
 
 def update_ocr_result(image_id, ocr_text, fields, quality_score):
