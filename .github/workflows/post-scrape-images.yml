@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max images to download'
+        description: 'Max COLAs to download images for'
         required: false
         default: '1000'
         type: string

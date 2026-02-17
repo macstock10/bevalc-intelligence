@@ -255,7 +255,7 @@ def get_colas_needing_enrichment(limit):
             f"SELECT image_id, label_type, ocr_text, ocr_abv, ocr_volume_ml, "
             f"ocr_proof, ocr_age_years, ocr_website "
             f"FROM cola_images "
-            f"WHERE ttb_id = '{ttb_id}' AND download_status = 'success' "
+            f"WHERE ttb_id = {escape_sql_value(ttb_id)} AND download_status = 'success' "
             f"ORDER BY image_id"
         )
 
@@ -516,7 +516,7 @@ def run_enrichment(colas, dry_run=False, max_workers=5):
     # Shared state protected by lock
     lock = threading.Lock()
     counters = {
-        'enriched': 0, 'failed': 0, 'skipped': 0,
+        'enriched': 0, 'failed': 0,
         'inferred_nulled': 0, 'unverifiable_nulled': 0,
         'total_input_tokens': 0, 'total_output_tokens': 0,
         'progress': 0,
@@ -645,6 +645,11 @@ def run_enrichment(colas, dry_run=False, max_workers=5):
             update_result = update_cola_enrichment(ttb_id, enrichment)
             if not update_result.get('success'):
                 logger.error(f"  D1 update failed for {ttb_id}")
+                with lock:
+                    counters['failed'] += 1
+                    counters['total_input_tokens'] += in_tokens
+                    counters['total_output_tokens'] += out_tokens
+                return
 
         # Aggregate counters
         with lock:
@@ -673,7 +678,6 @@ def run_enrichment(colas, dry_run=False, max_workers=5):
     # --- Summary ---
     enriched = counters['enriched']
     failed = counters['failed']
-    skipped = counters['skipped']
     inferred_nulled = counters['inferred_nulled']
     unverifiable_nulled = counters['unverifiable_nulled']
     input_t = counters['total_input_tokens']
@@ -682,7 +686,7 @@ def run_enrichment(colas, dry_run=False, max_workers=5):
     print(f"\n{'='*60}")
     print(f"ENRICHMENT SUMMARY")
     print(f"{'='*60}")
-    print(f"COLAs processed:    {enriched + failed + skipped}")
+    print(f"COLAs processed:    {enriched + failed}")
     print(f"Enriched:           {enriched}")
     print(f"Failed:             {failed}")
     if inferred_nulled:
