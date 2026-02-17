@@ -2737,15 +2737,25 @@ async function handleSearch(request, url, env) {
         }
     }
 
-    const countQuery = `SELECT COUNT(*) as total FROM colas WHERE ${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery).bind(...queryParams).first();
-    const total = countResult?.total || 0;
+    // Skip expensive COUNT(*) on unfiltered queries — use approximate total instead
+    let total;
+    const hasFilters = whereClause !== '1=1';
+    if (hasFilters) {
+        const countQuery = `SELECT COUNT(*) as total FROM colas WHERE ${whereClause}`;
+        const countResult = await env.DB.prepare(countQuery).bind(...queryParams).first();
+        total = countResult?.total || 0;
+    } else {
+        // Fast approximate count from sqlite_stat1 (updated by ANALYZE)
+        const stat = await env.DB.prepare(
+            "SELECT stat FROM sqlite_stat1 WHERE tbl = 'colas' AND idx = 'sqlite_autoindex_colas_1'"
+        ).first();
+        total = stat ? parseInt(stat.stat) : 2800000;
+    }
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        // Signal priority for database search: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE (interesting signals first)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
+        // Use year/month/day directly for proper chronological sorting — allows idx_colas_ymd index usage
+        orderByClause = `ORDER BY year ${sortOrder}, month ${sortOrder}, day ${sortOrder}, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -2917,9 +2927,8 @@ async function handleExport(request, url, env) {
 
     let orderByClause;
     if (safeSortColumn === 'approval_date') {
-        // Use year/month/day for proper chronological sorting (approval_date is MM/DD/YYYY string)
-        // Signal priority for exports: NEW_COMPANY > NEW_BRAND > NEW_SKU > REFILE (interesting signals first)
-        orderByClause = `ORDER BY COALESCE(year, 9999) ${sortOrder}, COALESCE(month, 99) ${sortOrder}, CAST(SUBSTR(approval_date, 4, 2) AS INTEGER) ${sortOrder}, CASE signal WHEN 'NEW_COMPANY' THEN 1 WHEN 'NEW_BRAND' THEN 2 WHEN 'NEW_SKU' THEN 3 WHEN 'REFILE' THEN 4 ELSE 5 END, ttb_id ${sortOrder}`;
+        // Use year/month/day directly — allows idx_colas_ymd index usage
+        orderByClause = `ORDER BY year ${sortOrder}, month ${sortOrder}, day ${sortOrder}, ttb_id ${sortOrder}`;
     } else {
         orderByClause = `ORDER BY ${safeSortColumn} ${sortOrder}`;
     }
@@ -2951,10 +2960,13 @@ async function handleExport(request, url, env) {
 }
 
 async function handleFilters(env) {
-    const [origins, classTypes, statuses] = await Promise.all([
+    // Statuses are fixed TTB values — no need to query
+    const statuses = ['APPROVED', 'EXPIRED', 'REVOKED', 'SURRENDERED'];
+
+    // Origins and class_types change rarely — query with cache header
+    const [origins, classTypes] = await Promise.all([
         env.DB.prepare('SELECT DISTINCT origin_code FROM colas WHERE origin_code IS NOT NULL AND origin_code != "" ORDER BY origin_code').all(),
-        env.DB.prepare('SELECT DISTINCT class_type_code FROM colas WHERE class_type_code IS NOT NULL AND class_type_code != "" ORDER BY class_type_code').all(),
-        env.DB.prepare('SELECT DISTINCT status FROM colas WHERE status IS NOT NULL AND status != "" ORDER BY status').all()
+        env.DB.prepare('SELECT DISTINCT class_type_code FROM colas WHERE class_type_code IS NOT NULL AND class_type_code != "" ORDER BY class_type_code').all()
     ]);
 
     return {
@@ -2962,7 +2974,7 @@ async function handleFilters(env) {
         filters: {
             origins: (origins.results || []).map(r => r.origin_code),
             class_types: (classTypes.results || []).map(r => r.class_type_code),
-            statuses: (statuses.results || []).map(r => r.status)
+            statuses
         }
     };
 }
