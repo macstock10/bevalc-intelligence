@@ -6,11 +6,14 @@ from label images, sends to Claude for classification and extraction, and
 writes results back to D1.
 
 USAGE:
-    # Enrich up to 5 COLAs (default)
+    # Enrich up to 5 COLAs (default, 5 parallel workers)
     python scripts/run_enrichment.py --limit 5
 
     # Dry run — call Claude but don't write to D1
-    python scripts/run_enrichment.py --dry-run --limit 5
+    python scripts/run_enrichment.py --dry-run --limit 10
+
+    # Sequential mode (1 worker)
+    python scripts/run_enrichment.py --limit 5 --workers 1
 
 SETUP:
     pip install anthropic requests
@@ -23,8 +26,10 @@ import json
 import time
 import argparse
 import logging
+import threading
 from pathlib import Path
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests as http_requests
 import anthropic
@@ -352,7 +357,11 @@ def init_claude():
 
 
 def call_claude(cola):
-    """Build prompt and call Claude for one COLA. Returns parsed JSON or None."""
+    """Build prompt and call Claude for one COLA.
+
+    Returns (parsed_json, input_tokens, output_tokens) on success,
+    or (None, 0, 0) on failure. Does not mutate any shared state.
+    """
     user_msg = USER_MSG_TEMPLATE.format(
         brand_name=cola.get('brand_name') or '(not provided)',
         fanciful_name=cola.get('fanciful_name') or '(not provided)',
@@ -395,23 +404,16 @@ def call_claude(cola):
             raw_text = '\n'.join(lines).strip()
 
         result = json.loads(raw_text)
-
-        # Track token usage
         usage = response.usage
-        _claude.setdefault('total_input_tokens', 0)
-        _claude.setdefault('total_output_tokens', 0)
-        _claude['total_input_tokens'] += usage.input_tokens
-        _claude['total_output_tokens'] += usage.output_tokens
-
-        return result
+        return result, usage.input_tokens, usage.output_tokens
 
     except json.JSONDecodeError as e:
         logger.error(f"  JSON parse error: {e}")
         logger.error(f"  Raw response: {raw_text[:500]}")
-        return None
+        return None, 0, 0
     except Exception as e:
         logger.error(f"  Claude API error: {e}")
-        return None
+        return None, 0, 0
 
 
 # =============================================================================
@@ -507,42 +509,60 @@ def value_in_corpus(value, corpus):
 # Main pipeline
 # =============================================================================
 
-def run_enrichment(colas, dry_run=False):
-    """Enrich each COLA: build prompt, call Claude, update D1."""
-    enriched = 0
-    failed = 0
-    skipped = 0
+def run_enrichment(colas, dry_run=False, max_workers=5):
+    """Enrich COLAs concurrently using a thread pool."""
+    total = len(colas)
 
-    # Track category distribution
+    # Shared state protected by lock
+    lock = threading.Lock()
+    counters = {
+        'enriched': 0, 'failed': 0, 'skipped': 0,
+        'inferred_nulled': 0, 'unverifiable_nulled': 0,
+        'total_input_tokens': 0, 'total_output_tokens': 0,
+        'progress': 0,
+    }
     category_counts = {}
     confidence_counts = {'high': 0, 'medium': 0, 'low': 0}
+    printed_spirits = [False]  # list so nested fn can mutate
+    printed_wine = [False]
 
-    inferred_nulled = 0
-    unverifiable_nulled = 0
+    ALLOWED_INFERRED = {'super_category', 'commercial_category', 'subcategory',
+                        'confidence', 'taxonomy_feedback', 'field_sources'}
+    BOOLEAN_EVIDENCE = {
+        'is_cask_strength': ['cask strength', 'barrel proof', 'barrel strength', 'full proof'],
+        'is_single_barrel': ['single barrel', 'single cask'],
+        'is_limited_release': ['limited release', 'limited edition', 'special release',
+                               'small batch', 'reserve', 'allocated'],
+        'is_organic': ['organic', 'usda organic', 'certified organic'],
+        'is_gluten_free': ['gluten free', 'gluten-free'],
+    }
 
-    # For verbose output: print full JSON for first spirits + first wine
-    printed_spirits = False
-    printed_wine = False
-
-    for idx, cola in enumerate(colas):
+    def worker(cola):
+        """Process one COLA: call Claude → post-process → write D1."""
         ttb_id = cola['ttb_id']
         brand = cola.get('brand_name') or '(unknown)'
         fanciful = cola.get('fanciful_name') or ''
         img_count = cola.get('_image_count', 0)
-
         label = f"{brand}"
         if fanciful:
-            label += f" — {fanciful}"
+            label += f" \u2014 {fanciful}"
 
-        logger.info(f"[{idx+1}/{len(colas)}] {ttb_id}: {label} ({img_count} images)")
+        with lock:
+            counters['progress'] += 1
+            idx = counters['progress']
+
+        logger.info(f"[{idx}/{total}] {ttb_id}: {label} ({img_count} images)")
 
         # Call Claude
-        result = call_claude(cola)
+        result, in_tokens, out_tokens = call_claude(cola)
 
         if result is None:
-            failed += 1
-            logger.error(f"  FAILED — no valid response")
-            continue
+            with lock:
+                counters['failed'] += 1
+                counters['total_input_tokens'] += in_tokens
+                counters['total_output_tokens'] += out_tokens
+            logger.error(f"  FAILED — no valid response for {ttb_id}")
+            return
 
         # Extract only known fields
         enrichment = {}
@@ -550,11 +570,8 @@ def run_enrichment(colas, dry_run=False):
             if field in result:
                 enrichment[field] = result[field]
 
-        # Post-processing: null out any field where field_sources says "inferred"
-        # Exception: category fields (super_category, commercial_category, subcategory)
-        # are allowed to be inferred from class_type_code per prompt rules.
-        ALLOWED_INFERRED = {'super_category', 'commercial_category', 'subcategory',
-                            'confidence', 'taxonomy_feedback', 'field_sources'}
+        # Post-processing layer 1: null inferred fields
+        local_inferred = 0
         sources = enrichment.get('field_sources') or {}
         if isinstance(sources, dict):
             for field_name, source in sources.items():
@@ -562,37 +579,27 @@ def run_enrichment(colas, dry_run=False):
                     if enrichment.get(field_name) is not None:
                         logger.warning(f"  NULLED inferred field: {field_name}={enrichment[field_name]!r}")
                         enrichment[field_name] = None
-                        inferred_nulled += 1
+                        local_inferred += 1
 
-        # Post-processing: verify factual fields against source data
+        # Post-processing layer 2: source verification
+        local_unverifiable = 0
         corpus = build_source_corpus(cola)
         for field_name in VERIFIABLE_FIELDS:
             val = enrichment.get(field_name)
             if val is not None and not value_in_corpus(val, corpus):
                 logger.warning(f"  NULLED unverifiable field: {field_name}={val!r}")
                 enrichment[field_name] = None
-                unverifiable_nulled += 1
+                local_unverifiable += 1
 
-        # Post-processing: null boolean false where label has no evidence
-        # Absence of "cask strength" on a label means unknown, not false.
-        BOOLEAN_EVIDENCE = {
-            'is_cask_strength': ['cask strength', 'barrel proof', 'barrel strength', 'full proof'],
-            'is_single_barrel': ['single barrel', 'single cask'],
-            'is_limited_release': ['limited release', 'limited edition', 'special release',
-                                   'small batch', 'reserve', 'allocated'],
-            'is_organic': ['organic', 'usda organic', 'certified organic'],
-            'is_gluten_free': ['gluten free', 'gluten-free'],
-        }
+        # Post-processing layer 3: boolean evidence checks
         for field_name, evidence_terms in BOOLEAN_EVIDENCE.items():
             val = enrichment.get(field_name)
             if val is True:
-                # True claims must have evidence on label
                 if not any(term in corpus for term in evidence_terms):
                     logger.warning(f"  NULLED unverifiable boolean: {field_name}=True")
                     enrichment[field_name] = None
-                    unverifiable_nulled += 1
+                    local_unverifiable += 1
             elif val is False:
-                # False without evidence = unknown, not confirmed false
                 if not any(term in corpus for term in evidence_terms):
                     enrichment[field_name] = None
 
@@ -603,31 +610,32 @@ def run_enrichment(colas, dry_run=False):
         conf = enrichment.get('confidence', 'unknown')
 
         if not sc or not cc or not sub:
-            failed += 1
-            logger.error(f"  FAILED — missing required category fields")
+            with lock:
+                counters['failed'] += 1
+                counters['inferred_nulled'] += local_inferred
+                counters['unverifiable_nulled'] += local_unverifiable
+                counters['total_input_tokens'] += in_tokens
+                counters['total_output_tokens'] += out_tokens
+            logger.error(f"  FAILED — missing required category fields for {ttb_id}")
             logger.error(f"  Got: super={sc}, cat={cc}, sub={sub}")
-            continue
+            return
 
-        enriched += 1
-        category_counts[cc] = category_counts.get(cc, 0) + 1
-
-        # Print full JSON for first spirits and first wine
-        if not printed_spirits and sc == 'Spirits':
-            print(f"\n{'─'*60}")
-            print(f"FULL RESPONSE — {ttb_id}: {label}")
-            print(f"{'─'*60}")
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-            print(f"{'─'*60}")
-            printed_spirits = True
-        elif not printed_wine and sc == 'Wine':
-            print(f"\n{'─'*60}")
-            print(f"FULL RESPONSE — {ttb_id}: {label}")
-            print(f"{'─'*60}")
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-            print(f"{'─'*60}")
-            printed_wine = True
-        if conf in confidence_counts:
-            confidence_counts[conf] += 1
+        # Verbose output for first spirits/wine example
+        with lock:
+            if not printed_spirits[0] and sc == 'Spirits':
+                print(f"\n{'\u2500'*60}")
+                print(f"FULL RESPONSE \u2014 {ttb_id}: {label}")
+                print(f"{'\u2500'*60}")
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+                print(f"{'\u2500'*60}")
+                printed_spirits[0] = True
+            elif not printed_wine[0] and sc == 'Wine':
+                print(f"\n{'\u2500'*60}")
+                print(f"FULL RESPONSE \u2014 {ttb_id}: {label}")
+                print(f"{'\u2500'*60}")
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+                print(f"{'\u2500'*60}")
+                printed_wine[0] = True
 
         logger.info(f"  {sc} > {cc} > {sub} [{conf}]")
 
@@ -637,11 +645,39 @@ def run_enrichment(colas, dry_run=False):
             if not update_result.get('success'):
                 logger.error(f"  D1 update failed for {ttb_id}")
 
-        # Rate limit: ~1 req/sec to be safe
-        if idx < len(colas) - 1:
-            time.sleep(1)
+        # Aggregate counters
+        with lock:
+            counters['enriched'] += 1
+            counters['inferred_nulled'] += local_inferred
+            counters['unverifiable_nulled'] += local_unverifiable
+            counters['total_input_tokens'] += in_tokens
+            counters['total_output_tokens'] += out_tokens
+            category_counts[cc] = category_counts.get(cc, 0) + 1
+            if conf in confidence_counts:
+                confidence_counts[conf] += 1
 
-    # Summary
+    # --- Run the thread pool ---
+    logger.info(f"Starting enrichment: {total} COLAs, {max_workers} workers")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(worker, cola): cola for cola in colas}
+        for future in as_completed(futures):
+            exc = future.exception()
+            if exc:
+                cola = futures[future]
+                logger.error(f"  Unexpected error for {cola['ttb_id']}: {exc}")
+                with lock:
+                    counters['failed'] += 1
+
+    # --- Summary ---
+    enriched = counters['enriched']
+    failed = counters['failed']
+    skipped = counters['skipped']
+    inferred_nulled = counters['inferred_nulled']
+    unverifiable_nulled = counters['unverifiable_nulled']
+    input_t = counters['total_input_tokens']
+    output_t = counters['total_output_tokens']
+
     print(f"\n{'='*60}")
     print(f"ENRICHMENT SUMMARY")
     print(f"{'='*60}")
@@ -649,9 +685,9 @@ def run_enrichment(colas, dry_run=False):
     print(f"Enriched:           {enriched}")
     print(f"Failed:             {failed}")
     if inferred_nulled:
-        print(f"Inferred→null:      {inferred_nulled}")
+        print(f"Inferred\u2192null:      {inferred_nulled}")
     if unverifiable_nulled:
-        print(f"Unverifiable→null:  {unverifiable_nulled}")
+        print(f"Unverifiable\u2192null:  {unverifiable_nulled}")
     if confidence_counts['high'] or confidence_counts['medium'] or confidence_counts['low']:
         print(f"\nConfidence:")
         for level in ['high', 'medium', 'low']:
@@ -661,9 +697,7 @@ def run_enrichment(colas, dry_run=False):
         print(f"\nCategories:")
         for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
             print(f"  {cat:30s}: {count}")
-    if _claude.get('total_input_tokens'):
-        input_t = _claude['total_input_tokens']
-        output_t = _claude['total_output_tokens']
+    if input_t:
         # Haiku 4.5 pricing: $0.80/MTok input, $4/MTok output
         cost = (input_t * 0.80 + output_t * 4) / 1_000_000
         print(f"\nToken usage:")
@@ -671,7 +705,7 @@ def run_enrichment(colas, dry_run=False):
         print(f"  Output: {output_t:,}")
         print(f"  Est. cost: ${cost:.4f}")
     if dry_run:
-        print(f"\n[DRY RUN — nothing written to D1]")
+        print(f"\n[DRY RUN \u2014 nothing written to D1]")
     print(f"{'='*60}")
 
 
@@ -685,12 +719,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/run_enrichment.py --limit 5
+  python scripts/run_enrichment.py --limit 50
+  python scripts/run_enrichment.py --limit 50 --workers 10
   python scripts/run_enrichment.py --dry-run --limit 10
         """
     )
     parser.add_argument('--limit', type=int, default=5,
                         help='Max COLAs to enrich (default: 5)')
+    parser.add_argument('--workers', type=int, default=5,
+                        help='Parallel Claude API workers (default: 5)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Call Claude but don\'t write to D1')
     args = parser.parse_args()
@@ -711,7 +748,7 @@ Examples:
         logger.info("No COLAs to enrich")
         return
 
-    run_enrichment(colas, dry_run=args.dry_run)
+    run_enrichment(colas, dry_run=args.dry_run, max_workers=args.workers)
 
 
 if __name__ == '__main__':
