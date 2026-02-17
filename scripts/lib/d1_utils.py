@@ -429,6 +429,57 @@ def normalize_company_for_match(company_name: str) -> str:
     return name
 
 
+# Tokens that are pure legal suffixes — never matchable on their own
+_LEGAL_ONLY_TOKENS = {
+    'LLC', 'INC', 'INCORPORATED', 'CORP', 'CORPORATION', 'CO', 'COMPANY',
+    'LTD', 'LIMITED', 'LP', 'LLP', 'LLLP', 'PLC', 'PC', 'DBA',
+}
+
+# Generic industry tokens — a variant composed entirely of these is too broad
+_GENERIC_TOKENS = _LEGAL_ONLY_TOKENS | {
+    'ENTERPRISES', 'HOLDINGS', 'GROUP', 'BRANDS', 'INTERNATIONAL', 'GLOBAL',
+    'INDUSTRIES', 'SOLUTIONS', 'PARTNERS', 'ASSOCIATES', 'MANAGEMENT',
+    'SERVICES', 'VENTURES', 'IMPORTS', 'DISTRIBUTING', 'DISTRIBUTION',
+    'DISTILLERY', 'DISTILLERIES', 'WINERY', 'WINERIES', 'BREWERY',
+    'BREWERIES', 'BREWING', 'CELLARS', 'VINEYARDS', 'VINEYARD', 'WINES',
+    'WINE', 'SPIRITS', 'BEVERAGES', 'ESTATE', 'ESTATES', 'BEER',
+}
+
+
+def is_matchable_variant(variant: str) -> bool:
+    """Check if a variant is specific enough for cross-company matching.
+
+    Rejects variants that are:
+    - Pure legal suffixes (LLC, INC, etc.)
+    - Single meaningful token shorter than 4 chars
+    - Composed entirely of generic industry/legal words
+    """
+    if not variant or not variant.strip():
+        return False
+
+    tokens = variant.upper().split()
+    if not tokens:
+        return False
+
+    # Strip legal suffix tokens to find meaningful content
+    meaningful = [t for t in tokens if t not in _LEGAL_ONLY_TOKENS]
+
+    # Nothing left after removing suffixes → reject
+    if not meaningful:
+        return False
+
+    # Single short token → too ambiguous (e.g., "CO", "LP", "AB")
+    if len(meaningful) == 1 and len(meaningful[0]) < 4:
+        return False
+
+    # All tokens are generic industry/legal words → too broad
+    # (e.g., "BREWING COMPANY", "WINE ESTATES", "DISTILLERY")
+    if all(t in _GENERIC_TOKENS for t in meaningful):
+        return False
+
+    return True
+
+
 def get_company_name_variants(company_name: str) -> List[str]:
     """
     Get all variants of a company name to check against existing aliases.
@@ -436,29 +487,34 @@ def get_company_name_variants(company_name: str) -> List[str]:
     For comma-separated names like "Big Ditch Brewing Company, Big Ditch Brewing Company LLC",
     returns both parts as variants to check, plus the full name.
 
-    This catches cases where TTB formats company names with DBA notation.
+    Comma-separated parts and normalized forms are filtered through
+    is_matchable_variant() to prevent low-signal variants (e.g., "LLC",
+    "Brewing Company") from causing false cross-company matches.
+
+    The full company name is always included (for exact-match lookups).
     """
     if not company_name:
         return []
 
     variants = [company_name.strip()]
 
-    # If comma-separated, add each part as a variant
+    # If comma-separated, add each part as a variant (filtered)
     if ', ' in company_name:
         parts = [p.strip() for p in company_name.split(', ')]
         for part in parts:
-            if part and part not in variants:
+            if part and part not in variants and is_matchable_variant(part):
                 variants.append(part)
 
-    # Add normalized variants for matching (uppercased)
+    # Add normalized variant of full name (always include — derived from
+    # the first comma part which is typically the specific trade name)
     normalized = normalize_company_for_match(company_name)
     if normalized and normalized not in variants:
         variants.append(normalized)
 
-    # Add normalized variants for each part
+    # Add normalized variants for each part (filtered)
     for part in list(variants):
         norm_part = normalize_company_for_match(part)
-        if norm_part and norm_part not in variants:
+        if norm_part and norm_part not in variants and is_matchable_variant(norm_part):
             variants.append(norm_part)
 
     return variants
