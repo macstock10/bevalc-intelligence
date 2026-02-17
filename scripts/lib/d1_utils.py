@@ -668,6 +668,12 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
     # - brand_matched_companies: just need alias to existing company
     all_to_process = new_companies | set(variant_matched.keys()) | set(brand_matched_companies.keys())
 
+    # Track alias → company_id across all batches for within-batch dedup.
+    # If two new companies share a variant (e.g., both have "Victory Global LLC"
+    # as a comma-separated part), the second one links to the first instead of
+    # creating a duplicate company entry.
+    alias_to_company_id = {}  # alias_upper -> company_id
+
     # Insert in batches
     for i in range(0, len(all_to_process), 100):
         batch = list(all_to_process)[i:i + 100]
@@ -683,6 +689,29 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
             normalized = raw_to_normalized.get(company_name, normalize_company_name(company_name))
             normalized_upper = normalized.upper()
 
+            # PRIORITY -1: Check if this company shares a variant with one already
+            # processed in this batch (within-batch deduplication)
+            batch_match_id = None
+            batch_match_variant = None
+            for v in company_to_variants.get(company_name, []):
+                v_upper = v.upper()
+                if v_upper in alias_to_company_id:
+                    batch_match_id = alias_to_company_id[v_upper]
+                    batch_match_variant = v
+                    break
+            if batch_match_id is not None:
+                logger.info(f"  Within-batch match: '{company_name}' -> company {batch_match_id} (shared variant '{batch_match_variant}')")
+                for alias in build_company_alias_variants(company_name):
+                    key = alias.upper()
+                    if key in alias_seen:
+                        continue
+                    alias_seen.add(key)
+                    alias_to_company_id[key] = batch_match_id
+                    alias_values.append(
+                        f"({escape_sql_value(alias)}, {batch_match_id})"
+                    )
+                continue
+
             # PRIORITY 0: Check if this company was matched via variant analysis
             # This catches TTB's comma-separated name formats like "Name, Name LLC"
             if company_name in variant_matched:
@@ -692,6 +721,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     if key in alias_seen:
                         continue
                     alias_seen.add(key)
+                    alias_to_company_id[key] = existing_id
                     alias_values.append(
                         f"({escape_sql_value(alias)}, {existing_id})"
                     )
@@ -707,6 +737,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     if key in alias_seen:
                         continue
                     alias_seen.add(key)
+                    alias_to_company_id[key] = existing_id
                     alias_values.append(
                         f"({escape_sql_value(alias)}, {existing_id})"
                     )
@@ -721,6 +752,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     if key in alias_seen:
                         continue
                     alias_seen.add(key)
+                    alias_to_company_id[key] = existing_id
                     alias_values.append(
                         f"({escape_sql_value(alias)}, {existing_id})"
                     )
@@ -747,6 +779,7 @@ def add_new_companies(records: List[Dict], dry_run: bool = False) -> int:
                     if key in alias_seen:
                         continue
                     alias_seen.add(key)
+                    alias_to_company_id[key] = company_id
                     alias_values.append(
                         f"({escape_sql_value(alias)}, {company_id})"
                     )
