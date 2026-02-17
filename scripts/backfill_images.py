@@ -44,8 +44,10 @@ import time
 import argparse
 import logging
 import tempfile
+import threading
 from pathlib import Path
 from urllib.request import urlopen
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import certifi
 import requests as http_requests
@@ -683,193 +685,218 @@ def get_completed_cola_count():
 # Main pipeline
 # =============================================================================
 
-def process_colas(ttb_ids, dry_run=False, save_to_disk=False, discover_only=False):
-    """Main pipeline: discover URLs + download images for each COLA via HTTP."""
+def process_colas(ttb_ids, dry_run=False, save_to_disk=False, discover_only=False,
+                  max_workers=1):
+    """Main pipeline: discover URLs + download images for each COLA via HTTP.
 
-    session = create_session()
-    logger.info("HTTP session created (no browser needed)")
+    Each worker gets its own HTTP session to avoid cookie conflicts.
+    """
+    total = len(ttb_ids)
 
-    # Stats
-    colas_complete = 0
-    colas_partial = 0
-    colas_nav_failed = 0
-    captcha_count = 0
-    urls_discovered = 0
-    urls_inserted = 0
-    images_downloaded = 0
-    images_uploaded = 0
-    images_failed = 0
-    images_corrupt = 0
-    images_skipped = 0
-    total_bytes = 0
-    disk_counter = 0
+    # Shared state protected by lock
+    lock = threading.Lock()
+    counters = {
+        'colas_complete': 0, 'colas_partial': 0, 'colas_nav_failed': 0,
+        'captcha_count': 0, 'urls_discovered': 0, 'urls_inserted': 0,
+        'images_downloaded': 0, 'images_uploaded': 0, 'images_failed': 0,
+        'images_corrupt': 0, 'images_skipped': 0, 'total_bytes': 0,
+        'disk_counter': 0, 'progress': 0,
+    }
+
+    def worker(ttb_id):
+        """Process one COLA: fetch page, discover images, download, upload to R2."""
+        # Each worker creates its own session for cookie isolation
+        session = create_session()
+
+        with lock:
+            counters['progress'] += 1
+            idx = counters['progress']
+
+        logger.info(f"[{idx}/{total}] {ttb_id}")
+
+        # Step 1: Fetch COLA's printable page via HTTP
+        html, fetch_status = fetch_cola_page(session, ttb_id)
+        if html is None:
+            with lock:
+                counters['colas_nav_failed'] += 1
+                if fetch_status == 'captcha':
+                    counters['captcha_count'] += 1
+            if fetch_status == 'captcha':
+                logger.warning(f"  CAPTCHA — backing off")
+                time.sleep(COLA_DELAY * 10)
+            else:
+                logger.warning(f"  Fetch failed — skipping (will retry next run)")
+                time.sleep(COLA_DELAY * 3)
+            return
+
+        # Step 2: Parse HTML for image URLs
+        discovered = extract_images_from_html(html, ttb_id)
+        with lock:
+            counters['urls_discovered'] += len(discovered)
+
+        if not discovered:
+            logger.info(f"  No images on page")
+            if not dry_run:
+                with lock:
+                    save_checkpoint_entry(ttb_id)
+            with lock:
+                counters['colas_complete'] += 1
+            return
+
+        logger.info(f"  Found {len(discovered)} image(s):")
+        for img in discovered:
+            logger.info(f"    {img['image_id']} | {img['label_type']}")
+
+        # Step 3: INSERT OR IGNORE into cola_images
+        if not dry_run:
+            inserted = insert_images_to_d1(discovered)
+            with lock:
+                counters['urls_inserted'] += inserted
+            if inserted > 0:
+                logger.info(f"  Inserted {inserted} new image row(s)")
+        else:
+            with lock:
+                counters['urls_inserted'] += len(discovered)
+
+        # If discover-only mode, checkpoint and move on
+        if discover_only:
+            if not dry_run:
+                with lock:
+                    save_checkpoint_entry(ttb_id)
+            with lock:
+                counters['colas_complete'] += 1
+            return
+
+        # Step 4: Get pending images for download
+        if not dry_run:
+            pending = get_pending_images_for_cola(ttb_id)
+        else:
+            pending = [{'image_id': img['image_id'], 'ttb_id': img['ttb_id'],
+                        'ttb_original_url': img['ttb_original_url'],
+                        'download_status': None} for img in discovered]
+
+        if not pending:
+            logger.info(f"  All images already downloaded")
+            if not dry_run:
+                with lock:
+                    save_checkpoint_entry(ttb_id)
+            with lock:
+                counters['colas_complete'] += 1
+                counters['images_skipped'] += len(discovered)
+            return
+
+        logger.info(f"  Downloading {len(pending)} image(s)...")
+
+        # Step 5: Download each pending image via HTTP
+        cola_all_ok = True
+
+        for img_idx, img in enumerate(pending):
+            image_id = img['image_id']
+            url = img['ttb_original_url']
+
+            logger.info(f"  [{img_idx+1}/{len(pending)}] {image_id}")
+
+            image_bytes, status = download_image_http(session, url)
+
+            # Session expired — re-fetch page to refresh cookies and retry
+            if status == 'captcha' or (status == 'failed' and image_bytes is None):
+                logger.info(f"    Session issue — refreshing cookies...")
+                session.cookies.clear()
+                re_html, _ = fetch_cola_page(session, ttb_id)
+                if re_html is not None:
+                    image_bytes, status = download_image_http(session, url)
+
+            if image_bytes is None:
+                cola_all_ok = False
+                with lock:
+                    counters['images_failed'] += 1
+                logger.warning(f"    {status}")
+                if not dry_run:
+                    update_image_row(image_id, None, None, None, None, status)
+                continue
+
+            file_size = len(image_bytes)
+            with lock:
+                counters['images_downloaded'] += 1
+                counters['total_bytes'] += file_size
+
+            # Save to disk for visual inspection
+            if save_to_disk:
+                with lock:
+                    counters['disk_counter'] += 1
+                    dc = counters['disk_counter']
+                ext_disk = get_extension(url)
+                disk_path = DATA_DIR / f"test_{dc}.{ext_disk}"
+                disk_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(disk_path, 'wb') as f:
+                    f.write(image_bytes)
+                logger.info(f"    Saved to {disk_path}")
+
+            # Corrupt check
+            if file_size < CORRUPT_THRESHOLD:
+                cola_all_ok = False
+                with lock:
+                    counters['images_corrupt'] += 1
+                logger.warning(f"    Corrupt — {file_size:,} bytes (< {CORRUPT_THRESHOLD:,})")
+                if not dry_run:
+                    update_image_row(image_id, None, file_size, None, None, 'corrupt')
+                continue
+
+            # Dimensions
+            width, height = get_image_dimensions(image_bytes)
+            dim_str = f"{width}x{height}" if width else "unknown"
+
+            # R2 key
+            ext = get_extension(url)
+            r2_key = f"labels/{ttb_id}/{image_id}.{ext}"
+            content_type = CONTENT_TYPE_MAP.get(ext, 'image/jpeg')
+
+            logger.info(f"    {file_size:,} bytes | {dim_str} | {ext} \u2192 {r2_key}")
+
+            if not dry_run:
+                try:
+                    upload_to_r2(r2_key, image_bytes, content_type)
+                    update_image_row(image_id, r2_key, file_size, width, height, 'success')
+                    with lock:
+                        counters['images_uploaded'] += 1
+                except Exception as e:
+                    cola_all_ok = False
+                    logger.error(f"    R2 upload failed: {e}")
+                    update_image_row(image_id, None, file_size, width, height, 'failed')
+                    with lock:
+                        counters['images_failed'] += 1
+            else:
+                with lock:
+                    counters['images_uploaded'] += 1  # Would have uploaded
+
+            time.sleep(REQUEST_DELAY)
+
+        # Checkpoint: only if ALL images for this COLA succeeded
+        if cola_all_ok:
+            with lock:
+                counters['colas_complete'] += 1
+            if not dry_run:
+                with lock:
+                    save_checkpoint_entry(ttb_id)
+            logger.info(f"  [OK] COLA complete")
+        else:
+            with lock:
+                counters['colas_partial'] += 1
+            logger.warning(f"  [PARTIAL] Some images failed — will retry next run")
+
+    # --- Run the thread pool ---
+    logger.info(f"Starting image pipeline: {total} COLAs, {max_workers} workers")
 
     try:
-        for cola_idx, ttb_id in enumerate(ttb_ids):
-            logger.info(f"[{cola_idx+1}/{len(ttb_ids)}] {ttb_id}")
-
-            # Step 1: Fetch COLA's printable page via HTTP
-            html, fetch_status = fetch_cola_page(session, ttb_id)
-            if html is None:
-                colas_nav_failed += 1
-                if fetch_status == 'captcha':
-                    captcha_count += 1
-                    logger.warning(f"  CAPTCHA — backing off")
-                    time.sleep(COLA_DELAY * 10)
-                else:
-                    logger.warning(f"  Fetch failed — skipping (will retry next run)")
-                    time.sleep(COLA_DELAY * 3)
-                continue
-
-            # Step 2: Parse HTML for image URLs
-            discovered = extract_images_from_html(html, ttb_id)
-            urls_discovered += len(discovered)
-
-            if not discovered:
-                logger.info(f"  No images on page")
-                if not dry_run:
-                    save_checkpoint_entry(ttb_id)
-                colas_complete += 1
-                time.sleep(COLA_DELAY)
-                continue
-
-            logger.info(f"  Found {len(discovered)} image(s):")
-            for img in discovered:
-                logger.info(f"    {img['image_id']} | {img['label_type']}")
-
-            # Step 3: INSERT OR IGNORE into cola_images
-            if not dry_run:
-                inserted = insert_images_to_d1(discovered)
-                urls_inserted += inserted
-                if inserted > 0:
-                    logger.info(f"  Inserted {inserted} new image row(s)")
-            else:
-                urls_inserted += len(discovered)
-
-            # If discover-only mode, checkpoint and move on
-            if discover_only:
-                if not dry_run:
-                    save_checkpoint_entry(ttb_id)
-                colas_complete += 1
-                time.sleep(COLA_DELAY)
-                continue
-
-            # Step 4: Get pending images for download
-            if not dry_run:
-                pending = get_pending_images_for_cola(ttb_id)
-            else:
-                pending = [{'image_id': img['image_id'], 'ttb_id': img['ttb_id'],
-                            'ttb_original_url': img['ttb_original_url'],
-                            'download_status': None} for img in discovered]
-
-            if not pending:
-                logger.info(f"  All images already downloaded")
-                if not dry_run:
-                    save_checkpoint_entry(ttb_id)
-                colas_complete += 1
-                images_skipped += len(discovered)
-                time.sleep(COLA_DELAY)
-                continue
-
-            logger.info(f"  Downloading {len(pending)} image(s)...")
-
-            # Step 5: Download each pending image via HTTP
-            cola_all_ok = True
-
-            for img_idx, img in enumerate(pending):
-                image_id = img['image_id']
-                url = img['ttb_original_url']
-
-                logger.info(f"  [{img_idx+1}/{len(pending)}] {image_id}")
-
-                image_bytes, status = download_image_http(session, url)
-
-                # Session expired — re-fetch page to refresh cookies and retry
-                if status == 'captcha' or (status == 'failed' and image_bytes is None):
-                    logger.info(f"    Session issue — refreshing cookies...")
-                    session.cookies.clear()
-                    re_html, _ = fetch_cola_page(session, ttb_id)
-                    if re_html is not None:
-                        image_bytes, status = download_image_http(session, url)
-
-                if image_bytes is None:
-                    cola_all_ok = False
-                    images_failed += 1
-                    logger.warning(f"    {status}")
-                    if not dry_run:
-                        update_image_row(image_id, None, None, None, None, status)
-                    continue
-
-                images_downloaded += 1
-                file_size = len(image_bytes)
-                total_bytes += file_size
-
-                # Save to disk for visual inspection
-                if save_to_disk:
-                    disk_counter += 1
-                    ext_disk = get_extension(url)
-                    disk_path = DATA_DIR / f"test_{disk_counter}.{ext_disk}"
-                    disk_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(disk_path, 'wb') as f:
-                        f.write(image_bytes)
-                    logger.info(f"    Saved to {disk_path}")
-
-                # Corrupt check
-                if file_size < CORRUPT_THRESHOLD:
-                    cola_all_ok = False
-                    images_corrupt += 1
-                    logger.warning(f"    Corrupt — {file_size:,} bytes (< {CORRUPT_THRESHOLD:,})")
-                    if not dry_run:
-                        update_image_row(image_id, None, file_size, None, None, 'corrupt')
-                    continue
-
-                # Dimensions
-                width, height = get_image_dimensions(image_bytes)
-                dim_str = f"{width}x{height}" if width else "unknown"
-
-                # R2 key
-                ext = get_extension(url)
-                r2_key = f"labels/{ttb_id}/{image_id}.{ext}"
-                content_type = CONTENT_TYPE_MAP.get(ext, 'image/jpeg')
-
-                logger.info(f"    {file_size:,} bytes | {dim_str} | {ext} → {r2_key}")
-
-                if not dry_run:
-                    try:
-                        upload_to_r2(r2_key, image_bytes, content_type)
-                        update_image_row(image_id, r2_key, file_size, width, height, 'success')
-                        images_uploaded += 1
-                    except Exception as e:
-                        cola_all_ok = False
-                        logger.error(f"    R2 upload failed: {e}")
-                        update_image_row(image_id, None, file_size, width, height, 'failed')
-                        images_failed += 1
-                else:
-                    images_uploaded += 1  # Would have uploaded
-
-                time.sleep(REQUEST_DELAY)
-
-            # Checkpoint: only if ALL images for this COLA succeeded
-            if cola_all_ok:
-                colas_complete += 1
-                if not dry_run:
-                    save_checkpoint_entry(ttb_id)
-                logger.info(f"  [OK] COLA complete")
-            else:
-                colas_partial += 1
-                logger.warning(f"  [PARTIAL] Some images failed — will retry next run")
-
-            # Progress every 10 COLAs
-            if (cola_idx + 1) % 10 == 0:
-                mb = total_bytes / (1024 * 1024)
-                logger.info(f"  --- Progress: {cola_idx+1}/{len(ttb_ids)} COLAs | "
-                           f"{urls_discovered} URLs, {images_uploaded} uploaded, "
-                           f"{images_failed} failed | {mb:.1f} MB ---")
-
-            # Delay between COLAs
-            if cola_idx < len(ttb_ids) - 1:
-                time.sleep(COLA_DELAY)
-
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(worker, ttb_id): ttb_id for ttb_id in ttb_ids}
+            for future in as_completed(futures):
+                exc = future.exception()
+                if exc:
+                    ttb_id = futures[future]
+                    logger.error(f"  Unexpected error for {ttb_id}: {exc}")
+                    with lock:
+                        counters['colas_nav_failed'] += 1
     except KeyboardInterrupt:
         logger.info("\nInterrupted by user")
 
@@ -878,34 +905,34 @@ def process_colas(ttb_ids, dry_run=False, save_to_disk=False, discover_only=Fals
     completed_colas_in_db = get_completed_cola_count() if not dry_run else '?'
 
     # Summary
-    mb = total_bytes / (1024 * 1024)
+    mb = counters['total_bytes'] / (1024 * 1024)
     print(f"\n{'='*60}")
     print(f"BACKFILL SUMMARY")
     print(f"{'='*60}")
-    print(f"COLAs processed:       {len(ttb_ids)}")
-    print(f"COLAs complete:        {colas_complete}")
-    print(f"COLAs fetch failed:    {colas_nav_failed}")
-    print(f"COLAs partial:         {colas_partial}")
-    print(f"URLs discovered:       {urls_discovered}")
+    print(f"COLAs processed:       {total}")
+    print(f"COLAs complete:        {counters['colas_complete']}")
+    print(f"COLAs fetch failed:    {counters['colas_nav_failed']}")
+    print(f"COLAs partial:         {counters['colas_partial']}")
+    print(f"URLs discovered:       {counters['urls_discovered']}")
     if not discover_only:
-        print(f"Images downloaded:     {images_downloaded}")
-        print(f"Images uploaded:       {images_uploaded}")
-        print(f"Images failed:         {images_failed}")
-        print(f"Images corrupt (<5KB): {images_corrupt}")
-        print(f"Images skipped:        {images_skipped}")
+        print(f"Images downloaded:     {counters['images_downloaded']}")
+        print(f"Images uploaded:       {counters['images_uploaded']}")
+        print(f"Images failed:         {counters['images_failed']}")
+        print(f"Images corrupt (<5KB): {counters['images_corrupt']}")
+        print(f"Images skipped:        {counters['images_skipped']}")
         print(f"Total downloaded:      {mb:.1f} MB")
-        if images_downloaded:
-            avg_kb = (total_bytes / images_downloaded) / 1024
+        if counters['images_downloaded']:
+            avg_kb = (counters['total_bytes'] / counters['images_downloaded']) / 1024
             print(f"Avg file size:         {avg_kb:.0f} KB")
-    if captcha_count:
-        print(f"CAPTCHA blocks:        {captcha_count}")
+    if counters['captcha_count']:
+        print(f"CAPTCHA blocks:        {counters['captcha_count']}")
     else:
         print(f"CAPTCHA:               none encountered")
     print(f"{'='*60}")
     if not discover_only:
         print(f"Overall: {completed_colas_in_db}/{total_colas_in_db:,} COLAs fully downloaded")
     if dry_run:
-        print(f"[DRY RUN — nothing written to D1, R2, or checkpoint]")
+        print(f"[DRY RUN \u2014 nothing written to D1, R2, or checkpoint]")
     print(f"{'='*60}")
 
 
@@ -940,6 +967,8 @@ Examples:
     )
     parser.add_argument('--limit', type=int, default=50,
                         help='Max COLAs to process (default: 50)')
+    parser.add_argument('--workers', type=int, default=3,
+                        help='Parallel download workers (default: 3)')
     parser.add_argument('--ttb-ids', nargs='+',
                         help='Specific ttb_ids to process (skips D1 lookup)')
     parser.add_argument('--dry-run', action='store_true',
@@ -977,7 +1006,8 @@ Examples:
         return
 
     process_colas(ttb_ids, dry_run=args.dry_run,
-                  save_to_disk=args.save_to_disk, discover_only=args.discover_only)
+                  save_to_disk=args.save_to_disk, discover_only=args.discover_only,
+                  max_workers=args.workers)
 
 
 if __name__ == '__main__':
