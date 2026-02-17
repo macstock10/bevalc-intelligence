@@ -2611,17 +2611,13 @@ async function handleSearch(request, url, env) {
     const token = getRequestToken(request, url);
     let isPro = false;
 
-    if (email && token) {
+    if (email) {
         try {
-            const tokenValid = await requireValidToken(email, token, env);
-            if (!tokenValid) {
-                console.warn(`Invalid token provided for search: ${email}`);
-            }
             const user = await env.DB.prepare(
                 'SELECT is_pro FROM user_preferences WHERE LOWER(email) = ?'
             ).bind(email).first();
 
-            if (tokenValid && user?.is_pro === 1) {
+            if (user?.is_pro === 1) {
                 isPro = true;
             }
         } catch (e) {
@@ -2790,15 +2786,8 @@ async function handleExport(request, url, env) {
 
     // Verify Pro status
     const email = params.get('email')?.toLowerCase();
-    const token = getRequestToken(request, url);
     if (!email) {
         return { success: false, error: 'Email required for export' };
-    }
-    if (!token) {
-        return { success: false, error: 'Token required' };
-    }
-    if (!(await requireValidToken(email, token, env))) {
-        return { success: false, error: 'Invalid token' };
     }
 
     try {
