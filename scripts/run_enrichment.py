@@ -621,20 +621,21 @@ def run_enrichment(colas, dry_run=False, max_workers=5):
             return
 
         # Verbose output for first spirits/wine example
+        divider = '\u2500' * 60
         with lock:
             if not printed_spirits[0] and sc == 'Spirits':
-                print(f"\n{'\u2500'*60}")
+                print(f"\n{divider}")
                 print(f"FULL RESPONSE \u2014 {ttb_id}: {label}")
-                print(f"{'\u2500'*60}")
+                print(divider)
                 print(json.dumps(result, indent=2, ensure_ascii=False))
-                print(f"{'\u2500'*60}")
+                print(divider)
                 printed_spirits[0] = True
             elif not printed_wine[0] and sc == 'Wine':
-                print(f"\n{'\u2500'*60}")
+                print(f"\n{divider}")
                 print(f"FULL RESPONSE \u2014 {ttb_id}: {label}")
-                print(f"{'\u2500'*60}")
+                print(divider)
                 print(json.dumps(result, indent=2, ensure_ascii=False))
-                print(f"{'\u2500'*60}")
+                print(divider)
                 printed_wine[0] = True
 
         logger.info(f"  {sc} > {cc} > {sub} [{conf}]")
