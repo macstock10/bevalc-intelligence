@@ -457,7 +457,9 @@ def is_matchable_variant(variant: str) -> bool:
     if not variant or not variant.strip():
         return False
 
-    tokens = variant.upper().split()
+    # Strip punctuation from each token so "CORP." matches "CORP", "L.L.C." matches "LLC"
+    tokens = [re.sub(r'[^A-Z0-9]', '', t) for t in variant.upper().split()]
+    tokens = [t for t in tokens if t]  # drop empty after stripping
     if not tokens:
         return False
 
