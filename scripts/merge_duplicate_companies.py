@@ -296,7 +296,17 @@ def reclassify_merged(primary_ids):
 def main():
     parser = argparse.ArgumentParser(description='Merge duplicate companies sharing legal entity names')
     parser.add_argument('--dry-run', action='store_true', help='Preview without making changes')
+    parser.add_argument(
+        '--allow-legal-entity-merge',
+        action='store_true',
+        help='Required safety flag. This merge strategy is dangerous and can over-merge unrelated trade names.'
+    )
     args = parser.parse_args()
+
+    if not args.allow_legal_entity_merge:
+        logger.error("Safety stop: legal-entity merge is disabled by default.")
+        logger.error("Use --allow-legal-entity-merge only if you explicitly want second-part legal-name merging.")
+        sys.exit(2)
 
     load_env()
     init_d1()

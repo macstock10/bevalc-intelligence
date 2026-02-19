@@ -88,11 +88,21 @@ def d1_execute(sql: str, params: List[Any] = None, max_retries: int = 3) -> Dict
         try:
             response = requests.post(D1_API_URL, headers=headers, json=payload, timeout=60)
 
-            if response.status_code != 200:
-                logger.error(f"D1 API error: {response.status_code} - {response.text}")
-                return {"success": False, "error": response.text}
+            if response.status_code == 200:
+                return response.json()
 
-            return response.json()
+            # Retry transient D1/Cloudflare failures
+            if response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(
+                    f"D1 transient HTTP {response.status_code}, retrying in {wait_time}s... "
+                    f"({attempt + 1}/{max_retries})"
+                )
+                time.sleep(wait_time)
+                continue
+
+            logger.error(f"D1 API error: {response.status_code} - {response.text}")
+            return {"success": False, "error": response.text}
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds

@@ -1260,15 +1260,25 @@ export async function handleSecQuery(request, env) {
         return { success: false, error: 'Pro subscription required' };
     }
 
-    if (!user.enhancement_credits || user.enhancement_credits < 1) {
-        return {
-            success: false,
-            error: 'Insufficient credits',
-            credits: user.enhancement_credits || 0
-        };
+    // Deduct credit atomically before starting pipeline (prevents double-spend)
+    const debit = await env.DB.prepare(
+        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE LOWER(email) = ? AND preferences_token = ? AND enhancement_credits > 0'
+    ).bind(normalizedEmail, token).run();
+    if (!debit?.meta || debit.meta.changes < 1) {
+        return { success: false, error: 'Insufficient credits', credits: 0 };
     }
+    const creditsRemaining = Math.max((user.enhancement_credits || 1) - 1, 0);
 
-    const queryHash = await hashText(query + JSON.stringify(filters));
+    // Refund credit if the pipeline fails to produce a usable answer
+    const refundCredit = async () => {
+        try {
+            await env.DB.prepare(
+                'UPDATE user_preferences SET enhancement_credits = enhancement_credits + 1 WHERE LOWER(email) = ? AND preferences_token = ?'
+            ).bind(normalizedEmail, token).run();
+        } catch (e) {
+            console.error('Credit refund failed:', e);
+        }
+    };
 
     // Parse query intent
     const intent = parseSecQueryIntent(query, filters);
@@ -1285,6 +1295,7 @@ export async function handleSecQuery(request, env) {
         console.log(`Vectorize search: ${searchResult.embedLatencyMs}ms embed + ${searchResult.vectorizeLatencyMs}ms query = ${retrievalLatency}ms total`);
     } catch (error) {
         console.error('Vectorize search error:', error);
+        await refundCredit();
         return { success: false, error: 'Search failed: ' + error.message };
     }
 
@@ -1394,6 +1405,7 @@ export async function handleSecQuery(request, env) {
 
     // Check if we have sufficient coverage
     if (retrievedChunks.length === 0) {
+        await refundCredit();
         return {
             success: true,
             error: 'insufficient_coverage',
@@ -1490,19 +1502,12 @@ export async function handleSecQuery(request, env) {
         generationLatency = genResult.latencyMs;
     } catch (error) {
         console.error('Generation error:', error);
+        await refundCredit();
         return { success: false, error: 'Failed to generate answer: ' + error.message };
     }
 
     const coverageSummary = buildCoverageSummary(rerankedChunks, retrievedChunks.length, intent);
     const answerWithCoverage = `${answer}\n\nCoverage:\n${coverageSummary}`;
-
-    // Deduct credit
-    const debit = await env.DB.prepare(
-        'UPDATE user_preferences SET enhancement_credits = enhancement_credits - 1 WHERE LOWER(email) = ? AND preferences_token = ? AND enhancement_credits > 0'
-    ).bind(normalizedEmail, token).run();
-    if (!debit?.meta || debit.meta.changes < 1) {
-        return { success: false, error: 'Insufficient credits', credits: 0 };
-    }
 
     // Build response
     const response = {
@@ -1563,7 +1568,7 @@ export async function handleSecQuery(request, env) {
         success: true,
         cached: false,
         ...response,
-        credits_remaining: Math.max((user.enhancement_credits || 1) - 1, 0)
+        credits_remaining: creditsRemaining
     };
 }
 
@@ -1687,11 +1692,3 @@ export async function handleSecMdaCompare(url, env) {
     };
 }
 
-// Helper to hash text for caching
-async function hashText(text) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}

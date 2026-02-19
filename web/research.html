@@ -540,6 +540,16 @@
             color: #0d9488;
         }
 
+        .query-error {
+            padding: 1.25rem 1.5rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #991b1b;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .query-input-wrapper {
@@ -896,39 +906,64 @@
             }
         }
 
+        // Error messages for known backend responses
+        const ERROR_MESSAGES = {
+            'Invalid token': 'Your session has expired. Please sign out and sign in again from your Account page.',
+            'Token required': 'Please verify your email from the Account page before using this feature.',
+            'Authentication required': 'Please sign in to use this feature.',
+            'Pro subscription required': 'This feature requires a Pro subscription.',
+            'Insufficient credits': 'You\'re out of research credits. Purchase more from your Account page.',
+        };
+
+        function showQueryError(message) {
+            const resultDiv = document.getElementById('query-result');
+            document.getElementById('query-answer').innerHTML = `<div class="query-error">${escapeHtml(message)}</div>`;
+            document.getElementById('query-citations').style.display = 'none';
+            resultDiv.style.display = 'block';
+        }
+
+        function showQueryResult(data) {
+            document.getElementById('query-answer').innerHTML = renderMarkdown(data.answer_markdown || data.answer || 'No answer generated');
+
+            const citations = data.citations || [];
+            const citationsDiv = document.getElementById('query-citations');
+            document.getElementById('citation-list').innerHTML = citations.map(c => `
+                <div class="citation-item">
+                    <a href="${c.sourceUrl}" target="_blank" class="citation-source">${c.ticker} ${c.docType} ${c.filingDate}</a>
+                    <span class="citation-excerpt">"${escapeHtml(c.quote || c.excerpt || '')}"</span>
+                </div>
+            `).join('');
+            citationsDiv.style.display = citations.length ? '' : 'none';
+
+            document.getElementById('query-result').style.display = 'block';
+
+            if (data.credits_remaining !== undefined) {
+                credits = data.credits_remaining;
+                updateCreditsDisplay();
+            }
+        }
+
         // Submit RAG query
         async function submitQuery() {
-            const queryInput = document.getElementById('query-input');
-            const query = queryInput.value.trim();
+            const query = document.getElementById('query-input').value.trim();
             if (!query) return;
 
             const btn = document.getElementById('query-btn');
             btn.disabled = true;
             btn.textContent = 'Searching...';
+            document.getElementById('query-result').style.display = 'none';
 
-            const tickerFilter = document.getElementById('filter-company').value;
-            const filingTypeFilter = document.getElementById('filter-filing-type').value;
-            const filters = {
-                tickers: tickerFilter ? [tickerFilter] : [],
-                docTypes: filingTypeFilter ? [filingTypeFilter] : []
-            };
-
-            if (!userEmail) {
-                alert('Please log in to use this feature');
+            const authToken = (BevAlcAuth.getUser()?.token) || localStorage.getItem('bevalc_prefs_token') || '';
+            if (!userEmail || !authToken) {
+                showQueryError(ERROR_MESSAGES[!userEmail ? 'Authentication required' : 'Token required']);
                 btn.disabled = false;
                 btn.textContent = 'Ask';
                 return;
             }
 
             try {
-                // Use AbortController for 90-second timeout (queries can take 30-60s)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 90000);
-
-                const authToken = (BevAlcAuth.getUser()?.token) || localStorage.getItem('bevalc_prefs_token') || '';
-                if (!authToken) {
-                    throw new Error('Please verify your email from your account page before using research queries.');
-                }
 
                 const response = await fetch(`${API_BASE}/api/sec/query`, {
                     method: 'POST',
@@ -936,39 +971,41 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${authToken}`
                     },
-                    body: JSON.stringify({ query, email: userEmail, filters, token: authToken }),
+                    body: JSON.stringify({
+                        query,
+                        email: userEmail,
+                        filters: {
+                            tickers: document.getElementById('filter-company').value ? [document.getElementById('filter-company').value] : [],
+                            docTypes: document.getElementById('filter-filing-type').value ? [document.getElementById('filter-filing-type').value] : []
+                        },
+                        token: authToken
+                    }),
                     signal: controller.signal
                 });
 
                 clearTimeout(timeoutId);
-                const data = await response.json();
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch {
+                    showQueryError('The server returned an unexpected response. Please try again in a moment.');
+                    btn.disabled = false;
+                    btn.textContent = 'Ask';
+                    return;
+                }
 
                 if (data.success) {
-                    document.getElementById('query-answer').innerHTML = renderMarkdown(data.answer_markdown || data.answer || 'No answer generated');
-
-                    const citationList = document.getElementById('citation-list');
-                    citationList.innerHTML = (data.citations || []).map(c => `
-                        <div class="citation-item">
-                            <a href="${c.sourceUrl}" target="_blank" class="citation-source">${c.ticker} ${c.docType} ${c.filingDate}</a>
-                            <span class="citation-excerpt">"${escapeHtml(c.quote || c.excerpt || '')}"</span>
-                        </div>
-                    `).join('');
-
-                    document.getElementById('query-result').style.display = 'block';
-
-                    if (data.credits_remaining !== undefined) {
-                        credits = data.credits_remaining;
-                        updateCreditsDisplay();
-                    }
+                    showQueryResult(data);
                 } else {
-                    alert(data.error || 'Query failed');
+                    showQueryError(ERROR_MESSAGES[data.error] || data.error || 'Something went wrong. Please try again.');
                 }
             } catch (error) {
                 console.error('Query error:', error);
                 if (error.name === 'AbortError') {
-                    alert('Query timed out. Please try again.');
+                    showQueryError('The query took too long. Try narrowing your question to a specific company or filing type.');
                 } else {
-                    alert('Failed to process query: ' + error.message);
+                    showQueryError('Could not reach the server. Please check your connection and try again.');
                 }
             }
 

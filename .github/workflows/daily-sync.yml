@@ -110,8 +110,10 @@ jobs:
           echo "New COLAs inserted: $COUNT"
 
           if [ "$COUNT" -gt 0 ]; then
-            echo "Dispatching Post-Scrape Images with limit=$COUNT"
-            gh workflow run "Post-Scrape Images" -f limit="$COUNT"
+            # Always use 1000 for the pipeline — each step finds its own work
+            # and clears any backlog from previous runs
+            echo "Dispatching Post-Scrape Images with limit=1000"
+            gh workflow run "Post-Scrape Images" -f limit="1000"
           else
             echo "No new COLAs — skipping enrichment pipeline"
           fi

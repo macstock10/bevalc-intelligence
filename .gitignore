@@ -49,7 +49,7 @@ tests/videos/
 tmpclaude-*
 nul
 # Local Claude settings (may contain secrets)
-.claude/settings.local.json
+**/.claude/settings.local.json
 
 # Backup folders
 web/old/
@@ -62,3 +62,25 @@ skills/carousel/debug-carousel.html
 skills/carousel/node_modules/
 skills/remotion/bevalc-videos/out/
 skills/visuals/out/
+
+# GitHub CLI cache
+.ghcache/
+
+# Temp workflow logs
+tmp_*.log
+
+# GCP service account keys (NEVER commit)
+enhancements/*.json
+
+# Content queue drafts (local working files)
+scripts/content-queue/
+scripts/transcripts/
+
+# Local images folder
+images/
+
+# Office docs
+*.docx
+
+# Misc local files
+quantumonlinelist.txt

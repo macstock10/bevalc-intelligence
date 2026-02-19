@@ -487,11 +487,12 @@ def get_company_name_variants(company_name: str) -> List[str]:
     Get all variants of a company name to check against existing aliases.
 
     For comma-separated names like "Big Ditch Brewing Company, Big Ditch Brewing Company LLC",
-    returns both parts as variants to check, plus the full name.
+    returns the first part (trade name) as a variant, plus the full name.
 
-    Comma-separated parts and normalized forms are filtered through
-    is_matchable_variant() to prevent low-signal variants (e.g., "LLC",
-    "Brewing Company") from causing false cross-company matches.
+    Only the FIRST comma part is used for cross-company matching. The second
+    part is typically a legal entity (e.g., "Constellation Wines U.S. Inc.")
+    and must NOT be used as a variant — otherwise conglomerates like
+    Constellation collapse unrelated trade names into one company.
 
     The full company name is always included (for exact-match lookups).
     """
@@ -500,12 +501,13 @@ def get_company_name_variants(company_name: str) -> List[str]:
 
     variants = [company_name.strip()]
 
-    # If comma-separated, add each part as a variant (filtered)
-    if ', ' in company_name:
-        parts = [p.strip() for p in company_name.split(', ')]
-        for part in parts:
-            if part and part not in variants and is_matchable_variant(part):
-                variants.append(part)
+    # If comma-separated, only use the FIRST part (trade name) as a variant.
+    # The second part is the legal entity and must not be used for matching.
+    # Use any comma (not just ", ") because source spacing can vary.
+    if ',' in company_name:
+        first_part = company_name.split(',', 1)[0].strip()
+        if first_part and first_part not in variants and is_matchable_variant(first_part):
+            variants.append(first_part)
 
     # Add normalized variant of full name (always include — derived from
     # the first comma part which is typically the specific trade name)
