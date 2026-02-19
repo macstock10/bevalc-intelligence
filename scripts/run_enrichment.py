@@ -226,10 +226,13 @@ def load_prompt():
 # =============================================================================
 
 def get_colas_needing_enrichment(limit):
-    """Get colas not yet enriched, with aggregated OCR from cola_images."""
-    logger.info(f"Querying D1 for up to {limit} COLAs not yet enriched...")
+    """Get colas not yet enriched, with aggregated OCR from cola_images.
+    Only enriches COLAs from 2026 onwards to avoid scanning the full 2.8M table."""
+    logger.info(f"Querying D1 for up to {limit} COLAs not yet enriched (2026+ only)...")
 
-    # Only select COLAs that have at least one image with OCR text
+    # Only select COLAs from 2026+ that have at least one image with OCR text.
+    # The year >= 2026 filter uses idx_colas_ymd to avoid full table scan
+    # that was hitting D1's CPU time limit.
     colas = d1_query_rows(
         f"SELECT c.ttb_id, c.brand_name, c.fanciful_name, c.class_type_code, "
         f"c.origin_code, c.alcohol_content, c.total_bottle_capacity, "
@@ -237,6 +240,7 @@ def get_colas_needing_enrichment(limit):
         f"c.state, c.formula "
         f"FROM colas c "
         f"WHERE c.enriched_at IS NULL "
+        f"AND c.year >= 2026 "
         f"AND EXISTS (SELECT 1 FROM cola_images ci "
         f"  WHERE ci.ttb_id = c.ttb_id AND ci.ocr_text IS NOT NULL) "
         f"ORDER BY c.year DESC, c.month DESC, c.day DESC "

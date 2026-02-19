@@ -41,6 +41,9 @@ NEW_COMPANY signal in COLAs doesn't mean they're a new business. They may have e
 | Schedule | Script | What It Does |
 |----------|--------|--------------|
 | Daily 9pm ET | `weekly_update.py --days 7` | Scrape TTB, sync to D1, classify signals |
+| ↳ chained | `backfill_images.py` | Download label images → R2 (limit 1000) |
+| ↳ chained | `run_ocr.py` | Google Cloud Vision OCR on images (limit 1000) |
+| ↳ chained | `run_enrichment.py` | Claude Haiku LLM enrichment (limit 1000, 2026+ only) |
 | Daily 11:30am ET | `send_watchlist_alerts.py` | Email alerts for watchlist matches |
 | Friday 2pm ET | `send_weekly_report.py` | Weekly summary emails |
 | Tuesday 6am ET | `sync_permits.py` | Sync 82K TTB permits |
@@ -59,7 +62,7 @@ REFILE       → All three exist (label update/renewal)
 ### Live Architecture
 
 ```
-Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
+Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.8M+ COLAs)
                                 ↓
                           Stripe API
 ```
@@ -67,7 +70,7 @@ Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
 **API Endpoints:**
 - `/api/search` - Query database
 - `/api/checkout` - Stripe checkout
-- `/api/enhance` - AI company intelligence (uses credits)
+- `/api/enrich-company` - AI company intelligence (uses credits)
 - `/api/sec/*` - SEC Research endpoints (filings, 8-K events, RAG query, MD&A diffs)
 - `/company/[slug]` - SSR company pages
 - `/brand/[slug]` - SSR brand pages
@@ -78,7 +81,7 @@ Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
 
 ### Core Tables
 
-**`colas`** - 2.6M+ label approval records
+**`colas`** - 2.8M+ label approval records (38 enrichment columns added via migration 010)
 - `ttb_id` (PK), `brand_name`, `fanciful_name`, `company_name`, `state`
 - `approval_date`, `year`, `month`, `day`
 - `signal` (NEW_COMPANY/NEW_BRAND/NEW_SKU/REFILE)
@@ -100,8 +103,14 @@ Netlify (web/) → Cloudflare Worker (worker.js) → Cloudflare D1 (2.6M+ COLAs)
 - `permit_number` (PK), `owner_name`, `operating_name`, `street`, `city`, `state`
 - `company_id` (FK when matched - 26% match rate)
 
-**`company_enhancements`** - Cached AI intelligence results
-- `company_id` (PK), `website_url`, `summary`, `news`, `expires_at` (90-day TTL)
+**`company_enrichments`** - Cached AI company intelligence (50+ columns)
+- `company_id` (PK), `website`, `brief`, `industry`, `employee_count`, `expires_at` (90-day TTL)
+
+**`company_contacts`** - Enriched company contacts (multi-row per company)
+- `id` (PK), `company_id` (FK), `full_name`, `title`, `email`, `linkedin_url`
+
+**`email_verification_codes`** - Magic code login
+- `email` (PK), `code_hash`, `expires_at`, `attempts`, `send_count`, `send_window_start`
 
 ### SEC Research Tables
 
@@ -152,9 +161,9 @@ bevalc-intelligence/
 │   ├── research.html        # SEC Research (8-K events, RAG, MD&A diffs)
 │   └── account.html         # User settings
 ├── worker/
-�   +-- worker.js            # Cloudflare Worker (API + SSR, router)
-�   +-- sec_research.js       # SEC Research handlers + RAG pipeline
-�   +-- wrangler.toml
+�   +-- worker.js            # Cloudflare Worker (API + SSR, router)
+�   +-- sec_research.js       # SEC Research handlers + RAG pipeline
+�   +-- wrangler.toml
 └── RUNBOOK.md               # Operational procedures
 ```
 
@@ -204,7 +213,9 @@ npx wrangler d1 execute bevalc-colas --remote --file=../scripts/migrations/003_s
 | `CLOUDFLARE_API_TOKEN` | Scripts (D1 API) |
 | `RESEND_API_KEY` | Email sending |
 | `STRIPE_SECRET_KEY` | Worker |
-| `ANTHROPIC_API_KEY` | Company enhancement |
+| `ANTHROPIC_API_KEY` | COLA enrichment (Haiku), company brief (Haiku), SEC RAG (Sonnet) |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | OCR pipeline (Google Cloud Vision) |
+| `VERIFICATION_CODE_PEPPER` | Auth code hashing |
 
 ---
 
@@ -212,8 +223,10 @@ npx wrangler d1 execute bevalc-colas --remote --file=../scripts/migrations/003_s
 
 - **Company Normalization**: Raw TTB names mapped to `company_id` via `company_aliases`. Handles variants like "Name, Name LLC" by checking all comma-separated parts.
 - **D1 Batch Insert**: Use inline SQL values, not parameterized queries (SQLite ~999 param limit)
+- **D1 CPU Limit**: Pipeline queries MUST filter `year >= 2026` to avoid scanning 2.8M rows. Full-table scans hit D1's CPU time limit (429 error). The `idx_colas_ymd` index makes year-filtered queries fast.
 - **Hub Page Caching**: Category pages cached 5 min via `category_stats` table
 - **Programmatic SEO**: `/company/[slug]` and `/brand/[slug]` pages SSR from D1. Sitemaps in R2.
+- **Auth**: Client-side only (localStorage + cookies). No server-side sessions. Database page has magic code login (6-digit email verification) for cross-device access. Backend: `/api/auth/send-code`, `/api/auth/verify-code`.
 
 ---
 
@@ -236,6 +249,8 @@ npx wrangler d1 execute bevalc-colas --remote --file=../scripts/migrations/003_s
 - [ ] Add search links to company modal (Google, Maps, LinkedIn) - "user does final click"
 - [ ] Surface permit data in company modal when match exists
 - [ ] Competitive intelligence angle - track when competitors file new SKUs
+- [ ] Upgrade SEC RAG model from Sonnet 4 to Sonnet 4.6 (same price, better quality)
+- [ ] Top up Anthropic API credits (enrichment pipeline blocked since ~2/17)
 
 ---
 

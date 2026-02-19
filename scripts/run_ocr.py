@@ -454,11 +454,11 @@ def get_images_needing_ocr(limit, retry_failed=False):
 
     logger.info(f"Querying D1 for up to {limit} {desc} COLAs...")
 
-    # Step 1: Get the ttb_ids we need (simple query)
+    # Step 1: Get the ttb_ids we need (simple query, 2026+ only)
     ttb_rows = d1_query_rows(
         f"SELECT ci.ttb_id FROM cola_images ci "
         f"JOIN colas c ON ci.ttb_id = c.ttb_id "
-        f"WHERE {where} "
+        f"WHERE {where} AND c.year >= 2026 "
         f"GROUP BY ci.ttb_id "
         f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
         f"LIMIT {limit}"

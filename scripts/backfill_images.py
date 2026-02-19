@@ -618,26 +618,26 @@ def get_colas_needing_processing(limit, checkpoint, retry_failed=False):
         )
         ttb_ids = [r['ttb_id'] for r in rows]
     else:
-        # Population A: COLAs with no cola_images rows at all
-        logger.info(f"Querying D1 for COLAs missing image data...")
+        # Population A: COLAs with no cola_images rows at all (2026+ only)
+        logger.info(f"Querying D1 for COLAs missing image data (2026+ only)...")
         rows_a = d1_query_rows(
             f"SELECT c.ttb_id FROM colas c "
             f"LEFT JOIN cola_images ci ON c.ttb_id = ci.ttb_id "
-            f"WHERE ci.ttb_id IS NULL "
+            f"WHERE ci.ttb_id IS NULL AND c.year >= 2026 "
             f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
             f"LIMIT {limit}"
         )
         pop_a = [r['ttb_id'] for r in rows_a]
         logger.info(f"  Population A (no rows): {len(pop_a)}")
 
-        # Population B: COLAs with rows but pending downloads
+        # Population B: COLAs with rows but pending downloads (2026+ only)
         remaining = limit - len(pop_a)
         pop_b = []
         if remaining > 0:
             rows_b = d1_query_rows(
                 f"SELECT ci.ttb_id FROM cola_images ci "
                 f"JOIN colas c ON ci.ttb_id = c.ttb_id "
-                f"WHERE ci.download_status IS NULL "
+                f"WHERE ci.download_status IS NULL AND c.year >= 2026 "
                 f"GROUP BY ci.ttb_id "
                 f"ORDER BY c.year DESC, c.month DESC, c.day DESC "
                 f"LIMIT {remaining}"

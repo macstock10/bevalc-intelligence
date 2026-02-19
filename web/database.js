@@ -56,6 +56,7 @@ function getUserToken() {
 document.addEventListener('DOMContentLoaded', async function() {
     cacheElements();
     checkAccess();
+    initLoginForm();
     setupEventListeners();
 
     // Apply URL parameters to filters before loading
@@ -227,6 +228,122 @@ function checkAccess() {
     } else {
         if (elements.blurOverlay) elements.blurOverlay.style.display = 'flex';
     }
+}
+
+// --- Magic code login (for cross-device sessions) ---
+
+let loginEmail = '';
+
+function initLoginForm() {
+    const sendBtn = document.getElementById('login-send-btn');
+    const verifyBtn = document.getElementById('login-verify-btn');
+    const resendBtn = document.getElementById('login-resend-btn');
+    const backBtn = document.getElementById('login-back-btn');
+    const emailInput = document.getElementById('login-email');
+    const codeInput = document.getElementById('login-code');
+
+    if (sendBtn) sendBtn.addEventListener('click', () => sendLoginCode());
+    if (verifyBtn) verifyBtn.addEventListener('click', () => verifyLoginCode());
+    if (resendBtn) resendBtn.addEventListener('click', () => sendLoginCode());
+    if (backBtn) backBtn.addEventListener('click', () => resetLoginForm());
+    if (emailInput) emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendLoginCode(); });
+    if (codeInput) codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyLoginCode(); });
+}
+
+async function sendLoginCode() {
+    const emailInput = document.getElementById('login-email');
+    const statusEl = document.getElementById('login-email-status');
+    const sendBtn = document.getElementById('login-send-btn');
+    const email = (emailInput?.value || '').trim().toLowerCase();
+
+    if (!email || !email.includes('@')) {
+        if (statusEl) statusEl.textContent = 'Please enter a valid email';
+        return;
+    }
+
+    loginEmail = email;
+    if (sendBtn) sendBtn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Sending code...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/send-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            // Show step 2
+            document.getElementById('login-step-email').style.display = 'none';
+            document.getElementById('login-step-code').style.display = 'block';
+            document.getElementById('login-code-email').textContent = email;
+            document.getElementById('login-code')?.focus();
+        } else {
+            if (statusEl) statusEl.textContent = data.error || 'Could not send code';
+        }
+    } catch (e) {
+        if (statusEl) statusEl.textContent = 'Could not send code. Try again.';
+    } finally {
+        if (sendBtn) sendBtn.disabled = false;
+    }
+}
+
+async function verifyLoginCode() {
+    const codeInput = document.getElementById('login-code');
+    const statusEl = document.getElementById('login-code-status');
+    const verifyBtn = document.getElementById('login-verify-btn');
+    const code = (codeInput?.value || '').trim();
+
+    if (!loginEmail || code.length < 6) {
+        if (statusEl) statusEl.textContent = 'Enter the 6-digit code';
+        return;
+    }
+
+    if (verifyBtn) verifyBtn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Verifying...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/verify-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: loginEmail, code })
+        });
+        const data = await response.json();
+
+        if (!data.success || !data.token) {
+            if (statusEl) statusEl.textContent = data.error || 'Invalid code';
+            if (verifyBtn) verifyBtn.disabled = false;
+            return;
+        }
+
+        // Success — set up session
+        localStorage.setItem('bevalc_prefs_token', data.token);
+        BevAlcAuth.setUser({ email: loginEmail, token: data.token, signedUpAt: new Date().toISOString() });
+        BevAlcAuth.grantAccess();
+
+        // Hide overlay and unlock UI
+        state.hasAccess = true;
+        if (elements.blurOverlay) elements.blurOverlay.style.display = 'none';
+        if (elements.navSignup) elements.navSignup.style.display = 'none';
+
+        // Check Pro status and refresh data
+        checkProStatus(loginEmail);
+        performSearch();
+    } catch (e) {
+        if (statusEl) statusEl.textContent = 'Verification failed. Try again.';
+        if (verifyBtn) verifyBtn.disabled = false;
+    }
+}
+
+function resetLoginForm() {
+    document.getElementById('login-step-email').style.display = 'block';
+    document.getElementById('login-step-code').style.display = 'none';
+    document.getElementById('login-email-status').textContent = '';
+    document.getElementById('login-code-status').textContent = '';
+    const codeInput = document.getElementById('login-code');
+    if (codeInput) codeInput.value = '';
+    document.getElementById('login-email')?.focus();
 }
 
 async function checkProStatus(email) {
@@ -526,16 +643,30 @@ async function performSearch() {
     }
 }
 
+let loadingRecordId = null;
+
 async function loadRecord(ttbId) {
+    if (loadingRecordId) return; // already loading a record
+    loadingRecordId = ttbId;
+
+    // Highlight the clicked row
+    const row = elements.resultsBody?.querySelector(`tr[data-ttb-id="${CSS.escape(ttbId)}"]`);
+    if (row) row.style.opacity = '0.5';
+
     try {
         const response = await fetch(`${API_BASE}/api/record?id=${encodeURIComponent(ttbId)}`);
         const data = await response.json();
-        
+
         if (data.success) {
             openModal(data.data);
+        } else {
+            console.error('Record load failed:', data.error);
         }
     } catch (error) {
         console.error('Failed to load record:', error);
+    } finally {
+        if (row) row.style.opacity = '';
+        loadingRecordId = null;
     }
 }
 
