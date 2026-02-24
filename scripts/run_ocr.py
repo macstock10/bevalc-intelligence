@@ -335,22 +335,37 @@ def extract_age_years(text):
 def extract_website(text):
     """Extract website URL from OCR text.
 
-    Handles OCR artifacts where spaces are inserted into CamelCase domains,
-    e.g. "Rams Gate Winery.com" → "ramsgatewinery.com"
-    """
-    TLDS = r'\.(?:com|net|org|co|io|us|wine|beer|spirits|shop|store)'
-    skip = ['alc.vol', 'fl.oz', 'vol.', 'vol.com', 'inc.', 'co.', 'ltd.', 'llc.']
+    Uses broad domain matching (any TLD) instead of a TLD whitelist.
+    False positives are filtered by minimum domain length (4 chars) and
+    a small skip set of beverage-label abbreviations.
 
-    # Match a standard URL first (www.example.com or example.com/path)
+    Also handles OCR artifacts where spaces are inserted into CamelCase
+    domains, e.g. "Rams Gate Winery.com" → "ramsgatewinery.com"
+    """
+    # Beverage-label abbreviations that look like domains but aren't.
+    # Kept intentionally small — the 4-char minimum domain length
+    # already filters most FPs (alc.vol, fl.oz, co.uk, atl.ga, etc.)
+    SKIP = {'vol.com', 'vol.net', 'net.cont', 'inc.com'}
+    # Suffixes that appear on labels but aren't real TLDs
+    SKIP_SUFFIXES = {'oz', 'vol', 'cont', 'agr', 'del'}
+
+    # Broad match: 4+ char domain, 2+ char TLD — catches every real TLD
+    # without maintaining a whitelist. The 4-char minimum eliminates
+    # initials (l.lt, c.pannell) and short abbreviations (fl.oz, alc.vol).
     match = re.search(
-        r'(?:https?://)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*' + TLDS + r'(?:/[^\s,;)]*)?)',
+        r'(?:https?://)?(?:www\.)?'
+        r'([a-zA-Z0-9][-a-zA-Z0-9]{3,}\.[a-zA-Z]{2,})'
+        r'(?:/[^\s,;)]*)?',
         text, re.IGNORECASE
     )
     if match:
         url = match.group(0).lower().rstrip('.')
-        if any(url.endswith(s) or url == s for s in skip):
+        domain = match.group(1).lower()
+
+        if domain in SKIP:
             return None
-        if not re.search(TLDS, url):
+        tld = domain.rsplit('.', 1)[1]
+        if tld in SKIP_SUFFIXES:
             return None
 
         # Check for OCR-split CamelCase: look for capitalized words
