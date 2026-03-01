@@ -109,14 +109,17 @@ jobs:
           COUNT=$(cat data/sync_inserted_count.txt 2>/dev/null || echo "0")
           echo "New COLAs inserted: $COUNT"
 
-          if [ "$COUNT" -gt 0 ]; then
-            # Always use 1000 for the pipeline — each step finds its own work
-            # and clears any backlog from previous runs
-            echo "Dispatching Post-Scrape Images with limit=1000"
-            gh workflow run "Post-Scrape Images" -f limit="1000"
-          else
-            echo "No new COLAs — skipping enrichment pipeline"
-          fi
+          # DISABLED: Pipeline costs money (OCR=$1.50/run, Enrichment=$0.25-5/run)
+          # To re-enable: uncomment the dispatch below and the chain resumes
+          # Images→OCR→Enrichment automatically.
+          #
+          # if [ "$COUNT" -gt 0 ]; then
+          #   echo "Dispatching Post-Scrape Images with limit=1000"
+          #   gh workflow run "Post-Scrape Images" -f limit="1000"
+          # else
+          #   echo "No new COLAs — skipping enrichment pipeline"
+          # fi
+          echo "Pipeline dispatch disabled — new COLAs inserted: $(cat data/sync_inserted_count.txt 2>/dev/null || echo 0)"
 
       - name: Upload logs
         if: always()

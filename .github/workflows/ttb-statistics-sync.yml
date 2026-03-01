@@ -6,9 +6,9 @@ name: TTB Statistics Sync
 # catch updates promptly.
 
 on:
-  schedule:
-    # Run every Wednesday at 3am UTC (10pm ET Tuesday)
-    - cron: '0 3 * * 3'
+  # schedule:
+  #   # Run every Wednesday at 3am UTC (10pm ET Tuesday)
+  #   - cron: '0 3 * * 3'
   workflow_dispatch:
     inputs:
       data_type:

@@ -4,9 +4,9 @@ name: Watchlist Alerts
 # Checks records from the last 7 days against user watchlists.
 
 on:
-  schedule:
-    # Run at 4:30pm UTC = 11:30am ET (winter) / 12:30pm ET (summer)
-    - cron: '30 16 * * *'
+  # schedule:
+  #   # Run at 4:30pm UTC = 11:30am ET (winter) / 12:30pm ET (summer)
+  #   - cron: '30 16 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

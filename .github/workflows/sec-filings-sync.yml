@@ -5,9 +5,9 @@ name: SEC RAG Sync
 # Manual backfill for historical data.
 
 on:
-  schedule:
-    # Run daily at 6am UTC = 1am ET
-    - cron: '0 6 * * *'
+  # schedule:
+  #   # Run daily at 6am UTC = 1am ET
+  #   - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       mode:
