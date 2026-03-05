@@ -1,11 +1,8 @@
 name: Daily TTB Sync
 
 # Scrapes a rolling 7-day window each day at 9pm ET (2am UTC).
-# Recent days may have incomplete data initially, but subsequent runs
-# fill in gaps as TTB publishes delayed records. INSERT OR IGNORE
-# handles duplicates, so re-scraping the same dates is harmless.
-# On completion, dispatches Post-Scrape Images with the exact count
-# of new COLAs inserted, so only today's pull gets enriched.
+# Exports new COLAs to JSON files in local-browser/daily_sync/ and commits them.
+# NO writes to Cloudflare D1 — all data stays local via git pull + merge-daily.py.
 
 on:
   schedule:
@@ -19,14 +16,14 @@ on:
         default: '7'
         type: string
       dry_run:
-        description: 'Dry run (scrape but skip D1 sync)'
+        description: 'Dry run (scrape but skip export)'
         required: false
         default: false
         type: boolean
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 jobs:
   sync:
@@ -53,26 +50,14 @@ jobs:
           cd scripts
           pip install -r requirements.txt
 
-      - name: Install Node.js (for email templates)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install email dependencies
-        run: |
-          cd emails
-          npm install
-
       - name: Create directories
         run: |
-          mkdir -p data logs
+          mkdir -p data logs local-browser/daily_sync
 
       - name: Run daily sync (7-day rolling window)
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # NO Cloudflare credentials — D1 sync is permanently disabled.
+          # Data flows: scrape TTB → JSON export → git commit → local merge-daily.py
           MOZ_HEADLESS: "1"
           DISPLAY: ":99"
         run: |
@@ -91,35 +76,22 @@ jobs:
             python weekly_update.py --days $DAYS
           fi
 
-      - name: Precompute category stats for hub pages
+      - name: Commit new COLA data for local sync
         if: ${{ inputs.dry_run != 'true' }}
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          cd scripts
-          python precompute_category_stats.py
-
-      - name: Trigger enrichment pipeline
-        if: ${{ inputs.dry_run != 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           COUNT=$(cat data/sync_inserted_count.txt 2>/dev/null || echo "0")
-          echo "New COLAs inserted: $COUNT"
+          echo "New COLAs scraped: $COUNT"
 
-          # DISABLED: Pipeline costs money (OCR=$1.50/run, Enrichment=$0.25-5/run)
-          # To re-enable: uncomment the dispatch below and the chain resumes
-          # Images→OCR→Enrichment automatically.
-          #
-          # if [ "$COUNT" -gt 0 ]; then
-          #   echo "Dispatching Post-Scrape Images with limit=1000"
-          #   gh workflow run "Post-Scrape Images" -f limit="1000"
-          # else
-          #   echo "No new COLAs — skipping enrichment pipeline"
-          # fi
-          echo "Pipeline dispatch disabled — new COLAs inserted: $(cat data/sync_inserted_count.txt 2>/dev/null || echo 0)"
+          if [ "$COUNT" -gt 0 ] && ls local-browser/daily_sync/*.json 1>/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add local-browser/daily_sync/*.json
+            git diff --cached --quiet || git commit -m "Daily sync: ${COUNT} new COLAs $(date -u +%Y-%m-%d)"
+            git push
+            echo "Committed ${COUNT} new COLAs to local-browser/daily_sync/"
+          else
+            echo "No new COLA data to commit (count: ${COUNT})"
+          fi
 
       - name: Upload logs
         if: always()

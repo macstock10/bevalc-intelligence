@@ -53,6 +53,7 @@ from lib.d1_utils import (
     add_new_companies,
     get_company_id,
     normalize_company_for_match,
+    classify_category,
 )
 
 # ============================================================================
@@ -97,32 +98,21 @@ D1_BATCH_SIZE = 500
 
 # Validate required env vars
 def validate_config():
-    """Check that all required config is present and initialize D1."""
-    missing = []
-    if not CLOUDFLARE_ACCOUNT_ID:
-        missing.append("CLOUDFLARE_ACCOUNT_ID")
-    if not CLOUDFLARE_D1_DATABASE_ID:
-        missing.append("CLOUDFLARE_D1_DATABASE_ID")
-    if not CLOUDFLARE_API_TOKEN:
-        missing.append("CLOUDFLARE_API_TOKEN")
-
-    if missing:
-        print(f"ERROR: Missing required environment variables: {', '.join(missing)}")
-        print(f"Please create a .env file at: {ENV_FILE}")
-        print(f"With the following content:")
-        print(f"  CLOUDFLARE_ACCOUNT_ID=your_account_id")
-        print(f"  CLOUDFLARE_D1_DATABASE_ID=your_database_id")
-        print(f"  CLOUDFLARE_API_TOKEN=your_api_token")
-        sys.exit(1)
-
-    # Initialize D1 configuration for shared module
-    init_d1_config(
-        account_id=CLOUDFLARE_ACCOUNT_ID,
-        database_id=CLOUDFLARE_D1_DATABASE_ID,
-        api_token=CLOUDFLARE_API_TOKEN,
-        batch_size=D1_BATCH_SIZE,
-        logger=logger
-    )
+    """Check config. D1 no longer required — data flows through JSON export only."""
+    # D1 is DISABLED. No more writes to Cloudflare D1.
+    # If D1 vars happen to be set, init them (for backward compat with classify_new_records
+    # if someone ever re-enables it), but don't require them.
+    if CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_D1_DATABASE_ID and CLOUDFLARE_API_TOKEN:
+        init_d1_config(
+            account_id=CLOUDFLARE_ACCOUNT_ID,
+            database_id=CLOUDFLARE_D1_DATABASE_ID,
+            api_token=CLOUDFLARE_API_TOKEN,
+            batch_size=D1_BATCH_SIZE,
+            logger=logger
+        )
+        logger.info("D1 config loaded (but D1 sync is DISABLED)")
+    else:
+        logger.info("D1 credentials not set — D1 sync disabled (expected)")
 
 # ============================================================================
 # LOGGING SETUP
@@ -809,6 +799,9 @@ def classify_new_records(new_records: List[Dict]) -> Dict:
     logger.info(f"  New SKUs: {stats['new_skus']:,}")
     logger.info(f"  Refiles: {stats['refiles']:,}")
 
+    # Include signal map so callers can access per-record signals
+    stats['signal_map'] = {ttb_id: signal for ttb_id, signal in classifications}
+
     return stats
 
 # ============================================================================
@@ -1080,6 +1073,61 @@ def get_records_from_temp_db(temp_db: str) -> List[Dict]:
     return records
 
 
+def export_records_to_json(records: List[Dict], signal_map: Dict[str, str]) -> str:
+    """
+    Export new COLA records to a JSON file for local DB ingestion via git pull.
+
+    Writes to local-browser/daily_sync/YYYY-MM-DD.json with all scraped fields
+    plus signal classification and category.
+
+    Args:
+        records: List of COLA record dicts from scraper
+        signal_map: Dict mapping ttb_id -> signal (from classify_new_records)
+
+    Returns:
+        Path to the written JSON file, or None if no records
+    """
+    if not records:
+        logger.info("No records to export to JSON")
+        return None
+
+    # Build output directory
+    sync_dir = os.path.join(os.path.dirname(__file__), '..', 'local-browser', 'daily_sync')
+    os.makedirs(sync_dir, exist_ok=True)
+
+    # Use today's date for the filename
+    today = datetime.now().strftime('%Y-%m-%d')
+    output_path = os.path.join(sync_dir, f'{today}.json')
+
+    # If file already exists (e.g. multiple runs in one day), append a counter
+    if os.path.exists(output_path):
+        counter = 2
+        while os.path.exists(os.path.join(sync_dir, f'{today}-{counter}.json')):
+            counter += 1
+        output_path = os.path.join(sync_dir, f'{today}-{counter}.json')
+
+    # Enrich each record with signal and category
+    enriched_records = []
+    for record in records:
+        r = dict(record)  # copy
+        ttb_id = r.get('ttb_id', '')
+        r['signal'] = signal_map.get(ttb_id, 'REFILE')
+        r['category'] = classify_category(r.get('class_type_code', ''))
+        enriched_records.append(r)
+
+    payload = {
+        'exported_at': datetime.now().isoformat(),
+        'count': len(enriched_records),
+        'records': enriched_records,
+    }
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, default=str)
+
+    logger.info(f"Exported {len(enriched_records)} records to {output_path}")
+    return output_path
+
+
 def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, sync_only: bool = False,
                       start_date: datetime = None, end_date: datetime = None):
     """
@@ -1155,49 +1203,29 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
                 os.remove(temp_db)
                 logger.info(f"Removed temp database: {temp_db}")
 
-        # Step 3: Sync records to D1
-        logger.info("\n[STEP 3/4] Syncing to Cloudflare D1...")
-        sync_result = sync_to_d1(DB_PATH, dry_run=dry_run, records_to_sync=new_records)
-        results['sync'] = sync_result
+        # Step 3: D1 sync DISABLED — all data flows through JSON export now.
+        # D1 was costing $2K+/month from unindexed queries. Local SQLite replaces it.
+        logger.info("\n[STEP 3/4] D1 sync DISABLED — using JSON export to local SQLite instead")
+        results['sync'] = {'skipped': True, 'reason': 'D1 disabled — local-only mode'}
 
     else:
-        # Sync-only mode: use slow path (compare everything)
-        logger.info("\n[SYNC ONLY MODE] Comparing local DB to D1...")
-        results['scrape'] = {'skipped': True}
-        results['merge'] = {'skipped': True}
+        # Sync-only mode no longer supported (D1 disabled)
+        logger.error("--sync-only is no longer supported (D1 disabled)")
+        results['sync'] = {'success': False, 'error': 'D1 disabled'}
+        return results
 
-        if not has_local_db:
-            logger.error("Cannot use --sync-only without a local consolidated DB")
-            results['sync'] = {'success': False, 'error': 'No local DB for sync-only mode'}
-            return results
-
-        logger.info("\n[STEP 3/4] Syncing to Cloudflare D1...")
-        sync_result = sync_to_d1(DB_PATH, dry_run=dry_run, records_to_sync=None)
-        results['sync'] = sync_result
-        new_records = sync_result.get('new_records', [])
-    
-    # Step 4: Classify new records
-    logger.info("\n[STEP 4/5] Classifying new records...")
+    # Step 4 (was Step 5): Export records to JSON for local DB sync via git pull
+    # Signal classification happens locally in merge-daily.py against full 2.8M row history
+    logger.info("\n[STEP 4/4] Exporting records to JSON for local sync...")
     if not dry_run and new_records:
-        try:
-            classify_result = classify_new_records(new_records)
-            results['classify'] = classify_result
-
-            # Output brands needing website enrichment
-            output_enrichment_list(new_records, classify_result)
-        except Exception as e:
-            logger.error(f"Classification failed: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            results['classify'] = {'total': 0, 'error': str(e)}
+        # No D1 classification — pass empty signal_map. merge-daily.py re-classifies locally.
+        json_path = export_records_to_json(new_records, {})
+        results['json_export'] = {'path': json_path, 'count': len(new_records)}
+        results['classify'] = {'total': len(new_records), 'note': 'Classification deferred to local merge-daily.py'}
     else:
-        logger.info(f"No new records to classify (dry_run={dry_run}, records={len(new_records) if new_records else 0})")
-        results['classify'] = {'total': 0, 'new_companies': 0, 'new_brands': 0, 'refiles': 0}
-
-    # Step 5: Watchlist alerts (now handled by separate workflow at 11:30am ET)
-    # See: .github/workflows/watchlist-alerts.yml and scripts/send_watchlist_alerts.py
-    logger.info("\n[STEP 5/5] Watchlist alerts...")
-    logger.info("Skipped - alerts sent by separate workflow at 11:30am ET")
+        logger.info("Skipped JSON export (dry run or no new records)")
+        results['json_export'] = {'path': None, 'count': 0}
+        results['classify'] = {'total': 0}
     results['alerts'] = {'matches': 0, 'alerts_sent': 0, 'note': 'Handled by watchlist-alerts.yml'}
     
     # Summary
@@ -1210,31 +1238,18 @@ def run_weekly_update(days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False, 
         logger.info(f"Added to local: {results.get('merge', {}).get('added', 0):,} new COLAs")
         logger.info(f"Local total: {results.get('merge', {}).get('total', 0):,} COLAs")
     
-    logger.info(f"Synced to D1: {sync_result.get('inserted', 0):,} new COLAs")
-    
-    # Classification summary
-    c = results.get('classify', {})
-    if c.get('total', 0) > 0:
-        logger.info(f"Classification:")
-        logger.info(f"  New brands: {c.get('new_brands', 0):,}")
-        logger.info(f"  New SKUs: {c.get('new_skus', 0):,}")
-        logger.info(f"  Refiles: {c.get('refiles', 0):,}")
-        if c.get('new_brand_list'):
-            logger.info(f"  Example new brands: {c['new_brand_list'][:5]}")
-        if c.get('new_sku_list'):
-            logger.info(f"  Example new SKUs: {c['new_sku_list'][:5]}")
-    
-    if sync_result.get('errors'):
-        logger.warning(f"Sync errors: {sync_result['errors']}")
-
-    # Alert summary
-    logger.info("Watchlist Alerts: Sent separately at 11:30am ET")
+    # JSON export summary (D1 sync disabled)
+    json_export = results.get('json_export', {})
+    logger.info(f"Exported to JSON: {json_export.get('count', 0):,} new COLAs")
+    if json_export.get('path'):
+        logger.info(f"  File: {json_export['path']}")
 
     logger.info(f"Completed: {datetime.now()}")
     logger.info("=" * 60)
 
     # Write inserted count for downstream workflows to read
-    inserted = sync_result.get('inserted', 0)
+    # Use JSON export count since D1 sync is disabled
+    inserted = results.get('json_export', {}).get('count', 0)
     count_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'sync_inserted_count.txt')
     os.makedirs(os.path.dirname(count_file), exist_ok=True)
     with open(count_file, 'w') as f:
